@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-theme="atrix-light">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="color-scheme" content="light dark" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+		<title>Atrix</title>
+		<script>
+			{
+				const theme = localStorage.getItem("theme") ?? "system"
+				const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)
+				document.documentElement.dataset.theme = dark ? "atrix-dark" : "atrix-light"
+			}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body>
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

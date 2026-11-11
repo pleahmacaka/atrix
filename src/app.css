@@ -1,0 +1,180 @@
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: false;
+  exclude: join;
+}
+
+@plugin "daisyui/theme" {
+  name: "atrix-light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(99.5% 0.003 260);
+  --color-base-200: oklch(95.5% 0.007 260);
+  --color-base-300: oklch(86% 0.01 260);
+  --raised: oklch(100% 0 0);
+  --color-base-content: oklch(18% 0.02 260);
+  --color-primary: oklch(52% 0.19 268);
+  --color-primary-content: oklch(99% 0 0);
+  --color-secondary: oklch(55% 0.02 260);
+  --color-secondary-content: oklch(99% 0 0);
+  --color-accent: oklch(62% 0.16 200);
+  --color-accent-content: oklch(99% 0 0);
+  --color-neutral: oklch(24% 0.02 260);
+  --color-neutral-content: oklch(98% 0 0);
+  --color-info: oklch(58% 0.16 240);
+  --color-info-content: oklch(99% 0 0);
+  --color-success: oklch(60% 0.15 150);
+  --color-success-content: oklch(99% 0 0);
+  --color-warning: oklch(76% 0.16 70);
+  --color-warning-content: oklch(20% 0 0);
+  --color-error: oklch(58% 0.21 25);
+  --color-error-content: oklch(99% 0 0);
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 0.0625rem;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "atrix-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(13.5% 0.012 265);
+  --color-base-200: oklch(18.5% 0.016 265);
+  --color-base-300: oklch(31% 0.02 265);
+  --raised: oklch(21.5% 0.016 265);
+  --color-base-content: oklch(96% 0.006 260);
+  --color-primary: oklch(70% 0.15 268);
+  --color-primary-content: oklch(16% 0.02 265);
+  --color-secondary: oklch(70% 0.02 260);
+  --color-secondary-content: oklch(12% 0 0);
+  --color-accent: oklch(72% 0.13 200);
+  --color-accent-content: oklch(12% 0 0);
+  --color-neutral: oklch(32% 0.02 265);
+  --color-neutral-content: oklch(98% 0 0);
+  --color-info: oklch(68% 0.14 240);
+  --color-info-content: oklch(12% 0 0);
+  --color-success: oklch(70% 0.15 150);
+  --color-success-content: oklch(12% 0 0);
+  --color-warning: oklch(80% 0.15 75);
+  --color-warning-content: oklch(12% 0 0);
+  --color-error: oklch(66% 0.19 25);
+  --color-error-content: oklch(12% 0 0);
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 0.0625rem;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme inline {
+  --color-raised: var(--raised);
+}
+
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, sans-serif;
+  --font-mono: var(--font-sans);
+  --default-transition-duration: 140ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --default-transition-timing-function: var(--ease-standard);
+}
+
+@utility scroll-stable {
+  scrollbar-gutter: stable;
+}
+
+@utility scroll-centered {
+  scrollbar-gutter: stable both-edges;
+}
+
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+  }
+}
+
+.input,
+.select,
+.textarea {
+  &:focus,
+  &:focus-within,
+  &:focus-visible,
+  &:open {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+}
+
+@custom-variant dark (&:where([data-theme=atrix-dark], [data-theme=atrix-dark] *));
+
+.popover-box {
+  @apply rounded-box border border-base-300 bg-base-100 shadow-lg;
+
+  @variant dark {
+    border-color: color-mix(in oklab, var(--color-base-content) 16%, transparent);
+    background-color: var(--raised);
+    @apply shadow-black/60;
+  }
+}
+
+.modal[open] {
+  background-color: oklch(0% 0 0 / 0.55);
+  backdrop-filter: blur(0.25rem);
+}
+
+.modal-box {
+  background-color: var(--raised);
+  border: var(--border) solid var(--color-base-300);
+}
+
+[data-effect="on"][data-theme="atrix-dark"] {
+  --color-base-100: oklch(13.5% 0.012 265 / 0.6);
+  --color-base-200: oklch(18.5% 0.016 265 / 0.5);
+}
+
+[data-effect="on"][data-theme="atrix-light"] {
+  --color-base-100: oklch(99.5% 0.003 260 / 0.6);
+  --color-base-200: oklch(95.5% 0.007 260 / 0.5);
+}
+
+[data-effect="on"] body {
+  background: transparent;
+}
+
+::highlight(find) {
+  background-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+}
+
+::highlight(find-current) {
+  background-color: var(--color-warning);
+  color: var(--color-warning-content);
+}
+
+.btn-ghost {
+  --btn-rest-fg: currentColor;
+  --btn-fg: currentColor;
+
+  &:hover,
+  &:active:not(.btn-active) {
+    --btn-bg: color-mix(in oklab, currentColor 12%, transparent);
+    --btn-border: transparent;
+  }
+}

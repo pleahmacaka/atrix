@@ -1,0 +1,29 @@
+[package]
+name = "atrix"
+version = "0.1.0"
+description = "Atrix"
+authors = ["ArixLab"]
+license = ""
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+
+[lib]
+name = "atrix_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.12.5", features = ["protocol-asset"] }
+which = "8.0.6"
+tauri-plugin-opener = "2"
+tauri-plugin-http = "2"
+tauri-plugin-oauth = "2.1.0"
+sysinfo = { version = "0.38.4", default-features = false, features = ["system"] }
+toml = "1.2.1"
+sha2 = "0.11.1"
