@@ -1,0 +1,64 @@
+{
+  "id": "nrf52833",
+  "source": [
+    "zephyrproject-rtos/zephyr v4.4.2, dts/arm/nordic/nrf52833.dtsi: SPI/TWI instances, shared addresses (spi0/i2c0 at 0x40003000, spi1/i2c1 at 0x40004000), max-frequency of spi2 (8 MHz) and spi3 (32 MHz), gpio1 ngpios = 10. https://github.com/zephyrproject-rtos/zephyr/blob/v4.4.2/dts/arm/nordic/nrf52833.dtsi",
+    "zephyrproject-rtos/zephyr v4.4.2, boards/qorvo/decawave_dwm3001cdk/{board.cmake, decawave_dwm3001cdk_defconfig, pre_dt_board.cmake, decawave_dwm3001cdk.dts}: runner arguments, defconfig, DTC flags, flash partitions. https://github.com/zephyrproject-rtos/zephyr/tree/v4.4.2/boards/qorvo/decawave_dwm3001cdk",
+    "Nordic nRF52833 Product Specification v1.7: P0.18 is the nRESET pin, P0.09/P0.10 are NFC1/NFC2, SPIM0-2 up to 8 Mbps, SPIM3 up to 32 Mbps. https://docs.nordicsemi.com/bundle/ps_nrf52833/page/keyfeatures_html5.html",
+    "zephyrproject-rtos/zephyr v4.3.0, boards/qorvo/decawave_dwm3001cdk/decawave_dwm3001cdk.yaml: twister arch, ram 128 KB, flash 512 KB, toolchains, SoC-level supported features. https://github.com/zephyrproject-rtos/zephyr/blob/v4.3.0/boards/qorvo/decawave_dwm3001cdk/decawave_dwm3001cdk.yaml"
+  ],
+  "name": "nrf52833",
+  "dtsi": "nordic/nrf52833_qdaa.dtsi",
+  "kconfig": "SOC_NRF52833_QDAA",
+  "arch": "arm",
+  "ramKb": 128,
+  "flashKb": 512,
+  "toolchain": ["zephyr", "gnuarmemb"],
+  "supported": ["adc", "ble", "counter", "gpio", "watchdog"],
+  "ports": { "0": { "node": "gpio0", "pins": 32 }, "1": { "node": "gpio1", "pins": 10 } },
+  "reset": "P0.18",
+  "nfc": ["P0.09", "P0.10"],
+  "spi": [
+    { "node": "spi0", "maxHz": 8000000, "sharesWith": "i2c0" },
+    { "node": "spi1", "maxHz": 8000000, "sharesWith": "i2c1" },
+    { "node": "spi2", "maxHz": 8000000, "sharesWith": null },
+    { "node": "spi3", "maxHz": 32000000, "sharesWith": null }
+  ],
+  "uart": ["uart0", "uart1"],
+  "uartSpeed": 115200,
+  "usb": "usbd",
+  "psel": {
+    "SCK": "SPIM_SCK",
+    "MOSI": "SPIM_MOSI",
+    "MISO": "SPIM_MISO",
+    "TX": "UART_TX",
+    "RX": "UART_RX",
+    "SDA": "TWIM_SDA",
+    "SCL": "TWIM_SCL"
+  },
+  "enable": ["gpiote", "gpio0", "gpio1", "ieee802154", "adc"],
+  "chosen": {
+    "zephyr,sram": "sram0",
+    "zephyr,flash": "flash0",
+    "zephyr,code-partition": "slot0_partition",
+    "zephyr,ieee802154": "ieee802154"
+  },
+  "aliases": { "watchdog0": "wdt0" },
+  "partitions": [
+    { "label": "boot_partition", "name": "mcuboot", "offset": 0, "size": 49152 },
+    { "label": "slot0_partition", "name": "image-0", "offset": 49152, "size": 229376 },
+    { "label": "slot1_partition", "name": "image-1", "offset": 278528, "size": 221184 },
+    { "label": "storage_partition", "name": "storage", "offset": 499712, "size": 24576 }
+  ],
+  "boardCmake": [
+    "board_runner_args(jlink \"--device=nRF52833_xxAA\" \"--speed=4000\")",
+    "board_runner_args(pyocd \"--target=nrf52833\" \"--frequency=4000000\")",
+    "include(${ZEPHYR_BASE}/boards/common/nrfutil.board.cmake)",
+    "include(${ZEPHYR_BASE}/boards/common/nrfjprog.board.cmake)",
+    "include(${ZEPHYR_BASE}/boards/common/jlink.board.cmake)",
+    "include(${ZEPHYR_BASE}/boards/common/pyocd.board.cmake)",
+    "include(${ZEPHYR_BASE}/boards/common/openocd-nrf5.board.cmake)"
+  ],
+  "dtcFlags": ["-Wno-unique_unit_address_if_enabled"],
+  "defconfig": ["CONFIG_ARM_MPU=y", "CONFIG_HW_STACK_PROTECTION=y", "CONFIG_GPIO=y"],
+  "consoleConfig": ["CONFIG_SERIAL=y", "CONFIG_CONSOLE=y", "CONFIG_UART_CONSOLE=y"]
+}
