@@ -32,6 +32,7 @@ import { detectHarnesses, type Harness, type Launch } from "./harnesses.ts"
 import { applyUpdate } from "./items.ts"
 import { ExternalSessions } from "./mirror.ts"
 import { native } from "./native.ts"
+import { SOURCES } from "./sources.ts"
 
 type Frame = { type: "message"; message: acp.AnyMessage } | { type: "exit" }
 
@@ -150,7 +151,10 @@ export class Host {
       this.#home = await homeDir()
       this.#external = new ExternalSessions(
         this.#home,
-        () => this.#changed(),
+        () => {
+          this.#yield().catch(() => {})
+          this.#changed()
+        },
         view => {
           this.#emit({ type: "view", view: structuredClone(view) })
           this.#changed()
@@ -577,15 +581,19 @@ export class Host {
 
     const entry = this.#entry(harness)
     const mirrored = this.#external?.get(sessionId)
-    const elsewhere =
-      entry.kind === "claude" &&
-      !entry.profile &&
-      this.#external?.presence.has(sessionId)
+    const source = entry.profile ? null : entry.kind
+    const elsewhere = !!source && this.#external?.presence.has(sessionId)
 
-    if (this.#external && (mirrored || elsewhere)) {
+    if (this.#external && source && (mirrored || elsewhere)) {
       const listed = await this.#list(harness).catch(() => [])
       const title = listed.find(s => s.sessionId === sessionId)?.title ?? ""
-      const view = await this.#external.open(harness, sessionId, cwd, title)
+      const view = await this.#external.open(
+        source,
+        harness,
+        sessionId,
+        cwd,
+        title,
+      )
 
       this.#changed()
 
@@ -730,6 +738,40 @@ export class Host {
     this.#emit({ type: "view", view: this.#view(session) })
 
     return session
+  }
+
+  #yield = async () => {
+    const external = this.#external
+
+    for (const session of [...this.#sessions.values()]) {
+      const entry = this.#harnesses.find(h => h.id === session.harness)
+      const kind = entry?.profile ? null : entry?.kind
+      const idle = !session.running && !session.handback
+
+      if (!kind || !external || !SOURCES[kind].shared || !idle) {
+        continue
+      }
+
+      if (!external.presence.has(session.id)) {
+        continue
+      }
+
+      this.#sessions.delete(session.id)
+      session.answer?.(null)
+      session.conn.agent
+        .request(acp.methods.agent.session.close, { sessionId: session.id })
+        .catch(() => {})
+
+      const view = await external.open(
+        kind,
+        session.harness,
+        session.id,
+        session.cwd,
+        session.title,
+      )
+
+      this.#emit({ type: "view", view: structuredClone(view) })
+    }
   }
 
   #handback = async (session: Live) => {

@@ -63,6 +63,7 @@ export type SessionView = OpenSession & {
   ask: Ask | null
   config: ConfigChoice[]
   external?: boolean
+  queued?: string[]
 }
 
 export type Patch = Partial<

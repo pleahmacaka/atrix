@@ -5,6 +5,7 @@ import { Marked } from "marked"
 const markdown = new Marked({
   async: false,
   gfm: true,
+  breaks: true,
   extensions: [
     {
       name: "tilde",

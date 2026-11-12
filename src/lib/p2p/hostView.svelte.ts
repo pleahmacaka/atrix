@@ -28,7 +28,35 @@ export class HostView {
     this.#adopt((await this.call({ op: "state" })) as HostState)
   }
 
+  #sought = new Set<string>()
+
+  #listing = new Map<string, Promise<void>>()
+
+  #relist = (state: HostState) => {
+    const known = new Set([
+      ...state.open.map(s => s.id),
+      ...Object.values(this.lists).flatMap(l => l.map(s => s.sessionId)),
+      ...this.#sought,
+    ])
+    const unseen = state.external.filter(e => !known.has(e.id))
+
+    if (unseen.length === 0) {
+      return
+    }
+
+    for (const e of unseen) {
+      this.#sought.add(e.id)
+    }
+
+    for (const h of state.harnesses) {
+      if (h.enabled && h.kind && !h.profile) {
+        this.list(h.id).catch(() => {})
+      }
+    }
+  }
+
   #adopt = (state: HostState) => {
+    const fresh = this.state === null
     const before = this.state?.open ?? []
 
     for (const s of state.open) {
@@ -49,6 +77,26 @@ export class HostView {
         delete this.lists[h.id]
       }
     }
+
+    if (fresh) {
+      for (const e of state.external) {
+        this.#sought.add(e.id)
+      }
+    } else {
+      this.#relist(state)
+    }
+  }
+
+  #target = (sessionId: string) => {
+    const open = this.state?.open.find(s => s.id === sessionId)
+    const listed = Object.entries(this.lists).flatMap(([harness, list]) =>
+      list.filter(l => l.sessionId === sessionId).map(l => ({ harness, ...l })),
+    )[0]
+    return open
+      ? { harness: open.harness, cwd: open.cwd }
+      : listed
+        ? { harness: listed.harness, cwd: listed.cwd }
+        : null
   }
 
   open = async (sessionId: string) => {
@@ -56,15 +104,9 @@ export class HostView {
       return
     }
 
-    const open = this.state?.open.find(s => s.id === sessionId)
-    const listed = Object.entries(this.lists).flatMap(([harness, list]) =>
-      list.filter(l => l.sessionId === sessionId).map(l => ({ harness, ...l })),
-    )[0]
-    const target = open
-      ? { harness: open.harness, cwd: open.cwd }
-      : listed
-        ? { harness: listed.harness, cwd: listed.cwd }
-        : null
+    await Promise.all(this.#listing.values())
+
+    const target = this.#target(sessionId)
 
     if (!target) {
       throw new Error(m.error_session_not_found())
@@ -105,7 +147,21 @@ export class HostView {
   }
 
   list = async (harness: string) => {
-    this.lists[harness] = (await this.call({ op: "list", harness })) as Listed[]
+    const pending = this.call({ op: "list", harness }) as Promise<Listed[]>
+    const settled = pending.then(
+      () => {},
+      () => {},
+    )
+
+    this.#listing.set(harness, settled)
+
+    try {
+      this.lists[harness] = await pending
+    } finally {
+      if (this.#listing.get(harness) === settled) {
+        this.#listing.delete(harness)
+      }
+    }
   }
 
   create = async (harness: string, cwd: string) => {

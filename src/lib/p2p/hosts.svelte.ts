@@ -21,8 +21,8 @@ export const startLocalHost = async () => {
 
   host.subscribe(view.apply)
   sync.serve(host)
-  registry.local = view
   await view.refresh()
+  registry.local = view
 }
 
 export const hostList = (): HostEntry[] => [

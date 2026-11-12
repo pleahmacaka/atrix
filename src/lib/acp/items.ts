@@ -34,6 +34,8 @@ export type ChatItem =
   | { type: "plan"; id: string; entries: PlanEntry[] }
   | ToolItem
 
+export type Log = { items: ChatItem[]; queue: string[]; running: boolean }
+
 export const DETAIL_LIMIT = 4000
 
 const contentText = (content: ToolCallContent[]) =>

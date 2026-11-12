@@ -1,40 +1,29 @@
-import { join } from "@tauri-apps/api/path"
-import { z } from "zod"
-import type { SessionView } from "#lib/p2p/protocol.ts"
-import type { ChatItem } from "./items.ts"
+import type { HarnessKind, SessionView } from "#lib/p2p/protocol.ts"
+import { m } from "#lib/paraglide/messages.js"
+import type { ChatItem, Log } from "./items.ts"
 import { native } from "./native.ts"
-import { applyTranscript } from "./transcript.ts"
+import { SOURCES, type Source } from "./sources.ts"
 
 const POLL_MS = 1500
 
 const TAIL_BYTES = 4_000_000
 
-const presenceRecords = z.array(
-  z
-    .object({
-      sessionId: z.string(),
-      entrypoint: z.string().optional(),
-      status: z.string().optional(),
-    })
-    .loose(),
-)
-
 type Lines = { lines: string[]; offset: number }
 
-type Mirror = {
-  view: SessionView
+type Watch = {
+  source: Source
   path: string
   offset: number
+  log: Log
+  view: SessionView | null
   paused: boolean
+  dirty: boolean
 }
-
-const folderOf = (cwd: string) =>
-  [...cwd].map(c => (/[a-z0-9]/i.test(c) ? c : "-")).join("")
 
 export class ExternalSessions {
   presence = new Map<string, boolean>()
 
-  #mirrors = new Map<string, Mirror>()
+  #watches = new Map<string, Watch>()
 
   #timer: ReturnType<typeof setInterval> | null = null
 
@@ -50,19 +39,19 @@ export class ExternalSessions {
     }, POLL_MS)
   }
 
-  get = (id: string) => this.#mirrors.get(id)?.view
+  get = (id: string) => this.#watches.get(id)?.view ?? undefined
 
-  views = () => [...this.#mirrors.values()].map(m => m.view)
+  views = () => [...this.#watches.values()].flatMap(w => w.view ?? [])
 
   drop = (id: string) => {
-    this.#mirrors.delete(id)
+    this.#watches.delete(id)
   }
 
   pause = (id: string) => {
-    const mirror = this.#mirrors.get(id)
+    const watch = this.#watches.get(id)
 
-    if (mirror) {
-      mirror.paused = true
+    if (watch) {
+      watch.paused = true
     }
   }
 
@@ -73,107 +62,165 @@ export class ExternalSessions {
   }
 
   adopt = async (id: string, items: ChatItem[]) => {
-    const mirror = this.#mirrors.get(id)
+    const watch = this.#watches.get(id)
 
-    if (!mirror) {
+    if (!watch?.view) {
       return
     }
 
-    const { offset } = await native<Lines>("read_lines", {
-      path: mirror.path,
-      offset: mirror.offset,
-      tail: TAIL_BYTES,
-    })
+    const { offset } = await this.#lines(watch)
 
-    mirror.offset = offset
-    mirror.view.items = items
-    mirror.view.running = this.presence.get(id) === true
-    mirror.paused = false
-    this.onItems(mirror.view)
+    watch.offset = offset
+    watch.log.items = items
+    watch.view.items = items
+    watch.view.running = this.presence.get(id) === true
+    watch.paused = false
+    this.onItems(watch.view)
   }
 
-  open = async (harness: string, id: string, cwd: string, title: string) => {
-    const known = this.#mirrors.get(id)
+  open = async (
+    kind: HarnessKind,
+    harness: string,
+    id: string,
+    cwd: string,
+    title: string,
+  ) => {
+    const watch = await this.#watch(SOURCES[kind], id, cwd)
+
+    if (!watch) {
+      throw new Error(m.error_session_not_found())
+    }
+
+    watch.view ??= {
+      id,
+      harness,
+      cwd,
+      title,
+      running: this.presence.get(id) ?? false,
+      items: watch.log.items,
+      ask: null,
+      config: [],
+      external: true,
+      queued: [...watch.log.queue],
+    }
+
+    return watch.view
+  }
+
+  #watch = async (source: Source, id: string, cwd: string) => {
+    const known = this.#watches.get(id)
 
     if (known) {
-      return known.view
+      return known
     }
 
-    const path = await join(
-      this.home,
-      ".claude",
-      "projects",
-      folderOf(cwd),
-      `${id}.jsonl`,
-    )
-    const mirror: Mirror = {
+    const path = await source.locate(this.home, id, cwd)
+
+    if (!path) {
+      return null
+    }
+
+    const watch: Watch = {
+      source,
       path,
       offset: 0,
+      log: { items: [], queue: [], running: false },
+      view: null,
       paused: false,
-      view: {
-        id,
-        harness,
-        cwd,
-        title,
-        running: this.presence.get(id) ?? false,
-        items: [],
-        ask: null,
-        config: [],
-        external: true,
-      },
+      dirty: false,
     }
 
-    this.#mirrors.set(id, mirror)
-    await this.#read(mirror)
+    this.#watches.set(id, watch)
+    await this.#read(watch)
 
-    return mirror.view
+    return watch
   }
 
-  #read = async (mirror: Mirror) => {
-    const { lines, offset } = await native<Lines>("read_lines", {
-      path: mirror.path,
-      offset: mirror.offset,
+  #lines = (watch: Watch) =>
+    native<Lines>("read_lines", {
+      path: watch.path,
+      offset: watch.offset,
       tail: TAIL_BYTES,
     })
 
-    mirror.offset = offset
+  #read = async (watch: Watch) => {
+    const { lines, offset } = await this.#lines(watch)
+
+    watch.offset = offset
 
     if (lines.length === 0) {
-      return false
+      return
     }
-
-    const items: ChatItem[] = mirror.view.items
 
     for (const line of lines) {
-      applyTranscript(items, line)
+      watch.source.apply(watch.log, line)
     }
 
-    return true
+    watch.dirty = true
+
+    if (watch.view) {
+      watch.view.queued = [...watch.log.queue]
+    }
+  }
+
+  #live = async () => {
+    const live = new Map<string, boolean>()
+
+    for (const source of Object.values(SOURCES)) {
+      const found = await source.live().catch(() => new Map())
+
+      for (const [id, busy] of found) {
+        if (busy !== null) {
+          live.set(id, busy)
+          continue
+        }
+
+        const watch = await this.#watch(source, id, "").catch(() => null)
+
+        if (watch && !watch.paused) {
+          await this.#read(watch).catch(() => {})
+        }
+
+        live.set(id, watch?.log.running ?? false)
+      }
+    }
+
+    return live
   }
 
   #poll = async () => {
-    const found = presenceRecords
-      .catch([])
-      .parse(await native<unknown>("claude_presence"))
-      .filter(p => p.entrypoint === "cli")
-    const next = new Map(found.map(p => [p.sessionId, p.status === "busy"]))
+    const next = await this.#live()
     const changed =
       next.size !== this.presence.size ||
       [...next].some(([id, busy]) => this.presence.get(id) !== busy)
 
     this.presence = next
 
-    for (const mirror of this.#mirrors.values()) {
-      if (mirror.paused) {
+    for (const [id, watch] of this.#watches) {
+      if (!watch.view && !next.has(id)) {
+        this.#watches.delete(id)
+      }
+    }
+
+    for (const [id, watch] of this.#watches) {
+      if (!watch.view || watch.paused) {
         continue
       }
 
-      const running = next.get(mirror.view.id) ?? false
-      const grew = await this.#read(mirror).catch(() => false)
+      await this.#read(watch).catch(() => {})
 
-      if (grew || mirror.view.running !== running) {
-        mirror.view.running = running
-        this.onItems(mirror.view)
+      const running = next.get(id) ?? false
+
+      if (!running && watch.log.queue.length > 0) {
+        watch.log.queue.length = 0
+        watch.view.queued = []
+        watch.dirty = true
+      }
+
+      if (watch.dirty || watch.view.running !== running) {
+        watch.dirty = false
+        watch.view.running = running
+        this.onItems(watch.view)
       }
     }
 

@@ -24,6 +24,8 @@ pub fn run() {
             files::remove_path,
             files::read_lines,
             presence::claude_presence,
+            presence::codex_presence,
+            presence::codex_rollout,
             pcb::pcb_project,
             pcb::pcb_read,
             pcb::pcb_files,

@@ -1,5 +1,11 @@
 import { z } from "zod"
-import { appendText, attachFile, type ChatItem, DETAIL_LIMIT } from "./items.ts"
+import {
+  appendText,
+  attachFile,
+  type ChatItem,
+  DETAIL_LIMIT,
+  type Log,
+} from "./items.ts"
 
 const KINDS: Record<string, string> = {
   Bash: "execute",
@@ -55,8 +61,17 @@ const toolResult = z.object({
     .optional(),
 })
 
+const queuedPrompt = z.object({
+  type: z.literal("queued_command"),
+  prompt: z.string(),
+  origin: z.object({ kind: z.literal("human") }),
+})
+
 const record = z.object({
   type: z.string(),
+  attachment: z.unknown().optional(),
+  operation: z.string().optional(),
+  content: z.string().optional(),
   isMeta: z.boolean().optional(),
   isSidechain: z.boolean().optional(),
   message: z
@@ -103,16 +118,53 @@ const parseLine = (line: string) => {
   }
 }
 
-export const applyTranscript = (items: ChatItem[], line: string) => {
+const unqueue = (queue: string[], text: string) => {
+  const at = queue.indexOf(text)
+
+  if (at !== -1) {
+    queue.splice(at, 1)
+  }
+}
+
+const applyQueue = (queue: string[], operation: string, content = "") => {
+  if (operation === "enqueue" && visible(content) && !content.startsWith("/")) {
+    queue.push(content)
+  } else if (operation === "remove") {
+    unqueue(queue, content)
+  } else if (operation === "popAll") {
+    queue.length = 0
+  }
+}
+
+const appendUser = (items: ChatItem[], queue: string[], text: string) => {
+  unqueue(queue, text)
+  appendText(items, "user", text, undefined)
+}
+
+export const applyTranscript = ({ items, queue }: Log, line: string) => {
   const parsed = parseLine(line)
 
-  if (!parsed?.success || !parsed.data.message) {
+  if (!parsed?.success || parsed.data.isSidechain) {
     return
   }
 
-  const { type, isMeta, isSidechain, message } = parsed.data
+  if (parsed.data.type === "queue-operation") {
+    applyQueue(queue, parsed.data.operation ?? "", parsed.data.content)
 
-  if (isMeta || isSidechain || (type !== "user" && type !== "assistant")) {
+    return
+  }
+
+  const queued = queuedPrompt.safeParse(parsed.data.attachment)
+
+  if (queued.success && visible(queued.data.prompt)) {
+    appendUser(items, queue, queued.data.prompt)
+
+    return
+  }
+
+  const { type, isMeta, message } = parsed.data
+
+  if (!message || isMeta || (type !== "user" && type !== "assistant")) {
     return
   }
 
@@ -129,7 +181,7 @@ export const applyTranscript = (items: ChatItem[], line: string) => {
     const image = imageBlock.safeParse(b)
 
     if (text.success && type === "user" && visible(text.data.text)) {
-      appendText(items, "user", text.data.text, undefined)
+      appendUser(items, queue, text.data.text)
     } else if (text.success && type === "assistant") {
       appendText(items, "agent", text.data.text, message.id)
     } else if (thinking.success && thinking.data.thinking.trim()) {

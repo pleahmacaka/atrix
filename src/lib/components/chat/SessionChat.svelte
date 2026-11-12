@@ -159,6 +159,17 @@ const folder = (cwd: string) =>
             <PlanCard entries={segment.item.entries} />
           {/if}
         {/each}
+        {#each view.queued ?? [] as text, i (i)}
+          <div
+            class={[
+              "max-w-xl min-w-0 self-end rounded-box px-4 py-2 opacity-60",
+              "border border-dashed border-base-300",
+              "break-keep whitespace-pre-wrap wrap-anywhere",
+            ]}
+          >
+            {text}
+          </div>
+        {/each}
         {#if view.running && !view.ask}
           <span class="loading loading-dots loading-sm opacity-60"></span>
         {/if}
