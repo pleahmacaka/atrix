@@ -1,15 +1,28 @@
 import { applyUpdate } from "#lib/acp/items.ts"
+import type { Canvas } from "#lib/knowledge/canvas.ts"
+import type { Editable } from "#lib/knowledge/document.ts"
+import type { Patch as KgPatch } from "#lib/knowledge/store.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { settings } from "#lib/store/settings.svelte.ts"
 import { markUnread } from "#lib/store/unread.svelte.ts"
 import type {
   Attachment,
+  Browse,
+  CanvasEntry,
+  Change,
+  Entry,
   HarnessConfig,
   HarnessInfo,
   HostCall,
   HostEvent,
   HostState,
   Listed,
+  Loaded,
+  LoadedCanvas,
+  Saved,
+  SavedCanvas,
   SessionView,
+  Version,
 } from "./protocol.ts"
 
 export class HostView {
@@ -18,6 +31,12 @@ export class HostView {
   views = $state<Record<string, SessionView>>({})
 
   lists = $state<Record<string, Listed[]>>({})
+
+  knowledge = $state<Entry[]>([])
+
+  canvases = $state<CanvasEntry[]>([])
+
+  lastChange = $state<Change | null>(null)
 
   constructor(
     readonly id: string,
@@ -65,7 +84,13 @@ export class HostView {
       }
     }
 
+    const ready = state.knowledge?.ready && !this.state?.knowledge?.ready
+
     this.state = state
+
+    if (ready) {
+      this.loadKnowledge().catch(() => {})
+    }
 
     for (const h of state.harnesses) {
       if (h.enabled && !(h.id in this.lists)) {
@@ -133,6 +158,13 @@ export class HostView {
       return
     }
 
+    if (event.type === "kg") {
+      this.lastChange = event.change
+      this.loadKnowledge().catch(() => {})
+
+      return
+    }
+
     const view = this.views[event.sessionId]
 
     if (!view) {
@@ -145,6 +177,64 @@ export class HostView {
       Object.assign(view, event.patch)
     }
   }
+
+  browse = (path: string) =>
+    this.call({ op: "fs.browse", path }) as Promise<Browse>
+
+  loadKnowledge = async () => {
+    const [docs, canvases] = await Promise.all([
+      this.call({ op: "kg.list" }),
+      this.call({ op: "kg.canvases" }),
+    ])
+
+    this.knowledge = docs as Entry[]
+    this.canvases = canvases as CanvasEntry[]
+  }
+
+  readCanvas = (path: string) =>
+    this.call({ op: "kg.canvas.read", path }) as Promise<LoadedCanvas>
+
+  saveCanvas = (path: string, etag: string | null, canvas: Canvas) =>
+    this.call({
+      op: "kg.canvas.save",
+      path,
+      etag,
+      canvas,
+      device: settings.deviceName,
+    }) as Promise<SavedCanvas>
+
+  readDoc = (ref: string, versionId?: string) =>
+    this.call({ op: "kg.read", ref, versionId }) as Promise<Loaded>
+
+  createDoc = (path: string, fields: Editable, body: string) =>
+    this.call({
+      op: "kg.create",
+      path,
+      fields,
+      body,
+      device: settings.deviceName,
+    }) as Promise<Saved>
+
+  updateDoc = (ref: string, etag: string, patch: KgPatch) =>
+    this.call({
+      op: "kg.update",
+      ref,
+      etag,
+      patch,
+      device: settings.deviceName,
+    }) as Promise<Saved>
+
+  historyDoc = (ref: string) =>
+    this.call({ op: "kg.history", ref }) as Promise<Version[]>
+
+  revertDoc = (ref: string, versionId: string, etag: string) =>
+    this.call({
+      op: "kg.revert",
+      ref,
+      versionId,
+      etag,
+      device: settings.deviceName,
+    }) as Promise<Saved>
 
   list = async (harness: string) => {
     const pending = this.call({ op: "list", harness }) as Promise<Listed[]>

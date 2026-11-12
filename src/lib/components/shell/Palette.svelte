@@ -94,11 +94,11 @@ const sections = $derived.by((): Section[] => {
 
   const actions: Item[] = [
     {
-      key: "harness",
-      icon: "lucide:boxes",
-      label: m.common_harnesses(),
+      key: "agent",
+      icon: "lucide:bot",
+      label: m.shell_page_agent(),
       run: () => {
-        nav.page = "harness"
+        nav.page = "agent"
         close()
       },
     },

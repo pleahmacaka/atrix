@@ -59,7 +59,7 @@ const sessions = (): Recent[] =>
       })),
     )
 
-    return [...open, ...listed.filter(l => !open.some(o => o.key === l.key))]
+    return [...new Map([...listed, ...open].map(r => [r.key, r])).values()]
   })
 
 export const recents = (): Recent[] =>

@@ -10,7 +10,6 @@ import { settings } from "#lib/store/settings.svelte.ts"
 <SettingRow
   icon="lucide:tag"
   title={m.device_name()}
-  hint={m.device_name_hint()}
 >
   <input
     class="input input-sm w-48"
@@ -25,9 +24,6 @@ import { settings } from "#lib/store/settings.svelte.ts"
 <SettingRow
   icon="lucide:boxes"
   title={m.device_runs_harness()}
-  hint={desktop
-    ? m.device_runs_harness_desktop()
-    : m.device_runs_harness_web()}
 >
   <span
     class={[

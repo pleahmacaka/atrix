@@ -1,5 +1,7 @@
 <script lang="ts">
+import DevicesView from "#lib/components/devices/DevicesView.svelte"
 import HarnessView from "#lib/components/harness/HarnessView.svelte"
+import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
 import SettingsSheet from "#lib/components/settings/SettingsSheet.svelte"
 import FindBar from "#lib/components/shell/FindBar.svelte"
 import Palette from "#lib/components/shell/Palette.svelte"
@@ -16,7 +18,7 @@ import { handleShortcut } from "#lib/store/shortcuts.ts"
 
 <svelte:window onkeydown={handleShortcut} oncontextmenu={handleContextMenu} />
 
-<div class="flex h-dvh">
+<div class="flex h-dvh gap-2 bg-base-200 p-2">
   {#if nav.sidebar}
     <Sidebar />
     <button
@@ -28,7 +30,7 @@ import { handleShortcut } from "#lib/store/shortcuts.ts"
   {:else if nav.peek}
     <div
       role="presentation"
-      class="fixed inset-y-0 left-0 z-40 flex shadow-2xl"
+      class="fixed inset-y-0 left-0 z-40 flex p-2"
       onpointerleave={() => {
         nav.peek = false
       }}
@@ -36,15 +38,24 @@ import { handleShortcut } from "#lib/store/shortcuts.ts"
       <Sidebar peek />
     </div>
   {/if}
-  <div class="relative flex min-w-0 flex-1 flex-col bg-base-100">
+  <main
+    class={[
+      "relative flex min-w-0 flex-1 flex-col overflow-hidden",
+      "rounded-box border border-base-300 bg-base-100",
+    ]}
+  >
     <FindBar />
     <TitleBar />
-    {#if nav.page === "harness"}
-      <HarnessView />
-    {:else}
+    {#if nav.page === "chat"}
       <PaneNode node={panes.root} />
+    {:else if nav.page === "agent"}
+      <HarnessView />
+    {:else if nav.page === "knowledge"}
+      <KnowledgeView />
+    {:else}
+      <DevicesView />
     {/if}
-  </div>
+  </main>
 </div>
 
 <Palette />

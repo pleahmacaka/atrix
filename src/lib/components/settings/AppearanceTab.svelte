@@ -8,6 +8,7 @@ import { chooseLanguage, LANGUAGES, languageChoice } from "#lib/store/locale.ts"
 import {
   ACCENTS,
   settings,
+  type Texture,
   type Theme,
   type WindowEffect,
 } from "#lib/store/settings.svelte.ts"
@@ -21,7 +22,12 @@ const THEMES: { id: Theme; label: string; icon: string }[] = [
 const EFFECTS: { id: WindowEffect; label: string; icon: string }[] = [
   { id: "none", label: m.appearance_effect_none(), icon: "lucide:square" },
   { id: "acrylic", label: m.appearance_effect_acrylic(), icon: "lucide:droplet" },
-  { id: "mica", label: m.appearance_effect_mica(), icon: "lucide:layers" },
+]
+
+const TEXTURES: { id: Texture; label: string; icon: string }[] = [
+  { id: "none", label: m.appearance_texture_none(), icon: "lucide:square" },
+  { id: "soft", label: m.appearance_texture_soft(), icon: "lucide:sparkle" },
+  { id: "strong", label: m.appearance_texture_strong(), icon: "lucide:sparkles" },
 ]
 </script>
 
@@ -62,20 +68,38 @@ const EFFECTS: { id: WindowEffect; label: string; icon: string }[] = [
   </div>
 </SettingRow>
 
-<SettingRow
-  icon="lucide:app-window"
-  title={m.appearance_effect()}
-  hint={desktop
-    ? m.appearance_effect_hint()
-    : m.appearance_effect_desktop_only()}
->
-  {#if desktop}
-    <Segmented
-      items={EFFECTS}
-      value={settings.effect}
-      onpick={settings.setEffect}
-    />
-  {:else}
-    <span class="badge badge-ghost whitespace-nowrap">{m.common_unsupported()}</span>
-  {/if}
+<SettingRow icon="lucide:grip" title={m.appearance_texture()}>
+  <Segmented items={TEXTURES} value={settings.texture} onpick={settings.setTexture} />
 </SettingRow>
+
+{#if desktop}
+  <SettingRow icon="lucide:app-window" title={m.appearance_window()}>
+    <div class="flex flex-col items-end gap-3">
+      <Segmented
+        items={EFFECTS}
+        value={settings.effect}
+        onpick={settings.setEffect}
+      />
+      <label
+        class={[
+          "flex items-center gap-3 text-sm transition-opacity",
+          settings.effect === "none" && "opacity-40",
+        ]}
+      >
+        <Icon icon="lucide:blend" class="size-4 text-base-content/60" />
+        {m.appearance_transparency()}
+        <input
+          type="range"
+          class="range range-primary range-xs w-32"
+          min="0"
+          max="70"
+          step="5"
+          disabled={settings.effect === "none"}
+          value={settings.transparency}
+          oninput={e => settings.setTransparency(Number(e.currentTarget.value))}
+        />
+        <span class="w-10 text-end tabular-nums">{settings.transparency}%</span>
+      </label>
+    </div>
+  </SettingRow>
+{/if}

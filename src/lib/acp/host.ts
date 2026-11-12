@@ -1,6 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk"
+import { getVersion } from "@tauri-apps/api/app"
 import { Channel } from "@tauri-apps/api/core"
 import { homeDir } from "@tauri-apps/api/path"
+import type { Actor } from "#lib/knowledge/document.ts"
+import { Knowledge } from "#lib/knowledge/service.ts"
 import type {
   Ask,
   Attachment,
@@ -14,6 +17,8 @@ import type {
   SessionView,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { settings } from "#lib/store/settings.svelte.ts"
+import { Bridge } from "./bridge.ts"
 import {
   createProfileDir,
   envFor,
@@ -30,9 +35,17 @@ import {
 } from "./config.ts"
 import { detectHarnesses, type Harness, type Launch } from "./harnesses.ts"
 import { applyUpdate } from "./items.ts"
+import { Postbox } from "./mail.ts"
 import { ExternalSessions } from "./mirror.ts"
 import { native } from "./native.ts"
 import { SOURCES } from "./sources.ts"
+import {
+  atrixTools,
+  type CreateArgs,
+  type Message,
+  type Reachable,
+  type UpdateArgs,
+} from "./tools.ts"
 
 type Frame = { type: "message"; message: acp.AnyMessage } | { type: "exit" }
 
@@ -62,6 +75,7 @@ const PROFILE = "profile:"
 
 type Conn = {
   agent: acp.ClientContext
+  info: { name: string; version: string } | null
   load: boolean
   list: boolean
   resume: boolean
@@ -140,6 +154,48 @@ export class Host {
 
   #ready: Promise<void> | null = null
 
+  #bridge = new Bridge(caller =>
+    atrixTools(caller, {
+      sessions: id => this.#reachable().filter(s => s.id !== id),
+      send: (id, message) => this.#send(id, message),
+      knowledge: {
+        list: prefix =>
+          this.#knowledge.store.list(prefix).map(e => ({
+            id: e.meta.id,
+            path: e.key,
+            title: e.meta.title,
+            tags: e.meta.tags,
+            etag: e.etag,
+          })),
+        read: async ref => {
+          const { meta, body, etag, key } =
+            await this.#knowledge.store.read(ref)
+
+          return { path: key, etag, frontmatter: meta, body }
+        },
+        history: ref => this.#knowledge.store.history(ref),
+        create: (id, args) => this.#kgCreate(id, args),
+        update: (id, args) => this.#kgUpdate(id, args),
+        watch: (id, ref, on) => this.#knowledge.watch(id, ref, on),
+      },
+    }),
+  )
+
+  #knowledge = new Knowledge({
+    emit: change => this.#emit({ type: "kg", change }),
+    notify: (id, text) => {
+      this.#postbox.notice(id, text).catch(() => {})
+    },
+    changed: () => this.#changed(),
+  })
+
+  #postbox = new Postbox(
+    id =>
+      this.#sessions.get(id)?.running ??
+      this.#external?.presence.get(id) === true,
+    (id, text) => this.#prompt(id, text, []),
+  )
+
   #conns = new Map<string, Promise<Conn>>()
 
   #sessions = new Map<string, Live>()
@@ -161,6 +217,8 @@ export class Host {
         },
       )
       this.#external.start()
+      await this.#bridge.start().catch(() => {})
+      this.#knowledge.start()
       this.#base = await detectHarnesses().catch(() => [])
       this.#profiles = await loadProfiles(this.#home).catch(() => [])
       await this.#build()
@@ -183,6 +241,8 @@ export class Host {
     switch (request.op) {
       case "state":
         return this.#state()
+      case "fs.browse":
+        return native("browse_dirs", { path: request.path })
       case "list":
         return this.#list(request.harness)
       case "new":
@@ -243,6 +303,16 @@ export class Host {
           request.configId,
           request.value,
         )
+      case "kg.list":
+      case "kg.canvases":
+      case "kg.canvas.read":
+      case "kg.canvas.save":
+      case "kg.read":
+      case "kg.history":
+      case "kg.create":
+      case "kg.update":
+      case "kg.revert":
+        return this.#knowledge.handle(request)
     }
   }
 
@@ -268,6 +338,7 @@ export class Host {
       title: s.title,
       running: s.running,
     })),
+    knowledge: this.#knowledge.status,
     external: [...(this.#external?.presence ?? [])].map(([id, busy]) => ({
       id,
       busy,
@@ -486,11 +557,14 @@ export class Host {
         fs: { readTextFile: false, writeTextFile: false },
         terminal: false,
       },
-      clientInfo: { name: "Atrix", version: "0.1.0" },
+      clientInfo: { name: "Atrix", version: await getVersion() },
     })
 
     return {
       agent: connection.agent,
+      info: init.agentInfo
+        ? { name: init.agentInfo.name, version: init.agentInfo.version }
+        : null,
       load: !!init.agentCapabilities?.loadSession,
       list: !!init.agentCapabilities?.sessionCapabilities?.list,
       resume: !!init.agentCapabilities?.sessionCapabilities?.resume,
@@ -559,11 +633,14 @@ export class Host {
 
   #create = async (harness: string, cwd: string) => {
     const conn = await this.#connect(harness)
+    const { token, servers } = this.#bridge.declare()
     const created = await conn.agent.request(acp.methods.agent.session.new, {
       cwd,
-      mcpServers: [],
+      mcpServers: servers,
     })
     const session = this.#register(conn, harness, created.sessionId, cwd)
+
+    this.#bridge.bind(token, created.sessionId)
 
     session.config = choicesOf(created.configOptions ?? [])
     await this.#restore(session)
@@ -614,7 +691,7 @@ export class Host {
       const loaded = await conn.agent.request(acp.methods.agent.session.load, {
         sessionId,
         cwd,
-        mcpServers: [],
+        mcpServers: this.#mcp(sessionId),
       })
 
       session.config = choicesOf(loaded.configOptions ?? [])
@@ -710,7 +787,7 @@ export class Host {
 
         const resumed = await conn.agent.request(
           acp.methods.agent.session.resume,
-          { sessionId, cwd: mirror.cwd, mcpServers: [] },
+          { sessionId, cwd: mirror.cwd, mcpServers: this.#mcp(sessionId) },
         )
 
         session.config = choicesOf(resumed.configOptions ?? [])
@@ -720,7 +797,7 @@ export class Host {
           {
             sessionId,
             cwd: mirror.cwd,
-            mcpServers: [],
+            mcpServers: this.#mcp(sessionId),
           },
         )
 
@@ -846,16 +923,115 @@ export class Host {
           content: { type: "text", text: `\n\n${m.chat_error({ message })}` },
         })
       })
-      .finally(() => {
+      .finally(async () => {
         this.#patch(session, { running: false })
 
         if (session.handback) {
-          this.#handback(session)
+          await this.#handback(session)
         }
+
+        await this.#postbox.drain(sessionId).catch(() => {})
       })
 
     return null
   }
+
+  #mcp = (sessionId: string) => {
+    const { token, servers } = this.#bridge.declare()
+
+    this.#bridge.bind(token, sessionId)
+
+    return servers
+  }
+
+  #reachable = (): Reachable[] =>
+    this.#state().open.map(s => ({
+      id: s.id,
+      title: s.title,
+      harness: s.harness,
+      running: s.running || this.#external?.presence.get(s.id) === true,
+    }))
+
+  #send = async (from: string, { to, text, thread, refs = [] }: Message) => {
+    const all = this.#reachable()
+    const wanted = to.trim().toLowerCase()
+    const byTitle = all.filter(s => s.title.trim().toLowerCase() === wanted)
+    const target =
+      all.find(s => s.id === to) ?? (byTitle.length === 1 ? byTitle[0] : null)
+
+    if (!target) {
+      throw new Error(
+        `unknown_session: no single session matches "${to}"; call list_sessions`,
+      )
+    }
+
+    if (target.id === from) {
+      throw new Error("self_message: a session cannot message itself")
+    }
+
+    const sender = all.find(s => s.id === from)?.title ?? from
+
+    return this.#postbox.post({
+      from,
+      sender,
+      to: target.id,
+      thread,
+      refs,
+      text,
+    })
+  }
+
+  #actorOf = (sessionId: string): Actor => {
+    const live = this.#sessions.get(sessionId)
+    const view = live ?? this.#external?.get(sessionId)
+    const entry = this.#harnesses.find(h => h.id === view?.harness)
+    const vendor =
+      entry?.kind === "claude"
+        ? "anthropic"
+        : entry?.kind === "codex"
+          ? "openai"
+          : "unknown"
+    const model = live?.config.find(o => o.category === "model")?.current
+
+    return {
+      kind: "agent",
+      agent: view?.title || sessionId,
+      session: `atrix:${sessionId}`,
+      device: settings.deviceName || "unknown",
+      harness: live?.conn.info ?? {
+        name: entry?.base ?? "unknown",
+        version: "unknown",
+      },
+      model: { id: model ?? "unknown", vendor },
+      route: [{ kind: "provider", name: vendor }],
+    }
+  }
+
+  #kgCreate = (sessionId: string, { path, body, ...fields }: CreateArgs) =>
+    this.#knowledge.save(() =>
+      this.#knowledge.store.create(
+        path,
+        {
+          title: fields.title,
+          description: fields.description ?? "",
+          tags: fields.tags ?? [],
+          scope: fields.scope ?? "network",
+          links: fields.links ?? [],
+        },
+        body,
+        this.#actorOf(sessionId),
+      ),
+    )
+
+  #kgUpdate = (sessionId: string, { ref, etag, body, ...fields }: UpdateArgs) =>
+    this.#knowledge.save(() =>
+      this.#knowledge.store.update(
+        ref,
+        etag,
+        { fields, body },
+        this.#actorOf(sessionId),
+      ),
+    )
 
   #close = async (sessionId: string) => {
     const session = this.#sessions.get(sessionId)

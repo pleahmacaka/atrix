@@ -90,7 +90,7 @@ const removeProfile = () => {
 </script>
 
 {#if harness}
-  <div class="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-6 pb-6">
+  <div class="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-6 py-6">
     <header class="flex flex-wrap items-center gap-3 pb-4">
       <span class="grid size-10 shrink-0 place-items-center rounded-box bg-base-200">
         <Icon

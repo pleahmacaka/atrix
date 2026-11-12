@@ -1,7 +1,7 @@
 import { DEFAULT_MODEL } from "#lib/chat/chats.svelte.ts"
 import { panes } from "./panes.svelte.ts"
 
-export type Page = "chat" | "harness"
+export type Page = "chat" | "knowledge" | "agent" | "devices"
 
 export type SettingsTab =
   | "appearance"
@@ -25,6 +25,7 @@ const SIDEBAR = "sidebar-open"
 export const nav = $state<{
   page: Page
   harness: { host: string; id: string } | null
+  doc: string | null
   target: Target
   sidebar: boolean
   peek: boolean
@@ -35,6 +36,7 @@ export const nav = $state<{
 }>({
   page: "chat",
   harness: null,
+  doc: null,
   target: { kind: "openrouter", model: DEFAULT_MODEL },
   sidebar: localStorage.getItem(SIDEBAR) !== "false" && innerWidth >= 1024,
   peek: false,

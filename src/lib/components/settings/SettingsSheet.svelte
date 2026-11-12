@@ -48,7 +48,7 @@ const close = () => {
           class={[
             "btn btn-sm justify-start gap-3 border-0 font-normal whitespace-nowrap",
             nav.settingsTab === tab.id
-              ? "bg-primary/15 text-primary"
+              ? "bg-primary/8 text-primary"
               : "btn-ghost text-base-content/75",
           ]}
           aria-current={nav.settingsTab === tab.id ? "page" : undefined}

@@ -4,11 +4,16 @@ import { onMount } from "svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { nav, openConversation, setSidebar } from "#lib/store/nav.svelte.ts"
+import { PAGES } from "#lib/store/pages.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import { describe } from "#lib/store/recent.ts"
 
 const info = $derived(
   panes.leaves.length === 1 ? describe(panes.active.current) : undefined,
+)
+
+const page = $derived(
+  nav.page === "chat" ? null : PAGES.find(p => p.id === nav.page),
 )
 
 let maximized = $state(false)
@@ -35,16 +40,16 @@ onMount(() => {
 </script>
 
 <header
-  class="group flex h-10 shrink-0 items-center gap-1 ps-2 select-none"
+  class={[
+    "flex h-12 shrink-0 items-center gap-1 px-2",
+    "select-none",
+  ]}
   data-tauri-drag-region
 >
   {#if !nav.sidebar}
     <button
       type="button"
-      class={[
-        "btn btn-ghost btn-sm btn-square transition-opacity",
-        "lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100",
-      ]}
+      class="btn btn-ghost btn-sm btn-square"
       aria-label={m.shell_expand_sidebar()}
       title="{m.shell_expand_sidebar()} (Ctrl+B)"
       onclick={() => setSidebar(true)}
@@ -57,10 +62,10 @@ onMount(() => {
       <Icon icon="lucide:panel-left-open" class="size-4" />
     </button>
   {/if}
-  {#if nav.page === "harness"}
+  {#if page}
     <span class="pointer-events-none flex items-center gap-2 px-2 text-sm">
-      <Icon icon="lucide:boxes" class="size-4 opacity-60" />
-      {m.common_harnesses()}
+      <Icon icon={page.icon} class="size-4 opacity-60" />
+      {page.label()}
     </span>
   {:else if info}
     <button
@@ -80,12 +85,7 @@ onMount(() => {
   {/if}
   <span class="h-full flex-1" data-tauri-drag-region></span>
   {#if nav.page === "chat"}
-    <div
-      class={[
-        "flex items-center gap-0.5 transition-opacity",
-        "lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100",
-      ]}
-    >
+    <div class="flex items-center gap-0.5">
       <button
         type="button"
         class="btn btn-ghost btn-sm btn-square"
@@ -116,36 +116,37 @@ onMount(() => {
     </div>
   {/if}
   {#if desktop}
-    <div class="ms-1 flex h-full items-stretch">
+    {#if nav.page === "chat"}
+      <span class="mx-1.5 h-5 w-px bg-base-300"></span>
+    {/if}
+    <div class="flex items-center gap-0.5">
       <button
         type="button"
-        class="grid w-12 cursor-pointer place-items-center hover:bg-base-content/10"
+        class="btn btn-ghost btn-sm btn-square"
         aria-label={m.shell_minimize()}
+        title={m.shell_minimize()}
         onclick={() => win().then(w => w.minimize())}
       >
         <Icon icon="lucide:minus" class="size-4" />
       </button>
       <button
         type="button"
-        class="grid w-12 cursor-pointer place-items-center hover:bg-base-content/10"
+        class="btn btn-ghost btn-sm btn-square"
         aria-label={maximized ? m.shell_restore() : m.shell_maximize()}
+        title={maximized ? m.shell_restore() : m.shell_maximize()}
         onclick={() => win().then(w => w.toggleMaximize())}
       >
         <Icon icon={maximized ? "lucide:copy" : "lucide:square"} class="size-3.5" />
       </button>
       <button
         type="button"
-        class={[
-          "grid w-12 cursor-pointer place-items-center",
-          "hover:bg-error hover:text-error-content",
-        ]}
+        class="btn btn-ghost btn-sm btn-square hover:bg-error hover:text-error-content"
         aria-label={m.common_close()}
+        title={m.common_close()}
         onclick={() => win().then(w => w.close())}
       >
         <Icon icon="lucide:x" class="size-4" />
       </button>
     </div>
-  {:else}
-    <span class="w-2"></span>
   {/if}
 </header>

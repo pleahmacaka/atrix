@@ -5,14 +5,13 @@ import type { Snippet } from "svelte"
 let {
   icon,
   title,
-  hint,
   children,
-}: { icon: string; title: string; hint?: string; children?: Snippet } = $props()
+}: { icon: string; title: string; children?: Snippet } = $props()
 </script>
 
 <div
   class={[
-    "flex items-center gap-4 border-b border-base-300 py-4 last:border-b-0",
+    "flex items-center gap-4 py-3",
     "max-sm:flex-col max-sm:items-stretch",
   ]}
 >
@@ -20,12 +19,7 @@ let {
     <span class="grid size-8 shrink-0 place-items-center rounded-field bg-base-200">
       <Icon {icon} class="size-4 text-base-content/70" />
     </span>
-    <div class="min-w-0">
-      <p class="text-sm font-medium">{title}</p>
-      {#if hint}
-        <p class="mt-0.5 text-xs text-base-content/60">{hint}</p>
-      {/if}
-    </div>
+    <p class="min-w-0 text-sm font-medium">{title}</p>
   </div>
   {@render children?.()}
 </div>

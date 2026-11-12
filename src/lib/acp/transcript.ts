@@ -5,6 +5,7 @@ import {
   type ChatItem,
   DETAIL_LIMIT,
   type Log,
+  type Shell,
 } from "./items.ts"
 
 const KINDS: Record<string, string> = {
@@ -66,6 +67,84 @@ const queuedPrompt = z.object({
   prompt: z.string(),
   origin: z.object({ kind: z.literal("human") }),
 })
+
+const anyQueued = z.object({
+  type: z.literal("queued_command"),
+  prompt: z.string(),
+})
+
+const SHELL_TOOLS = new Set(["Bash", "PowerShell"])
+
+const STOP_TOOLS = new Set(["TaskStop", "KillShell", "KillBash"])
+
+const NOTIFICATION = "<task-notification>"
+
+const between = (text: string, open: string, close: string) => {
+  const start = text.indexOf(open)
+  const end = text.indexOf(close, start + open.length)
+
+  return start === -1 || end === -1
+    ? null
+    : text.slice(start + open.length, end).trim()
+}
+
+const finishShell = (shells: Shell[], text: string) => {
+  if (!text.includes(NOTIFICATION)) {
+    return
+  }
+
+  const status = between(text, "<status>", "</status>")
+  const use = between(text, "<tool-use-id>", "</tool-use-id>")
+  const task = between(text, "<task-id>", "</task-id>")
+
+  if (status && status !== "running") {
+    dropShell(shells, s => s.id === use || (!!task && s.task === task))
+  }
+}
+
+const dropShell = (shells: Shell[], match: (shell: Shell) => boolean) => {
+  const at = shells.findIndex(match)
+
+  if (at !== -1) {
+    shells.splice(at, 1)
+  }
+}
+
+const trackUse = (shells: Shell[], use: z.infer<typeof toolUse>) => {
+  const { input } = use
+
+  if (SHELL_TOOLS.has(use.name) && input.run_in_background === true) {
+    shells.push({
+      id: use.id,
+      task: null,
+      command: String(input.command ?? ""),
+      description: String(input.description ?? ""),
+    })
+  } else if (STOP_TOOLS.has(use.name)) {
+    const task = String(input.task_id ?? input.shell_id ?? "")
+
+    dropShell(shells, s => s.task === task)
+  }
+}
+
+const trackResult = (shells: Shell[], result: z.infer<typeof toolResult>) => {
+  const shell = shells.find(s => s.id === result.tool_use_id)
+  const text = resultText(result.content)
+  const marker = "with ID: "
+
+  if (!shell) {
+    return
+  }
+
+  if (result.is_error || !text.includes(marker)) {
+    dropShell(shells, s => s === shell)
+
+    return
+  }
+
+  shell.task =
+    text.slice(text.indexOf(marker) + marker.length).split(/[\s.]/)[0] || null
+}
 
 const record = z.object({
   type: z.string(),
@@ -141,7 +220,50 @@ const appendUser = (items: ChatItem[], queue: string[], text: string) => {
   appendText(items, "user", text, undefined)
 }
 
-export const applyTranscript = ({ items, queue }: Log, line: string) => {
+export const SHELL_NEEDLES = [
+  "run_in_background",
+  NOTIFICATION,
+  "with ID: ",
+  ...STOP_TOOLS,
+]
+
+export const applyShells = ({ shells }: Log, line: string) => {
+  const parsed = parseLine(line)
+
+  if (!parsed?.success || parsed.data.isSidechain) {
+    return
+  }
+
+  const notice = anyQueued.safeParse(parsed.data.attachment)
+
+  if (notice.success) {
+    finishShell(shells, notice.data.prompt)
+  }
+
+  const { type, message } = parsed.data
+  const content = message?.content ?? []
+  const blocks =
+    typeof content === "string" ? [{ type: "text", text: content }] : content
+
+  for (const b of blocks) {
+    const text = textBlock.safeParse(b)
+    const use = toolUse.safeParse(b)
+    const result = toolResult.safeParse(b)
+
+    if (text.success && type === "user") {
+      finishShell(shells, text.data.text)
+    } else if (use.success) {
+      trackUse(shells, use.data)
+    } else if (result.success) {
+      trackResult(shells, result.data)
+    }
+  }
+}
+
+export const applyTranscript = (
+  { items, queue, shells }: Log,
+  line: string,
+) => {
   const parsed = parseLine(line)
 
   if (!parsed?.success || parsed.data.isSidechain) {
@@ -152,6 +274,12 @@ export const applyTranscript = ({ items, queue }: Log, line: string) => {
     applyQueue(queue, parsed.data.operation ?? "", parsed.data.content)
 
     return
+  }
+
+  const notice = anyQueued.safeParse(parsed.data.attachment)
+
+  if (notice.success) {
+    finishShell(shells, notice.data.prompt)
   }
 
   const queued = queuedPrompt.safeParse(parsed.data.attachment)
@@ -180,6 +308,10 @@ export const applyTranscript = ({ items, queue }: Log, line: string) => {
     const result = toolResult.safeParse(b)
     const image = imageBlock.safeParse(b)
 
+    if (text.success && type === "user") {
+      finishShell(shells, text.data.text)
+    }
+
     if (text.success && type === "user" && visible(text.data.text)) {
       appendUser(items, queue, text.data.text)
     } else if (text.success && type === "assistant") {
@@ -187,6 +319,8 @@ export const applyTranscript = ({ items, queue }: Log, line: string) => {
     } else if (thinking.success && thinking.data.thinking.trim()) {
       appendText(items, "thought", thinking.data.thinking, message.id)
     } else if (use.success) {
+      trackUse(shells, use.data)
+
       const subject = subjectOf(use.data.input)
 
       items.push({
@@ -198,6 +332,7 @@ export const applyTranscript = ({ items, queue }: Log, line: string) => {
         detail: JSON.stringify(use.data.input, null, 2).slice(0, DETAIL_LIMIT),
       })
     } else if (result.success) {
+      trackResult(shells, result.data)
       settle(items, result.data)
     } else if (image.success && type === "user") {
       const source = image.data.source

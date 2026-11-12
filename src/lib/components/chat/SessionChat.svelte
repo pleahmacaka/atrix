@@ -234,6 +234,48 @@ const folder = (cwd: string) =>
           <Icon icon="lucide:folder" class="size-4 opacity-60" />
           {folder(view.cwd)}
         </span>
+        {#if view.shells?.length}
+          <div>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm font-normal text-info"
+              popovertarget="{uid}-shells"
+              style:anchor-name="--{uid}-shells"
+            >
+              <Icon icon="lucide:square-terminal" class="size-4" />
+              {m.chat_shells({ count: view.shells.length })}
+            </button>
+            <div
+              id="{uid}-shells"
+              popover="auto"
+              style:position-anchor="--{uid}-shells"
+              class={[
+                "options popover-box fixed inset-auto m-0 my-2 hidden w-96 flex-col",
+                "open:flex",
+                "gap-1 p-2 text-base-content",
+              ]}
+            >
+              {#each view.shells as shell (shell.id)}
+                <div class="flex items-start gap-2 rounded-field px-2 py-1.5 text-sm">
+                  <span class="loading loading-spinner loading-xs mt-0.5 shrink-0 text-info"></span>
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate" title={shell.description || shell.command}>
+                      {shell.description || shell.command}
+                    </span>
+                    {#if shell.description}
+                      <span
+                        class="truncate text-xs text-base-content/55"
+                        title={shell.command}
+                      >
+                        {shell.command}
+                      </span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
         {#each view.config.filter(isPrimary) as option (option.id)}
           {@render picker(option, true)}
         {/each}

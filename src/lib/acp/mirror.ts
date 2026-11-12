@@ -23,6 +23,8 @@ type Watch = {
 export class ExternalSessions {
   presence = new Map<string, boolean>()
 
+  #shelling = new Set<string>()
+
   #watches = new Map<string, Watch>()
 
   #timer: ReturnType<typeof setInterval> | null = null
@@ -102,6 +104,7 @@ export class ExternalSessions {
       config: [],
       external: true,
       queued: [...watch.log.queue],
+      shells: [],
     }
 
     return watch.view
@@ -124,13 +127,26 @@ export class ExternalSessions {
       source,
       path,
       offset: 0,
-      log: { items: [], queue: [], running: false },
+      log: { items: [], queue: [], running: false, shells: [] },
       view: null,
       paused: false,
       dirty: false,
     }
 
     this.#watches.set(id, watch)
+
+    if (source.head) {
+      const lines = await native<string[]>("grep_head", {
+        path,
+        tail: TAIL_BYTES,
+        needles: source.head.needles,
+      })
+
+      for (const line of lines) {
+        source.head.apply(watch.log, line)
+      }
+    }
+
     await this.#read(watch)
 
     return watch
@@ -165,11 +181,16 @@ export class ExternalSessions {
 
   #live = async () => {
     const live = new Map<string, boolean>()
+    const shelling = new Set<string>()
 
     for (const source of Object.values(SOURCES)) {
       const found = await source.live().catch(() => new Map())
 
-      for (const [id, busy] of found) {
+      for (const [id, { busy, shell }] of found) {
+        if (shell) {
+          shelling.add(id)
+        }
+
         if (busy !== null) {
           live.set(id, busy)
           continue
@@ -184,6 +205,8 @@ export class ExternalSessions {
         live.set(id, watch?.log.running ?? false)
       }
     }
+
+    this.#shelling = shelling
 
     return live
   }
@@ -210,6 +233,20 @@ export class ExternalSessions {
       await this.#read(watch).catch(() => {})
 
       const running = next.get(id) ?? false
+
+      const alive = running || this.#shelling.has(id)
+
+      if (!alive && watch.log.shells.length > 0) {
+        watch.log.shells.length = 0
+      }
+
+      if (
+        JSON.stringify(watch.view.shells ?? []) !==
+        JSON.stringify(watch.log.shells)
+      ) {
+        watch.view.shells = watch.log.shells.map(s => ({ ...s }))
+        watch.dirty = true
+      }
 
       if (!running && watch.log.queue.length > 0) {
         watch.log.queue.length = 0

@@ -23,7 +23,6 @@ const connect = () =>
 <SettingRow
   icon="lucide:key-round"
   title={m.openrouter_account()}
-  hint={m.openrouter_account_hint()}
 >
   {#if local.data.openrouter.key}
     <div class="flex items-center gap-3">

@@ -52,11 +52,11 @@ const drag = (e: PointerEvent) => {
       type="button"
       aria-label={m.shell_resize_pane()}
       class={[
-        "group/resize relative shrink-0 bg-base-300 transition-colors",
+        "group/resize relative shrink-0 bg-base-300/70 transition-colors",
         "hover:bg-primary active:bg-primary",
         node.dir === "row"
-          ? "w-0.5 cursor-col-resize"
-          : "h-0.5 cursor-row-resize",
+          ? "w-px cursor-col-resize"
+          : "h-px cursor-row-resize",
       ]}
       onpointerdown={drag}
     >

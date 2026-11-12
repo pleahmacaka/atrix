@@ -3,7 +3,9 @@ import { desktop } from "#lib/platform.ts"
 
 export type Theme = "system" | "light" | "dark"
 
-export type WindowEffect = "none" | "acrylic" | "mica"
+export type WindowEffect = "none" | "acrylic"
+
+export type Texture = "none" | "soft" | "strong"
 
 export const ACCENTS = [
   { id: "indigo", label: m.accent_indigo(), hue: 268 },
@@ -33,7 +35,15 @@ class Settings {
 
   accent = $state<Accent>(read("accent", "indigo"))
 
-  effect = $state<WindowEffect>(read("window-effect", "none"))
+  effect = $state<WindowEffect>(
+    read<string>("window-effect", "none") === "none" ? "none" : "acrylic",
+  )
+
+  texture = $state<Texture>(read("window-texture", "none"))
+
+  transparency = $state<number>(
+    Number(read("window-transparency", this.effect === "none" ? "0" : "40")),
+  )
 
   setName = (name: string) => {
     this.deviceName = name.trim() || this.deviceName
@@ -53,6 +63,16 @@ class Settings {
   setEffect = (effect: WindowEffect) => {
     this.effect = effect
     localStorage.setItem("window-effect", effect)
+  }
+
+  setTexture = (texture: Texture) => {
+    this.texture = texture
+    localStorage.setItem("window-texture", texture)
+  }
+
+  setTransparency = (percent: number) => {
+    this.transparency = percent
+    localStorage.setItem("window-transparency", String(percent))
   }
 }
 

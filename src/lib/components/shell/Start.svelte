@@ -4,11 +4,11 @@ import Composer from "#lib/components/chat/Composer.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
-import IconInput from "#lib/components/ui/IconInput.svelte"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { local } from "#lib/store/local.svelte.ts"
 import { nav, openConversation } from "#lib/store/nav.svelte.ts"
+import FolderPicker from "./FolderPicker.svelte"
 import TargetPicker from "./TargetPicker.svelte"
 
 const OPENROUTER = "openrouter"
@@ -97,9 +97,8 @@ const ready = $derived(
         {#if nav.target.kind === "openrouter"}
           <ModelInput bind:value={nav.target.model} />
         {:else}
-          <IconInput
-            icon="lucide:folder"
-            label={m.chat_folder()}
+          <FolderPicker
+            host={hostById(nav.target.host)}
             bind:value={nav.target.cwd}
           />
         {/if}

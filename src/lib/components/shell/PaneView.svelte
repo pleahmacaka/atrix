@@ -116,10 +116,9 @@ const HINTS: Record<Zone, string> = {
   {#if split}
     <header
       class={[
-        "flex h-9 shrink-0 items-center gap-2 border-b px-3 text-sm",
-        focused
-          ? "border-primary/50 bg-primary/8"
-          : "border-base-300 text-base-content/60",
+        "flex h-9 shrink-0 items-center gap-2 px-3",
+        "text-xs font-semibold",
+        focused ? "text-primary" : "text-base-content/55",
       ]}
     >
       <Icon icon={info?.icon ?? "lucide:square-pen"} class="size-4 shrink-0 opacity-70" />

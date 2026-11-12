@@ -78,10 +78,10 @@ export const SHORTCUTS: Shortcut[] = [
   {
     keys: ["Ctrl", "Shift", "H"],
     label: m.shortcut_harness(),
-    icon: "lucide:boxes",
+    icon: "lucide:bot",
     matches: e => mod(e) && e.shiftKey && e.key.toLowerCase() === "h",
     run: () => {
-      nav.page = nav.page === "harness" ? "chat" : "harness"
+      nav.page = nav.page === "agent" ? "chat" : "agent"
     },
   },
 ]

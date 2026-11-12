@@ -15,7 +15,7 @@ const applyEffect = async (effect: WindowEffect) => {
   }
 
   await win.setEffects({
-    effects: [effect === "mica" ? Effect.Mica : Effect.Acrylic],
+    effects: [Effect.Acrylic],
   })
 }
 
@@ -41,8 +41,11 @@ export const startAppearance = () =>
 
     $effect(() => {
       const effect = desktop ? settings.effect : "none"
-
-      document.documentElement.dataset.effect = effect === "none" ? "off" : "on"
+      const transparency = desktop ? settings.transparency : 0
+      const root = document.documentElement
+      root.dataset.effect = effect === "none" ? "off" : "on"
+      root.dataset.texture = settings.texture
+      root.style.setProperty("--surface", String(1 - transparency / 100))
 
       if (desktop) {
         applyEffect(effect).catch(console.error)

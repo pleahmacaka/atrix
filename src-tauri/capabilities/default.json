@@ -19,6 +19,9 @@
       "allow": [
         {
           "url": "https://cdn.agentclientprotocol.com/*"
+        },
+        {
+          "url": "http://127.0.0.1:*/*"
         }
       ]
     }

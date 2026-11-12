@@ -178,3 +178,95 @@ pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Resul
         offset: position,
     })
 }
+
+#[tauri::command]
+pub fn grep_head(
+    app: AppHandle,
+    path: String,
+    tail: u64,
+    needles: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let path = allowed(&app, &path)?;
+    let file = match fs::File::open(&path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e.to_string()),
+    };
+    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    let end = size.saturating_sub(tail);
+    let mut reader = BufReader::new(file);
+    let mut line = Vec::new();
+    let mut position = 0;
+    let mut found = Vec::new();
+
+    while position < end {
+        line.clear();
+
+        let read = reader
+            .read_until(b'\n', &mut line)
+            .map_err(|e| e.to_string())?;
+
+        if read == 0 {
+            break;
+        }
+
+        position += read as u64;
+
+        let text = String::from_utf8_lossy(&line);
+
+        if needles.iter().any(|n| text.contains(n.as_str())) {
+            found.push(text.into_owned());
+        }
+    }
+
+    Ok(found)
+}
+
+#[derive(Serialize)]
+pub struct Dir {
+    name: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+pub struct Browse {
+    path: String,
+    parent: Option<String>,
+    dirs: Vec<Dir>,
+}
+
+#[tauri::command]
+pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse, String> {
+    let dir = if path.trim().is_empty() {
+        app.path().home_dir().map_err(|e| e.to_string())?
+    } else {
+        PathBuf::from(path.trim())
+    };
+
+    if !dir.is_dir() {
+        return Err(format!("not_a_folder:{}", dir.display()));
+    }
+
+    let mut dirs: Vec<Dir> = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+
+            Some(Dir {
+                path: e.path().to_string_lossy().into_owned(),
+                name,
+            })
+        })
+        .filter(|d| !d.name.starts_with('.') && !d.name.starts_with('$'))
+        .collect();
+
+    dirs.sort_by_key(|d| d.name.to_lowercase());
+
+    Ok(Browse {
+        path: dir.to_string_lossy().into_owned(),
+        parent: dir.parent().map(|p| p.to_string_lossy().into_owned()),
+        dirs,
+    })
+}

@@ -44,7 +44,6 @@ const connect = () =>
   <SettingRow
     icon="lucide:ticket"
     title={m.sync_issue()}
-    hint={m.sync_issue_hint()}
   >
     <div class="flex items-center gap-2">
       <IconSelect
@@ -134,7 +133,6 @@ const connect = () =>
   <SettingRow
     icon="lucide:unlink"
     title={m.sync_leave()}
-    hint={m.sync_leave_hint()}
   >
     <button
       type="button"
@@ -150,7 +148,6 @@ const connect = () =>
   <SettingRow
     icon="lucide:sparkles"
     title={m.sync_start()}
-    hint={m.sync_start_hint()}
   >
     <button
       type="button"
@@ -165,7 +162,6 @@ const connect = () =>
   <SettingRow
     icon="lucide:link"
     title={m.sync_join()}
-    hint={m.sync_join_hint()}
   >
     <form
       class="flex w-72 gap-2 max-sm:w-full"
