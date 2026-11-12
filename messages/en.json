@@ -498,5 +498,7 @@
   "pcb_sim_replay": "Play from start",
   "pcb_sim_time": "{time} / {duration} s",
   "pcb_sim_slowmo": "Slow motion {factor}x",
-  "pcb_sim_empty": "No RealSIM"
+  "pcb_sim_empty": "No RealSIM",
+  "select_older": "Older versions",
+  "select_older_count": "Older versions ({count})"
 }

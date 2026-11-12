@@ -24,6 +24,7 @@ let {
   onbeforetoggle,
   option,
   header,
+  footer,
   ...rest
 }: {
   id: string
@@ -40,6 +41,7 @@ let {
   onbeforetoggle?: (e: ToggleEvent) => void
   option: Snippet<[T]>
   header?: Snippet
+  footer?: Snippet
 } & Omit<HTMLAttributes<HTMLDivElement>, "id" | "title" | "onbeforetoggle"> =
   $props()
 
@@ -219,6 +221,8 @@ const toggle = (e: ToggleEvent) => {
         <p class="px-2 py-6 text-center text-sm text-base-content/50">{m.common_no_results()}</p>
       {/each}
     </div>
+
+    {@render footer?.()}
   {/if}
 </div>
 

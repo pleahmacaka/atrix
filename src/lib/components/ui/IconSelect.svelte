@@ -2,7 +2,12 @@
 import Icon from "@iconify/svelte"
 import Select, { type SelectOption } from "./Select.svelte"
 
-export type Choice = { value: string; name: string; detail?: string }
+export type Choice = {
+  value: string
+  name: string
+  detail?: string
+  older?: boolean
+}
 
 export type ChoiceGroup = { label: string; choices: Choice[] }
 
@@ -29,7 +34,12 @@ let {
 } = $props()
 
 const options = $derived<SelectOption<string>[]>([
-  ...choices.map(c => ({ value: c.value, label: c.name, detail: c.detail })),
+  ...choices.map(c => ({
+    value: c.value,
+    label: c.name,
+    detail: c.detail,
+    older: c.older,
+  })),
   ...groups.flatMap(g =>
     g.choices.map(c => ({
       value: c.value,

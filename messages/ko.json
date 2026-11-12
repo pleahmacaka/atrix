@@ -498,5 +498,7 @@
   "pcb_sim_replay": "처음부터 재생",
   "pcb_sim_time": "{time} / {duration}초",
   "pcb_sim_slowmo": "슬로모션 {factor}배",
-  "pcb_sim_empty": "RealSIM 없음"
+  "pcb_sim_empty": "RealSIM 없음",
+  "select_older": "이전 버전",
+  "select_older_count": "이전 버전 {count}개"
 }

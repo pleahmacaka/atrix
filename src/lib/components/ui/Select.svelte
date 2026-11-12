@@ -6,6 +6,7 @@ export type SelectOption<T> = {
   detail?: string
   keywords?: string[]
   disabled?: string
+  older?: boolean
 }
 </script>
 
@@ -55,16 +56,27 @@ let seed = ""
 
 let active = $state(-1)
 
+let expanded = $state(false)
+
 const selected = $derived(options.find(o => o.value === value))
+
+const older = $derived(options.filter(o => o.older).length)
+
+const folded = $derived(
+  older > 0 && !expanded && !selected?.older && query.trim() === "",
+)
 
 const groups = $derived.by(() => {
   const q = query.trim().toLowerCase()
 
-  const found = options.filter(o =>
-    [o.label, o.detail ?? "", o.group ?? "", ...(o.keywords ?? [])].some(t =>
-      t.toLowerCase().includes(q),
-    ),
-  )
+  const found = options
+    .filter(o => !(folded && o.older))
+    .filter(o =>
+      [o.label, o.detail ?? "", o.group ?? "", ...(o.keywords ?? [])].some(t =>
+        t.toLowerCase().includes(q),
+      ),
+    )
+    .map(o => (o.older ? { ...o, group: m.select_older() } : o))
 
   return Object.entries(groupBy(found, o => o.group ?? "")).map(
     ([name, items]) => ({ name, items }),
@@ -85,6 +97,7 @@ const choose = (option: SelectOption<T>) => {
 const toggled = async (e: ToggleEvent) => {
   if (e.newState === "closed") {
     open = false
+    expanded = false
 
     if (pop()?.contains(document.activeElement)) {
       trigger?.focus()
@@ -232,6 +245,26 @@ const leave = (e: FocusEvent) => {
         onkeydown={navigate}
       />
     </label>
+  {/snippet}
+
+  {#snippet footer()}
+    {#if folded}
+      <button
+        type="button"
+        class={[
+          "mx-1 mb-1 flex min-h-8 cursor-pointer items-center gap-2 rounded-field px-2",
+          "text-sm text-base-content/60 hover:bg-base-content/10",
+        ]}
+        onpointerdown={e => e.preventDefault()}
+        onclick={() => (expanded = true)}
+      >
+        <Icon icon="lucide:history" class="size-4 shrink-0" />
+        <span class="min-w-0 flex-1 truncate text-left">
+          {m.select_older_count({ count: older })}
+        </span>
+        <Icon icon="lucide:chevron-right" class="size-4 shrink-0" />
+      </button>
+    {/if}
   {/snippet}
 
   {#snippet option(o)}

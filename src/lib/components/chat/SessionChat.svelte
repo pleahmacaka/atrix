@@ -17,6 +17,7 @@ import Attachments from "./Attachments.svelte"
 import Composer from "./Composer.svelte"
 import CopyButton from "./CopyButton.svelte"
 import Markdown from "./Markdown.svelte"
+import { olderModels } from "./models.ts"
 import PlanCard from "./PlanCard.svelte"
 import ToolGroup from "./ToolGroup.svelte"
 
@@ -98,12 +99,17 @@ const folder = (cwd: string) =>
 </script>
 
 {#snippet picker(option: ConfigChoice, ghost: boolean)}
+  {@const older = option.category === "model" ? olderModels(option.values) : null}
   <IconSelect
     icon={OPTION_ICONS[option.category ?? ""] ?? "lucide:settings-2"}
     label={option.name}
     {ghost}
     value={option.current}
-    choices={option.values.map(v => ({ value: v.value, name: v.name }))}
+    choices={option.values.map(v => ({
+      value: v.value,
+      name: v.name,
+      older: older?.has(v.name),
+    }))}
     disabled={view?.running}
     onchange={value =>
       attempt(() => host.configure(sessionId, option.id, value))}
