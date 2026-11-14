@@ -124,6 +124,25 @@ export class Knowledge {
         return store.list()
       case "kg.canvases":
         return store.canvasList()
+      case "kg.folders":
+        return store.folderList()
+      case "kg.apps":
+        return store.appList()
+      case "kg.object.read":
+        return store.readObject(request.key)
+      case "kg.object.write":
+        return store.writeObject(
+          request.key,
+          request.etag,
+          request.value,
+          human(request.device),
+        )
+      case "kg.folder.create":
+        return store.createFolder(request.path, human(request.device))
+      case "kg.remove":
+        return store.remove(request.path, human(request.device))
+      case "kg.move":
+        return store.move(request.from, request.to, human(request.device))
       case "kg.canvas.read":
         return store.readCanvas(request.path)
       case "kg.canvas.save":

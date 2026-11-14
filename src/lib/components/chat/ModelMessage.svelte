@@ -1,6 +1,8 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import type { UIMessage } from "ai"
+import { appTitleOf } from "#lib/apps/app.ts"
+import { apps } from "#lib/apps/apps.svelte.ts"
 import { blocksOf } from "#lib/chat/blocks.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
@@ -9,7 +11,10 @@ import CopyButton from "./CopyButton.svelte"
 import Markdown from "./Markdown.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
-let { message }: { message: UIMessage } = $props()
+let {
+  message,
+  onAction,
+}: { message: UIMessage; onAction?: (text: string) => void } = $props()
 
 const mine = $derived(message.role === "user")
 
@@ -68,7 +73,11 @@ const text = $derived(
     {:else if part.type === "tool-show_ui"}
       {@const blocks = blocksOf(part)}
       {#if blocks}
-        <UiBlocks {blocks} />
+        <UiBlocks
+          {blocks}
+          {onAction}
+          onSave={b => apps.save(appTitleOf(b, ""), b)}
+        />
       {:else if part.state === "output-error"}
         <p class="text-sm text-error">{m.chat_view_failed()}</p>
       {:else}

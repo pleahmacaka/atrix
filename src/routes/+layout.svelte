@@ -3,10 +3,11 @@ import { m } from "#lib/paraglide/messages.js"
   import "../app.css";
   import "virtual:iconify-embed";
   import { onMount, type Snippet } from "svelte";
+  import { startLogging } from "#lib/logging.ts";
   import { startLocalHost } from "#lib/p2p/hosts.svelte.ts";
   import { sync } from "#lib/p2p/sync.svelte.ts";
   import { startAppearance } from "#lib/store/appearance.svelte.ts"
-  import { setOpenRouterKey } from "#lib/store/auth.ts";
+  import { connectOpenRouter } from "#lib/store/gateways.svelte.ts";
   import { local } from "#lib/store/local.svelte.ts";
 import { currentLocale } from "#lib/store/locale.ts";
   import { captureCallback, finishCallback } from "#lib/store/openrouter.ts";
@@ -18,6 +19,7 @@ import { currentLocale } from "#lib/store/locale.ts";
   failure = e instanceof Error ? e.message : String(e)
 }
 
+startLogging()
 startAppearance()
 
 document.documentElement.lang = currentLocale()
@@ -32,7 +34,7 @@ document.documentElement.lang = currentLocale()
     const key = await finishCallback()
 
       if (key) {
-      await setOpenRouterKey(key)
+      await connectOpenRouter(key)
       }
 
       if (local.data.sync) {

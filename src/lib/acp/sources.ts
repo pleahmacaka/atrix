@@ -1,12 +1,16 @@
 import { join } from "@tauri-apps/api/path"
 import { z } from "zod"
-import type { HarnessKind } from "#lib/p2p/protocol.ts"
+import type { HarnessKind, Listed } from "#lib/p2p/protocol.ts"
 import type { Log } from "./items.ts"
 import { native } from "./native.ts"
 import { applyRollout } from "./rollout.ts"
 import { applyShells, applyTranscript, SHELL_NEEDLES } from "./transcript.ts"
 
-export type Presence = { busy: boolean | null; shell: boolean }
+export type Presence = {
+  busy: boolean | null
+  shell: boolean
+  listing?: Listed
+}
 
 export type Source = {
   shared: boolean
@@ -20,11 +24,16 @@ const claudeRecords = z.array(
   z
     .object({
       sessionId: z.string(),
+      cwd: z.string().catch(""),
+      name: z.string().catch(""),
+      updatedAt: z.number().optional(),
       entrypoint: z.string().optional(),
       status: z.string().optional(),
     })
     .loose(),
 )
+
+const MIRRORED = new Set(["cli", "claude-desktop"])
 
 const folderOf = (cwd: string) =>
   [...cwd].map(c => (/[a-z0-9]/i.test(c) ? c : "-")).join("")
@@ -36,10 +45,21 @@ const claude: Source = {
       claudeRecords
         .catch([])
         .parse(await native<unknown>("claude_presence"))
-        .filter(p => p.entrypoint === "cli")
+        .filter(p => MIRRORED.has(p.entrypoint ?? ""))
         .map(p => [
           p.sessionId,
-          { busy: p.status === "busy", shell: p.status === "shell" },
+          {
+            busy: p.status === "busy",
+            shell: p.status === "shell",
+            listing: {
+              sessionId: p.sessionId,
+              cwd: p.cwd,
+              title: p.name,
+              updatedAt: p.updatedAt
+                ? new Date(p.updatedAt).toISOString()
+                : null,
+            },
+          },
         ]),
     ),
   locate: (home, id, cwd) =>

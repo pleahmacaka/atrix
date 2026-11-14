@@ -71,7 +71,13 @@ export class Bridge {
       headers,
       body: method === "GET" || method === "HEAD" ? undefined : body,
     })
-    const response = this.#tokens.has(tokenOf(request.headers))
+    const known = this.#tokens.has(tokenOf(request.headers))
+
+    if (!known) {
+      console.warn("mcp bridge rejected an unknown token", method, url)
+    }
+
+    const response = known
       ? await this.#handler.fetch(request)
       : new Response(null, { status: 401 })
 

@@ -2,8 +2,6 @@ import type { UIMessage } from "ai"
 import { m } from "#lib/paraglide/messages.js"
 import { local } from "#lib/store/local.svelte.ts"
 
-export const DEFAULT_MODEL = "openrouter/auto"
-
 const TITLE_LIMIT = 60
 
 export const titleOf = (messages: UIMessage[]) => {
@@ -28,12 +26,13 @@ class Chats {
 
   find = (id: string) => local.data.chats.find(c => c.id === id)
 
-  create = (model: string) => {
+  create = (gateway: string, model: string) => {
     const id = crypto.randomUUID()
 
     local.data.chats.push({
       id,
       title: m.chat_new_title(),
+      gateway,
       model,
       messages: [],
       at: Date.now(),

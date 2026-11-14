@@ -27,9 +27,14 @@ pub struct Bridge {
     pending: Arc<Mutex<HashMap<u64, Request>>>,
 }
 
-fn incoming(id: u64, request: &mut Request) -> Incoming {
+pub(crate) fn incoming(id: u64, request: &mut Request) -> Incoming {
     let mut body = String::new();
-    let _ = request.as_reader().read_to_string(&mut body);
+    let upgrade = request.headers().iter().any(|h| h.field.equiv("Upgrade"));
+
+    // tiny_http hands an upgrade request the raw connection as its body, so reading it blocks forever
+    if !upgrade {
+        let _ = request.as_reader().read_to_string(&mut body);
+    }
 
     Incoming {
         id,

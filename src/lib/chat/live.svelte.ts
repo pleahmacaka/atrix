@@ -1,4 +1,3 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { Chat } from "@ai-sdk/svelte"
 import {
   type ChatTransport,
@@ -9,12 +8,16 @@ import {
   type UIMessage,
 } from "ai"
 import { m } from "#lib/paraglide/messages.js"
+import {
+  findGateway,
+  modelIdsOf,
+  OPENROUTER_ID,
+  providerFor,
+} from "#lib/store/gateways.svelte.ts"
 import { local, type StoredChat } from "#lib/store/local.svelte.ts"
 import { markUnread } from "#lib/store/unread.svelte.ts"
 import { SHOW_UI, showUiInput, UI_INSTRUCTIONS } from "./blocks.ts"
 import { titleOf } from "./chats.svelte.ts"
-
-const API = "https://openrouter.ai/api/v1"
 
 const showUi = tool({
   description:
@@ -27,22 +30,18 @@ const TOOLS = { [SHOW_UI]: showUi }
 
 export type ChatMessage = UIMessage<unknown, never, InferUITools<typeof TOOLS>>
 
-const agentFor = (model: string) => {
-  const key = local.data.openrouter.key
+export const gatewayOf = (stored: StoredChat) =>
+  findGateway(stored.gateway ?? OPENROUTER_ID)
 
-  if (!key) {
-    throw new Error(m.chat_openrouter_missing())
+const agentFor = (stored: StoredChat) => {
+  const gateway = gatewayOf(stored)
+
+  if (!gateway) {
+    throw new Error(m.chat_gateway_missing())
   }
 
-  const provider = createOpenAICompatible({
-    name: "openrouter",
-    baseURL: API,
-    apiKey: key,
-    headers: { "X-Title": "Atrix" },
-  })
-
   return new ToolLoopAgent({
-    model: provider(model),
+    model: providerFor(gateway)(stored.model),
     instructions: UI_INSTRUCTIONS,
     tools: TOOLS,
   })
@@ -50,25 +49,14 @@ const agentFor = (model: string) => {
 
 const transportFor = (stored: StoredChat): ChatTransport<ChatMessage> => ({
   sendMessages: options =>
-    new DirectChatTransport({ agent: agentFor(stored.model) }).sendMessages(
-      options,
-    ),
+    new DirectChatTransport({ agent: agentFor(stored) }).sendMessages(options),
   reconnectToStream: async () => null,
 })
 
-let models: Promise<string[]> | null = null
+export const modelIds = async (gatewayId: string) => {
+  const gateway = findGateway(gatewayId)
 
-export const modelIds = () => {
-  models ??= fetch(`${API}/models`)
-    .then(r => r.json())
-    .then((body: { data: { id: string }[] }) => body.data.map(m => m.id))
-    .catch(() => {
-      models = null
-
-      return []
-    })
-
-  return models
+  return gateway ? modelIdsOf(gateway) : []
 }
 
 const live = new WeakMap<StoredChat, Chat<ChatMessage>>()

@@ -1,9 +1,29 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import type { Block } from "#lib/chat/blocks.ts"
+import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
+import FormBlock from "./FormBlock.svelte"
+import QueryBlock from "./QueryBlock.svelte"
 
-let { blocks }: { blocks: Block[] } = $props()
+let {
+  blocks,
+  onAction,
+  onSave,
+}: {
+  blocks: Block[]
+  onAction?: (text: string) => void
+  onSave?: (blocks: Block[]) => Promise<unknown>
+} = $props()
+
+let saved = $state(false)
+
+const save = async () => {
+  if (onSave && !saved) {
+    await onSave(blocks)
+    saved = true
+  }
+}
 
 const number = new Intl.NumberFormat(getLocale())
 
@@ -66,6 +86,23 @@ const widthOf = (value: number, bars: { value: number }[]) => {
               </li>
             {/each}
           </ul>
+        {:else if block.type === "actions"}
+          <div class="flex flex-wrap gap-2">
+            {#each block.buttons as button, i (i)}
+              <button
+                type="button"
+                class="btn btn-sm"
+                disabled={!onAction}
+                onclick={() => onAction?.(button.reply)}
+              >
+                {button.label}
+              </button>
+            {/each}
+          </div>
+        {:else if block.type === "form"}
+          <FormBlock {block} {onAction} />
+        {:else if block.type === "query"}
+          <QueryBlock {block} />
         {:else if block.type === "links"}
           <div class="flex flex-wrap gap-2">
             {#each block.links as link, i (i)}
@@ -82,7 +119,22 @@ const widthOf = (value: number, bars: { value: number }[]) => {
         {/if}
 {/snippet}
 
-<div class="flex flex-col gap-3">
+<div class="relative flex flex-col gap-3">
+  {#if onSave}
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs btn-square absolute top-2 right-2 z-10"
+      aria-label={saved ? m.apps_saved() : m.apps_save()}
+      title={saved ? m.apps_saved() : m.apps_save()}
+      disabled={saved}
+      onclick={save}
+    >
+      <Icon
+        icon={saved ? "lucide:bookmark-check" : "lucide:bookmark-plus"}
+        class="size-4"
+      />
+    </button>
+  {/if}
   {#each blocks as block, index (index)}
     <section class="min-w-0 rounded-box border border-base-300 bg-raised p-4">
       {#if block.type === "card"}

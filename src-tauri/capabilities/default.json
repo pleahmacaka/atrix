@@ -12,6 +12,15 @@
     "core:window:allow-start-dragging",
     "core:window:allow-set-effects",
     "opener:allow-open-url",
+    "log:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$HOME/.atrix"
+        }
+      ]
+    },
     "oauth:allow-start",
     "oauth:allow-cancel",
     {

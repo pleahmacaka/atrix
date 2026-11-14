@@ -17,6 +17,7 @@
         "@tanstack/svelte-query": "^6.4.1",
         "@tauri-apps/api": "^2.12.4",
         "@tauri-apps/plugin-http": "~2",
+        "@tauri-apps/plugin-log": "^2.10.2",
         "@tauri-apps/plugin-opener": "~2",
         "@threlte/core": "^8.7.0",
         "@threlte/extras": "^9.23.1",
@@ -36,6 +37,7 @@
         "d3-zoom": "^3.0.1",
         "diff": "^9.0.0",
         "dompurify": "^3.4.17",
+        "drizzle-orm": "^0.45.4",
         "es-toolkit": "^1.53.2",
         "fflate": "^0.8.3",
         "idb-keyval": "^6.3.0",
@@ -51,8 +53,11 @@
       "devDependencies": {
         "@biomejs/biome": "^2.6.6",
         "@gltf-transform/cli": "4.5.1",
+        "@iconify-json/devicon-plain": "^1.2.71",
+        "@iconify-json/logos": "^1.2.20",
         "@iconify-json/lucide": "^1.2.153",
         "@iconify-json/simple-icons": "^1.2.102",
+        "@iconify-json/thesvg": "^1.2.15",
         "@inlang/paraglide-js": "^3.2.2",
         "@inlang/plugin-message-format": "^4.6.0",
         "@sveltejs/adapter-static": "^4.0.1",
@@ -162,9 +167,15 @@
 
     "@gltf-transform/functions": ["@gltf-transform/functions@4.5.1", "", { "dependencies": { "@gltf-transform/core": "^4.5.1", "@gltf-transform/extensions": "^4.5.1", "ktx-parse": "^1.1.0", "ndarray": "^1.0.19", "ndarray-lanczos": "^0.3.0", "ndarray-pixels": "^5.2.0" } }, "sha512-rfm4nQY2DJ+ip1e15xp7YfQwhRno3kPLcGw4EZiRk1dVwMV3cdFMcF08glYcO/+oLyYkUEs3xXMJYXa0cPgcTg=="],
 
+    "@iconify-json/devicon-plain": ["@iconify-json/devicon-plain@1.2.71", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-yEkkBHc0nuHx0nQYnJZuiyDl7pVulX8oKhd/zmM1rRZOiz9HJ6OB3B6uyv9UKoxx/eWbmKUmkyY9xvQ90rm8lQ=="],
+
+    "@iconify-json/logos": ["@iconify-json/logos@1.2.20", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-HDSte2/+sgGNn9i/eYMiIRDbdigWxZe6EFauQGtxfRG/4sUtUBFgLIdxotKQysKNsFJlLYDFzPILOs3mh9viRQ=="],
+
     "@iconify-json/lucide": ["@iconify-json/lucide@1.2.153", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-fvb2SSbCxsj6CPUl2adKGWavwV90GvCd8zT/SnW0kd4Eg/Jc/ISQPbYuFjPFOiK7ohOgDWUMGeTIzxMDDMEoHQ=="],
 
     "@iconify-json/simple-icons": ["@iconify-json/simple-icons@1.2.102", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-IwbAj1ZI6LBy+qU7sVYxB1wgbSSIDKjY9I0BnnpjfIdlqfXoYnBb80UvYA0WkodUFWfQyL4AjaKMg48fqX8sIw=="],
+
+    "@iconify-json/thesvg": ["@iconify-json/thesvg@1.2.15", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-qccnM4wOSClnIC30/naDeeQtnBZxAf9WYaOqjdXyxDnhQL/KDBKbMXtsZuVhaphy1FevJoNdkR1pAL26YnMT4A=="],
 
     "@iconify/svelte": ["@iconify/svelte@5.2.4", "", { "dependencies": { "@iconify/types": "^2.0.0" }, "peerDependencies": { "svelte": ">5.0.0" } }, "sha512-rKIsZikeLb2D30WaOoA/B5ggwm9KelOu0gXizmPHCjcwBNNm6+AGi+16gQ9HNEfm6MvMQqEuGKcp068ZeAsiNw=="],
 
@@ -429,6 +440,8 @@
     "@tauri-apps/cli-win32-x64-msvc": ["@tauri-apps/cli-win32-x64-msvc@2.12.4", "", { "os": "win32", "cpu": "x64" }, "sha512-DJhDeCqjLDNMWYFy7ZS8cfeAHX2RK0RbQMLiA3bMVVkXRDJ4NBYiHriGqsUhsr9iG41aTb+dJGkFPmPw1gWwVw=="],
 
     "@tauri-apps/plugin-http": ["@tauri-apps/plugin-http@2.9.0", "", { "dependencies": { "@tauri-apps/api": "^2.12.0" } }, "sha512-q3HTsbyFk3E9H4slJr+egd6KdRF2Fn4BoZFGI3ZHb7PBT9snlsOOlZC5L4Q1+AlDDd6OHdf/KTM6DNUJ0RNMEQ=="],
+
+    "@tauri-apps/plugin-log": ["@tauri-apps/plugin-log@2.10.2", "", { "dependencies": { "@tauri-apps/api": "^2.12.0" } }, "sha512-Vx6uLv9GIqzrnze3poz1LThP1dFi7PHkOVesVewlT8zhYiVFhF7lQIIGXgjh5qtUUUNTzC9/Cv1DiRcSyxI/Mw=="],
 
     "@tauri-apps/plugin-opener": ["@tauri-apps/plugin-opener@2.7.3", "", { "dependencies": { "@tauri-apps/api": "^2.12.0" } }, "sha512-Nm+v7vLBCDzYZxrmCJhpMgtPsPsKt5myMs7SMU/aBjPOmAFI1RrHfhMz7t5KlxjMOzRcelyNq1/j0pmC9SmBVA=="],
 
@@ -695,6 +708,8 @@
     "dompurify": ["dompurify@3.4.17", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w=="],
 
     "draco3dgltf": ["draco3dgltf@1.5.9", "", {}, "sha512-nIRZumqUwjqVYAdtt8q0F3FZc5qo2rCPTBH2hHhfSvHSPVJazzaepEHFdAZv4wrQKk5CkaclWGHhpyJ4eUdcJQ=="],
+
+    "drizzle-orm": ["drizzle-orm@0.45.4", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@netlify/db": ">=0.4.0", "@op-engineering/op-sqlite": ">=2", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@prisma/client": "*", "@tidbcloud/serverless": "*", "@types/better-sqlite3": "*", "@types/pg": "*", "@types/sql.js": "*", "@upstash/redis": ">=1.34.7", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "better-sqlite3": ">=7", "bun-types": "*", "expo-sqlite": ">=14.0.0", "gel": ">=2", "knex": "*", "kysely": "*", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "prisma": "*", "sql.js": ">=1", "sqlite3": ">=5" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@neondatabase/serverless", "@netlify/db", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@prisma/client", "@tidbcloud/serverless", "@types/better-sqlite3", "@types/pg", "@types/sql.js", "@upstash/redis", "@vercel/postgres", "@xata.io/client", "better-sqlite3", "bun-types", "expo-sqlite", "gel", "knex", "kysely", "mysql2", "pg", "postgres", "prisma", "sql.js", "sqlite3"] }, "sha512-NiM1YZpJ2UxyeE67DpDDZ+Tsw4YLX3trSlkNT7Tm9eKoUNb1LvaAaQzXgYQsWs+AQ9TUmmwMmBOCXuqqxUWKKQ=="],
 
     "dunder-proto": ["dunder-proto@1.0.1", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.1", "es-errors": "^1.3.0", "gopd": "^1.2.0" } }, "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A=="],
 

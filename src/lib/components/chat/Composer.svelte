@@ -10,6 +10,7 @@ let {
   disabled = false,
   placeholder,
   tools,
+  side,
   onSend,
   onStop,
 }: {
@@ -17,6 +18,7 @@ let {
   disabled?: boolean
   placeholder: string
   tools?: Snippet
+  side?: Snippet
   onSend: (text: string, files: File[]) => void
   onStop: () => void
 } = $props()
@@ -86,7 +88,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
 </script>
 
 <form
-  class="mx-auto w-full max-w-3xl px-4 pb-4"
+  class="mx-auto flex w-full max-w-2xl items-stretch gap-2 px-4 pb-4"
   onsubmit={e => {
     e.preventDefault()
     submit()
@@ -94,7 +96,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
 >
   <fieldset
     class={[
-      "flex min-w-0 flex-col gap-1 overflow-hidden rounded-box border bg-raised p-2",
+      "flex min-w-0 flex-1 flex-col gap-1 overflow-hidden rounded-box border bg-raised p-1.5",
       "transition-colors",
       dropping
         ? "border-primary bg-primary/5"
@@ -127,7 +129,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
           <li
             class={[
               "group/chip relative flex h-16 items-center gap-2 overflow-hidden",
-              "rounded-box border border-base-300 bg-base-100",
+              "island",
               preview ? "w-16" : "max-w-64 ps-3 pe-10",
             ]}
             title={file.name}
@@ -160,7 +162,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
     {/if}
     <textarea
       class={[
-        "field-sizing-content max-h-60 min-h-12 w-full resize-none",
+        "field-sizing-content max-h-40 min-h-8 w-full resize-none",
         "bg-transparent px-2 py-1 outline-none",
       ]}
       {placeholder}
@@ -219,4 +221,5 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
       {/if}
     </div>
   </fieldset>
+  {@render side?.()}
 </form>

@@ -20,7 +20,7 @@ fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_text(app: AppHandle, path: String) -> Result<Option<String>, String> {
     match fs::read_to_string(allowed(&app, &path)?) {
         Ok(text) => Ok(Some(text)),
@@ -29,7 +29,7 @@ pub fn read_text(app: AppHandle, path: String) -> Result<Option<String>, String>
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_text(app: AppHandle, path: String, content: String) -> Result<(), String> {
     let path = allowed(&app, &path)?;
 
@@ -40,7 +40,7 @@ pub fn write_text(app: AppHandle, path: String, content: String) -> Result<(), S
     fs::write(path, content).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_dirs(app: AppHandle, path: String) -> Result<Vec<String>, String> {
     let Ok(entries) = fs::read_dir(allowed(&app, &path)?) else {
         return Ok(Vec::new());
@@ -86,7 +86,7 @@ fn copy_all(from: &Path, to: &Path, skipped: &mut Vec<String>) -> std::io::Resul
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn copy_path(app: AppHandle, from: String, to: String) -> Result<Vec<String>, String> {
     let from = allowed(&app, &from)?;
     let to = allowed(&app, &to)?;
@@ -99,7 +99,7 @@ pub fn copy_path(app: AppHandle, from: String, to: String) -> Result<Vec<String>
     Ok(skipped)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_path(app: AppHandle, path: String) -> Result<(), String> {
     let path = allowed(&app, &path)?;
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
@@ -123,7 +123,7 @@ pub struct Lines {
     offset: u64,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Result<Lines, String> {
     let path = allowed(&app, &path)?;
     let file = match fs::File::open(&path) {
@@ -179,7 +179,7 @@ pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Resul
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn grep_head(
     app: AppHandle,
     path: String,
@@ -235,7 +235,7 @@ pub struct Browse {
     dirs: Vec<Dir>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse, String> {
     let dir = if path.trim().is_empty() {
         app.path().home_dir().map_err(|e| e.to_string())?

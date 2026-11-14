@@ -48,6 +48,10 @@ export type Patch = { fields?: Partial<Editable>; body?: string }
 
 export type CanvasEntry = { key: string; etag: string }
 
+export type StoredObject = { key: string; etag: string; value: unknown }
+
+export type WrittenObject = { ok: true; etag: string } | { ok: false }
+
 export type LoadedCanvas = CanvasEntry & { canvas: Canvas }
 
 export type SavedCanvas =
@@ -121,6 +125,10 @@ export class KnowledgeStore {
   #entries = new Map<string, Entry>()
 
   #canvases = new Map<string, CanvasEntry>()
+
+  #folders = new Set<string>()
+
+  #apps = new Map<string, CanvasEntry>()
 
   #listeners = new Set<(change: Change) => void>()
 
@@ -358,6 +366,124 @@ export class KnowledgeStore {
     return { ok: true, entry }
   }
 
+  folderList = () => [...this.#folders].toSorted()
+
+  appList = () =>
+    [...this.#apps.values()].toSorted((a, b) => a.key.localeCompare(b.key))
+
+  readObject = async (key: string): Promise<StoredObject | null> => {
+    const response = await this.#send(this.#url(key))
+
+    if (response.status === 404) {
+      return null
+    }
+
+    await this.#ok(Promise.resolve(response))
+
+    return {
+      key,
+      etag: response.headers.get("etag") ?? "",
+      value: await response.json(),
+    }
+  }
+
+  writeObject = async (
+    key: string,
+    etag: string | null,
+    value: unknown,
+    actor: Actor,
+  ): Promise<WrittenObject> => {
+    const response = await this.#write(
+      key,
+      JSON.stringify(value, null, 2),
+      "application/json",
+      actor,
+      etag ? { "If-Match": etag } : { "If-None-Match": "*" },
+    )
+
+    if (response.status === 412) {
+      return { ok: false }
+    }
+
+    await this.#ok(Promise.resolve(response))
+
+    const written = response.headers.get("etag") ?? ""
+
+    if (key.endsWith(".app")) {
+      this.#apps.set(key, { key, etag: written })
+    }
+
+    this.#notify({ id: key, key, etag: written, actor })
+
+    return { ok: true, etag: written }
+  }
+
+  createFolder = async (path: string, actor: Actor) => {
+    const folder = keyWith(path, "")
+
+    if (!folder) {
+      throw new Error(`invalid_path: ${path}`)
+    }
+
+    await this.#ok(
+      this.#write(`${folder}/`, "", "application/x-directory", actor, {}),
+    )
+    await this.#reindex()
+    this.#notify({ id: folder, key: folder, etag: "", actor })
+  }
+
+  remove = async (path: string, actor: Actor) => {
+    const keys = this.#under(keyWith(path, ""))
+
+    for (const key of keys) {
+      await this.#ok(this.#send(this.#url(key), { method: "DELETE" }))
+    }
+
+    await this.#reindex()
+    this.#notify({ id: path, key: path, etag: "", actor })
+  }
+
+  move = async (from: string, to: string, actor: Actor) => {
+    const source = keyWith(from, "")
+    const extension = [".md", ".canvas"].find(e => source.endsWith(e)) ?? ""
+    const target = keyWith(to, extension)
+    const keys = this.#under(source)
+
+    if (!target || target === source || keys.length === 0) {
+      return
+    }
+
+    for (const key of keys) {
+      const destination = target + key.slice(source.length)
+      const response = await this.#ok(this.#send(this.#url(key)))
+      const written = await this.#write(
+        destination,
+        await response.text(),
+        response.headers.get("content-type") ?? "application/octet-stream",
+        actor,
+        { "If-None-Match": "*" },
+      )
+
+      if (written.status === 412) {
+        throw new Error(`exists: ${destination} already exists`)
+      }
+
+      await this.#ok(Promise.resolve(written))
+      await this.#ok(this.#send(this.#url(key), { method: "DELETE" }))
+    }
+
+    await this.#reindex()
+    this.#notify({ id: target, key: target, etag: "", actor })
+  }
+
+  #under = (path: string) =>
+    [
+      ...this.#entries.keys(),
+      ...this.#canvases.keys(),
+      ...this.#apps.keys(),
+      ...[...this.#folders].map(f => `${f}/`),
+    ].filter(k => k === path || k.startsWith(`${path}/`))
+
   #notify = (change: Change) => {
     for (const listener of this.#listeners) {
       listener(change)
@@ -439,6 +565,8 @@ export class KnowledgeStore {
   #reindex = async () => {
     const keys: string[] = []
     const canvases: CanvasEntry[] = []
+    const apps: CanvasEntry[] = []
+    const folders: string[] = []
     let token = ""
 
     do {
@@ -453,12 +581,21 @@ export class KnowledgeStore {
       }))
 
       keys.push(...contents.map(c => c.key).filter(k => k.endsWith(".md")))
+      folders.push(
+        ...contents
+          .map(c => c.key)
+          .filter(k => k.endsWith("/"))
+          .map(k => k.slice(0, -1)),
+      )
       canvases.push(...contents.filter(c => c.key.endsWith(".canvas")))
+      apps.push(...contents.filter(c => c.key.endsWith(".app")))
       token = textOf(page.documentElement, "NextContinuationToken")
     } while (token)
 
     this.#entries.clear()
     this.#canvases = new Map(canvases.map(c => [c.key, c]))
+    this.#folders = new Set(folders)
+    this.#apps = new Map(apps.map(a => [a.key, a]))
 
     for (const key of keys) {
       const response = await this.#send(this.#url(key))

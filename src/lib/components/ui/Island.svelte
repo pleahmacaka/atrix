@@ -15,7 +15,7 @@ let {
 } = $props()
 </script>
 
-<section class={["rounded-box border border-base-300 bg-base-100", extra]}>
+<section class={["island", extra]}>
   <h2
     class={[
       "flex items-center justify-between px-4 pt-3 pb-1",

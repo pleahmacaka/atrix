@@ -44,12 +44,13 @@ const toggle = (host: HostEntry, harness: HarnessInfo) =>
       </div>
       <button
         type="button"
-        class="btn btn-ghost btn-sm"
+        class="btn btn-ghost btn-sm btn-square"
         disabled={attempt.busy}
         onclick={() => attempt.run(host.view.detect)}
+        aria-label={m.harness_detect()}
+        title={m.harness_detect()}
       >
-        <Icon icon="lucide:radar" class="size-4" />
-        {m.harness_detect()}
+        <Icon icon="lucide:refresh-cw" class="size-4" />
       </button>
     </div>
     <div class="mb-4 ps-11">

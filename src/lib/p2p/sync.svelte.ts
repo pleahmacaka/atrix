@@ -4,22 +4,26 @@ import type { Host } from "#lib/acp/host.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import {
+  proofFor,
   randomBytes,
   sha256Hex,
-  sign,
   toBase64Url,
   toHex,
 } from "#lib/store/crypto.ts"
-import { type Credential, local } from "#lib/store/local.svelte.ts"
+import { mergeGateways } from "#lib/store/gateways.svelte.ts"
+import { type Gateway, local } from "#lib/store/local.svelte.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { HostView } from "./hostView.svelte.ts"
-import type { HostEvent, HostRequest } from "./protocol.ts"
+import type { HostCall, HostEvent, HostRequest, Reply } from "./protocol.ts"
+import { type Advert, type Link, tailnet, targetOf } from "./tailnet.svelte.ts"
 
 const APP = "atrix"
 
 const REQUEST_MS = 120_000
 
 const PAIR_WAIT_MS = 30_000
+
+const REDIAL_MS = 15_000
 
 export const PAIR_CHOICES = [
   { minutes: 5, label: m.sync_minutes({ count: 5 }) },
@@ -30,12 +34,7 @@ export const PAIR_CHOICES = [
 
 export type Pairing = { code: string; expires: number }
 
-export type Peer = { id: string; name: string; host: boolean }
-
-type Reply = { ok: true; value: unknown } | { ok: false; error: string }
-
-const proofFor = (secret: string, nonce: string, prover: string) =>
-  sign(secret, `${nonce}:${prover}`)
+export type Peer = { id: string; name: string; host: boolean; tailnet?: Advert }
 
 const handshake =
   (secret: string) =>
@@ -117,8 +116,7 @@ class Sync {
   #hello: ((peer: Omit<Peer, "id">, target?: string) => Promise<void>) | null =
     null
 
-  #auth: ((credential: Credential, target?: string) => Promise<void>) | null =
-    null
+  #auth: ((gateways: Gateway[], target?: string) => Promise<void>) | null = null
 
   #event: ((event: string) => Promise<void>) | null = null
 
@@ -126,11 +124,24 @@ class Sync {
 
   #host: Host | null = null
 
+  #links = new Map<string, Link>()
+
+  #dialing = new Set<string>()
+
+  #generation = 0
+
   serve = (host: Host) => {
     this.#host = host
     host.subscribe(event => {
-      this.#event?.(JSON.stringify(event))
+      const data = JSON.stringify(event)
+
+      this.#event?.(data)
+      tailnet.emit(data)
     })
+    tailnet
+      .listen(this.#serve)
+      .then(this.announce)
+      .catch(() => {})
   }
 
   start = async () => {
@@ -196,12 +207,15 @@ class Sync {
     const hello = room.makeAction<Omit<Peer, "id">>("hello", {
       onMessage: (peer, { peerId }) => this.#greeted(peerId, peer),
     })
-    const auth = room.makeAction<Credential>("auth", {
-      onMessage: (credential, { peerId }) => this.#received(credential, peerId),
+    const auth = room.makeAction<Gateway[]>("gateways", {
+      onMessage: (gateways, { peerId }) => this.#received(gateways, peerId),
     })
     const event = room.makeAction<string>("event", {
-      onMessage: (data, { peerId }) =>
-        this.hosts.get(peerId)?.apply(JSON.parse(data) as HostEvent),
+      onMessage: (data, { peerId }) => {
+        if (!this.#links.has(peerId)) {
+          this.hosts.get(peerId)?.apply(JSON.parse(data) as HostEvent)
+        }
+      },
     })
     const request = room.makeAction<string, string>("request", {
       kind: "request",
@@ -209,7 +223,7 @@ class Sync {
     })
 
     this.#hello = (peer, target) => hello.send(peer, { target })
-    this.#auth = (credential, target) => auth.send(credential, { target })
+    this.#auth = (gateways, target) => auth.send(gateways, { target })
     this.#event = data => event.send(data)
     this.#request = (data, target) =>
       request.request(data, { target, timeoutMs: REQUEST_MS })
@@ -219,15 +233,29 @@ class Sync {
       this.shareAuth(peerId)
     }
     room.onPeerLeave = peerId => {
-      this.peers.delete(peerId)
-      this.hosts.delete(peerId)
+      if (!this.#links.has(peerId)) {
+        this.peers.delete(peerId)
+        this.hosts.delete(peerId)
+      }
     }
 
     this.#room = room
     this.joined = true
+
+    for (const entry of tailnet.servers) {
+      this.dialServer(entry)
+    }
   }
 
   leave = async () => {
+    this.#generation++
+
+    for (const link of this.#links.values()) {
+      link.close()
+    }
+
+    this.#links.clear()
+    await tailnet.revoke()
     await this.closePairing()
     await this.#room?.leave()
     this.#room = null
@@ -242,7 +270,7 @@ class Sync {
   }
 
   shareAuth = (target?: string) => {
-    this.#auth?.($state.snapshot(local.data.openrouter), target)
+    this.#auth?.($state.snapshot(local.data.gateways), target)
   }
 
   call = async (peerId: string, request: HostRequest) => {
@@ -267,26 +295,140 @@ class Sync {
     await this.join(secret)
   }
 
-  #me = () => ({ name: settings.deviceName, host: desktop })
+  dialServer = (entry: string) => {
+    const target = targetOf(entry, tailnet.port)
 
-  #greeted = (peerId: string, peer: Omit<Peer, "id">) => {
-    this.peers.set(peerId, { id: peerId, ...peer })
-
-    if (peer.host && !this.hosts.has(peerId)) {
-      const view = new HostView(peerId, request => this.call(peerId, request))
-
-      this.hosts.set(peerId, view)
-      view.refresh().catch(() => {})
+    if (this.joined && target) {
+      this.#direct(target)
     }
   }
 
-  #received = async (credential: Credential, peerId: string) => {
-    const mine = local.data.openrouter
+  #me = () => ({
+    name: settings.deviceName,
+    host: desktop,
+    tailnet: tailnet.advert(),
+  })
 
-    if (credential.at > mine.at) {
-      local.data.openrouter = credential
+  #greeted = async (peerId: string, peer: Omit<Peer, "id">) => {
+    this.peers.set(peerId, { id: peerId, ...peer })
+
+    const settled =
+      this.#links.has(peerId) ||
+      this.#dialing.has(peerId) ||
+      (this.hosts.has(peerId) && !peer.tailnet)
+
+    if (!peer.host || settled) {
+      return
+    }
+
+    const { addresses = [], port = 0 } = peer.tailnet ?? {}
+
+    this.#dialing.add(peerId)
+
+    for (const address of addresses) {
+      const target = targetOf(address, port)
+
+      if (target && (await this.#open(target, peerId))) {
+        break
+      }
+    }
+
+    this.#dialing.delete(peerId)
+
+    if (!this.hosts.has(peerId)) {
+      this.#attach(peerId, request => this.call(peerId, request))
+    }
+  }
+
+  #attach = (id: string, call: HostCall) => {
+    const view = new HostView(id, call)
+
+    this.hosts.set(id, view)
+    view.refresh().catch(() => {})
+  }
+
+  #open = async (target: string, expected: string | null) => {
+    const generation = this.#generation
+    let link: Link | null = null
+
+    link = await tailnet
+      .dial(target, expected, {
+        event: (id, event) => this.hosts.get(id)?.apply(event),
+        close: id => {
+          if (this.#links.get(id) === link) {
+            this.#closed(id, expected ? null : target)
+          }
+        },
+      })
+      .catch(() => null)
+
+    if (!link) {
+      return false
+    }
+
+    if (generation !== this.#generation || this.#links.has(link.id)) {
+      link.close()
+
+      return generation === this.#generation
+    }
+
+    this.#links.set(link.id, link)
+    this.peers.set(link.id, {
+      name: link.name,
+      ...this.peers.get(link.id),
+      id: link.id,
+      host: true,
+    })
+    this.#attach(link.id, link.call)
+
+    return true
+  }
+
+  #closed = (id: string, redial: string | null) => {
+    const peer = this.peers.get(id)
+
+    this.#links.delete(id)
+    this.hosts.delete(id)
+
+    if (peer && this.#room?.getPeers()[id]) {
+      this.#greeted(id, peer)
+    } else {
+      this.peers.delete(id)
+    }
+
+    if (redial) {
+      this.#redial(redial)
+    }
+  }
+
+  #direct = async (target: string) => {
+    if (!(await this.#open(target, null))) {
+      this.#redial(target)
+    }
+  }
+
+  #redial = (target: string) => {
+    const generation = this.#generation
+
+    setTimeout(() => {
+      const wanted = tailnet.servers.some(
+        s => targetOf(s, tailnet.port) === target,
+      )
+
+      if (generation === this.#generation && wanted) {
+        this.#direct(target)
+      }
+    }, REDIAL_MS)
+  }
+
+  #received = async (gateways: Gateway[], peerId: string) => {
+    const { changed, stale } = mergeGateways(gateways)
+
+    if (changed) {
       await local.save()
-    } else if (credential.at < mine.at) {
+    }
+
+    if (stale) {
       this.shareAuth(peerId)
     }
   }

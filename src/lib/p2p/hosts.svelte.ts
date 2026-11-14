@@ -1,3 +1,4 @@
+import { logFailure } from "#lib/logging.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
@@ -17,7 +18,12 @@ export const startLocalHost = async () => {
 
   const { Host } = await import("#lib/acp/host.ts")
   const host = new Host()
-  const view = new HostView(LOCAL, host.handle)
+  const view = new HostView(LOCAL, request =>
+    host.handle(request).catch((e: unknown) => {
+      logFailure(`host ${request.op}`, e)
+      throw e
+    }),
+  )
 
   host.subscribe(view.apply)
   sync.serve(host)

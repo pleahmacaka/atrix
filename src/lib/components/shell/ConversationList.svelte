@@ -160,28 +160,6 @@ const menuFor = (item: Recent): MenuItem[] => {
   </button>
 {/snippet}
 
-<ul class="menu w-full gap-0.5 px-2 py-1">
-  <li>
-    <button type="button" onclick={() => openConversation(null)}>
-      <Icon icon="lucide:square-pen" class="size-4" />
-      <span class="flex-1">{m.chat_new()}</span>
-      <kbd class="kbd kbd-xs opacity-60">Ctrl N</kbd>
-    </button>
-  </li>
-  <li>
-    <button
-      type="button"
-      onclick={() => {
-        nav.palette = true
-      }}
-    >
-      <Icon icon="lucide:search" class="size-4" />
-      <span class="flex-1">{m.chat_search_load()}</span>
-      <kbd class="kbd kbd-xs opacity-60">Ctrl K</kbd>
-    </button>
-  </li>
-</ul>
-
 <div class="flex items-center gap-0.5 ps-6 pe-3 pt-2 pb-1">
   <span class="flex-1 text-xs text-base-content/50">{m.sessions_title()}</span>
   <button
@@ -271,9 +249,10 @@ const menuFor = (item: Recent): MenuItem[] => {
       type="button"
       class="flex min-h-8 cursor-pointer items-center gap-2 rounded-field px-2 hover:bg-base-content/10"
       onclick={sessionFilter.reset}
+      aria-label={m.filter_reset()}
+      title={m.filter_reset()}
     >
       <Icon icon="lucide:filter-x" class="size-4 opacity-70" />
-      {m.filter_reset()}
     </button>
   {/if}
 </div>

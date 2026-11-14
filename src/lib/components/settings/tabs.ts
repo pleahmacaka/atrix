@@ -2,9 +2,10 @@ import type { Component } from "svelte"
 import { m } from "#lib/paraglide/messages.js"
 import type { SettingsTab } from "#lib/store/nav.svelte.ts"
 import AppearanceTab from "./AppearanceTab.svelte"
+import DatasourceTab from "./DatasourceTab.svelte"
 import DeviceTab from "./DeviceTab.svelte"
+import GatewayTab from "./GatewayTab.svelte"
 import HarnessTab from "./HarnessTab.svelte"
-import OpenRouterTab from "./OpenRouterTab.svelte"
 import ShortcutsTab from "./ShortcutsTab.svelte"
 import SyncTab from "./SyncTab.svelte"
 
@@ -33,10 +34,16 @@ export const SETTINGS_TABS: {
     body: SyncTab,
   },
   {
-    id: "openrouter",
-    label: "OpenRouter",
+    id: "datasource",
+    label: m.settings_datasource(),
+    icon: "lucide:database",
+    body: DatasourceTab,
+  },
+  {
+    id: "gateway",
+    label: m.settings_gateway(),
     icon: "lucide:key-round",
-    body: OpenRouterTab,
+    body: GatewayTab,
   },
   {
     id: "shortcuts",

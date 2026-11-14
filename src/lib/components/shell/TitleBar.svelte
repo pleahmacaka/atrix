@@ -4,16 +4,19 @@ import { onMount } from "svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { nav, openConversation, setSidebar } from "#lib/store/nav.svelte.ts"
-import { PAGES } from "#lib/store/pages.ts"
+import { APPS_PAGE, PAGES } from "#lib/store/pages.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import { describe } from "#lib/store/recent.ts"
+import { layout } from "#lib/widgets/layout.svelte.ts"
 
 const info = $derived(
   panes.leaves.length === 1 ? describe(panes.active.current) : undefined,
 )
 
 const page = $derived(
-  nav.page === "chat" ? null : PAGES.find(p => p.id === nav.page),
+  nav.page === "chat"
+    ? null
+    : [...PAGES, APPS_PAGE].find(p => p.id === nav.page),
 )
 
 let maximized = $state(false)
@@ -84,6 +87,18 @@ onMount(() => {
     </button>
   {/if}
   <span class="h-full flex-1" data-tauri-drag-region></span>
+  <button
+    type="button"
+    class={["btn btn-ghost btn-sm btn-square", layout.editing && "text-primary"]}
+    aria-label={m.widget_edit()}
+    aria-pressed={layout.editing}
+    title="{m.widget_edit()} (Ctrl+E)"
+    onclick={() => {
+      layout.editing = !layout.editing
+    }}
+  >
+    <Icon icon="lucide:layout-dashboard" class="size-4" />
+  </button>
   {#if nav.page === "chat"}
     <div class="flex items-center gap-0.5">
       <button

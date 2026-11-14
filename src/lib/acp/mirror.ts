@@ -1,8 +1,8 @@
-import type { HarnessKind, SessionView } from "#lib/p2p/protocol.ts"
+import type { HarnessKind, Listed, SessionView } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { ChatItem, Log } from "./items.ts"
 import { native } from "./native.ts"
-import { SOURCES, type Source } from "./sources.ts"
+import { type Presence, SOURCES, type Source } from "./sources.ts"
 
 const POLL_MS = 1500
 
@@ -18,10 +18,13 @@ type Watch = {
   view: SessionView | null
   paused: boolean
   dirty: boolean
+  turn: Promise<void>
 }
 
 export class ExternalSessions {
   presence = new Map<string, boolean>()
+
+  listings = new Map<HarnessKind, Listed[]>()
 
   #shelling = new Set<string>()
 
@@ -35,8 +38,15 @@ export class ExternalSessions {
     private readonly onItems: (view: SessionView) => void,
   ) {}
 
+  ready: Promise<void> = Promise.resolve()
+
   start = () => {
-    this.#timer ??= setInterval(() => {
+    if (this.#timer) {
+      return
+    }
+
+    this.ready = this.#poll().catch(() => {})
+    this.#timer = setInterval(() => {
       this.#poll().catch(() => {})
     }, POLL_MS)
   }
@@ -70,9 +80,10 @@ export class ExternalSessions {
       return
     }
 
-    const { offset } = await this.#lines(watch)
+    await this.#serial(watch, async () => {
+      watch.offset = (await this.#lines(watch)).offset
+    })
 
-    watch.offset = offset
     watch.log.items = items
     watch.view.items = items
     watch.view.running = this.presence.get(id) === true
@@ -114,6 +125,8 @@ export class ExternalSessions {
     const known = this.#watches.get(id)
 
     if (known) {
+      await known.turn
+
       return known
     }
 
@@ -127,29 +140,43 @@ export class ExternalSessions {
       source,
       path,
       offset: 0,
-      log: { items: [], queue: [], running: false, shells: [] },
+      log: { items: [], queue: [], sent: [], running: false, shells: [] },
       view: null,
       paused: false,
       dirty: false,
+      turn: Promise.resolve(),
     }
 
     this.#watches.set(id, watch)
 
-    if (source.head) {
-      const lines = await native<string[]>("grep_head", {
-        path,
-        tail: TAIL_BYTES,
-        needles: source.head.needles,
-      })
+    await this.#serial(watch, async () => {
+      if (source.head) {
+        const lines = await native<string[]>("grep_head", {
+          path,
+          tail: TAIL_BYTES,
+          needles: source.head.needles,
+        })
 
-      for (const line of lines) {
-        source.head.apply(watch.log, line)
+        for (const line of lines) {
+          source.head.apply(watch.log, line)
+        }
       }
-    }
 
-    await this.#read(watch)
+      await this.#pull(watch)
+    })
 
     return watch
+  }
+
+  #serial = <T>(watch: Watch, work: () => Promise<T>) => {
+    const next = watch.turn.then(work)
+
+    watch.turn = next.then(
+      () => {},
+      () => {},
+    )
+
+    return next
   }
 
   #lines = (watch: Watch) =>
@@ -159,7 +186,9 @@ export class ExternalSessions {
       tail: TAIL_BYTES,
     })
 
-  #read = async (watch: Watch) => {
+  #read = (watch: Watch) => this.#serial(watch, () => this.#pull(watch))
+
+  #pull = async (watch: Watch) => {
     const { lines, offset } = await this.#lines(watch)
 
     watch.offset = offset
@@ -182,9 +211,20 @@ export class ExternalSessions {
   #live = async () => {
     const live = new Map<string, boolean>()
     const shelling = new Set<string>()
+    const listings = new Map<HarnessKind, Listed[]>()
 
-    for (const source of Object.values(SOURCES)) {
-      const found = await source.live().catch(() => new Map())
+    for (const [kind, source] of Object.entries(SOURCES) as [
+      HarnessKind,
+      Source,
+    ][]) {
+      const found: Map<string, Presence> = await source
+        .live()
+        .catch(() => new Map())
+
+      listings.set(
+        kind,
+        [...found.values()].flatMap(p => p.listing ?? []),
+      )
 
       for (const [id, { busy, shell }] of found) {
         if (shell) {
@@ -207,6 +247,7 @@ export class ExternalSessions {
     }
 
     this.#shelling = shelling
+    this.listings = listings
 
     return live
   }

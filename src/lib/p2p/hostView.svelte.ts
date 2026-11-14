@@ -1,7 +1,12 @@
+import { get, set } from "idb-keyval"
 import { applyUpdate } from "#lib/acp/items.ts"
 import type { Canvas } from "#lib/knowledge/canvas.ts"
 import type { Editable } from "#lib/knowledge/document.ts"
-import type { Patch as KgPatch } from "#lib/knowledge/store.ts"
+import type {
+  Patch as KgPatch,
+  StoredObject,
+  WrittenObject,
+} from "#lib/knowledge/store.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { markUnread } from "#lib/store/unread.svelte.ts"
@@ -11,6 +16,7 @@ import type {
   CanvasEntry,
   Change,
   Entry,
+  Executed,
   HarnessConfig,
   HarnessInfo,
   HostCall,
@@ -19,9 +25,11 @@ import type {
   Listed,
   Loaded,
   LoadedCanvas,
+  Rows,
   Saved,
   SavedCanvas,
   SessionView,
+  SyncConfig,
   Version,
 } from "./protocol.ts"
 
@@ -36,12 +44,38 @@ export class HostView {
 
   canvases = $state<CanvasEntry[]>([])
 
+  folders = $state<string[]>([])
+
+  apps = $state<CanvasEntry[]>([])
+
+  datasources = $state<string[]>([])
+
+  dsChange = $state<{ name: string | null } | null>(null)
+
   lastChange = $state<Change | null>(null)
+
+  #asked = new Set<string>()
+
+  #fresh = new Set<string>()
 
   constructor(
     readonly id: string,
     readonly call: HostCall,
-  ) {}
+  ) {
+    get<Record<string, Listed[]>>(this.#cacheKey)
+      .then(saved => {
+        for (const [harness, list] of Object.entries(saved ?? {})) {
+          if (!this.#fresh.has(harness)) {
+            this.lists[harness] = list
+          }
+        }
+      })
+      .catch(() => {})
+  }
+
+  get #cacheKey() {
+    return `lists:${this.id}`
+  }
 
   refresh = async () => {
     this.#adopt((await this.call({ op: "state" })) as HostState)
@@ -93,12 +127,14 @@ export class HostView {
     }
 
     for (const h of state.harnesses) {
-      if (h.enabled && !(h.id in this.lists)) {
-        this.lists[h.id] = []
+      if (h.enabled && !this.#asked.has(h.id)) {
+        this.#asked.add(h.id)
+        this.lists[h.id] ??= []
         this.list(h.id).catch(() => {})
       }
 
       if (!h.enabled) {
+        this.#asked.delete(h.id)
         delete this.lists[h.id]
       }
     }
@@ -129,7 +165,9 @@ export class HostView {
       return
     }
 
-    await Promise.all(this.#listing.values())
+    if (!this.#target(sessionId)) {
+      await Promise.all(this.#listing.values())
+    }
 
     const target = this.#target(sessionId)
 
@@ -165,6 +203,13 @@ export class HostView {
       return
     }
 
+    if (event.type === "ds") {
+      this.dsChange = { name: event.name }
+      this.loadDatasources().catch(() => {})
+
+      return
+    }
+
     const view = this.views[event.sessionId]
 
     if (!view) {
@@ -182,14 +227,39 @@ export class HostView {
     this.call({ op: "fs.browse", path }) as Promise<Browse>
 
   loadKnowledge = async () => {
-    const [docs, canvases] = await Promise.all([
+    const [docs, canvases, folders, apps] = await Promise.all([
       this.call({ op: "kg.list" }),
       this.call({ op: "kg.canvases" }),
+      this.call({ op: "kg.folders" }),
+      this.call({ op: "kg.apps" }),
     ])
 
     this.knowledge = docs as Entry[]
     this.canvases = canvases as CanvasEntry[]
+    this.folders = folders as string[]
+    this.apps = apps as CanvasEntry[]
   }
+
+  readObject = (key: string) =>
+    this.call({ op: "kg.object.read", key }) as Promise<StoredObject | null>
+
+  writeObject = (key: string, etag: string | null, value: unknown) =>
+    this.call({
+      op: "kg.object.write",
+      key,
+      etag,
+      value,
+      device: settings.deviceName,
+    }) as Promise<WrittenObject>
+
+  createFolder = (path: string) =>
+    this.call({ op: "kg.folder.create", path, device: settings.deviceName })
+
+  removePath = (path: string) =>
+    this.call({ op: "kg.remove", path, device: settings.deviceName })
+
+  movePath = (from: string, to: string) =>
+    this.call({ op: "kg.move", from, to, device: settings.deviceName })
 
   readCanvas = (path: string) =>
     this.call({ op: "kg.canvas.read", path }) as Promise<LoadedCanvas>
@@ -236,6 +306,32 @@ export class HostView {
       device: settings.deviceName,
     }) as Promise<Saved>
 
+  loadDatasources = async () => {
+    this.datasources = (await this.call({ op: "ds.list" })) as string[]
+  }
+
+  dsCreate = (name: string) => this.call({ op: "ds.create", name })
+
+  dsDelete = (name: string) => this.call({ op: "ds.delete", name })
+
+  dsTables = (name: string) =>
+    this.call({ op: "ds.tables", name }) as Promise<string[]>
+
+  dsQuery = (name: string, sql: string, params: unknown[] = []) =>
+    this.call({ op: "ds.query", name, sql, params }) as Promise<Rows>
+
+  dsExecute = (name: string, sql: string, params: unknown[] = []) =>
+    this.call({ op: "ds.execute", name, sql, params }) as Promise<Executed>
+
+  dsSyncConfigs = () =>
+    this.call({ op: "ds.sync.get" }) as Promise<Record<string, SyncConfig>>
+
+  dsSetSync = (name: string, config: SyncConfig | null) =>
+    this.call({ op: "ds.sync.set", name, config })
+
+  dsSync = (name: string) =>
+    this.call({ op: "ds.sync", name }) as Promise<boolean>
+
   list = async (harness: string) => {
     const pending = this.call({ op: "list", harness }) as Promise<Listed[]>
     const settled = pending.then(
@@ -247,6 +343,8 @@ export class HostView {
 
     try {
       this.lists[harness] = await pending
+      this.#fresh.add(harness)
+      set(this.#cacheKey, $state.snapshot(this.lists)).catch(() => {})
     } finally {
       if (this.#listing.get(harness) === settled) {
         this.#listing.delete(harness)
@@ -267,11 +365,15 @@ export class HostView {
       return
     }
 
+    const title = this.lists[harness]?.find(
+      s => s.sessionId === sessionId,
+    )?.title
     const view = (await this.call({
       op: "load",
       harness,
       sessionId,
       cwd,
+      title,
     })) as SessionView
 
     this.views[view.id] = view

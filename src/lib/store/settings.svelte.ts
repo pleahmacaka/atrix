@@ -3,7 +3,9 @@ import { desktop } from "#lib/platform.ts"
 
 export type Theme = "system" | "light" | "dark"
 
-export type WindowEffect = "none" | "acrylic"
+export type WindowEffect = "none" | "glass"
+
+export type PanelShape = "rounded" | "square"
 
 export type Texture = "none" | "soft" | "strong"
 
@@ -36,13 +38,15 @@ class Settings {
   accent = $state<Accent>(read("accent", "indigo"))
 
   effect = $state<WindowEffect>(
-    read<string>("window-effect", "none") === "none" ? "none" : "acrylic",
+    read<string>("window-effect", "glass") === "none" ? "none" : "glass",
   )
+
+  shape = $state<PanelShape>(read("panel-shape", "rounded"))
 
   texture = $state<Texture>(read("window-texture", "none"))
 
   transparency = $state<number>(
-    Number(read("window-transparency", this.effect === "none" ? "0" : "40")),
+    Number(read("window-transparency", this.effect === "none" ? "0" : "60")),
   )
 
   setName = (name: string) => {
@@ -63,6 +67,11 @@ class Settings {
   setEffect = (effect: WindowEffect) => {
     this.effect = effect
     localStorage.setItem("window-effect", effect)
+  }
+
+  setShape = (shape: PanelShape) => {
+    this.shape = shape
+    localStorage.setItem("panel-shape", shape)
   }
 
   setTexture = (texture: Texture) => {

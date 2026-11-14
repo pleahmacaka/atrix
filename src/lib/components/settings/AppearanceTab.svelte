@@ -7,6 +7,7 @@ import { desktop } from "#lib/platform.ts"
 import { chooseLanguage, LANGUAGES, languageChoice } from "#lib/store/locale.ts"
 import {
   ACCENTS,
+  type PanelShape,
   settings,
   type Texture,
   type Theme,
@@ -21,7 +22,12 @@ const THEMES: { id: Theme; label: string; icon: string }[] = [
 
 const EFFECTS: { id: WindowEffect; label: string; icon: string }[] = [
   { id: "none", label: m.appearance_effect_none(), icon: "lucide:square" },
-  { id: "acrylic", label: m.appearance_effect_acrylic(), icon: "lucide:droplet" },
+  { id: "glass", label: m.appearance_effect_glass(), icon: "lucide:droplet" },
+]
+
+const SHAPES: { id: PanelShape; label: string; icon: string }[] = [
+  { id: "rounded", label: m.appearance_shape_rounded(), icon: "lucide:squircle" },
+  { id: "square", label: m.appearance_shape_square(), icon: "lucide:square" },
 ]
 
 const TEXTURES: { id: Texture; label: string; icon: string }[] = [
@@ -68,6 +74,10 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
   </div>
 </SettingRow>
 
+<SettingRow icon="lucide:layout-panel-left" title={m.appearance_shape()}>
+  <Segmented items={SHAPES} value={settings.shape} onpick={settings.setShape} />
+</SettingRow>
+
 <SettingRow icon="lucide:grip" title={m.appearance_texture()}>
   <Segmented items={TEXTURES} value={settings.texture} onpick={settings.setTexture} />
 </SettingRow>
@@ -92,7 +102,7 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
           type="range"
           class="range range-primary range-xs w-32"
           min="0"
-          max="70"
+          max="85"
           step="5"
           disabled={settings.effect === "none"}
           value={settings.transparency}

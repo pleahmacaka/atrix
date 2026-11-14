@@ -24,7 +24,20 @@ which = "8.0.6"
 tauri-plugin-opener = "2"
 tauri-plugin-http = "2"
 tauri-plugin-oauth = "2.1.0"
-sysinfo = { version = "0.38.4", default-features = false, features = ["system"] }
 toml = "1.2.1"
 sha2 = "0.11.1"
 tiny_http = "0.12.0"
+tauri-plugin-log = "2.10.2"
+turso = { version = "0.8.3", features = ["sync"] }
+turso_parser = "0.8.3"
+ipnet = "2.12.2"
+tungstenite = "0.30.0"
+sysinfo = { version = "0.38.4", default-features = false, features = ["system"] }
+if-addrs = "0.15.0"
+
+[target."cfg(windows)".dependencies]
+zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
+
+[target."cfg(not(windows))".dependencies]
+flate2 = "1.1.11"
+tar = "0.4.46"

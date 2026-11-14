@@ -37,6 +37,11 @@ const record = z.object({
 
 const ENDED = new Set(["task_complete", "turn_aborted"])
 
+const failure = z.object({
+  turn_id: z.string().optional(),
+  error: z.object({ message: z.string() }),
+})
+
 const textOf = (parts: z.infer<typeof part>[]) =>
   parts.map(p => p.text ?? "").join("")
 
@@ -110,5 +115,16 @@ export const applyRollout = (log: Log, line: string) => {
     log.running = true
   } else if (type === "event_msg" && ENDED.has(payload.type)) {
     log.running = false
+
+    const failed = failure.safeParse(payload)
+
+    if (failed.success) {
+      appendText(
+        log.items,
+        "agent",
+        failed.data.error.message,
+        `${failed.data.turn_id}:error`,
+      )
+    }
   }
 }

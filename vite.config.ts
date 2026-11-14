@@ -1,5 +1,8 @@
+import { icons as devicon } from "@iconify-json/devicon-plain"
+import { icons as logos } from "@iconify-json/logos"
 import { icons as lucide } from "@iconify-json/lucide"
 import { icons as simpleIcons } from "@iconify-json/simple-icons"
+import { icons as thesvg } from "@iconify-json/thesvg"
 import { paraglideVitePlugin } from "@inlang/paraglide-js"
 import adapter from "@sveltejs/adapter-static"
 import { sveltekit } from "@sveltejs/kit/vite"
@@ -12,7 +15,7 @@ export default defineConfig({
   server: {
     port: 1460,
     strictPort: true,
-    watch: { ignored: ["**/src-tauri/**"] },
+    watch: { ignored: ["**/src-tauri/**", "**/build/**"] },
   },
   plugins: [
     paraglideVitePlugin({
@@ -22,7 +25,10 @@ export default defineConfig({
       emitTsDeclarations: true,
       disableAsyncLocalStorage: true,
     }),
-    iconifyEmbed({ collections: [lucide, simpleIcons], scan: ["src"] }),
+    iconifyEmbed({
+      collections: [lucide, simpleIcons, logos, thesvg, devicon],
+      scan: ["src"],
+    }),
     tailwindcss(),
     sveltekit({
       compilerOptions: {

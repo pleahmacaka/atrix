@@ -5,6 +5,7 @@ import type {
   ToolCallContent,
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk"
+import { type Block, isShowUi, uiBlocksIn } from "#lib/chat/blocks.ts"
 
 export type ToolItem = {
   type: "tool"
@@ -13,6 +14,24 @@ export type ToolItem = {
   kind: string
   status: string
   detail: string
+}
+
+export const attachUi = (
+  items: ChatItem[],
+  toolId: string,
+  name: string,
+  input: unknown,
+) => {
+  const id = `${toolId}:ui`
+  const blocks = isShowUi(name) ? uiBlocksIn(input) : null
+
+  if (!blocks || items.some(i => i.id === id)) {
+    return
+  }
+
+  const at = items.findIndex(i => i.id === toolId)
+
+  items.splice(at === -1 ? items.length : at + 1, 0, { type: "ui", id, blocks })
 }
 
 export type PlanEntry = { content: string; status: string }
@@ -29,8 +48,11 @@ export type TextItem = {
 
 export type ThoughtItem = TextItem & { type: "thought" }
 
+export type UiItem = { type: "ui"; id: string; blocks: Block[] }
+
 export type ChatItem =
   | TextItem
+  | UiItem
   | { type: "plan"; id: string; entries: PlanEntry[] }
   | ToolItem
 
@@ -44,6 +66,7 @@ export type Shell = {
 export type Log = {
   items: ChatItem[]
   queue: string[]
+  sent: string[]
   running: boolean
   shells: Shell[]
 }
@@ -204,6 +227,12 @@ export const applyUpdate = (items: ChatItem[], update: SessionUpdate) => {
       items.push(toolOf(update))
     } else if (prev.type === "tool") {
       items[index] = toolOf(update, prev)
+    }
+
+    const tool = items.find(i => i.id === update.toolCallId)
+
+    if (tool?.type === "tool" && update.rawInput !== undefined) {
+      attachUi(items, update.toolCallId, tool.title, update.rawInput)
     }
 
     return

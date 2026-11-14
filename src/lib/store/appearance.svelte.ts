@@ -14,9 +14,8 @@ const applyEffect = async (effect: WindowEffect) => {
     return
   }
 
-  await win.setEffects({
-    effects: [Effect.Acrylic],
-  })
+  // Acrylic and Mica turn opaque while the window is inactive on Windows 11; Blur stays translucent
+  await win.setEffects({ effects: [Effect.Blur] })
 }
 
 export const startAppearance = () =>
@@ -45,6 +44,7 @@ export const startAppearance = () =>
       const root = document.documentElement
       root.dataset.effect = effect === "none" ? "off" : "on"
       root.dataset.texture = settings.texture
+      root.dataset.shape = settings.shape
       root.style.setProperty("--surface", String(1 - transparency / 100))
 
       if (desktop) {

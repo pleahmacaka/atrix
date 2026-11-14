@@ -6,7 +6,10 @@ import {
   type ThoughtItem,
   type ToolItem,
 } from "#lib/acp/items.ts"
+import { appTitleOf } from "#lib/apps/app.ts"
+import { apps } from "#lib/apps/apps.svelte.ts"
 import { toAttachment } from "#lib/chat/attachments.ts"
+import type { Block } from "#lib/chat/blocks.ts"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { ConfigChoice } from "#lib/p2p/protocol.ts"
@@ -20,10 +23,14 @@ import Markdown from "./Markdown.svelte"
 import { olderModels } from "./models.ts"
 import PlanCard from "./PlanCard.svelte"
 import ToolGroup from "./ToolGroup.svelte"
+import UiBlocks from "./UiBlocks.svelte"
 
 let { host, sessionId }: { host: HostView; sessionId: string } = $props()
 
 const uid = $props.id()
+
+const saveApp = (blocks: Block[]) =>
+  apps.save(appTitleOf(blocks, view?.title ?? ""), blocks)
 
 const view = $derived(host.views[sessionId])
 
@@ -157,6 +164,12 @@ const folder = (cwd: string) =>
             </article>
           {:else if segment.item.type === "plan"}
             <PlanCard entries={segment.item.entries} />
+          {:else if segment.item.type === "ui"}
+            <UiBlocks
+              blocks={segment.item.blocks}
+              onAction={text => attempt(() => host.prompt(sessionId, text))}
+              onSave={saveApp}
+            />
           {/if}
         {/each}
         {#each view.queued ?? [] as text, i (i)}
@@ -213,9 +226,7 @@ const folder = (cwd: string) =>
     </div>
     <Composer
       busy={view.running && !elsewhere}
-      placeholder={elsewhere
-        ? m.chat_external_queue()
-        : m.chat_harness_placeholder()}
+      placeholder={m.chat_harness_placeholder()}
       onSend={(text, files) =>
         attempt(async () =>
           host.prompt(

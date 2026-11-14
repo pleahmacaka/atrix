@@ -76,7 +76,7 @@ const LABEL = "flex flex-col gap-1 px-2 text-xs text-base-content/55"
     {/each}
     <button
       type="button"
-      class="btn btn-ghost btn-sm justify-start font-normal text-base-content"
+      class="btn btn-ghost btn-sm btn-square justify-start font-normal text-base-content"
       disabled={others.length === 0}
       onclick={() => {
         draft.links = [
@@ -84,9 +84,10 @@ const LABEL = "flex flex-col gap-1 px-2 text-xs text-base-content/55"
           { to: others[0]?.meta.id ?? "", rel: "related" },
         ]
       }}
+      aria-label={m.knowledge_add_link()}
+      title={m.knowledge_add_link()}
     >
       <Icon icon="lucide:link" class="size-4" />
-      {m.knowledge_add_link()}
     </button>
   </div>
 </div>

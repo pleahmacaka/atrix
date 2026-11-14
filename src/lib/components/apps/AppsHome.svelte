@@ -1,0 +1,364 @@
+<script lang="ts">
+import Icon from "@iconify/svelte"
+import type { Tile } from "#lib/apps/app.ts"
+import { apps } from "#lib/apps/apps.svelte.ts"
+import {
+  type Drop,
+  dissolveFolder,
+  moveTile,
+  releaseMember,
+  renameFolder,
+  type Source,
+} from "#lib/apps/home.ts"
+import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import { knowledgeHost } from "#lib/knowledge/host.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
+import { layout } from "#lib/widgets/layout.svelte.ts"
+import AppView from "./AppView.svelte"
+
+const DRAG_TYPE = "application/x-atrix-app"
+
+const EDGE = 0.3
+
+const attempt = new Attempt()
+
+const host = $derived(knowledgeHost())
+
+const ready = $derived(!!host?.state?.knowledge?.ready)
+
+let opened = $state<string | null>(null)
+
+let folderId = $state<string | null>(null)
+
+let hint = $state<{ index: number; drop: Drop } | null>(null)
+
+let renaming = $state<{ id: string; value: string } | null>(null)
+
+const folder = $derived(
+  apps.home.tiles.find(
+    (t): t is Extract<Tile, { kind: "folder" }> =>
+      t.kind === "folder" && t.id === folderId,
+  ) ?? null,
+)
+
+$effect(() => {
+  if (ready && host) {
+    void host.apps.length
+    attempt.run(apps.load)
+  }
+})
+
+const arrange = (tiles: Tile[]) => attempt.run(() => apps.arrangeTiles(tiles))
+
+const dropOf = (e: DragEvent): Drop => {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const x = (e.clientX - rect.left) / rect.width
+
+  return x < EDGE ? "before" : x > 1 - EDGE ? "after" : "merge"
+}
+
+const sourceOf = (e: DragEvent): Source | null => {
+  const raw = e.dataTransfer?.getData(DRAG_TYPE)
+
+  return raw ? (JSON.parse(raw) as Source) : null
+}
+
+const startDrag = (e: DragEvent, source: Source) => {
+  e.dataTransfer?.setData(DRAG_TYPE, JSON.stringify(source))
+
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move"
+  }
+}
+
+const dropOn = (e: DragEvent, index: number) => {
+  const source = sourceOf(e)
+  const drop = hint?.drop ?? "before"
+
+  hint = null
+
+  if (source) {
+    e.preventDefault()
+    arrange(moveTile(apps.home.tiles, source, index, drop, m.apps_folder_default()))
+  }
+}
+
+const titleOf = (key: string) => apps.byKey[key]?.title ?? key
+
+const iconOf = (key: string) => apps.byKey[key]?.icon ?? "lucide:app-window"
+
+const addWidget = (key: string) => layout.addWidget("app", { key })
+
+const appMenu = (key: string, inFolder: string | null): MenuItem[] => [
+  {
+    label: m.menu_open(),
+    icon: "lucide:app-window",
+    run: () => {
+      opened = key
+    },
+  },
+  {
+    label: m.apps_add_widget(),
+    icon: "lucide:layout-dashboard",
+    run: () => addWidget(key),
+  },
+  {
+    label: m.menu_rename(),
+    icon: "lucide:pencil",
+    run: () => {
+      renaming = { id: key, value: titleOf(key) }
+    },
+  },
+  ...(inFolder
+    ? [
+        {
+          label: m.apps_release(),
+          icon: "lucide:folder-output",
+          run: () => arrange(releaseMember(apps.home.tiles, inFolder, key)),
+        },
+      ]
+    : []),
+  "separator",
+  {
+    label: m.common_delete(),
+    icon: "lucide:trash-2",
+    danger: true,
+    confirm: m.menu_confirm_delete(),
+    run: () => attempt.run(() => apps.remove(key)),
+  },
+]
+
+const folderMenu = (id: string, name: string): MenuItem[] => [
+  {
+    label: m.menu_open(),
+    icon: "lucide:folder-open",
+    run: () => {
+      folderId = id
+    },
+  },
+  {
+    label: m.menu_rename(),
+    icon: "lucide:pencil",
+    run: () => {
+      renaming = { id, value: name }
+    },
+  },
+  {
+    label: m.apps_dissolve(),
+    icon: "lucide:ungroup",
+    run: () => arrange(dissolveFolder(apps.home.tiles, id)),
+  },
+]
+
+const commitRename = () => {
+  const current = renaming
+
+  renaming = null
+
+  if (!current) {
+    return
+  }
+
+  if (apps.byKey[current.id]) {
+    attempt.run(() => apps.rename(current.id, current.value))
+  } else {
+    arrange(renameFolder(apps.home.tiles, current.id, current.value))
+  }
+}
+</script>
+
+{#snippet face(icon: string, title: string, id: string)}
+  <span
+    class={[
+      "grid size-16 place-items-center rounded-box border border-base-300 bg-raised",
+      "shadow-sm transition-transform group-hover/tile:-translate-y-0.5",
+    ]}
+  >
+    <Icon {icon} class="size-7 text-primary" />
+  </span>
+  {#if renaming?.id === id}
+    <input
+      class="input input-xs w-24 text-center"
+      aria-label={m.menu_rename()}
+      bind:value={renaming.value}
+      onkeydown={e => {
+        if (e.key === "Enter") {
+          commitRename()
+        } else if (e.key === "Escape") {
+          renaming = null
+        }
+      }}
+      onblur={commitRename}
+      {@attach node => node.focus()}
+    />
+  {:else}
+    <span class="w-24 truncate text-center text-xs">{title}</span>
+  {/if}
+{/snippet}
+
+{#snippet folderFace(tile: Extract<Tile, { kind: "folder" }>)}
+  <span
+    class={[
+      "grid size-16 grid-cols-2 gap-1 rounded-box border border-base-300 bg-raised p-2",
+      "shadow-sm transition-transform group-hover/tile:-translate-y-0.5",
+    ]}
+  >
+    {#each tile.apps.slice(0, 4) as key (key)}
+      <span class="grid place-items-center rounded-field bg-base-200">
+        <Icon icon={iconOf(key)} class="size-3.5 text-primary" />
+      </span>
+    {/each}
+  </span>
+  {#if renaming?.id === tile.id}
+    <input
+      class="input input-xs w-24 text-center"
+      aria-label={m.menu_rename()}
+      bind:value={renaming.value}
+      onkeydown={e => {
+        if (e.key === "Enter") {
+          commitRename()
+        } else if (e.key === "Escape") {
+          renaming = null
+        }
+      }}
+      onblur={commitRename}
+      {@attach node => node.focus()}
+    />
+  {:else}
+    <span class="w-24 truncate text-center text-xs">{tile.name}</span>
+  {/if}
+{/snippet}
+
+<div class="@container relative flex min-h-0 flex-1 flex-col">
+  {#if opened}
+    <AppView appKey={opened} onclose={() => (opened = null)} />
+  {:else if !ready}
+    <EmptyState icon="lucide:database" text={m.apps_store_unavailable()} />
+  {:else if apps.home.tiles.length === 0}
+    <EmptyState icon="lucide:layout-grid" text={m.apps_empty()} />
+  {:else}
+    <ul
+      class={[
+        "grid content-start grid-cols-3 gap-x-2 gap-y-6 overflow-y-auto p-8",
+        "@md:grid-cols-5 @2xl:grid-cols-7 @5xl:grid-cols-9",
+      ]}
+      aria-label={m.apps_title()}
+    >
+      {#each apps.home.tiles as tile, index (tile.kind === "app" ? tile.key : tile.id)}
+        <li
+          class="relative grid place-items-center"
+          ondragover={e => {
+            if (e.dataTransfer?.types.includes(DRAG_TYPE)) {
+              e.preventDefault()
+              hint = { index, drop: dropOf(e) }
+            }
+          }}
+          ondragleave={e => {
+            if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+              hint = null
+            }
+          }}
+          ondrop={e => dropOn(e, index)}
+        >
+          {#if hint?.index === index && hint.drop !== "merge"}
+            <span
+              class={[
+                "pointer-events-none absolute inset-y-2 w-1 rounded-full bg-primary",
+                hint.drop === "before" ? "-left-1" : "-right-1",
+              ]}
+            ></span>
+          {/if}
+          <button
+            type="button"
+            draggable="true"
+            class={[
+              "group/tile flex cursor-pointer flex-col items-center gap-1.5 rounded-box p-1",
+              "active:cursor-grabbing",
+              hint?.index === index && hint.drop === "merge" && "ring-2 ring-primary",
+            ]}
+            title={tile.kind === "app" ? titleOf(tile.key) : tile.name}
+            ondragstart={e => startDrag(e, { kind: "tile", index })}
+            ondragend={() => (hint = null)}
+            onclick={() => {
+              if (tile.kind === "app") {
+                opened = tile.key
+              } else {
+                folderId = tile.id
+              }
+            }}
+            oncontextmenu={e =>
+              contextMenu.show(
+                e,
+                tile.kind === "app"
+                  ? appMenu(tile.key, null)
+                  : folderMenu(tile.id, tile.name),
+              )}
+          >
+            {#if tile.kind === "app"}
+              {@render face(iconOf(tile.key), titleOf(tile.key), tile.key)}
+            {:else}
+              {@render folderFace(tile)}
+            {/if}
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#if folder}
+    <button
+      type="button"
+      class="absolute inset-0 z-10 cursor-default bg-base-100/60 backdrop-blur-sm"
+      aria-label={m.common_close()}
+      onclick={() => (folderId = null)}
+      ondragover={e => {
+        if (e.dataTransfer?.types.includes(DRAG_TYPE)) {
+          e.preventDefault()
+        }
+      }}
+      ondrop={e => {
+        const source = sourceOf(e)
+
+        if (source?.kind === "member") {
+          e.preventDefault()
+          arrange(releaseMember(apps.home.tiles, source.folder, source.key))
+        }
+      }}
+    ></button>
+    <section
+      class={[
+        "absolute top-1/2 left-1/2 z-20 flex w-full max-w-md -translate-x-1/2 -translate-y-1/2",
+        "flex-col gap-4 rounded-box border border-base-300 bg-raised p-5 shadow-lg",
+      ]}
+      aria-label={folder.name}
+    >
+      <p class="text-center text-sm font-semibold">{folder.name}</p>
+      <ul class="grid grid-cols-3 gap-x-2 gap-y-5">
+        {#each folder.apps as key (key)}
+          <li class="grid place-items-center">
+            <button
+              type="button"
+              draggable="true"
+              class="group/tile flex cursor-pointer flex-col items-center gap-1.5 rounded-box p-1 active:cursor-grabbing"
+              title={titleOf(key)}
+              ondragstart={e =>
+                startDrag(e, { kind: "member", folder: folder.id, key })}
+              onclick={() => {
+                opened = key
+                folderId = null
+              }}
+              oncontextmenu={e => contextMenu.show(e, appMenu(key, folder.id))}
+            >
+              {@render face(iconOf(key), titleOf(key), key)}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  <ErrorAlert message={attempt.failure} />
+</div>

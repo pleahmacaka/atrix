@@ -23,3 +23,6 @@ export const sign = async (secret: string, message: string) => {
 
   return toHex(await crypto.subtle.sign("HMAC", key, encoder.encode(message)))
 }
+
+export const proofFor = (secret: string, nonce: string, prover: string) =>
+  sign(secret, `${nonce}:${prover}`)

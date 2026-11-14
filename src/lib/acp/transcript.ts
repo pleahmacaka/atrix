@@ -2,6 +2,7 @@ import { z } from "zod"
 import {
   appendText,
   attachFile,
+  attachUi,
   type ChatItem,
   DETAIL_LIMIT,
   type Log,
@@ -62,16 +63,28 @@ const toolResult = z.object({
     .optional(),
 })
 
+const promptBody = z.union([z.string(), z.array(z.unknown())])
+
 const queuedPrompt = z.object({
   type: z.literal("queued_command"),
-  prompt: z.string(),
+  prompt: promptBody,
   origin: z.object({ kind: z.literal("human") }),
 })
 
 const anyQueued = z.object({
   type: z.literal("queued_command"),
-  prompt: z.string(),
+  prompt: promptBody,
 })
+
+const promptText = (prompt: z.infer<typeof promptBody>) =>
+  typeof prompt === "string"
+    ? prompt
+    : prompt.flatMap(b => textBlock.safeParse(b).data?.text ?? []).join("")
+
+const promptImages = (prompt: z.infer<typeof promptBody>) =>
+  typeof prompt === "string"
+    ? []
+    : prompt.flatMap(b => imageBlock.safeParse(b).data ?? [])
 
 const SHELL_TOOLS = new Set(["Bash", "PowerShell"])
 
@@ -205,18 +218,33 @@ const unqueue = (queue: string[], text: string) => {
   }
 }
 
-const applyQueue = (queue: string[], operation: string, content = "") => {
+const applyQueue = (
+  { items, queue, sent }: Log,
+  operation: string,
+  content = "",
+) => {
   if (operation === "enqueue" && visible(content) && !content.startsWith("/")) {
     queue.push(content)
-  } else if (operation === "remove") {
+  } else if (operation === "remove" && queue.includes(content)) {
     unqueue(queue, content)
+    sent.push(content)
+    appendText(items, "user", content, undefined)
   } else if (operation === "popAll") {
     queue.length = 0
   }
 }
 
-const appendUser = (items: ChatItem[], queue: string[], text: string) => {
+const appendUser = ({ items, queue, sent }: Log, text: string) => {
   unqueue(queue, text)
+
+  const echoed = sent.indexOf(text)
+
+  if (echoed !== -1) {
+    sent.splice(echoed, 1)
+
+    return
+  }
+
   appendText(items, "user", text, undefined)
 }
 
@@ -237,7 +265,7 @@ export const applyShells = ({ shells }: Log, line: string) => {
   const notice = anyQueued.safeParse(parsed.data.attachment)
 
   if (notice.success) {
-    finishShell(shells, notice.data.prompt)
+    finishShell(shells, promptText(notice.data.prompt))
   }
 
   const { type, message } = parsed.data
@@ -260,10 +288,8 @@ export const applyShells = ({ shells }: Log, line: string) => {
   }
 }
 
-export const applyTranscript = (
-  { items, queue, shells }: Log,
-  line: string,
-) => {
+export const applyTranscript = (log: Log, line: string) => {
+  const { items, shells } = log
   const parsed = parseLine(line)
 
   if (!parsed?.success || parsed.data.isSidechain) {
@@ -271,7 +297,7 @@ export const applyTranscript = (
   }
 
   if (parsed.data.type === "queue-operation") {
-    applyQueue(queue, parsed.data.operation ?? "", parsed.data.content)
+    applyQueue(log, parsed.data.operation ?? "", parsed.data.content)
 
     return
   }
@@ -279,13 +305,23 @@ export const applyTranscript = (
   const notice = anyQueued.safeParse(parsed.data.attachment)
 
   if (notice.success) {
-    finishShell(shells, notice.data.prompt)
+    finishShell(shells, promptText(notice.data.prompt))
   }
 
   const queued = queuedPrompt.safeParse(parsed.data.attachment)
 
-  if (queued.success && visible(queued.data.prompt)) {
-    appendUser(items, queue, queued.data.prompt)
+  const queuedText = queued.success ? promptText(queued.data.prompt) : ""
+
+  if (queued.success && visible(queuedText)) {
+    appendUser(log, queuedText)
+
+    for (const { source } of promptImages(queued.data.prompt)) {
+      attachFile(items, {
+        name: "image",
+        mimeType: source?.media_type ?? "image/png",
+        url: source ? `data:${source.media_type};base64,${source.data}` : null,
+      })
+    }
 
     return
   }
@@ -313,7 +349,7 @@ export const applyTranscript = (
     }
 
     if (text.success && type === "user" && visible(text.data.text)) {
-      appendUser(items, queue, text.data.text)
+      appendUser(log, text.data.text)
     } else if (text.success && type === "assistant") {
       appendText(items, "agent", text.data.text, message.id)
     } else if (thinking.success && thinking.data.thinking.trim()) {
@@ -331,6 +367,7 @@ export const applyTranscript = (
         status: "in_progress",
         detail: JSON.stringify(use.data.input, null, 2).slice(0, DETAIL_LIMIT),
       })
+      attachUi(items, use.data.id, use.data.name, use.data.input)
     } else if (result.success) {
       trackResult(shells, result.data)
       settle(items, result.data)

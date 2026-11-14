@@ -10,6 +10,7 @@ import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { PAIR_CHOICES, sync } from "#lib/p2p/sync.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { local } from "#lib/store/local.svelte.ts"
+import TailnetSection from "./TailnetSection.svelte"
 
 const attempt = new Attempt()
 
@@ -130,18 +131,20 @@ const connect = () =>
       {/each}
     </ul>
   </div>
+  <TailnetSection />
   <SettingRow
     icon="lucide:unlink"
     title={m.sync_leave()}
   >
     <button
       type="button"
-      class="btn btn-sm btn-error btn-soft"
+      class="btn btn-sm btn-square btn-error btn-soft"
       disabled={attempt.busy}
       onclick={() => attempt.run(sync.stop)}
+      aria-label={m.sync_leave_button()}
+      title={m.sync_leave_button()}
     >
       <Icon icon="lucide:unlink" class="size-4" />
-      {m.sync_leave_button()}
     </button>
   </SettingRow>
 {:else}
@@ -151,12 +154,13 @@ const connect = () =>
   >
     <button
       type="button"
-      class="btn btn-primary btn-sm"
+      class="btn btn-primary btn-sm btn-square"
       disabled={attempt.busy}
       onclick={() => attempt.run(sync.start)}
+      aria-label={m.sync_start_button()}
+      title={m.sync_start_button()}
     >
       <Icon icon="lucide:play" class="size-4" />
-      {m.sync_start_button()}
     </button>
   </SettingRow>
   <SettingRow

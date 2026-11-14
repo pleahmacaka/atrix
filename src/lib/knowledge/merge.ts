@@ -1,8 +1,6 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { generateText } from "ai"
-import { DEFAULT_MODEL } from "#lib/chat/chats.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { local } from "#lib/store/local.svelte.ts"
+import { activeGateways, providerFor } from "#lib/store/gateways.svelte.ts"
 
 const INSTRUCTIONS = [
   "You merge two concurrent edits of one markdown document.",
@@ -15,20 +13,14 @@ export const mergeWithAi = async (
   mine: string,
   theirs: string,
 ) => {
-  const key = local.data.openrouter.key
+  const [gateway] = activeGateways()
 
-  if (!key) {
-    throw new Error(m.chat_openrouter_missing())
+  if (!gateway) {
+    throw new Error(m.chat_gateway_missing())
   }
 
-  const provider = createOpenAICompatible({
-    name: "openrouter",
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: key,
-    headers: { "X-Title": "Atrix" },
-  })
   const { text } = await generateText({
-    model: provider(DEFAULT_MODEL),
+    model: providerFor(gateway)(gateway.model),
     system: INSTRUCTIONS,
     prompt: `<original>\n${base}\n</original>\n<edit-a>\n${mine}\n</edit-a>\n<edit-b>\n${theirs}\n</edit-b>`,
   })

@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/server"
 import { z } from "zod"
+import { SHOW_UI, showUiInput } from "#lib/chat/blocks.ts"
 import type { Caller } from "./bridge.ts"
 
 export type Reachable = {
@@ -56,8 +57,29 @@ export type KnowledgeDesk = {
   watch: (caller: string, ref: string, on: boolean) => unknown
 }
 
+export type DatasourceDesk = {
+  list: () => Promise<unknown>
+  query: (name: string, sql: string, params: unknown[]) => Promise<unknown>
+  execute: (
+    name: string,
+    sql: string,
+    params: unknown[],
+    create: boolean,
+  ) => Promise<unknown>
+}
+
+export type AppsDesk = {
+  list: () => unknown
+  save: (
+    caller: string,
+    app: { title: string; icon?: string; blocks: unknown[] },
+  ) => Promise<unknown>
+}
+
 export type Desk = {
+  apps: AppsDesk
   knowledge: KnowledgeDesk
+  datasource: DatasourceDesk
   sessions: (caller: string) => Reachable[]
   send: (
     caller: string,
@@ -83,6 +105,49 @@ const callerOf = (caller: Caller) => {
 
 export const atrixTools = (caller: Caller, desk: Desk) => {
   const server = new McpServer({ name: "atrix", version: "0.1.0" })
+
+  server.registerTool(
+    SHOW_UI,
+    {
+      description: [
+        "Show structured UI to the user inside the Atrix chat: card, keyvalue, table, list, bar chart,",
+        "image, links, a 3D scene of primitive shapes, buttons (actions) or a form. Buttons and forms",
+        "send the user's answer back to you as a new message. Text only, never HTML or scripts.",
+      ].join(" "),
+      inputSchema: showUiInput,
+    },
+    async ({ blocks }) => json({ shown: blocks.length }),
+  )
+
+  server.registerTool(
+    "app_list",
+    {
+      description:
+        "List apps the user saved in Atrix. Each app is a set of show_ui blocks the user can reopen from the Apps home.",
+      inputSchema: z.object({}),
+    },
+    async () => json(desk.apps.list()),
+  )
+
+  server.registerTool(
+    "app_save",
+    {
+      description: [
+        "Save a reusable app to the user's Atrix Apps home. An app is a titled set of show_ui blocks.",
+        "Use query blocks to show live datasource data so the app stays current every time it opens.",
+      ].join(" "),
+      inputSchema: z.object({
+        title: z.string().trim().min(1).max(80),
+        icon: z
+          .string()
+          .max(80)
+          .optional()
+          .describe("Iconify name such as lucide:chart-bar"),
+        blocks: showUiInput.shape.blocks,
+      }),
+    },
+    async app => json(await desk.apps.save(callerOf(caller), app)),
+  )
 
   server.registerTool(
     "list_sessions",
@@ -176,6 +241,58 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
     },
     async ({ ref, on }) =>
       json({ id: knowledge.watch(callerOf(caller), ref, on), on }),
+  )
+
+  const { datasource } = desk
+
+  const statement = {
+    name: z.string().describe("Database name from ds_list"),
+    sql: z
+      .string()
+      .min(1)
+      .describe("Exactly one SQLite statement with ? placeholders"),
+    params: z
+      .array(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .default([])
+      .describe("Values bound to the ? placeholders, in order"),
+  }
+
+  server.registerTool(
+    "ds_list",
+    {
+      description:
+        "List Atrix datasources (embedded SQLite databases for generated apps) with their tables. Read a table's columns with ds_query on sqlite_schema or PRAGMA table_info.",
+      inputSchema: z.object({}),
+    },
+    async () => json(await datasource.list()),
+  )
+
+  server.registerTool(
+    "ds_query",
+    {
+      description:
+        "Run one read statement on a datasource and get columns and rows. Put every value in `params`, never inline it into `sql`. Multiple statements are rejected.",
+      inputSchema: z.object(statement),
+    },
+    async ({ name, sql, params }) =>
+      json(await datasource.query(name, sql, params)),
+  )
+
+  server.registerTool(
+    "ds_execute",
+    {
+      description:
+        "Run one write or schema statement on a datasource and get the changed row count and last insert rowid. Put every value in `params`, never inline it into `sql`. Multiple statements are rejected; send them one call at a time.",
+      inputSchema: z.object({
+        ...statement,
+        create: z
+          .boolean()
+          .default(false)
+          .describe("Create the database first when it does not exist"),
+      }),
+    },
+    async ({ name, sql, params, create }) =>
+      json(await datasource.execute(name, sql, params, create)),
   )
 
   return server

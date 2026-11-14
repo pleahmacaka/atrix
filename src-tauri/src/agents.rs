@@ -131,7 +131,7 @@ pub fn agent_close(agents: State<'_, Agents>, key: String) {
     agents.remove(&key);
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn installed_commands(names: Vec<String>) -> Vec<String> {
     names
         .into_iter()

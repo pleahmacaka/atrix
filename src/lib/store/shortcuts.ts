@@ -1,4 +1,5 @@
 import { m } from "#lib/paraglide/messages.js"
+import { layout } from "#lib/widgets/layout.svelte.ts"
 import { nav, openConversation, setSidebar } from "./nav.svelte.ts"
 import { panes } from "./panes.svelte.ts"
 
@@ -46,6 +47,15 @@ export const SHORTCUTS: Shortcut[] = [
     icon: "lucide:square-pen",
     matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "n",
     run: () => openConversation(null),
+  },
+  {
+    keys: ["Ctrl", "E"],
+    label: m.widget_edit(),
+    icon: "lucide:layout-dashboard",
+    matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "e",
+    run: () => {
+      layout.editing = !layout.editing
+    },
   },
   {
     keys: ["Ctrl", "B"],

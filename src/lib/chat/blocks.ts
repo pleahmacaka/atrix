@@ -75,6 +75,51 @@ export const block = z.discriminatedUnion("type", [
       .max(80),
   }),
   z.object({
+    type: z.literal("actions"),
+    title,
+    buttons: z
+      .array(
+        z.object({
+          label,
+          reply: text.describe("Sent back as the user's message when pressed"),
+        }),
+      )
+      .min(1)
+      .max(6),
+  }),
+  z.object({
+    type: z.literal("form"),
+    title,
+    submit: label,
+    fields: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(40),
+          label,
+          kind: z.enum(["text", "number", "select", "check"]),
+          options: z.array(label).max(20).optional(),
+          required: z.boolean().optional(),
+        }),
+      )
+      .min(1)
+      .max(12),
+  }),
+  z.object({
+    type: z.literal("query"),
+    title,
+    source: z.string().trim().min(1).max(64).describe("Datasource name"),
+    sql: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_000)
+      .describe("One read-only SELECT statement with ? placeholders"),
+    params: z
+      .array(z.union([z.string(), z.number(), z.null()]))
+      .max(20)
+      .optional(),
+  }),
+  z.object({
     type: z.literal("links"),
     title,
     links: z
@@ -98,6 +143,14 @@ const showUiPart = z.object({
   input: showUiInput,
 })
 
+export const uiBlocksIn = (input: unknown) => {
+  const parsed = showUiInput.safeParse(input)
+
+  return parsed.success ? parsed.data.blocks : null
+}
+
+export const isShowUi = (name: string) => name.includes(SHOW_UI)
+
 export const blocksOf = (part: UIMessage["parts"][number]) => {
   const parsed = showUiPart.safeParse(part)
 
@@ -108,4 +161,6 @@ export const UI_INSTRUCTIONS = [
   "## Generative UI",
   `When a visual view helps more than prose (a comparison table, a chart of numbers, key facts, a set of links), call ${SHOW_UI}. Keep using markdown for ordinary answers.`,
   "For a 3D layout, model or spatial explanation, use a scene block built from primitive shapes. Keep units consistent and y pointing up.",
+  "To show live data stored in an Atrix datasource, use a query block with one SELECT statement; it re-runs every time the view or saved app opens.",
+  "To ask the user to choose or fill something in, use an actions block (buttons whose reply is sent back as the user's message) or a form block (its answers come back as one message).",
 ].join("\n")

@@ -16,7 +16,9 @@ let {
 
 const id = $props.id()
 
-let hovered = $state.raw<HarnessInfo | null>(null)
+let hoveredId = $state<string | null>(null)
+
+const hovered = $derived(harnesses.find(h => h.id === hoveredId) ?? null)
 
 const stateOf = (h: HarnessInfo) => {
   if (!h.enabled) {
@@ -35,9 +37,9 @@ const stateOf = (h: HarnessInfo) => {
       {@const mark = stateOf(h)}
       <li
         class="relative hover:z-10"
-        style:anchor-name={hovered === h ? `--${id}` : undefined}
-        onpointerenter={() => (hovered = h)}
-        onpointerleave={() => (hovered = null)}
+        style:anchor-name={hoveredId === h.id ? `--${id}` : undefined}
+        onpointerenter={() => (hoveredId = h.id)}
+        onpointerleave={() => (hoveredId = null)}
       >
         <button
           type="button"

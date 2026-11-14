@@ -6,7 +6,7 @@ use serde_json::Value;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::{AppHandle, Manager};
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn claude_presence(app: AppHandle) -> Vec<Value> {
     let Ok(home) = app.path().home_dir() else {
         return Vec::new();
@@ -56,7 +56,7 @@ fn held(path: &Path) -> bool {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn codex_presence(app: AppHandle) -> Vec<String> {
     let Some(dir) = codex_dir(&app) else {
         return Vec::new();
@@ -88,7 +88,7 @@ fn newest_first(dir: &Path) -> Vec<PathBuf> {
     paths
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn codex_rollout(app: AppHandle, id: String) -> Option<String> {
     let suffix = format!("-{id}.jsonl");
     let sessions = codex_dir(&app)?.join("sessions");

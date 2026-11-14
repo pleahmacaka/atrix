@@ -67,7 +67,7 @@ fn inside(root: &str, relative: &str) -> Result<PathBuf, String> {
     Ok(root.join(path))
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 

@@ -1,13 +1,13 @@
-import { DEFAULT_MODEL } from "#lib/chat/chats.svelte.ts"
 import { panes } from "./panes.svelte.ts"
 
-export type Page = "chat" | "knowledge" | "agent" | "devices"
+export type Page = "chat" | "knowledge" | "data" | "agent" | "devices" | "apps"
 
 export type SettingsTab =
   | "appearance"
   | "harness"
   | "sync"
-  | "openrouter"
+  | "datasource"
+  | "gateway"
   | "shortcuts"
   | "device"
 
@@ -17,7 +17,7 @@ export type Current =
   | null
 
 export type Target =
-  | { kind: "openrouter"; model: string }
+  | { kind: "model"; gateway: string; model: string }
   | { kind: "harness"; host: string; harness: string; cwd: string }
 
 const SIDEBAR = "sidebar-open"
@@ -26,6 +26,7 @@ export const nav = $state<{
   page: Page
   harness: { host: string; id: string } | null
   doc: string | null
+  table: { name: string; table: string } | null
   target: Target
   sidebar: boolean
   peek: boolean
@@ -37,7 +38,8 @@ export const nav = $state<{
   page: "chat",
   harness: null,
   doc: null,
-  target: { kind: "openrouter", model: DEFAULT_MODEL },
+  table: null,
+  target: { kind: "model", gateway: "", model: "" },
   sidebar: localStorage.getItem(SIDEBAR) !== "false" && innerWidth >= 1024,
   peek: false,
   palette: false,

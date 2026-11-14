@@ -106,12 +106,36 @@ export type Browse = {
   dirs: { name: string; path: string }[]
 }
 
+export type Rows = { columns: string[]; rows: unknown[][] }
+
+export type Executed = { changes: number; lastInsertRowid: number }
+
+export type SyncConfig = { url: string; token: string }
+
+export type DatasourceRequest =
+  | { op: "ds.list" }
+  | { op: "ds.create"; name: string }
+  | { op: "ds.delete"; name: string }
+  | { op: "ds.tables"; name: string }
+  | { op: "ds.query"; name: string; sql: string; params: unknown[] }
+  | { op: "ds.execute"; name: string; sql: string; params: unknown[] }
+  | { op: "ds.sync.get" }
+  | { op: "ds.sync.set"; name: string; config: SyncConfig | null }
+  | { op: "ds.sync"; name: string }
+
 export type HostRequest =
+  | DatasourceRequest
   | { op: "state" }
   | { op: "fs.browse"; path: string }
   | { op: "list"; harness: string }
   | { op: "new"; harness: string; cwd: string }
-  | { op: "load"; harness: string; sessionId: string; cwd: string }
+  | {
+      op: "load"
+      harness: string
+      sessionId: string
+      cwd: string
+      title?: string
+    }
   | {
       op: "prompt"
       sessionId: string
@@ -132,6 +156,19 @@ export type HostRequest =
   | { op: "profile.remove"; harness: string }
   | { op: "kg.list" }
   | { op: "kg.canvases" }
+  | { op: "kg.folders" }
+  | { op: "kg.apps" }
+  | { op: "kg.object.read"; key: string }
+  | {
+      op: "kg.object.write"
+      key: string
+      etag: string | null
+      value: unknown
+      device: string
+    }
+  | { op: "kg.folder.create"; path: string; device: string }
+  | { op: "kg.remove"; path: string; device: string }
+  | { op: "kg.move"; from: string; to: string; device: string }
   | { op: "kg.canvas.read"; path: string }
   | {
       op: "kg.canvas.save"
@@ -170,5 +207,8 @@ export type HostEvent =
   | { type: "patch"; sessionId: string; patch: Patch }
   | { type: "view"; view: SessionView }
   | { type: "kg"; change: Change }
+  | { type: "ds"; name: string | null }
 
 export type HostCall = (request: HostRequest) => Promise<unknown>
+
+export type Reply = { ok: true; value: unknown } | { ok: false; error: string }

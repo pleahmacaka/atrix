@@ -44,12 +44,13 @@ const save = () =>
     </span>
     <button
       type="button"
-      class="btn btn-primary btn-sm"
+      class="btn btn-primary btn-sm btn-square"
       disabled={!dirty || attempt.busy}
       onclick={save}
+      aria-label={m.common_save()}
+      title={m.common_save()}
     >
       <Icon icon="lucide:save" class="size-4" />
-      {m.common_save()}
     </button>
   </div>
   <textarea

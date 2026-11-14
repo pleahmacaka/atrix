@@ -20,6 +20,31 @@ const messageOf = (raw: unknown) => {
       return m.error_pcb_derive_failed({ detail })
     case "pcb_manifest":
       return m.error_pcb_manifest({ detail })
+    case "versitygw_download":
+    case "versitygw_archive_invalid":
+      return m.error_store_download()
+    case "versitygw_checksum_mismatch":
+      return m.error_store_checksum()
+    case "unsupported_platform":
+      return m.error_store_platform()
+    case "kg_store_timeout":
+      return m.error_store_timeout()
+    case "ds_failed":
+      return m.error_ds_failed({ detail })
+    case "ds_name_invalid":
+      return m.error_ds_name_invalid({ name: detail })
+    case "ds_not_found":
+      return m.error_ds_not_found({ name: detail })
+    case "ds_exists":
+      return m.error_ds_exists({ name: detail })
+    case "ds_empty_sql":
+      return m.error_ds_empty_sql()
+    case "ds_multiple_statements":
+      return m.error_ds_multiple_statements()
+    case "ds_read_only":
+      return m.error_ds_read_only()
+    case "ds_sync_unset":
+      return m.error_ds_sync_unset({ name: detail })
     default:
       return text
   }

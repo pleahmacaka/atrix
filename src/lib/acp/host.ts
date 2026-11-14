@@ -2,12 +2,15 @@ import * as acp from "@agentclientprotocol/sdk"
 import { getVersion } from "@tauri-apps/api/app"
 import { Channel } from "@tauri-apps/api/core"
 import { homeDir } from "@tauri-apps/api/path"
+import { appFile, appKeyOf } from "#lib/apps/app.ts"
+import { datasourceCall, isWrite } from "#lib/datasource/native.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
 import { Knowledge } from "#lib/knowledge/service.ts"
 import type {
   Ask,
   Attachment,
   ConfigChoice,
+  DatasourceRequest,
   HarnessInfo,
   HostEvent,
   HostRequest,
@@ -156,6 +159,21 @@ export class Host {
 
   #bridge = new Bridge(caller =>
     atrixTools(caller, {
+      apps: {
+        list: () => this.#knowledge.store.appList().map(a => a.key),
+        save: async (id, { title, icon, blocks }) => {
+          const key = appKeyOf(title)
+          const file = appFile.parse({ title, icon, blocks })
+          const written = await this.#knowledge.store.writeObject(
+            key,
+            null,
+            file,
+            this.#actorOf(id),
+          )
+
+          return { key, saved: written.ok }
+        },
+      },
       sessions: id => this.#reachable().filter(s => s.id !== id),
       send: (id, message) => this.#send(id, message),
       knowledge: {
@@ -178,6 +196,29 @@ export class Host {
         update: (id, args) => this.#kgUpdate(id, args),
         watch: (id, ref, on) => this.#knowledge.watch(id, ref, on),
       },
+      datasource: {
+        list: async () => {
+          const names = (await datasourceCall({ op: "ds.list" })) as string[]
+
+          return Promise.all(
+            names.map(async name => ({
+              name,
+              tables: await datasourceCall({ op: "ds.tables", name }),
+            })),
+          )
+        },
+        query: (name, sql, params) =>
+          datasourceCall({ op: "ds.query", name, sql, params }),
+        execute: async (name, sql, params, create) => {
+          const names = (await datasourceCall({ op: "ds.list" })) as string[]
+
+          if (create && !names.includes(name)) {
+            await this.#datasource({ op: "ds.create", name })
+          }
+
+          return this.#datasource({ op: "ds.execute", name, sql, params })
+        },
+      },
     }),
   )
 
@@ -197,6 +238,8 @@ export class Host {
   )
 
   #conns = new Map<string, Promise<Conn>>()
+
+  #listed = new Map<string, Listed[]>()
 
   #sessions = new Map<string, Live>()
 
@@ -248,7 +291,12 @@ export class Host {
       case "new":
         return this.#create(request.harness, request.cwd)
       case "load":
-        return this.#load(request.harness, request.sessionId, request.cwd)
+        return this.#load(
+          request.harness,
+          request.sessionId,
+          request.cwd,
+          request.title ?? "",
+        )
       case "prompt":
         return this.#prompt(
           request.sessionId,
@@ -305,6 +353,13 @@ export class Host {
         )
       case "kg.list":
       case "kg.canvases":
+      case "kg.folders":
+      case "kg.apps":
+      case "kg.object.read":
+      case "kg.object.write":
+      case "kg.folder.create":
+      case "kg.remove":
+      case "kg.move":
       case "kg.canvas.read":
       case "kg.canvas.save":
       case "kg.read":
@@ -313,7 +368,27 @@ export class Host {
       case "kg.update":
       case "kg.revert":
         return this.#knowledge.handle(request)
+      case "ds.list":
+      case "ds.create":
+      case "ds.delete":
+      case "ds.tables":
+      case "ds.query":
+      case "ds.execute":
+      case "ds.sync.get":
+      case "ds.sync.set":
+      case "ds.sync":
+        return this.#datasource(request)
     }
+  }
+
+  #datasource = async (request: DatasourceRequest) => {
+    const result = await datasourceCall(request)
+
+    if (isWrite(request)) {
+      this.#emit({ type: "ds", name: "name" in request ? request.name : null })
+    }
+
+    return result
   }
 
   #emit = (event: HostEvent) => {
@@ -606,6 +681,12 @@ export class Host {
       return []
     }
 
+    const entry = this.#entry(harness)
+    const live =
+      entry.kind && !entry.profile
+        ? (this.#external?.listings.get(entry.kind) ?? [])
+        : []
+
     const sessions: acp.SessionInfo[] = []
     let cursor: string | null = null
 
@@ -623,13 +704,25 @@ export class Host {
       }
     }
 
-    return sessions.map(s => ({
+    const listed = sessions.map(s => ({
       sessionId: s.sessionId,
       cwd: s.cwd,
       title: s.title ?? "",
       updatedAt: s.updatedAt ?? null,
     }))
+    const missing = live.filter(
+      l => !listed.some(s => s.sessionId === l.sessionId),
+    )
+
+    listed.push(...missing)
+
+    this.#listed.set(harness, listed)
+
+    return listed
   }
+
+  #title = (harness: string, sessionId: string) =>
+    this.#listed.get(harness)?.find(s => s.sessionId === sessionId)?.title ?? ""
 
   #create = async (harness: string, cwd: string) => {
     const conn = await this.#connect(harness)
@@ -649,7 +742,14 @@ export class Host {
     return this.#view(session)
   }
 
-  #load = async (harness: string, sessionId: string, cwd: string) => {
+  #load = async (
+    harness: string,
+    sessionId: string,
+    cwd: string,
+    hint: string,
+  ) => {
+    await this.#external?.ready
+
     const open = this.#sessions.get(sessionId)
 
     if (open) {
@@ -662,8 +762,7 @@ export class Host {
     const elsewhere = !!source && this.#external?.presence.has(sessionId)
 
     if (this.#external && source && (mirrored || elsewhere)) {
-      const listed = await this.#list(harness).catch(() => [])
-      const title = listed.find(s => s.sessionId === sessionId)?.title ?? ""
+      const title = this.#title(harness, sessionId) || hint
       const view = await this.#external.open(
         source,
         harness,
@@ -683,8 +782,7 @@ export class Host {
       throw new Error(m.error_no_load())
     }
 
-    const listed = await this.#list(harness).catch(() => [])
-    const title = listed.find(s => s.sessionId === sessionId)?.title ?? ""
+    const title = this.#title(harness, sessionId) || hint
     const session = this.#register(conn, harness, sessionId, cwd, title)
 
     try {
@@ -926,8 +1024,10 @@ export class Host {
       .finally(async () => {
         this.#patch(session, { running: false })
 
-        if (session.handback) {
+        if (session.handback && this.#external?.presence.has(session.id)) {
           await this.#handback(session)
+        } else {
+          session.handback = false
         }
 
         await this.#postbox.drain(sessionId).catch(() => {})

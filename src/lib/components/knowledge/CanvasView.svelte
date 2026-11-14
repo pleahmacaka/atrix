@@ -171,16 +171,18 @@ const save = () =>
       {#if !locked}
         <button
           type="button"
-          class="btn btn-ghost btn-sm"
+          class="btn btn-ghost btn-sm btn-square"
           onclick={addText}
+          aria-label={m.knowledge_canvas_text()}
+          title={m.knowledge_canvas_text()}
         >
           <Icon icon="lucide:type" class="size-4" />
-          {m.knowledge_canvas_text()}
         </button>
         <div class={["dropdown", picking && "dropdown-open"]}>
-          <button type="button" class="btn btn-ghost btn-sm" onclick={() => (picking = !picking)}>
+          <button type="button" class="btn btn-ghost btn-sm btn-square" onclick={() => (picking = !picking)}>
+            aria-label={m.knowledge_canvas_doc()}
+            title={m.knowledge_canvas_doc()}
             <Icon icon="lucide:file-plus" class="size-4" />
-            {m.knowledge_canvas_doc()}
           </button>
           {#if picking}
             <ul
@@ -208,13 +210,13 @@ const save = () =>
         </div>
         <button
           type="button"
-          class={["btn btn-ghost btn-sm", linking && "bg-primary/8 text-primary"]}
+          class={["btn btn-ghost btn-sm btn-square", linking && "bg-primary/8 text-primary"]}
           disabled={!selected}
           title={m.knowledge_canvas_connect_hint()}
           onclick={() => (linking = linking ? null : selected)}
+          aria-label={m.knowledge_canvas_connect()}
         >
           <Icon icon="lucide:spline" class="size-4" />
-          {m.knowledge_canvas_connect()}
         </button>
         <button
           type="button"
