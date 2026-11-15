@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { nav } from "#lib/store/nav.svelte.ts"
@@ -28,31 +29,31 @@ $effect(() => {
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col" data-find-root>
-{#if current && view}
-  {#if notice}
-    <div class="mx-auto w-full max-w-5xl px-6 pb-2">
-      <div role="status" class="alert alert-warning alert-soft text-sm">
-        <Icon icon="lucide:triangle-alert" class="size-4" />
-        {notice}
+  {#if current && view}
+    {#if notice}
+      <div class="mx-auto w-full max-w-5xl px-4 pt-2 sm:px-6">
+        <div role="status" class="alert alert-warning alert-soft text-sm">
+          <Icon icon="lucide:triangle-alert" class="size-4" />
+          {notice}
+        </div>
       </div>
-    </div>
-  {/if}
-  {#key `${current.host}:${current.id}`}
-    <HarnessPage
-      host={view}
-      harnessId={current.id}
-      onSelect={(id, message) => {
-        nav.harness = id ? { host: current.host, id } : null
-        notice = message ?? null
-      }}
+    {/if}
+    {#key `${current.host}:${current.id}`}
+      <HarnessPage
+        host={view}
+        harnessId={current.id}
+        onSelect={(id, message) => {
+          nav.harness = id ? { host: current.host, id } : null
+          notice = message ?? null
+        }}
+      />
+    {/key}
+  {:else}
+    <EmptyState
+      centered
+      icon="lucide:monitor-off"
+      title={m.harness_none_page_title()}
+      text={m.harness_none_page_text()}
     />
-  {/key}
-{:else}
-  <div class="grid flex-1 place-items-center p-6 text-center">
-    <div class="flex flex-col items-center gap-2 text-sm text-base-content/60">
-      <Icon icon="lucide:monitor-off" class="size-8" />
-      {m.harness_none_page()}
-    </div>
-  </div>
-{/if}
+  {/if}
 </div>

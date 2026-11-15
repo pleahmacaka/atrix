@@ -2,7 +2,9 @@
 import Icon from "@iconify/svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { baseName } from "#lib/path.ts"
 
 let {
   file,
@@ -13,6 +15,10 @@ let {
   content: string
   onSave: (content: string) => Promise<unknown>
 } = $props()
+
+const name = $derived(baseName(file))
+
+const placeholder = $derived(m.harness_doc_placeholder({ file: name }))
 
 const attempt = new Attempt()
 
@@ -38,26 +44,21 @@ const save = () =>
   <div class="flex items-center gap-2 text-xs text-base-content/60">
     <Icon icon="lucide:file-text" class="size-4 shrink-0" />
     <span class="min-w-0 flex-1 truncate" title={file}>{file}</span>
-    <span class="flex items-center gap-1 whitespace-nowrap">
-      <Icon icon="lucide:info" class="size-3.5" />
-      {m.harness_applies_next()}
-    </span>
-    <button
-      type="button"
-      class="btn btn-primary btn-sm btn-square"
+    <IconButton
+      icon="lucide:save"
+      label={m.common_save()}
+      title={m.harness_applies_next()}
+      tone="primary"
       disabled={!dirty || attempt.busy}
       onclick={save}
-      aria-label={m.common_save()}
-      title={m.common_save()}
-    >
-      <Icon icon="lucide:save" class="size-4" />
-    </button>
+    />
   </div>
   <textarea
     class={[
-      "textarea min-h-0 w-full flex-1 resize-none text-sm leading-relaxed",
-      "tabular-nums",
+      "textarea min-h-0 w-full flex-1 resize-none overflow-x-hidden overflow-y-auto text-sm",
+      "tab-4 leading-relaxed break-words whitespace-pre-wrap tabular-nums",
     ]}
+    {placeholder}
     spellcheck="false"
     aria-label={file}
     bind:value={draft}

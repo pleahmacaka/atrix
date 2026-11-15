@@ -60,44 +60,43 @@ const submit = () =>
     }}
   >
     <h2 class="text-lg font-semibold">{m.harness_new_profile()}</h2>
-    <p class="text-sm text-base-content/70">
-      {m.profile_intro({ name: harness.name })}
-    </p>
     <label class="flex flex-col gap-1">
       <span class="text-sm">{m.profile_name()}</span>
-      <input class="input w-full" bind:value={name} required />
+      <input class="input input-sm w-full" bind:value={name} required />
     </label>
     <fieldset class="flex flex-col gap-2">
       <legend class="mb-1 text-sm">{m.profile_start()}</legend>
-      <label class="flex cursor-pointer items-start gap-3">
-        <input type="radio" class="radio radio-sm mt-0.5" value={true} bind:group={fork} />
-        <span>
-          <span class="block text-sm font-medium">{m.profile_fork()}</span>
-          <span class="block text-xs text-base-content/60">
-            {m.profile_fork_hint()}
-          </span>
-        </span>
+      <label class="flex cursor-pointer items-center gap-3 text-sm">
+        <input
+          type="radio"
+          class="radio radio-sm"
+          value={true}
+          bind:group={fork}
+        />
+        {m.profile_fork()}
       </label>
-      <label class="flex cursor-pointer items-start gap-3">
-        <input type="radio" class="radio radio-sm mt-0.5" value={false} bind:group={fork} />
-        <span>
-          <span class="block text-sm font-medium">{m.profile_empty()}</span>
-          <span class="block text-xs text-base-content/60">
-            {m.profile_empty_hint()}
-          </span>
-        </span>
+      <label class="flex cursor-pointer items-center gap-3 text-sm">
+        <input
+          type="radio"
+          class="radio radio-sm"
+          value={false}
+          bind:group={fork}
+        />
+        {m.profile_empty()}
       </label>
     </fieldset>
     <ErrorAlert message={attempt.failure} />
     <div class="modal-action mt-0">
-      <button type="button" class="btn btn-ghost" onclick={onClose}>{m.common_cancel()}</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick={onClose}>
+        {m.common_cancel()}
+      </button>
       <button
         type="submit"
-        class="btn btn-primary"
+        class="btn btn-primary btn-sm"
         disabled={attempt.busy || !name.trim()}
       >
         {#if attempt.busy}
-          <span class="loading loading-spinner loading-sm"></span>
+          <span class="loading loading-spinner loading-xs"></span>
         {/if}
         {m.common_create()}
       </button>
