@@ -1,8 +1,11 @@
 <script lang="ts">
 import type { Block } from "#lib/chat/blocks.ts"
+import Select from "#lib/components/ui/Select.svelte"
 import { m } from "#lib/paraglide/messages.js"
 
 type Form = Extract<Block, { type: "form" }>
+
+type Field = Form["fields"][number]
 
 let {
   block,
@@ -19,7 +22,10 @@ const missing = $derived(
   ),
 )
 
-const answer = (field: Form["fields"][number]) => {
+const labelOf = (field: Field) =>
+  field.required ? m.ui_field_required({ label: field.label }) : field.label
+
+const answer = (field: Field) => {
   const value = values[field.name]
 
   if (field.kind === "check") {
@@ -61,32 +67,27 @@ const submit = () => {
         />
         {field.label}
       </label>
+    {:else if field.kind === "select"}
+      <div class="flex flex-col gap-1 text-sm">
+        <span class="text-base-content/70">{labelOf(field)}</span>
+        <Select
+          label={field.label}
+          class="select-sm w-full"
+          options={(field.options ?? []).map(o => ({ value: o, label: o }))}
+          value={String(values[field.name] ?? "")}
+          onchange={v => (values[field.name] = v)}
+        />
+      </div>
     {:else}
       <label class="flex flex-col gap-1 text-sm" for="{uid}-{i}">
-        <span class="text-base-content/70">
-          {field.label}{field.required ? " *" : ""}
-        </span>
-        {#if field.kind === "select"}
-          <select
-            id="{uid}-{i}"
-            class="select select-sm w-full"
-            value={values[field.name] ?? ""}
-            onchange={e => (values[field.name] = e.currentTarget.value)}
-          >
-            <option value="" disabled></option>
-            {#each field.options ?? [] as option (option)}
-              <option value={option}>{option}</option>
-            {/each}
-          </select>
-        {:else}
-          <input
-            id="{uid}-{i}"
-            class="input input-sm w-full"
-            type={field.kind === "number" ? "number" : "text"}
-            value={values[field.name] ?? ""}
-            oninput={e => (values[field.name] = e.currentTarget.value)}
-          />
-        {/if}
+        <span class="text-base-content/70">{labelOf(field)}</span>
+        <input
+          id="{uid}-{i}"
+          class="input input-sm w-full"
+          type={field.kind === "number" ? "number" : "text"}
+          value={values[field.name] ?? ""}
+          oninput={e => (values[field.name] = e.currentTarget.value)}
+        />
       </label>
     {/if}
   {/each}

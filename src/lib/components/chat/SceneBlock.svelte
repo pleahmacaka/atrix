@@ -10,55 +10,53 @@ let { block }: { block: Scene } = $props()
 
 const DEFAULT_COLOR = "#a8a29e"
 
-const UNIT = [1, 1, 1]
+type Vec3 = [number, number, number]
 
-const sizeOf = (o: Scene["objects"][number]) => o.size ?? UNIT
+const AXES = [0, 1, 2] as const
+
+const vec = (v: number[] | undefined, fill: number): Vec3 => [
+  v?.[0] ?? fill,
+  v?.[1] ?? fill,
+  v?.[2] ?? fill,
+]
+
+const sizeOf = (o: Scene["objects"][number]) => vec(o.size, 1)
 
 const frame = $derived.by(() => {
-  const low = [Infinity, Infinity, Infinity]
-  const high = [-Infinity, -Infinity, -Infinity]
+  const low: Vec3 = [Infinity, Infinity, Infinity]
+  const high: Vec3 = [-Infinity, -Infinity, -Infinity]
 
   for (const o of block.objects) {
     const size = sizeOf(o)
+    const position = vec(o.position, 0)
 
-    for (const axis of [0, 1, 2]) {
-      const half = Math.abs(size[axis] ?? 1) / 2
+    for (const axis of AXES) {
+      const half = Math.abs(size[axis]) / 2
 
-      low[axis] = Math.min(low[axis], (o.position[axis] ?? 0) - half)
-      high[axis] = Math.max(high[axis], (o.position[axis] ?? 0) + half)
+      low[axis] = Math.min(low[axis], position[axis] - half)
+      high[axis] = Math.max(high[axis], position[axis] + half)
     }
   }
 
-  const center = low.map((l, i) => (l + (high[i] ?? l)) / 2) as [
-    number,
-    number,
-    number,
-  ]
-  const radius = Math.max(
-    Math.hypot(...high.map((h, i) => h - (low[i] ?? h))) / 2,
-    0.5,
+  const center = vec(
+    AXES.map(a => (low[a] + high[a]) / 2),
+    0,
   )
+  const radius = Math.max(Math.hypot(...AXES.map(a => high[a] - low[a])) / 2, 0.5)
+  const eye: Vec3 = [
+    center[0] + radius * 1.8,
+    center[1] + radius * 1.3,
+    center[2] + radius * 1.8,
+  ]
 
-  return {
-    center,
-    radius,
-    eye: [
-      center[0] + radius * 1.8,
-      center[1] + radius * 1.3,
-      center[2] + radius * 1.8,
-    ] as [number, number, number],
-  }
+  return { center, radius, eye }
 })
 
 const toRadians = (rotation: number[] | undefined) =>
-  (rotation ?? [0, 0, 0]).map(d => MathUtils.degToRad(d)) as [
-    number,
-    number,
-    number,
-  ]
+  vec(rotation?.map(d => MathUtils.degToRad(d)), 0)
 </script>
 
-<div class="h-80 overflow-hidden rounded-field bg-base-200">
+<div class="h-80 overflow-hidden rounded-field bg-inset">
   <Canvas>
     <T.PerspectiveCamera
       makeDefault
@@ -83,10 +81,10 @@ const toRadians = (rotation: number[] | undefined) =>
     {#each block.objects as o, i (i)}
       {@const size = sizeOf(o)}
       <T.Group
-        position={o.position as [number, number, number]}
+        position={vec(o.position, 0)}
         rotation={toRadians(o.rotation)}
       >
-        <T.Mesh scale={size as [number, number, number]}>
+        <T.Mesh scale={size}>
           {#if o.shape === "box"}
             <T.BoxGeometry />
           {:else if o.shape === "sphere"}
@@ -106,8 +104,11 @@ const toRadians = (rotation: number[] | undefined) =>
           />
         </T.Mesh>
         {#if o.label}
-          <HTML position={[0, Math.abs(size[1] ?? 1) / 2 + frame.radius * 0.06, 0]} center>
-            <span class="rounded-field bg-base-100/80 px-1.5 py-0.5 text-xs whitespace-nowrap">
+          <HTML position={[0, Math.abs(size[1]) / 2 + frame.radius * 0.06, 0]} center>
+            <span
+              class="block max-w-40 truncate rounded-field bg-base-100/80 px-1.5 py-0.5 text-xs"
+              title={o.label}
+            >
               {o.label}
             </span>
           </HTML>

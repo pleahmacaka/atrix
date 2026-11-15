@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import type { ThoughtItem, ToolItem } from "#lib/acp/items.ts"
+import { plainText } from "#lib/chat/plain.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { KIND_ICONS } from "./labels.ts"
 
@@ -29,6 +30,17 @@ const KIND_LABELS: Record<string, () => string> = {
 
 const verbOf = (tool: ToolItem) =>
   (KIND_LABELS[tool.kind] ?? m.tool_kind_other)()
+
+const FENCE = "```"
+
+const unfence = (text: string) => {
+  const lines = text.trim().split("\n")
+  const last = lines.at(-1)?.trim()
+
+  return lines.length > 1 && lines[0].startsWith(FENCE) && last === FENCE
+    ? lines.slice(1, -1).join("\n")
+    : text
+}
 
 const summary = $derived.by(() => {
   const verbs = new Set(tools.map(verbOf))
@@ -63,7 +75,9 @@ const summary = $derived.by(() => {
         icon={KIND_ICONS[item.kind] ?? "lucide:wrench"}
         class="size-3.5 shrink-0 opacity-60"
       />
-      <span class="min-w-0 truncate">{item.title || item.kind}</span>
+      <span class="min-w-0 truncate" title={item.title || item.kind}>
+        {item.title || item.kind}
+      </span>
       {#if item.detail}
         <Icon
           icon="lucide:chevron-right"
@@ -74,9 +88,9 @@ const summary = $derived.by(() => {
     {#if item.detail}
       <pre
         class={[
-          "mt-1.5 max-h-64 overflow-auto rounded-field bg-base-200 p-3",
+          "mt-1.5 max-h-64 overflow-auto rounded-field bg-inset p-3",
           "text-xs break-all whitespace-pre-wrap",
-        ]}>{item.detail}</pre>
+        ]}>{unfence(item.detail)}</pre>
     {/if}
   </details>
 {/snippet}
@@ -109,12 +123,12 @@ const summary = $derived.by(() => {
           {#if item.text.trim()}
             <li
               class={[
-                "line-clamp-4 flex gap-1.5 text-xs whitespace-pre-wrap",
+                "line-clamp-4 flex gap-1.5 text-xs",
                 "text-base-content/50",
               ]}
             >
               <Icon icon="lucide:brain" class="mt-0.5 size-3.5 shrink-0" />
-              <span>{item.text.trim()}</span>
+              <span>{plainText(item.text)}</span>
             </li>
           {/if}
         {:else}

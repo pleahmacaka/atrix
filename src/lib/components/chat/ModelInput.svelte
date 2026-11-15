@@ -23,7 +23,7 @@ const load = async () => {
 }
 </script>
 
-<label class="input input-ghost input-sm w-60 min-w-0" title={m.chat_model()}>
+<label class="input input-ghost input-sm w-60 min-w-0 max-sm:w-full" title={m.chat_model()}>
   <Icon icon="lucide:cpu" class="size-4 shrink-0 opacity-60" />
   <input
     class="min-w-0 grow"

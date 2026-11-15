@@ -4,10 +4,12 @@ import type { UIMessage } from "ai"
 import { appTitleOf } from "#lib/apps/app.ts"
 import { apps } from "#lib/apps/apps.svelte.ts"
 import { blocksOf } from "#lib/chat/blocks.ts"
+import CopyButton from "#lib/components/ui/CopyButton.svelte"
+import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
-import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 import Attachments from "./Attachments.svelte"
-import CopyButton from "./CopyButton.svelte"
+import { copyMenu } from "./copy.ts"
+import { BUBBLE, REVEAL } from "./labels.ts"
 import Markdown from "./Markdown.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
@@ -33,42 +35,34 @@ const text = $derived(
 
 <article
   class={["group flex min-w-0 flex-col gap-2", mine && "items-end"]}
-  oncontextmenu={e => {
-    if (text && !getSelection()?.toString()) {
-      contextMenu.show(e, [
-        {
-          label: m.menu_copy_message(),
-          icon: "lucide:copy",
-          run: () => navigator.clipboard.writeText(text),
-        },
-      ])
-    }
-  }}
+  oncontextmenu={e => copyMenu(e, text)}
 >
   {#if files.length}
     <Attachments {files} {mine} />
   {/if}
   {#each message.parts as part, index (index)}
     {#if part.type === "text" && mine}
-      <div
-        class={[
-          "max-w-xl min-w-0 rounded-box bg-base-200 px-4 py-2",
-          "break-keep whitespace-pre-wrap wrap-anywhere",
-        ]}
-      >
-        {part.text}
-      </div>
+      <div class={BUBBLE}>{part.text}</div>
     {:else if part.type === "text"}
       <Markdown text={part.text} />
     {:else if part.type === "reasoning" && part.text}
-      <details class="collapse collapse-arrow rounded-box border border-base-300">
-        <summary class="collapse-title flex items-center gap-2 py-2 text-sm opacity-70">
-          <Icon icon="lucide:brain" class="size-4" />
-          {m.chat_reasoning()}
+      <details class="group/reason">
+        <summary class="badge badge-soft h-auto cursor-pointer list-none gap-1.5 py-1">
+          <Icon icon="lucide:brain" class="size-3.5 shrink-0" />
+          <span>{m.chat_reasoning()}</span>
+          <Icon
+            icon="lucide:chevron-down"
+            class="size-3 transition-transform group-open/reason:rotate-180"
+          />
         </summary>
-        <div class="collapse-content text-sm whitespace-pre-wrap opacity-70">
+        <p
+          class={[
+            "mt-2 border-l border-base-300 pl-3 text-xs whitespace-pre-wrap",
+            "text-base-content/50",
+          ]}
+        >
           {part.text}
-        </div>
+        </p>
       </details>
     {:else if part.type === "tool-show_ui"}
       {@const blocks = blocksOf(part)}
@@ -79,14 +73,14 @@ const text = $derived(
           onSave={b => apps.save(appTitleOf(b, ""), b)}
         />
       {:else if part.state === "output-error"}
-        <p class="text-sm text-error">{m.chat_view_failed()}</p>
+        <ErrorAlert message={m.chat_view_failed()} />
       {:else}
         <div class="skeleton h-24 w-full rounded-box"></div>
       {/if}
     {/if}
   {/each}
   {#if !mine && text}
-    <div class="transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
+    <div class={REVEAL}>
       <CopyButton {text} />
     </div>
   {/if}

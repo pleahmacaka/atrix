@@ -1,0 +1,144 @@
+<script lang="ts">
+import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import IconSelect from "#lib/components/ui/IconSelect.svelte"
+import Popover from "#lib/components/ui/Popover.svelte"
+import type { HostView } from "#lib/p2p/hostView.svelte.ts"
+import type { ConfigChoice, SessionView } from "#lib/p2p/protocol.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { baseName } from "#lib/path.ts"
+import { olderModels, terminalChoices, terminalModel } from "./models.ts"
+
+let {
+  host,
+  view,
+  elsewhere,
+  attempt,
+  send,
+}: {
+  host: HostView
+  view: SessionView
+  elsewhere: boolean
+  attempt: (work: () => Promise<unknown>) => Promise<boolean>
+  send: (text: string) => void
+} = $props()
+
+const PRIMARY = ["mode", "model", "thought_level"]
+
+const OPTION_ICONS: Record<string, string> = {
+  mode: "lucide:shield-check",
+  model: "lucide:cpu",
+  thought_level: "lucide:brain",
+}
+
+const isPrimary = (option: ConfigChoice) => PRIMARY.includes(option.category ?? "")
+
+const configured = $derived(view.config.length > 0)
+
+const primary = $derived(view.config.filter(isPrimary))
+
+const secondary = $derived(view.config.filter(o => !isPrimary(o)))
+
+const knownModels = $derived(
+  Object.values(host.views).flatMap(
+    v => v?.config.filter(o => o.category === "model").flatMap(o => o.values) ?? [],
+  ),
+)
+
+const folder = $derived(baseName(view.cwd))
+</script>
+
+{#snippet picker(option: ConfigChoice, ghost: boolean)}
+  {@const older = option.category === "model" ? olderModels(option.values) : null}
+  <IconSelect
+    icon={OPTION_ICONS[option.category ?? ""] ?? "lucide:settings-2"}
+    label={option.name}
+    {ghost}
+    value={option.current}
+    choices={option.values.map(v => ({
+      value: v.value,
+      name: v.name,
+      older: older?.has(v.name),
+    }))}
+    onchange={value => attempt(() => host.configure(view.id, option.id, value))}
+  />
+{/snippet}
+
+<span
+  class="inline-flex h-8 max-w-40 min-w-0 items-center gap-1.5 rounded-field px-2 text-sm"
+  title={view.cwd}
+>
+  <Icon icon="lucide:folder" class="size-4 shrink-0 opacity-60" />
+  <span class="min-w-0 truncate">{folder}</span>
+</span>
+{#if !configured && elsewhere}
+  <IconSelect
+    icon="lucide:cpu"
+    label={m.chat_model()}
+    ghost
+    value={terminalModel(view.model)}
+    choices={terminalChoices(view.model, knownModels)}
+    onchange={alias => send(`/model ${alias}`)}
+  />
+{:else if !configured && view.model}
+  <span
+    class="inline-flex h-8 max-w-48 min-w-0 items-center gap-1.5 rounded-field px-2 text-sm"
+    title={view.model}
+  >
+    <Icon icon="lucide:cpu" class="size-4 shrink-0 opacity-60" />
+    <span class="min-w-0 truncate">{view.model}</span>
+  </span>
+{/if}
+{#if view.shells?.length}
+  {@const shells = view.shells}
+  <Popover
+    label={m.chat_shells({ count: shells.length })}
+    placement="top-start"
+    width="w-96"
+    sheet
+  >
+    {#snippet trigger(p)}
+      <button {...p} type="button" class="btn btn-ghost btn-sm font-normal text-info">
+        <Icon icon="lucide:square-terminal" class="size-4" />
+        {m.chat_shells({ count: shells.length })}
+      </button>
+    {/snippet}
+    {#each shells as shell (shell.id)}
+      <div class="flex items-start gap-2 rounded-field px-2 py-1.5">
+        <span class="loading loading-spinner loading-xs mt-0.5 shrink-0 text-info"></span>
+        <div class="flex min-w-0 flex-1 flex-col">
+          <span class="truncate" title={shell.description || shell.command}>
+            {shell.description || shell.command}
+          </span>
+          {#if shell.description}
+            <span class="truncate text-xs text-base-content/55" title={shell.command}>
+              {shell.command}
+            </span>
+          {/if}
+        </div>
+      </div>
+    {/each}
+  </Popover>
+{/if}
+{#each primary as option (option.id)}
+  {@render picker(option, true)}
+{/each}
+{#if secondary.length > 0}
+  <Popover label={m.chat_options()} placement="top-start" width="w-80" sheet>
+    {#snippet trigger(p)}
+      <IconButton
+        icon="lucide:sliders-horizontal"
+        label={m.chat_options()}
+        {...p}
+      />
+    {/snippet}
+    <div class="flex flex-col gap-3 p-3">
+      {#each secondary as option (option.id)}
+        <div class="flex items-center gap-3">
+          <span class="min-w-0 flex-1 truncate" title={option.name}>{option.name}</span>
+          {@render picker(option, false)}
+        </div>
+      {/each}
+    </div>
+  </Popover>
+{/if}

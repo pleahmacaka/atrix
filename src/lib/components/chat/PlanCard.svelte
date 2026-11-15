@@ -2,18 +2,18 @@
 import Icon from "@iconify/svelte"
 import type { PlanEntry } from "#lib/acp/items.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { STATUS_ICONS } from "./labels.ts"
+import { CARD, STATUS_ICONS } from "./labels.ts"
 
 let { entries }: { entries: PlanEntry[] } = $props()
 </script>
 
-<div class="rounded-box border border-base-300 p-3">
-  <p class="mb-2 text-sm font-medium">{m.chat_plan()}</p>
+<section class={CARD}>
+  <h3 class="mb-2 font-semibold">{m.chat_plan()}</h3>
   <ul class="grid gap-1.5 text-sm">
     {#each entries as entry, index (index)}
       <li
         class={[
-          "flex items-start gap-2",
+          "flex min-w-0 items-start gap-2",
           entry.status === "completed" && "text-base-content/60 line-through",
         ]}
       >
@@ -24,8 +24,8 @@ let { entries }: { entries: PlanEntry[] } = $props()
             entry.status === "in_progress" && "animate-spin",
           ]}
         />
-        <span>{entry.content}</span>
+        <span class="min-w-0 break-words">{entry.content}</span>
       </li>
     {/each}
   </ul>
-</div>
+</section>

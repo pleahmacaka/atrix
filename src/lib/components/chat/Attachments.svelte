@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import type { FileRef } from "#lib/acp/items.ts"
+import ImageViewer, { type Viewed } from "#lib/components/ui/ImageViewer.svelte"
 import { m } from "#lib/paraglide/messages.js"
 
 let { files, mine = false }: { files: FileRef[]; mine?: boolean } = $props()
@@ -11,17 +12,20 @@ const images = $derived(
 
 const others = $derived(files.filter(f => !images.includes(f)))
 
-let dialog = $state<HTMLDialogElement>()
+let zoomed = $state<Viewed | null>(null)
 
-let zoomed = $state<FileRef | null>(null)
-
-const zoom = (file: FileRef) => {
-  zoomed = file
-  dialog?.showModal()
-}
+const chip = "island flex h-16 max-w-64 min-w-0 items-center gap-2 px-3 text-sm"
 </script>
 
-<div class={["flex max-w-xl flex-col gap-2", mine && "items-end self-end"]}>
+{#snippet label(file: FileRef)}
+  <Icon
+    icon={file.mimeType.startsWith("image/") ? "lucide:image" : "lucide:file-text"}
+    class="size-5 shrink-0 opacity-70"
+  />
+  <span class="min-w-0 truncate">{file.name}</span>
+{/snippet}
+
+<div class={["flex max-w-xl min-w-0 flex-col gap-2", mine && "items-end self-end"]}>
   {#if images.length > 0}
     <ul
       class={["flex flex-wrap gap-2", mine && "justify-end"]}
@@ -31,10 +35,12 @@ const zoom = (file: FileRef) => {
         <li>
           <button
             type="button"
-            class="cursor-zoom-in overflow-hidden rounded-box border border-base-300"
+            class="island block cursor-zoom-in overflow-hidden"
             aria-label={m.attach_zoom({ name: file.name })}
             title={file.name}
-            onclick={() => zoom(file)}
+            onclick={() => {
+              zoomed = { url: file.url ?? "", name: file.name }
+            }}
           >
             <img
               src={file.url}
@@ -49,28 +55,23 @@ const zoom = (file: FileRef) => {
   {/if}
   {#if others.length > 0}
     <ul
-      class={["flex flex-wrap gap-2", mine && "justify-end"]}
+      class={["flex max-w-full flex-wrap gap-2", mine && "justify-end"]}
       aria-label={m.attach_files()}
     >
       {#each others as file, index (index)}
-        <li>
+        <li class="min-w-0">
           {#if file.url}
             <a
               href={file.url}
               download={file.name}
-              class="btn btn-sm max-w-64 font-normal"
+              class={[chip, "cursor-pointer hover:bg-inset"]}
               title={m.attach_download({ name: file.name })}
             >
-              <Icon icon="lucide:file-text" class="size-4 shrink-0" />
-              <span class="truncate">{file.name}</span>
+              {@render label(file)}
             </a>
           {:else}
-            <span
-              class="btn btn-sm pointer-events-none max-w-64 font-normal"
-              title={file.name}
-            >
-              <Icon icon="lucide:file-text" class="size-4 shrink-0" />
-              <span class="truncate">{file.name}</span>
+            <span class={chip} title={file.name}>
+              {@render label(file)}
             </span>
           {/if}
         </li>
@@ -79,35 +80,4 @@ const zoom = (file: FileRef) => {
   {/if}
 </div>
 
-<dialog
-  bind:this={dialog}
-  class="modal"
-  onclose={() => {
-    zoomed = null
-  }}
->
-  <div class="modal-box flex max-h-screen max-w-5xl flex-col gap-4 p-4">
-    <div class="flex items-center justify-between gap-2">
-      <p class="truncate text-sm font-semibold">{zoomed?.name}</p>
-      <form method="dialog">
-        <button
-          type="submit"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.common_close()}
-        >
-          <Icon icon="lucide:x" class="size-4" />
-        </button>
-      </form>
-    </div>
-    {#if zoomed?.url}
-      <img
-        src={zoomed.url}
-        alt={zoomed.name}
-        class="min-h-0 w-full rounded-box object-contain"
-      />
-    {/if}
-  </div>
-  <form method="dialog" class="modal-backdrop">
-    <button type="submit">{m.common_close()}</button>
-  </form>
-</dialog>
+<ImageViewer bind:image={zoomed} />
