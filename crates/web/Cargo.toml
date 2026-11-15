@@ -1,0 +1,15 @@
+[package]
+name = "atrix-web"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+atrix-net = { workspace = true, features = ["tls-ring"] }
+js-sys = "0.3.107"
+serde_json = { workspace = true }
+tokio = { workspace = true }
+wasm-bindgen = "0.2.130"
+wasm-bindgen-futures = "0.4.80"
+
+[lib]
+crate-type = ["cdylib"]

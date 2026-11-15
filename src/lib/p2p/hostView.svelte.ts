@@ -2,35 +2,22 @@ import { get, set } from "idb-keyval"
 import { applyUpdate } from "#lib/acp/items.ts"
 import type { Canvas } from "#lib/knowledge/canvas.ts"
 import type { Editable } from "#lib/knowledge/document.ts"
-import type {
-  Patch as KgPatch,
-  StoredObject,
-  WrittenObject,
-} from "#lib/knowledge/store.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { markUnread } from "#lib/store/unread.svelte.ts"
 import type {
   Attachment,
-  Browse,
   CanvasEntry,
   Change,
   Entry,
-  Executed,
-  HarnessConfig,
-  HarnessInfo,
   HostCall,
   HostEvent,
   HostState,
+  InstallScope,
+  KgPatch,
   Listed,
-  Loaded,
-  LoadedCanvas,
-  Rows,
-  Saved,
-  SavedCanvas,
   SessionView,
   SyncConfig,
-  Version,
 } from "./protocol.ts"
 
 export class HostView {
@@ -50,13 +37,21 @@ export class HostView {
 
   datasources = $state<string[]>([])
 
+  knowledgeSources = $state<string[]>([])
+
   dsChange = $state<{ name: string | null } | null>(null)
 
   lastChange = $state<Change | null>(null)
 
+  installLog = $state<Record<string, string>>({})
+
   #asked = new Set<string>()
 
   #fresh = new Set<string>()
+
+  #sought = new Set<string>()
+
+  #listing = new Map<string, Promise<void>>()
 
   constructor(
     readonly id: string,
@@ -78,33 +73,38 @@ export class HostView {
   }
 
   refresh = async () => {
-    this.#adopt((await this.call({ op: "state" })) as HostState)
+    this.#adopt(await this.call({ op: "state" }))
   }
 
-  #sought = new Set<string>()
-
-  #listing = new Map<string, Promise<void>>()
-
-  #relist = (state: HostState) => {
-    const known = new Set([
-      ...state.open.map(s => s.id),
-      ...Object.values(this.lists).flatMap(l => l.map(s => s.sessionId)),
-      ...this.#sought,
-    ])
-    const unseen = state.external.filter(e => !known.has(e.id))
-
-    if (unseen.length === 0) {
-      return
-    }
-
-    for (const e of unseen) {
-      this.#sought.add(e.id)
-    }
-
-    for (const h of state.harnesses) {
-      if (h.enabled && h.kind && !h.profile) {
-        this.list(h.id).catch(() => {})
-      }
+  apply = (event: HostEvent) => {
+    switch (event.type) {
+      case "state":
+        this.#adopt(event.state)
+        break
+      case "view":
+        this.views[event.view.id] = event.view
+        break
+      case "kg":
+        this.lastChange = event.change
+        this.loadKnowledge().catch(() => {})
+        break
+      case "install":
+        this.installLog[event.harness] = event.line
+        break
+      case "ds":
+        this.dsChange = { name: event.name }
+        this.loadDatasources().catch(() => {})
+        break
+      case "update":
+        if (this.views[event.sessionId]) {
+          applyUpdate(this.views[event.sessionId].items, event.update)
+        }
+        break
+      case "patch":
+        if (this.views[event.sessionId]) {
+          Object.assign(this.views[event.sessionId], event.patch)
+        }
+        break
     }
   }
 
@@ -118,7 +118,7 @@ export class HostView {
       }
     }
 
-    const ready = state.knowledge?.ready && !this.state?.knowledge?.ready
+    const ready = state.knowledge.ready && !this.state?.knowledge.ready
 
     this.state = state
 
@@ -148,16 +148,65 @@ export class HostView {
     }
   }
 
+  #relist = (state: HostState) => {
+    const known = new Set([
+      ...state.open.map(s => s.id),
+      ...Object.values(this.lists).flatMap(l => l.map(s => s.sessionId)),
+      ...this.#sought,
+    ])
+    const unseen = state.external.filter(e => !known.has(e.id))
+
+    if (unseen.length === 0) {
+      return
+    }
+
+    for (const e of unseen) {
+      this.#sought.add(e.id)
+    }
+
+    for (const h of state.harnesses) {
+      if (h.enabled && h.kind && !h.profile) {
+        this.list(h.id).catch(() => {})
+      }
+    }
+  }
+
   #target = (sessionId: string) => {
     const open = this.state?.open.find(s => s.id === sessionId)
-    const listed = Object.entries(this.lists).flatMap(([harness, list]) =>
-      list.filter(l => l.sessionId === sessionId).map(l => ({ harness, ...l })),
-    )[0]
-    return open
-      ? { harness: open.harness, cwd: open.cwd }
-      : listed
-        ? { harness: listed.harness, cwd: listed.cwd }
-        : null
+
+    if (open) {
+      return { harness: open.harness, cwd: open.cwd }
+    }
+
+    for (const [harness, list] of Object.entries(this.lists)) {
+      const listed = list.find(l => l.sessionId === sessionId)
+
+      if (listed) {
+        return { harness, cwd: listed.cwd }
+      }
+    }
+
+    return null
+  }
+
+  list = async (harness: string) => {
+    const pending = this.call({ op: "list", harness })
+    const settled = pending.then(
+      () => {},
+      () => {},
+    )
+
+    this.#listing.set(harness, settled)
+
+    try {
+      this.lists[harness] = await pending
+      this.#fresh.add(harness)
+      set(this.#cacheKey, $state.snapshot(this.lists)).catch(() => {})
+    } finally {
+      if (this.#listing.get(harness) === settled) {
+        this.#listing.delete(harness)
+      }
+    }
   }
 
   open = async (sessionId: string) => {
@@ -178,182 +227,8 @@ export class HostView {
     await this.load(target.harness, sessionId, target.cwd)
   }
 
-  toggle = (harness: string, enabled: boolean) =>
-    this.call({ op: "harness.toggle", harness, enabled })
-
-  detect = () => this.call({ op: "harness.detect" })
-
-  apply = (event: HostEvent) => {
-    if (event.type === "state") {
-      this.#adopt(event.state)
-
-      return
-    }
-
-    if (event.type === "view") {
-      this.views[event.view.id] = event.view
-
-      return
-    }
-
-    if (event.type === "kg") {
-      this.lastChange = event.change
-      this.loadKnowledge().catch(() => {})
-
-      return
-    }
-
-    if (event.type === "ds") {
-      this.dsChange = { name: event.name }
-      this.loadDatasources().catch(() => {})
-
-      return
-    }
-
-    const view = this.views[event.sessionId]
-
-    if (!view) {
-      return
-    }
-
-    if (event.type === "update") {
-      applyUpdate(view.items, event.update)
-    } else {
-      Object.assign(view, event.patch)
-    }
-  }
-
-  browse = (path: string) =>
-    this.call({ op: "fs.browse", path }) as Promise<Browse>
-
-  loadKnowledge = async () => {
-    const [docs, canvases, folders, apps] = await Promise.all([
-      this.call({ op: "kg.list" }),
-      this.call({ op: "kg.canvases" }),
-      this.call({ op: "kg.folders" }),
-      this.call({ op: "kg.apps" }),
-    ])
-
-    this.knowledge = docs as Entry[]
-    this.canvases = canvases as CanvasEntry[]
-    this.folders = folders as string[]
-    this.apps = apps as CanvasEntry[]
-  }
-
-  readObject = (key: string) =>
-    this.call({ op: "kg.object.read", key }) as Promise<StoredObject | null>
-
-  writeObject = (key: string, etag: string | null, value: unknown) =>
-    this.call({
-      op: "kg.object.write",
-      key,
-      etag,
-      value,
-      device: settings.deviceName,
-    }) as Promise<WrittenObject>
-
-  createFolder = (path: string) =>
-    this.call({ op: "kg.folder.create", path, device: settings.deviceName })
-
-  removePath = (path: string) =>
-    this.call({ op: "kg.remove", path, device: settings.deviceName })
-
-  movePath = (from: string, to: string) =>
-    this.call({ op: "kg.move", from, to, device: settings.deviceName })
-
-  readCanvas = (path: string) =>
-    this.call({ op: "kg.canvas.read", path }) as Promise<LoadedCanvas>
-
-  saveCanvas = (path: string, etag: string | null, canvas: Canvas) =>
-    this.call({
-      op: "kg.canvas.save",
-      path,
-      etag,
-      canvas,
-      device: settings.deviceName,
-    }) as Promise<SavedCanvas>
-
-  readDoc = (ref: string, versionId?: string) =>
-    this.call({ op: "kg.read", ref, versionId }) as Promise<Loaded>
-
-  createDoc = (path: string, fields: Editable, body: string) =>
-    this.call({
-      op: "kg.create",
-      path,
-      fields,
-      body,
-      device: settings.deviceName,
-    }) as Promise<Saved>
-
-  updateDoc = (ref: string, etag: string, patch: KgPatch) =>
-    this.call({
-      op: "kg.update",
-      ref,
-      etag,
-      patch,
-      device: settings.deviceName,
-    }) as Promise<Saved>
-
-  historyDoc = (ref: string) =>
-    this.call({ op: "kg.history", ref }) as Promise<Version[]>
-
-  revertDoc = (ref: string, versionId: string, etag: string) =>
-    this.call({
-      op: "kg.revert",
-      ref,
-      versionId,
-      etag,
-      device: settings.deviceName,
-    }) as Promise<Saved>
-
-  loadDatasources = async () => {
-    this.datasources = (await this.call({ op: "ds.list" })) as string[]
-  }
-
-  dsCreate = (name: string) => this.call({ op: "ds.create", name })
-
-  dsDelete = (name: string) => this.call({ op: "ds.delete", name })
-
-  dsTables = (name: string) =>
-    this.call({ op: "ds.tables", name }) as Promise<string[]>
-
-  dsQuery = (name: string, sql: string, params: unknown[] = []) =>
-    this.call({ op: "ds.query", name, sql, params }) as Promise<Rows>
-
-  dsExecute = (name: string, sql: string, params: unknown[] = []) =>
-    this.call({ op: "ds.execute", name, sql, params }) as Promise<Executed>
-
-  dsSyncConfigs = () =>
-    this.call({ op: "ds.sync.get" }) as Promise<Record<string, SyncConfig>>
-
-  dsSetSync = (name: string, config: SyncConfig | null) =>
-    this.call({ op: "ds.sync.set", name, config })
-
-  dsSync = (name: string) =>
-    this.call({ op: "ds.sync", name }) as Promise<boolean>
-
-  list = async (harness: string) => {
-    const pending = this.call({ op: "list", harness }) as Promise<Listed[]>
-    const settled = pending.then(
-      () => {},
-      () => {},
-    )
-
-    this.#listing.set(harness, settled)
-
-    try {
-      this.lists[harness] = await pending
-      this.#fresh.add(harness)
-      set(this.#cacheKey, $state.snapshot(this.lists)).catch(() => {})
-    } finally {
-      if (this.#listing.get(harness) === settled) {
-        this.#listing.delete(harness)
-      }
-    }
-  }
-
   create = async (harness: string, cwd: string) => {
-    const view = (await this.call({ op: "new", harness, cwd })) as SessionView
+    const view = await this.call({ op: "new", harness, cwd })
 
     this.views[view.id] = view
 
@@ -368,16 +243,14 @@ export class HostView {
     const title = this.lists[harness]?.find(
       s => s.sessionId === sessionId,
     )?.title
-    const view = (await this.call({
-      op: "load",
-      harness,
-      sessionId,
-      cwd,
-      title,
-    })) as SessionView
+    const view = await this.call({ op: "load", harness, sessionId, cwd, title })
 
     this.views[view.id] = view
   }
+
+  elsewhere = (sessionId: string) =>
+    !!this.views[sessionId]?.external &&
+    !!this.state?.external.some(e => e.id === sessionId)
 
   prompt = (sessionId: string, text: string, attachments: Attachment[] = []) =>
     this.call({ op: "prompt", sessionId, text, attachments })
@@ -395,8 +268,20 @@ export class HostView {
   configure = (sessionId: string, configId: string, value: string) =>
     this.call({ op: "option", sessionId, configId, value })
 
-  readHarness = async (harness: string) =>
-    (await this.call({ op: "harness.read", harness })) as HarnessConfig
+  browse = (path: string) => this.call({ op: "fs.browse", path })
+
+  toggle = (harness: string, enabled: boolean) =>
+    this.call({ op: "harness.toggle", harness, enabled })
+
+  detect = () => this.call({ op: "harness.detect" })
+
+  install = (harness: string, scope: InstallScope) =>
+    this.call({ op: "harness.install", harness, scope })
+
+  uninstall = (harness: string) =>
+    this.call({ op: "harness.uninstall", harness })
+
+  readHarness = (harness: string) => this.call({ op: "harness.read", harness })
 
   writeDoc = (harness: string, doc: string, content: string) =>
     this.call({ op: "harness.write", harness, doc, content })
@@ -407,14 +292,130 @@ export class HostView {
   removeSkill = (harness: string, name: string) =>
     this.call({ op: "skill.remove", harness, name })
 
-  createProfile = async (harness: string, name: string, fork: boolean) =>
-    (await this.call({
-      op: "profile.create",
-      harness,
-      name,
-      fork,
-    })) as { harness: HarnessInfo; skipped: string[] }
+  createProfile = (harness: string, name: string, fork: boolean) =>
+    this.call({ op: "profile.create", harness, name, fork })
 
   removeProfile = (harness: string) =>
     this.call({ op: "profile.remove", harness })
+
+  loadKnowledge = async () => {
+    const [docs, canvases, folders, apps] = await Promise.all([
+      this.call({ op: "kg.list" }),
+      this.call({ op: "kg.canvases" }),
+      this.call({ op: "kg.folders" }),
+      this.call({ op: "kg.apps" }),
+    ])
+
+    this.knowledge = docs
+    this.canvases = canvases
+    this.folders = folders
+    this.apps = apps
+  }
+
+  readObject = (key: string) => this.call({ op: "kg.object.read", key })
+
+  writeObject = (key: string, etag: string | null, value: unknown) =>
+    this.call({
+      op: "kg.object.write",
+      key,
+      etag,
+      value,
+      device: settings.deviceName,
+    })
+
+  createFolder = (path: string) =>
+    this.call({ op: "kg.folder.create", path, device: settings.deviceName })
+
+  removePath = (path: string) =>
+    this.call({ op: "kg.remove", path, device: settings.deviceName })
+
+  movePath = (from: string, to: string) =>
+    this.call({ op: "kg.move", from, to, device: settings.deviceName })
+
+  readCanvas = (path: string) => this.call({ op: "kg.canvas.read", path })
+
+  saveCanvas = (path: string, etag: string | null, canvas: Canvas) =>
+    this.call({
+      op: "kg.canvas.save",
+      path,
+      etag,
+      canvas,
+      device: settings.deviceName,
+    })
+
+  readDoc = (ref: string, versionId?: string) =>
+    this.call({ op: "kg.read", ref, versionId })
+
+  createDoc = (path: string, fields: Editable, body: string) =>
+    this.call({
+      op: "kg.create",
+      path,
+      fields,
+      body,
+      device: settings.deviceName,
+    })
+
+  updateDoc = (ref: string, etag: string, patch: KgPatch) =>
+    this.call({
+      op: "kg.update",
+      ref,
+      etag,
+      patch,
+      device: settings.deviceName,
+    })
+
+  historyDoc = (ref: string) => this.call({ op: "kg.history", ref })
+
+  revertDoc = (ref: string, versionId: string, etag: string) =>
+    this.call({
+      op: "kg.revert",
+      ref,
+      versionId,
+      etag,
+      device: settings.deviceName,
+    })
+
+  trashDocs = () => this.call({ op: "kg.trash" })
+
+  restoreDoc = (ref: string, versionId: string) =>
+    this.call({
+      op: "kg.restore",
+      ref,
+      versionId,
+      device: settings.deviceName,
+    })
+
+  loadDatasources = async () => {
+    const [names, knowledge] = await Promise.all([
+      this.call({ op: "ds.list" }),
+      this.call({ op: "ds.knowledge.get" }).catch(() => []),
+    ])
+
+    this.datasources = names
+    this.knowledgeSources = knowledge
+  }
+
+  dsList = () => this.call({ op: "ds.list" })
+
+  dsCreate = (name: string) => this.call({ op: "ds.create", name })
+
+  dsDelete = (name: string) => this.call({ op: "ds.delete", name })
+
+  dsTables = (name: string) => this.call({ op: "ds.tables", name })
+
+  dsQuery = (name: string, sql: string, params: unknown[] = []) =>
+    this.call({ op: "ds.query", name, sql, params })
+
+  dsExecute = (name: string, sql: string, params: unknown[] = []) =>
+    this.call({ op: "ds.execute", name, sql, params })
+
+  dsSyncConfigs = () => this.call({ op: "ds.sync.get" })
+
+  dsSetSync = (name: string, config: SyncConfig | null) =>
+    this.call({ op: "ds.sync.set", name, config })
+
+  dsSync = (name: string) => this.call({ op: "ds.sync", name })
+
+  dsSetKnowledge = (name: string, on: boolean) =>
+    this.call({ op: "ds.knowledge.set", name, on })
 }

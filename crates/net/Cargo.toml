@@ -1,0 +1,17 @@
+[package]
+name = "atrix-net"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+getrandom = "0.4"
+iroh = { version = "1.4.1", default-features = false }
+n0-future = "0.3.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[features]
+tls-ring = ["iroh/tls-ring"]
+tls-aws-lc-rs = ["iroh/tls-aws-lc-rs"]
+portmapper = ["iroh/portmapper"]

@@ -1,5 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import PairPanel from "#lib/components/devices/PairPanel.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { sync } from "#lib/p2p/sync.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -16,12 +18,9 @@ const openDataFolder = async () => {
 }
 </script>
 
-<SettingRow
-  icon="lucide:tag"
-  title={m.device_name()}
->
+<SettingRow icon="lucide:tag" title={m.device_name()}>
   <input
-    class="input input-sm w-48"
+    class="input input-sm w-48 max-sm:w-full"
     aria-label={m.device_name()}
     value={settings.deviceName}
     onchange={e => {
@@ -30,10 +29,16 @@ const openDataFolder = async () => {
     }}
   />
 </SettingRow>
-<SettingRow
-  icon="lucide:boxes"
-  title={m.device_runs_harness()}
->
+<SettingRow icon="lucide:audio-lines" title={m.voice_gateway()}>
+  <input
+    type="url"
+    class="input input-sm w-48 max-sm:w-full"
+    aria-label={m.voice_gateway()}
+    value={settings.voiceURL}
+    onchange={e => settings.setVoiceURL(e.currentTarget.value)}
+  />
+</SettingRow>
+<SettingRow icon="lucide:boxes" title={m.device_runs_harness()}>
   <span
     class={[
       "badge whitespace-nowrap",
@@ -45,12 +50,15 @@ const openDataFolder = async () => {
   </span>
 </SettingRow>
 {#if desktop}
-  <SettingRow
-    icon="lucide:folder"
-    title={m.device_data_folder()}
-  >
-    <button type="button" class="btn btn-sm btn-square" onclick={openDataFolder} aria-label={m.device_open_folder()} title={m.device_open_folder()}>
-      <Icon icon="lucide:folder-open" class="size-4" />
-    </button>
+  <SettingRow icon="lucide:folder" title={m.device_data_folder()}>
+    <IconButton
+      icon="lucide:folder-open"
+      label={m.device_open_folder()}
+      tone="plain"
+      onclick={openDataFolder}
+    />
   </SettingRow>
 {/if}
+<div class="pt-6">
+  <PairPanel />
+</div>
