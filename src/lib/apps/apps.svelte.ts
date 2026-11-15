@@ -17,7 +17,7 @@ export type LoadedApp = AppFile & { key: string; etag: string }
 const hostOf = () => {
   const host = knowledgeHost()
 
-  if (!host?.state?.knowledge?.ready) {
+  if (!host?.state?.knowledge.ready) {
     throw new Error(m.apps_store_unavailable())
   }
 

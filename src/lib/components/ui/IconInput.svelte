@@ -19,7 +19,7 @@ let {
 </script>
 
 <label
-  class={["input input-sm w-56 min-w-0", ghost && "input-ghost", extra]}
+  class={["input input-sm min-w-0", ghost && "input-ghost", extra || "w-full"]}
   title={label}
 >
   <Icon {icon} class="size-4 shrink-0 opacity-60" />

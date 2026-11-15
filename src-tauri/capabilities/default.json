@@ -11,6 +11,10 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-set-effects",
+    "core:window:allow-set-theme",
+    "core:window:allow-destroy",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
     "opener:allow-open-url",
     "log:default",
     {
@@ -31,6 +35,12 @@
         },
         {
           "url": "http://127.0.0.1:*/*"
+        },
+        {
+          "url": "http://*.ts.net:*/*"
+        },
+        {
+          "url": "https://*.ts.net/*"
         }
       ]
     }

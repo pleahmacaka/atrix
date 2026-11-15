@@ -1,6 +1,6 @@
 <script lang="ts" module>
 export const TOOLBAR = [
-  "bg-base-200 border-base-300 flex min-h-12 shrink-0 items-center gap-2",
+  "bg-inset border-base-300 flex min-h-12 shrink-0 items-center gap-2",
   "overflow-x-auto border-b p-2",
 ]
 

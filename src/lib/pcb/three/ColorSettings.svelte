@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import type { Copper, Pcb } from "../types.ts"
 import { type ColorKind, palette } from "./palette.svelte.ts"
@@ -63,15 +64,11 @@ $effect(() => {
       >
         {m.pcb_3d_reset_all()}
       </button>
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm btn-square"
-        aria-label={m.pcb_3d_close()}
-        title={m.pcb_3d_close()}
+      <IconButton
+        icon="lucide:x"
+        label={m.pcb_3d_close()}
         onclick={() => (open = false)}
-      >
-        <Icon icon="lucide:x" class="size-4" />
-      </button>
+      />
     </div>
 
     <div role="tablist" class="tabs tabs-box tabs-sm">
@@ -102,7 +99,7 @@ $effect(() => {
 
     <ul class="min-h-0 flex-1 overflow-y-auto">
       {#each items as name (name)}
-        <li class="flex h-8 items-center gap-2 rounded-field px-2 hover:bg-base-200">
+        <li class="flex h-8 items-center gap-2 rounded-field px-2 hover:bg-inset">
           <input
             type="color"
             class="size-6 shrink-0 cursor-pointer rounded-field border-0 bg-transparent p-0"
@@ -112,15 +109,13 @@ $effect(() => {
           />
           <span class="min-w-0 flex-1 truncate text-sm">{name}</span>
           {#if palette.custom(kind, name)}
-            <button
-              type="button"
-              class="btn btn-ghost btn-xs btn-square"
-              aria-label={m.pcb_3d_default_color_of({ name })}
+            <IconButton
+              icon="lucide:rotate-ccw"
+              label={m.pcb_3d_default_color_of({ name })}
               title={m.pcb_3d_default_color()}
+              size="xs"
               onclick={() => palette.reset(kind, name)}
-            >
-              <Icon icon="lucide:rotate-ccw" class="size-4" />
-            </button>
+            />
           {/if}
         </li>
       {:else}

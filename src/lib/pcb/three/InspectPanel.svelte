@@ -1,29 +1,27 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { z } from "zod"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { persisted } from "#lib/store/stored.svelte.ts"
 import { rem } from "../units.ts"
 import type { Inspect, Selection } from "./inspect.svelte.ts"
 import { palette } from "./palette.svelte.ts"
 
 let { inspect }: { inspect: Inspect } = $props()
 
-type Frame = { x: number; y: number; width: number | null; height: number | null }
-
 const KEY = "pcb-inspect-panel"
 
 const MIN = { width: 200, height: 96 }
 
-const restore = (): Frame => {
-  const fallback = { x: 8, y: 8, width: null, height: null }
+const frameSchema = z.object({
+  x: z.number().catch(8),
+  y: z.number().catch(8),
+  width: z.number().nullable().catch(null),
+  height: z.number().nullable().catch(null),
+})
 
-  try {
-    return { ...fallback, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }
-  } catch {
-    return fallback
-  }
-}
-
-let frame = $state(restore())
+let frame = $state(persisted(KEY, frameSchema.parse({}), frameSchema))
 
 let panel = $state<HTMLElement>()
 
@@ -154,15 +152,13 @@ const resizeFrom = (e: PointerEvent) => {
           {inspect.selection.name}
         {/if}
       </span>
-      <button
-        type="button"
-        class="btn btn-ghost btn-xs btn-square"
-        aria-label={m.pcb_3d_deselect()}
+      <IconButton
+        icon="lucide:x"
+        label={m.pcb_3d_deselect()}
+        size="xs"
         onpointerdown={e => e.stopPropagation()}
         onclick={() => inspect.select(null)}
-      >
-        <Icon icon="lucide:x" class="size-4" />
-      </button>
+      />
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">

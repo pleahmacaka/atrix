@@ -1,9 +1,17 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { tick } from "svelte"
-import { contextMenu, type MenuAction } from "#lib/store/contextMenu.svelte.ts"
+import {
+  contextMenu,
+  type MenuItem as Item,
+  type MenuAction,
+} from "#lib/store/contextMenu.svelte.ts"
+import MenuItem from "./MenuItem.svelte"
+import { menuKeys } from "./menu.ts"
+import { popoverMotion } from "./popover.ts"
 
 const REM = 16
+
+let home = $state<HTMLDivElement>()
 
 let menu = $state<HTMLDivElement>()
 
@@ -13,6 +21,8 @@ let top = $state(0)
 
 let armed = $state<MenuAction | null>(null)
 
+let items = $state<Item[]>([])
+
 const place = async () => {
   const open = contextMenu.current
 
@@ -21,26 +31,51 @@ const place = async () => {
   }
 
   armed = null
+  items = open.items
   left = open.x
   top = open.y
   await tick()
 
-  const rect = menu?.getBoundingClientRect()
+  if (menu) {
+    const width = menu.offsetWidth
+    const height = menu.offsetHeight
 
-  if (rect) {
-    left = Math.max(4, Math.min(open.x, innerWidth - rect.width - 4))
-    top = Math.max(4, Math.min(open.y, innerHeight - rect.height - 4))
+    left = Math.max(4, Math.min(open.x, innerWidth - width - 4))
+    top = Math.max(4, open.y + height + 4 > innerHeight ? open.y - height : open.y)
   }
 
-  menu?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus()
+  menu?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true })
 }
 
+const hostOf = () => [...document.querySelectorAll("dialog:modal")].at(-1) ?? home
+
 $effect(() => {
+  if (!menu || !home) {
+    return
+  }
+
   if (contextMenu.current) {
-    menu?.showPopover()
+    const host = hostOf()
+
+    if (menu.matches(":popover-open")) {
+      menu.hidePopover()
+    }
+
+    // a modal dialog makes everything outside it inert, so the menu has to live inside it
+    if (host && menu.parentNode !== host) {
+      host.append(menu)
+    }
+
+    menu.showPopover()
     place()
   } else {
-    menu?.hidePopover()
+    if (menu.matches(":popover-open")) {
+      menu.hidePopover()
+    }
+
+    if (menu.parentNode !== home) {
+      home.append(menu)
+    }
   }
 })
 
@@ -55,20 +90,10 @@ const run = async (action: MenuAction) => {
   await action.run()
 }
 
-const move = (e: KeyboardEvent) => {
-  const buttons = [
-    ...(menu?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
-  ]
-  const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
-
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+const close = (e: KeyboardEvent) => {
+  if (e.key === "Escape") {
     e.preventDefault()
-
-    const step = e.key === "ArrowDown" ? 1 : -1
-
-    buttons[(at + step + buttons.length) % buttons.length]?.focus()
-  } else if (e.key === "Escape") {
-    e.preventDefault()
+    e.stopPropagation()
     contextMenu.close()
   }
 }
@@ -76,7 +101,7 @@ const move = (e: KeyboardEvent) => {
 
 <svelte:window
   onpointerdown={e => {
-    if (contextMenu.current && !menu?.contains(e.target as Node)) {
+    if (contextMenu.current && !(e.target instanceof Node && menu?.contains(e.target))) {
       contextMenu.close()
     }
   }}
@@ -84,42 +109,36 @@ const move = (e: KeyboardEvent) => {
   onblur={contextMenu.close}
 />
 
+<div bind:this={home} class="contents">
 <div
   bind:this={menu}
   popover="manual"
   role="menu"
   tabindex="-1"
   class={[
-    "popover-box fixed inset-auto m-0 hidden min-w-52 flex-col p-1 text-sm",
+    "popover-box fixed inset-auto m-0 hidden min-w-52 max-w-xs flex-col p-1 text-sm",
     "text-base-content open:flex",
+    popoverMotion,
   ]}
   style:left="{left / REM}rem"
   style:top="{top / REM}rem"
-  onkeydown={move}
+  onkeydown={close}
+  {@attach menuKeys}
 >
-  {#each contextMenu.current?.items ?? [] as item, index (index)}
+  {#each items as item, index (index)}
     {#if item === "separator"}
-      <hr class="my-1 border-base-content/10" />
+      <hr class="my-1 border-0" />
     {:else}
-      <button
-        type="button"
-        role="menuitem"
-        class={[
-          "flex min-h-8 cursor-pointer items-center gap-2 rounded-field px-2 text-left",
-          "hover:bg-base-content/10 focus-visible:bg-base-content/10 focus:outline-none",
-          "disabled:cursor-not-allowed disabled:opacity-40",
-          item.danger && "text-error",
-          armed === item && "bg-error/15",
-        ]}
+      <MenuItem
+        icon={item.icon ?? "lucide:dot"}
+        label={armed === item && item.confirm ? item.confirm : item.label}
+        hint={item.hint}
+        danger={item.danger}
         disabled={item.disabled}
+        class={armed === item ? "bg-error/12" : undefined}
         onclick={() => run(item)}
-      >
-        <Icon icon={item.icon ?? "lucide:dot"} class="size-4 shrink-0 opacity-70" />
-        <span class="flex-1">{armed === item ? item.confirm : item.label}</span>
-        {#if item.hint}
-          <kbd class="kbd kbd-xs opacity-60">{item.hint}</kbd>
-        {/if}
-      </button>
+      />
     {/if}
   {/each}
+</div>
 </div>

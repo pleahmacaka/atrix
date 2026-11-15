@@ -3,6 +3,7 @@ import Icon from "@iconify/svelte"
 import { createQuery } from "@tanstack/svelte-query"
 import { Canvas } from "@threlte/core"
 import { NoToneMapping } from "three"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { keyOf, loadDerived, type Outputs } from "../derived.ts"
@@ -47,15 +48,12 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
         </span>
       {/if}
       {#if !panel}
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square ml-auto"
-          aria-label={m.pcb_fea_expand_panel()}
-          title={m.pcb_fea_expand_panel()}
+        <IconButton
+          icon="lucide:panel-right-open"
+          label={m.pcb_fea_expand_panel()}
+          class="ml-auto"
           onclick={() => (panel = true)}
-        >
-          <Icon icon="lucide:panel-right-open" class="size-4" />
-        </button>
+        />
       {/if}
     </div>
 
@@ -118,15 +116,11 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
             </p>
           {/if}
         </div>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_fea_collapse_panel()}
-          title={m.pcb_fea_collapse_panel()}
+        <IconButton
+          icon="lucide:panel-right-close"
+          label={m.pcb_fea_collapse_panel()}
           onclick={() => (panel = false)}
-        >
-          <Icon icon="lucide:panel-right-close" class="size-4" />
-        </button>
+        />
       </div>
 
       {#if fea.data}

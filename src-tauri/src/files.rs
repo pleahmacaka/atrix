@@ -5,43 +5,45 @@ use std::path::{Component, Path, PathBuf};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+use crate::error::{Error, Result};
+
 const ROOTS: [&str; 4] = [".atrix", ".claude", ".claude.json", ".codex"];
 
-fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
+fn allowed(app: &AppHandle, path: &str) -> Result<PathBuf> {
     let path = PathBuf::from(path);
-    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let home = app.path().home_dir()?;
     let escapes = path.components().any(|c| c == Component::ParentDir);
     let inside = ROOTS.iter().any(|root| path.starts_with(home.join(root)));
 
     if escapes || !inside {
-        return Err(format!("path_not_allowed:{}", path.display()));
+        return Err(Error::code("path_not_allowed", path.display()));
     }
 
     Ok(path)
 }
 
 #[tauri::command(async)]
-pub fn read_text(app: AppHandle, path: String) -> Result<Option<String>, String> {
+pub fn read_text(app: AppHandle, path: String) -> Result<Option<String>> {
     match fs::read_to_string(allowed(&app, &path)?) {
         Ok(text) => Ok(Some(text)),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(e.into()),
     }
 }
 
 #[tauri::command(async)]
-pub fn write_text(app: AppHandle, path: String, content: String) -> Result<(), String> {
+pub fn write_text(app: AppHandle, path: String, content: String) -> Result<()> {
     let path = allowed(&app, &path)?;
 
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent)?;
     }
 
-    fs::write(path, content).map_err(|e| e.to_string())
+    Ok(fs::write(path, content)?)
 }
 
 #[tauri::command(async)]
-pub fn list_dirs(app: AppHandle, path: String) -> Result<Vec<String>, String> {
+pub fn list_dirs(app: AppHandle, path: String) -> Result<Vec<String>> {
     let Ok(entries) = fs::read_dir(allowed(&app, &path)?) else {
         return Ok(Vec::new());
     };
@@ -87,31 +89,31 @@ fn copy_all(from: &Path, to: &Path, skipped: &mut Vec<String>) -> std::io::Resul
 }
 
 #[tauri::command(async)]
-pub fn copy_path(app: AppHandle, from: String, to: String) -> Result<Vec<String>, String> {
+pub fn copy_path(app: AppHandle, from: String, to: String) -> Result<Vec<String>> {
     let from = allowed(&app, &from)?;
     let to = allowed(&app, &to)?;
     let mut skipped = Vec::new();
 
     if from.exists() {
-        copy_all(&from, &to, &mut skipped).map_err(|e| e.to_string())?;
+        copy_all(&from, &to, &mut skipped)?;
     }
 
     Ok(skipped)
 }
 
 #[tauri::command(async)]
-pub fn remove_path(app: AppHandle, path: String) -> Result<(), String> {
+pub fn remove_path(app: AppHandle, path: String) -> Result<()> {
     let path = allowed(&app, &path)?;
-    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let home = app.path().home_dir()?;
 
     if ROOTS.iter().any(|root| path == home.join(root)) {
         return Err("root_protected".into());
     }
 
     if path.is_dir() {
-        fs::remove_dir_all(path).map_err(|e| e.to_string())
+        Ok(fs::remove_dir_all(path)?)
     } else if path.exists() {
-        fs::remove_file(path).map_err(|e| e.to_string())
+        Ok(fs::remove_file(path)?)
     } else {
         Ok(())
     }
@@ -124,7 +126,7 @@ pub struct Lines {
 }
 
 #[tauri::command(async)]
-pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Result<Lines, String> {
+pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Result<Lines> {
     let path = allowed(&app, &path)?;
     let file = match fs::File::open(&path) {
         Ok(file) => file,
@@ -134,9 +136,9 @@ pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Resul
                 offset: 0,
             });
         }
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(e.into()),
     };
-    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    let size = file.metadata()?.len();
     let fresh = offset == 0 || offset > size;
     let start = if fresh {
         size.saturating_sub(tail)
@@ -148,22 +150,16 @@ pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Resul
     let mut position = start;
     let mut lines = Vec::new();
 
-    reader
-        .seek(SeekFrom::Start(start))
-        .map_err(|e| e.to_string())?;
+    reader.seek(SeekFrom::Start(start))?;
 
     if fresh && start > 0 {
-        position += reader
-            .read_until(b'\n', &mut line)
-            .map_err(|e| e.to_string())? as u64;
+        position += reader.read_until(b'\n', &mut line)? as u64;
     }
 
     loop {
         line.clear();
 
-        let read = reader
-            .read_until(b'\n', &mut line)
-            .map_err(|e| e.to_string())?;
+        let read = reader.read_until(b'\n', &mut line)?;
 
         if read == 0 || line.last() != Some(&b'\n') {
             break;
@@ -185,14 +181,14 @@ pub fn grep_head(
     path: String,
     tail: u64,
     needles: Vec<String>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>> {
     let path = allowed(&app, &path)?;
     let file = match fs::File::open(&path) {
         Ok(file) => file,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(e.into()),
     };
-    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    let size = file.metadata()?.len();
     let end = size.saturating_sub(tail);
     let mut reader = BufReader::new(file);
     let mut line = Vec::new();
@@ -202,9 +198,7 @@ pub fn grep_head(
     while position < end {
         line.clear();
 
-        let read = reader
-            .read_until(b'\n', &mut line)
-            .map_err(|e| e.to_string())?;
+        let read = reader.read_until(b'\n', &mut line)?;
 
         if read == 0 {
             break;
@@ -236,19 +230,18 @@ pub struct Browse {
 }
 
 #[tauri::command(async)]
-pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse, String> {
+pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse> {
     let dir = if path.trim().is_empty() {
-        app.path().home_dir().map_err(|e| e.to_string())?
+        app.path().home_dir()?
     } else {
         PathBuf::from(path.trim())
     };
 
     if !dir.is_dir() {
-        return Err(format!("not_a_folder:{}", dir.display()));
+        return Err(Error::code("not_a_folder", dir.display()));
     }
 
-    let mut dirs: Vec<Dir> = fs::read_dir(&dir)
-        .map_err(|e| e.to_string())?
+    let mut dirs: Vec<Dir> = fs::read_dir(&dir)?
         .flatten()
         .filter(|e| e.path().is_dir())
         .filter_map(|e| {

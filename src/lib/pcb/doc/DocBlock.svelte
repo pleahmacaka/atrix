@@ -1,19 +1,12 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import CopyButton from "#lib/components/ui/CopyButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { type Block, linkTo } from "./doc.ts"
 
 let { block }: { block: Block } = $props()
 
 let copied = $state(false)
-
-const copy = async (text: string) => {
-  await navigator.clipboard.writeText(text)
-  copied = true
-  setTimeout(() => {
-    copied = false
-  }, 1200)
-}
 </script>
 
 {#if block.kind === "heading"}
@@ -30,33 +23,28 @@ const copy = async (text: string) => {
   >
     <span class="text-base-content/40 tabular-nums">{h.number}.</span>
     <span class="min-w-0">{@html h.html}</span>
-    <button
-      type="button"
+    <CopyButton
+      text={linkTo(h.id)}
+      label={m.pcb_doc_copy_link()}
+      icon="lucide:link"
+      bind:copied
       class={[
-        "btn btn-ghost btn-xs btn-square self-center cursor-pointer opacity-0 transition-opacity group-hover:opacity-100",
+        "self-center cursor-pointer opacity-0 transition-opacity group-hover:opacity-100",
         copied && "opacity-100",
       ]}
-      aria-label={m.pcb_doc_copy_link()}
-      title={m.pcb_doc_copy_link()}
-      onclick={() => copy(linkTo(h.id))}
-    >
-      <Icon icon={copied ? "lucide:check" : "lucide:link"} class="size-4" />
-    </button>
+    />
   </svelte:element>
 {:else if block.kind === "code"}
-  <div class="border-base-300 bg-base-200 relative rounded-box border">
+  <div class="border-base-300 bg-inset relative rounded-box border">
     <pre class="overflow-x-auto py-3 pr-12 pl-4 text-sm leading-relaxed"><code
         >{block.code}</code
       ></pre>
-    <button
-      type="button"
-      class="btn btn-ghost btn-sm btn-square absolute top-2 right-2"
-      aria-label={m.pcb_doc_copy_code()}
-      title={m.pcb_doc_copy_code()}
-      onclick={() => copy(block.code)}
-    >
-      <Icon icon={copied ? "lucide:check" : "lucide:copy"} class="size-4" />
-    </button>
+    <CopyButton
+      text={block.code}
+      label={m.pcb_doc_copy_code()}
+      size="sm"
+      class="absolute top-2 right-2"
+    />
   </div>
 {:else if block.kind === "tree"}
   <div class="prose-doc border-base-300 overflow-x-auto rounded-box border">
@@ -82,7 +70,7 @@ const copy = async (text: string) => {
 {:else if block.kind === "note"}
   <div
     role="note"
-    class="border-base-300 bg-base-200 overflow-hidden rounded-box border"
+    class="border-base-300 bg-inset overflow-hidden rounded-box border"
   >
     <div
       class={[
@@ -161,7 +149,7 @@ const copy = async (text: string) => {
     height: 1.5rem;
     border-radius: 50%;
     border: var(--border) solid var(--color-base-300);
-    background: var(--color-base-200);
+    background: var(--color-inset);
     font-size: 0.75rem;
     font-weight: 600;
     line-height: 1;
@@ -178,7 +166,7 @@ const copy = async (text: string) => {
   }
 
   :global(.prose-doc code) {
-    background: var(--color-base-200);
+    background: var(--color-inset);
     border: var(--border) solid var(--color-base-300);
     border-radius: var(--radius-field);
     padding: 0 0.25rem;
@@ -195,7 +183,7 @@ const copy = async (text: string) => {
   }
 
   :global(.prose-doc th) {
-    background: var(--color-base-200);
+    background: var(--color-inset);
     font-weight: 600;
     white-space: nowrap;
   }

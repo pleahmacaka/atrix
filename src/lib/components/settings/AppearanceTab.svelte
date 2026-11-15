@@ -37,7 +37,6 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
 ]
 </script>
 
-
 <SettingRow icon="lucide:languages" title={m.appearance_language()}>
   <Segmented
     items={LANGUAGES}
@@ -84,7 +83,7 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
 
 {#if desktop}
   <SettingRow icon="lucide:app-window" title={m.appearance_window()}>
-    <div class="flex flex-col items-end gap-3">
+    <div class="flex flex-col items-end gap-3 max-sm:w-full max-sm:items-stretch">
       <Segmented
         items={EFFECTS}
         value={settings.effect}
@@ -100,7 +99,7 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
         {m.appearance_transparency()}
         <input
           type="range"
-          class="range range-primary range-xs w-32"
+          class="range range-primary range-xs w-32 max-sm:w-auto max-sm:flex-1"
           min="0"
           max="85"
           step="5"

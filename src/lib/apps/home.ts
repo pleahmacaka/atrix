@@ -1,8 +1,12 @@
+import { z } from "zod"
 import type { Tile } from "./app.ts"
 
-export type Source =
-  | { kind: "tile"; index: number }
-  | { kind: "member"; folder: string; key: string }
+export const sourceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("tile"), index: z.number() }),
+  z.object({ kind: z.literal("member"), folder: z.string(), key: z.string() }),
+])
+
+export type Source = z.infer<typeof sourceSchema>
 
 export type Drop = "before" | "after" | "merge"
 
@@ -23,7 +27,9 @@ const withoutSource = (tiles: Tile[], source: Source) => {
     return apps.length ? [{ ...t, apps }] : []
   })
 
-  return { moved: { kind: "app", key: source.key } as Tile, rest }
+  const moved: Tile = { kind: "app", key: source.key }
+
+  return { moved, rest }
 }
 
 const keyOf = (tile: Tile) => (tile.kind === "app" ? tile.key : tile.id)

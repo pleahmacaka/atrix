@@ -100,7 +100,7 @@ const toggled = async (e: ToggleEvent) => {
     expanded = false
 
     if (pop()?.contains(document.activeElement)) {
-      trigger?.focus()
+      trigger?.focus({ preventScroll: true })
     }
 
     return
@@ -112,7 +112,7 @@ const toggled = async (e: ToggleEvent) => {
 
   await tick()
 
-  search?.focus()
+  search?.focus({ preventScroll: true })
 
   const current = groups
     .flatMap(g => g.items)

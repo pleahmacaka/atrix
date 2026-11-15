@@ -9,6 +9,7 @@ import {
   releaseMember,
   renameFolder,
   type Source,
+  sourceSchema,
 } from "#lib/apps/home.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
@@ -16,7 +17,6 @@ import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { knowledgeHost } from "#lib/knowledge/host.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
-import { layout } from "#lib/widgets/layout.svelte.ts"
 import AppView from "./AppView.svelte"
 
 const DRAG_TYPE = "application/x-atrix-app"
@@ -37,12 +37,22 @@ let hint = $state<{ index: number; drop: Drop } | null>(null)
 
 let renaming = $state<{ id: string; value: string } | null>(null)
 
+let dialog = $state<HTMLDialogElement>()
+
 const folder = $derived(
   apps.home.tiles.find(
     (t): t is Extract<Tile, { kind: "folder" }> =>
       t.kind === "folder" && t.id === folderId,
   ) ?? null,
 )
+
+$effect(() => {
+  if (folder && !dialog?.open) {
+    dialog?.showModal()
+  } else if (!folder && dialog?.open) {
+    dialog.close()
+  }
+})
 
 $effect(() => {
   if (ready && host) {
@@ -53,8 +63,8 @@ $effect(() => {
 
 const arrange = (tiles: Tile[]) => attempt.run(() => apps.arrangeTiles(tiles))
 
-const dropOf = (e: DragEvent): Drop => {
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+const dropOf = (e: DragEvent & { currentTarget: HTMLElement }): Drop => {
+  const rect = e.currentTarget.getBoundingClientRect()
   const x = (e.clientX - rect.left) / rect.width
 
   return x < EDGE ? "before" : x > 1 - EDGE ? "after" : "merge"
@@ -63,7 +73,15 @@ const dropOf = (e: DragEvent): Drop => {
 const sourceOf = (e: DragEvent): Source | null => {
   const raw = e.dataTransfer?.getData(DRAG_TYPE)
 
-  return raw ? (JSON.parse(raw) as Source) : null
+  if (!raw) {
+    return null
+  }
+
+  try {
+    return sourceSchema.safeParse(JSON.parse(raw)).data ?? null
+  } catch {
+    return null
+  }
 }
 
 const startDrag = (e: DragEvent, source: Source) => {
@@ -90,8 +108,6 @@ const titleOf = (key: string) => apps.byKey[key]?.title ?? key
 
 const iconOf = (key: string) => apps.byKey[key]?.icon ?? "lucide:app-window"
 
-const addWidget = (key: string) => layout.addWidget("app", { key })
-
 const appMenu = (key: string, inFolder: string | null): MenuItem[] => [
   {
     label: m.menu_open(),
@@ -99,11 +115,6 @@ const appMenu = (key: string, inFolder: string | null): MenuItem[] => [
     run: () => {
       opened = key
     },
-  },
-  {
-    label: m.apps_add_widget(),
-    icon: "lucide:layout-dashboard",
-    run: () => addWidget(key),
   },
   {
     label: m.menu_rename(),
@@ -170,15 +181,7 @@ const commitRename = () => {
 }
 </script>
 
-{#snippet face(icon: string, title: string, id: string)}
-  <span
-    class={[
-      "grid size-16 place-items-center rounded-box border border-base-300 bg-raised",
-      "shadow-sm transition-transform group-hover/tile:-translate-y-0.5",
-    ]}
-  >
-    <Icon {icon} class="size-7 text-primary" />
-  </span>
+{#snippet name(id: string, title: string)}
   {#if renaming?.id === id}
     <input
       class="input input-xs w-24 text-center"
@@ -188,6 +191,7 @@ const commitRename = () => {
         if (e.key === "Enter") {
           commitRename()
         } else if (e.key === "Escape") {
+          e.preventDefault()
           renaming = null
         }
       }}
@@ -199,50 +203,45 @@ const commitRename = () => {
   {/if}
 {/snippet}
 
+{#snippet face(icon: string, title: string, id: string)}
+  <span
+    class={[
+      "grid size-16 place-items-center squircle border border-base-300 bg-raised",
+      "shadow-sm transition-transform duration-140 group-hover/tile:-translate-y-0.5",
+    ]}
+  >
+    <Icon {icon} class="size-7 text-primary" />
+  </span>
+  {@render name(id, title)}
+{/snippet}
+
 {#snippet folderFace(tile: Extract<Tile, { kind: "folder" }>)}
   <span
     class={[
-      "grid size-16 grid-cols-2 gap-1 rounded-box border border-base-300 bg-raised p-2",
-      "shadow-sm transition-transform group-hover/tile:-translate-y-0.5",
+      "grid size-16 grid-cols-2 grid-rows-2 gap-1 squircle border border-base-300 bg-raised p-2",
+      "shadow-sm transition-transform duration-140 group-hover/tile:-translate-y-0.5",
     ]}
   >
     {#each tile.apps.slice(0, 4) as key (key)}
-      <span class="grid place-items-center rounded-field bg-base-200">
+      <span class="grid place-items-center rounded-field bg-inset">
         <Icon icon={iconOf(key)} class="size-3.5 text-primary" />
       </span>
     {/each}
   </span>
-  {#if renaming?.id === tile.id}
-    <input
-      class="input input-xs w-24 text-center"
-      aria-label={m.menu_rename()}
-      bind:value={renaming.value}
-      onkeydown={e => {
-        if (e.key === "Enter") {
-          commitRename()
-        } else if (e.key === "Escape") {
-          renaming = null
-        }
-      }}
-      onblur={commitRename}
-      {@attach node => node.focus()}
-    />
-  {:else}
-    <span class="w-24 truncate text-center text-xs">{tile.name}</span>
-  {/if}
+  {@render name(tile.id, tile.name)}
 {/snippet}
 
 <div class="@container relative flex min-h-0 flex-1 flex-col">
   {#if opened}
     <AppView appKey={opened} onclose={() => (opened = null)} />
   {:else if !ready}
-    <EmptyState icon="lucide:database" text={m.apps_store_unavailable()} />
+    <EmptyState icon="lucide:database" text={m.apps_store_unavailable()} centered />
   {:else if apps.home.tiles.length === 0}
-    <EmptyState icon="lucide:layout-grid" text={m.apps_empty()} />
+    <EmptyState icon="lucide:layout-grid" text={m.apps_empty()} centered />
   {:else}
     <ul
       class={[
-        "grid content-start grid-cols-3 gap-x-2 gap-y-6 overflow-y-auto p-8",
+        "grid content-start grid-cols-3 gap-x-2 gap-y-6 overflow-y-auto p-4 @md:p-8",
         "@md:grid-cols-5 @2xl:grid-cols-7 @5xl:grid-cols-9",
       ]}
       aria-label={m.apps_title()}
@@ -257,7 +256,7 @@ const commitRename = () => {
             }
           }}
           ondragleave={e => {
-            if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+            if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) {
               hint = null
             }
           }}
@@ -308,57 +307,70 @@ const commitRename = () => {
     </ul>
   {/if}
 
-  {#if folder}
-    <button
-      type="button"
-      class="absolute inset-0 z-10 cursor-default bg-base-100/60 backdrop-blur-sm"
-      aria-label={m.common_close()}
-      onclick={() => (folderId = null)}
-      ondragover={e => {
-        if (e.dataTransfer?.types.includes(DRAG_TYPE)) {
-          e.preventDefault()
-        }
-      }}
-      ondrop={e => {
-        const source = sourceOf(e)
+  <dialog
+    bind:this={dialog}
+    class="modal"
+    aria-label={folder?.name}
+    onclose={() => {
+      folderId = null
+      contextMenu.close()
+    }}
+  >
+    {#if folder}
+      <section
+        class={[
+          "modal-box flex max-w-md flex-col gap-4 p-5",
+          "rounded-box border border-base-300",
+        ]}
+      >
+        <h2 class="truncate text-center text-sm font-semibold">{folder.name}</h2>
+        <ul class="grid grid-cols-3 gap-x-2 gap-y-5">
+          {#each folder.apps as key (key)}
+            <li class="grid place-items-center">
+              <button
+                type="button"
+                draggable="true"
+                class={[
+                  "group/tile flex cursor-pointer flex-col items-center gap-1.5 rounded-box p-1",
+                  "active:cursor-grabbing",
+                ]}
+                title={titleOf(key)}
+                ondragstart={e =>
+                  startDrag(e, { kind: "member", folder: folder.id, key })}
+                onclick={() => {
+                  opened = key
+                  folderId = null
+                }}
+                oncontextmenu={e => contextMenu.show(e, appMenu(key, folder.id))}
+              >
+                {@render face(iconOf(key), titleOf(key), key)}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+    <form method="dialog" class="modal-backdrop">
+      <button
+        type="submit"
+        class="cursor-default"
+        aria-label={m.common_close()}
+        ondragover={e => {
+          if (e.dataTransfer?.types.includes(DRAG_TYPE)) {
+            e.preventDefault()
+          }
+        }}
+        ondrop={e => {
+          const source = sourceOf(e)
 
-        if (source?.kind === "member") {
-          e.preventDefault()
-          arrange(releaseMember(apps.home.tiles, source.folder, source.key))
-        }
-      }}
-    ></button>
-    <section
-      class={[
-        "absolute top-1/2 left-1/2 z-20 flex w-full max-w-md -translate-x-1/2 -translate-y-1/2",
-        "flex-col gap-4 rounded-box border border-base-300 bg-raised p-5 shadow-lg",
-      ]}
-      aria-label={folder.name}
-    >
-      <p class="text-center text-sm font-semibold">{folder.name}</p>
-      <ul class="grid grid-cols-3 gap-x-2 gap-y-5">
-        {#each folder.apps as key (key)}
-          <li class="grid place-items-center">
-            <button
-              type="button"
-              draggable="true"
-              class="group/tile flex cursor-pointer flex-col items-center gap-1.5 rounded-box p-1 active:cursor-grabbing"
-              title={titleOf(key)}
-              ondragstart={e =>
-                startDrag(e, { kind: "member", folder: folder.id, key })}
-              onclick={() => {
-                opened = key
-                folderId = null
-              }}
-              oncontextmenu={e => contextMenu.show(e, appMenu(key, folder.id))}
-            >
-              {@render face(iconOf(key), titleOf(key), key)}
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
+          if (source?.kind === "member") {
+            e.preventDefault()
+            arrange(releaseMember(apps.home.tiles, source.folder, source.key))
+          }
+        }}
+      ></button>
+    </form>
+  </dialog>
 
   <ErrorAlert message={attempt.failure} />
 </div>

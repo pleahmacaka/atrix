@@ -6,6 +6,7 @@ export type ListGroup<T> = { name: string; items: T[] }
 import type { Snippet } from "svelte"
 import type { HTMLAttributes } from "svelte/elements"
 import { m } from "#lib/paraglide/messages.js"
+import { popoverMotion, popoverSheet, reveal } from "./popover.ts"
 
 const PAGE = 8
 
@@ -17,6 +18,7 @@ let {
   active = $bindable(-1),
   open,
   sheet = false,
+  up = false,
   selected,
   disabled,
   title,
@@ -34,6 +36,7 @@ let {
   active?: number
   open?: boolean
   sheet?: boolean
+  up?: boolean
   selected?: (item: T) => boolean
   disabled?: (item: T) => boolean
   title?: (item: T) => string
@@ -65,9 +68,7 @@ export const move = (to: number, dir: 1 | -1) => {
     for (let i = start; i >= 0 && i < flat.length; i += step) {
       if (!disabled?.(flat[i])) {
         active = i
-        document
-          .getElementById(`${id}-${i}`)
-          ?.scrollIntoView({ block: "nearest" })
+        reveal(document.getElementById(`${id}-${i}`))
 
         return
       }
@@ -138,19 +139,11 @@ const toggle = (e: ToggleEvent) => {
   popover={open === undefined ? "auto" : "manual"}
   style:position-anchor={anchor}
   class={[
-    above && "above",
+    (above || up) && "above",
     "anchored popover-box nowheel fixed inset-auto mx-0 my-1 flex w-max max-w-sm",
     "flex-col overflow-hidden p-0 text-base-content",
-    "scale-95 opacity-0 transition transition-discrete duration-140",
-    "pointer-events-none open:pointer-events-auto open:scale-100 open:opacity-100",
-    "starting:open:scale-95 starting:open:opacity-0",
-    sheet && [
-      "sheet max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:my-0",
-      "max-sm:max-h-4/5 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none",
-      "max-sm:border-x-0 max-sm:border-b-0 max-sm:translate-y-8 max-sm:scale-100",
-      "max-sm:open:translate-y-0 max-sm:starting:open:translate-y-8",
-      "max-sm:starting:open:scale-100 max-sm:backdrop:bg-black/40",
-    ],
+    popoverMotion,
+    sheet && ["sheet", popoverSheet],
   ]}
   onbeforetoggle={toggle}
   {@attach open !== undefined &&

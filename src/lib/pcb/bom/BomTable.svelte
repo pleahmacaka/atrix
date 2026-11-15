@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import type { Outputs } from "../derived.ts"
 import { saveFile } from "../save.ts"
@@ -138,7 +139,7 @@ const download = () => saveFile(bomCsv(shown), `${name}-bom.csv`)
       <div class="hidden w-max min-w-full @2xl:block">
         <table class="table table-xs table-pin-rows w-full border-separate border-spacing-0 text-sm whitespace-nowrap tabular-nums">
           <thead>
-            <tr class="bg-base-200">
+            <tr class="bg-inset">
               {#each COLUMNS as c (c.key)}
                 <th class="border-base-300 border-r border-b p-0 font-semibold">
                   <button
@@ -162,7 +163,7 @@ const download = () => saveFile(bomCsv(shown), `${name}-bom.csv`)
           <tbody>
             {#each shown as row (row.item)}
               <tr
-                class={["hover:bg-base-200", outputs && "cursor-pointer"]}
+                class={["hover:bg-inset", outputs && "cursor-pointer"]}
                 onmouseenter={e => outputs && show(rowTarget(row), e.currentTarget)}
                 onmouseleave={() => (peek = null)}
                 onclick={() => outputs && locate(rowTarget(row))}
@@ -229,7 +230,7 @@ const download = () => saveFile(bomCsv(shown), `${name}-bom.csv`)
   </div>
   <div
     class={[
-      "bg-base-200 border-base-300 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2",
+      "bg-inset border-base-300 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2",
       "border-t px-4 py-2 text-xs tabular-nums",
     ]}
   >
@@ -239,15 +240,14 @@ const download = () => saveFile(bomCsv(shown), `${name}-bom.csv`)
     <div class="ml-auto flex items-center gap-2">
       <span aria-hidden="true" class="text-base-content/70">{m.pcb_bom_board_count()}</span>
       <fieldset aria-label={m.pcb_bom_board_count()} class="join">
-        <button
-          type="button"
-          class="btn btn-sm btn-square join-item"
-          aria-label={m.pcb_bom_decrease()}
+        <IconButton
+          icon="lucide:minus"
+          label={m.pcb_bom_decrease()}
+          tone="plain"
+          class="join-item"
           disabled={boards <= 1}
           onclick={() => step(-1)}
-        >
-          <Icon icon="lucide:minus" class="size-4" />
-        </button>
+        />
         <input
           type="text"
           inputmode="numeric"
@@ -256,15 +256,14 @@ const download = () => saveFile(bomCsv(shown), `${name}-bom.csv`)
           bind:value={draft}
           onchange={() => (draft = String(boards))}
         />
-        <button
-          type="button"
-          class="btn btn-sm btn-square join-item"
-          aria-label={m.pcb_bom_increase()}
+        <IconButton
+          icon="lucide:plus"
+          label={m.pcb_bom_increase()}
+          tone="plain"
+          class="join-item"
           disabled={boards >= MAX_BOARDS}
           onclick={() => step(1)}
-        >
-          <Icon icon="lucide:plus" class="size-4" />
-        </button>
+        />
       </fieldset>
     </div>
   </div>

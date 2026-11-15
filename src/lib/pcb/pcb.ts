@@ -1,4 +1,4 @@
-import { native } from "#lib/acp/native.ts"
+import { native } from "#lib/native.ts"
 
 export type Board = {
   name: string

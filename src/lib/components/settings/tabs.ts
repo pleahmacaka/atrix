@@ -1,13 +1,14 @@
 import type { Component } from "svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { desktop } from "#lib/platform.ts"
 import type { SettingsTab } from "#lib/store/nav.svelte.ts"
 import AppearanceTab from "./AppearanceTab.svelte"
+import ChannelsTab from "./ChannelsTab.svelte"
 import DatasourceTab from "./DatasourceTab.svelte"
 import DeviceTab from "./DeviceTab.svelte"
 import GatewayTab from "./GatewayTab.svelte"
 import HarnessTab from "./HarnessTab.svelte"
 import ShortcutsTab from "./ShortcutsTab.svelte"
-import SyncTab from "./SyncTab.svelte"
 
 export const SETTINGS_TABS: {
   id: SettingsTab
@@ -28,12 +29,6 @@ export const SETTINGS_TABS: {
     body: HarnessTab,
   },
   {
-    id: "sync",
-    label: m.settings_sync(),
-    icon: "lucide:refresh-cw",
-    body: SyncTab,
-  },
-  {
     id: "datasource",
     label: m.settings_datasource(),
     icon: "lucide:database",
@@ -45,6 +40,16 @@ export const SETTINGS_TABS: {
     icon: "lucide:key-round",
     body: GatewayTab,
   },
+  ...(desktop
+    ? [
+        {
+          id: "channels" as const,
+          label: m.settings_channels(),
+          icon: "lucide:messages-square",
+          body: ChannelsTab,
+        },
+      ]
+    : []),
   {
     id: "shortcuts",
     label: m.settings_shortcuts(),

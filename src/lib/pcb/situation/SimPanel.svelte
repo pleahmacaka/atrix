@@ -1,9 +1,9 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { Canvas } from "@threlte/core"
 import { World } from "@threlte/rapier"
 import { NeutralToneMapping } from "three"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import ToolChip, { SEGMENTS, TOOLBAR } from "../ToolChip.svelte"
 import type { Kit } from "./assets.ts"
@@ -93,24 +93,16 @@ const tick = (t: number) => {
           "p-2 backdrop-blur",
         ]}
       >
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={playing ? m.pcb_sim_pause() : m.pcb_sim_play()}
-          title={playing ? m.pcb_sim_pause() : m.pcb_sim_play()}
+        <IconButton
+          icon={playing ? "lucide:pause" : "lucide:play"}
+          label={playing ? m.pcb_sim_pause() : m.pcb_sim_play()}
           onclick={toggle}
-        >
-          <Icon icon={playing ? "lucide:pause" : "lucide:play"} class="size-4" />
-        </button>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_sim_replay()}
-          title={m.pcb_sim_replay()}
+        />
+        <IconButton
+          icon="lucide:rotate-ccw"
+          label={m.pcb_sim_replay()}
           onclick={restart}
-        >
-          <Icon icon="lucide:rotate-ccw" class="size-4" />
-        </button>
+        />
         <progress class="progress min-w-0 flex-1" value={Math.min(time, scene.duration)} max={scene.duration}></progress>
         <span class="shrink-0 text-xs text-base-content/70 tabular-nums">
           {m.pcb_sim_time({ time: Math.min(time, scene.duration).toFixed(1), duration: scene.duration })}

@@ -169,7 +169,7 @@ const toggle = (id: Layer) => {
     {/if}
   </div>
 
-  <div class="bg-base-200 relative min-h-0 flex-1 cursor-grab touch-none select-none active:cursor-grabbing" data-tip-root>
+  <div class="bg-inset relative min-h-0 flex-1 cursor-grab touch-none select-none active:cursor-grabbing" data-tip-root>
     <Canvas
       renderMode="on-demand"
       dpr={Math.min(devicePixelRatio, 1.5)}

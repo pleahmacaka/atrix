@@ -110,7 +110,7 @@ $effect(() => {
       />
     </summary>
     <div
-      class="dropdown-content duration-140 border-base-300 bg-base-100 dark:bg-base-200 max-h-96 w-full overflow-y-auto border-b py-2 shadow-lg"
+      class="dropdown-content duration-140 border-base-300 bg-raised max-h-96 w-full overflow-y-auto border-b py-2 shadow-lg"
     >
       <Toc toc={doc.toc} active={current?.id ?? ""} onpick={pick} />
     </div>
@@ -141,7 +141,7 @@ $effect(() => {
                 src={cover}
                 onerror={() => (coverFailed = true)}
                 alt={m.pcb_doc_top_render({ title })}
-                class="border-base-300 bg-base-200 aspect-video w-full rounded-box border object-contain"
+                class="border-base-300 bg-inset aspect-video w-full rounded-box border object-contain"
               />
               <figcaption class="text-base-content/60 text-center text-sm">
                 {m.pcb_doc_top_render({ title })}

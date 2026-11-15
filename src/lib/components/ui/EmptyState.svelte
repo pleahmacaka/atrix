@@ -10,6 +10,7 @@ let {
   title,
   fade: animated = false,
   dashed = false,
+  centered = false,
   class: className,
   children,
 }: {
@@ -18,6 +19,7 @@ let {
   title?: string
   fade?: boolean
   dashed?: boolean
+  centered?: boolean
   class?: ClassValue
   children?: Snippet
 } = $props()
@@ -29,6 +31,7 @@ const enter = (node: Element) => (animated ? fade(node) : { duration: 0 })
   class={[
     "flex flex-col items-center gap-3 py-12 text-center",
     dashed && "rounded-box border border-dashed border-base-300 px-4",
+    centered && "size-full min-h-0 flex-1 justify-center px-4",
     className,
   ]}
   in:enter

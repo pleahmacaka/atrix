@@ -1,9 +1,9 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { select } from "d3-selection"
 import { type ZoomBehavior, zoom, zoomIdentity } from "d3-zoom"
 import type { Snippet } from "svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { derivedQuery, type Outputs, type Status, status } from "../derived.ts"
 import RoutingPanel from "../live/RoutingPanel.svelte"
@@ -433,15 +433,12 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
       </fieldset>
 
       {#if routing.available && !routing.open}
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square ml-auto"
-          aria-label={m.pcb_artwork_expand_panel()}
-          title={m.pcb_artwork_expand_panel()}
+        <IconButton
+          icon="lucide:panel-right-open"
+          label={m.pcb_artwork_expand_panel()}
+          class="ml-auto"
           onclick={() => (routing.open = true)}
-        >
-          <Icon icon="lucide:panel-right-open" class="size-4" />
-        </button>
+        />
       {/if}
     </div>
 
@@ -491,15 +488,12 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
           >
             <span class="size-2 rounded-full" style:background-color={palette.net(routing.pinnedNet)}></span>
             {routing.pinnedNet}
-            <button
-              type="button"
-              class="btn btn-ghost btn-xs btn-square"
-              aria-label={m.pcb_artwork_clear_highlight()}
-              title={m.pcb_artwork_clear_highlight()}
+            <IconButton
+              icon="lucide:x"
+              label={m.pcb_artwork_clear_highlight()}
+              size="xs"
               onclick={() => (routing.pinnedNet = null)}
-            >
-              <Icon icon="lucide:x" class="size-4" />
-            </button>
+            />
           </div>
         {/if}
       </div>

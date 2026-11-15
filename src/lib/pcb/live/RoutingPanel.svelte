@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { progress, type Routing } from "./routing.svelte.ts"
 import type { LiveSeed } from "./types.ts"
@@ -67,15 +68,11 @@ const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
       {:else if routing.selected !== null && routing.selected !== routing.best?.seed}
         <button type="button" class="btn btn-ghost btn-sm" onclick={() => (routing.selected = null)}>{m.pcb_live_to_best()}</button>
       {/if}
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm btn-square"
-        aria-label={m.pcb_live_collapse()}
-        title={m.pcb_live_collapse()}
+      <IconButton
+        icon="lucide:panel-right-close"
+        label={m.pcb_live_collapse()}
         onclick={() => (routing.open = false)}
-      >
-        <Icon icon="lucide:panel-right-close" class="size-4" />
-      </button>
+      />
     </div>
     {#if meta}
       <p class="text-xs text-base-content/60 tabular-nums">

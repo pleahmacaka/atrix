@@ -1,10 +1,12 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { createQuery } from "@tanstack/svelte-query"
-import CopyButton from "#lib/components/chat/CopyButton.svelte"
 import Markdown from "#lib/components/chat/Markdown.svelte"
+import CopyButton from "#lib/components/ui/CopyButton.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import Select from "#lib/components/ui/Select.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { baseName } from "#lib/path.ts"
 import { derivedQuery, keyOf, loadDerived, type Outputs } from "../derived.ts"
 import { saveFile } from "../save.ts"
 import {
@@ -15,7 +17,6 @@ import {
 } from "../types.ts"
 import { highlight, languageOf } from "./highlight.ts"
 import {
-  baseName,
   downloadProject,
   type Focus,
   flatten,
@@ -251,26 +252,19 @@ const zipProject = async () => {
           </span>
           {#if body.data !== undefined && body.data !== null}
             <CopyButton text={body.data} />
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-square"
-              aria-label={m.pcb_zephyr_download_file()}
-              title={m.pcb_zephyr_download_file()}
+            <IconButton
+              icon="lucide:download"
+              label={m.pcb_zephyr_download_file()}
               onclick={() => saveFile(body.data ?? "", baseName(current))}
-            >
-              <Icon icon="lucide:download" class="size-4" />
-            </button>
+            />
           {/if}
           {#if !panel}
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-square hidden @5xl:inline-flex"
-              aria-label={m.pcb_fea_expand_panel()}
-              title={m.pcb_fea_expand_panel()}
+            <IconButton
+              icon="lucide:panel-right-open"
+              label={m.pcb_fea_expand_panel()}
+              class="hidden @5xl:inline-flex"
               onclick={() => (panel = true)}
-            >
-              <Icon icon="lucide:panel-right-open" class="size-4" />
-            </button>
+            />
           {/if}
         </div>
 
@@ -326,15 +320,11 @@ const zipProject = async () => {
       <div class="flex flex-col gap-4 p-4">
         <div class="hidden items-center justify-between @5xl:flex">
           <span class="text-sm font-semibold">{m.pcb_zephyr_peripherals()}</span>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm btn-square"
-            aria-label={m.pcb_fea_collapse_panel()}
-            title={m.pcb_fea_collapse_panel()}
+          <IconButton
+            icon="lucide:panel-right-close"
+            label={m.pcb_fea_collapse_panel()}
             onclick={() => (panel = false)}
-          >
-            <Icon icon="lucide:panel-right-close" class="size-4" />
-          </button>
+          />
         </div>
 
         {#if report.unresolved.length > 0}

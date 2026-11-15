@@ -48,7 +48,7 @@ $effect(() => {
       <span class="truncate opacity-70">{inspect.part.purpose}</span>
     {/if}
   </div>
-  <div class="bg-base-200 min-h-0 flex-1 select-none">
+  <div class="bg-inset min-h-0 flex-1 select-none">
   {#if board.ready && board.pcb.data && board.urls}
     <Canvas
       renderMode="on-demand"

@@ -60,13 +60,13 @@ const merged = $derived(mergeBoms(summary.data ?? []))
       <li>
         <button
           type="button"
-          class="flex w-full flex-col gap-1 rounded-box border border-base-300 p-2 text-left hover:bg-base-200"
+          class="flex w-full flex-col gap-1 rounded-box border border-base-300 p-2 text-left hover:bg-inset"
           onclick={() => onselect(board.key)}
         >
           {#if board.cover}
             <img src={board.cover} alt={board.label} class="aspect-video w-full rounded-field object-contain" />
           {:else}
-            <div class="aspect-video w-full rounded-field bg-base-200"></div>
+            <div class="aspect-video w-full rounded-field bg-inset"></div>
           {/if}
           <span class="truncate text-sm font-medium">{board.label}</span>
           <span class="text-xs text-base-content/60 tabular-nums">

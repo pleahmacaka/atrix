@@ -1,16 +1,16 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tauri::ipc::Response;
 use tauri::{AppHandle, Manager};
 
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+use crate::error::{Error, Result};
+use crate::fetch::sha256_hex;
+use crate::platform;
 
 const MANIFEST: &str = "pcb.toml";
 
@@ -47,13 +47,13 @@ pub struct Project {
     boards: Vec<Board>,
 }
 
-fn manifest(root: &Path) -> Result<Manifest, String> {
-    let text = fs::read_to_string(root.join(MANIFEST)).map_err(|e| e.to_string())?;
+fn manifest(root: &Path) -> Result<Manifest> {
+    let text = fs::read_to_string(root.join(MANIFEST))?;
 
-    toml::from_str(&text).map_err(|e| format!("pcb_manifest:{}", e.message()))
+    toml::from_str(&text).map_err(|e| Error::code("pcb_manifest", e.message()))
 }
 
-fn inside(root: &str, relative: &str) -> Result<PathBuf, String> {
+fn inside(root: &str, relative: &str) -> Result<PathBuf> {
     let root = PathBuf::from(root);
     let path = Path::new(relative);
     let plain = path
@@ -61,20 +61,14 @@ fn inside(root: &str, relative: &str) -> Result<PathBuf, String> {
         .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
 
     if !root.join(MANIFEST).is_file() || !plain {
-        return Err(format!("path_not_allowed:{relative}"));
+        return Err(Error::code("path_not_allowed", relative));
     }
 
     Ok(root.join(path))
 }
 
-pub(crate) fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-
-fn sha256(path: &Path) -> Result<String, String> {
-    let bytes = fs::read(path).map_err(|e| e.to_string())?;
-
-    Ok(hex(&Sha256::digest(bytes)))
+fn file_sha(path: &Path) -> Result<String> {
+    Ok(sha256_hex(&fs::read(path)?))
 }
 
 #[derive(Deserialize)]
@@ -99,64 +93,45 @@ fn modified(path: &Path) -> Option<SystemTime> {
     fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
-fn cache_root(app: &AppHandle, root: &str) -> Result<PathBuf, String> {
-    let digest = Sha256::digest(root.to_lowercase().as_bytes());
+fn cache_root(app: &AppHandle, root: &str) -> Result<PathBuf> {
+    let digest = sha256_hex(root.to_lowercase().as_bytes());
 
     Ok(app
         .path()
-        .home_dir()
-        .map_err(|e| e.to_string())?
+        .home_dir()?
         .join(".atrix/pcb")
-        .join(&hex(&digest)[..16]))
+        .join(&digest[..16]))
 }
 
-fn scripts() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../scripts")
-}
-
-fn bun(script: &str, args: &[&str]) -> Result<(), String> {
-    let bun = which::which("bun").map_err(|_| "command_not_found:bun".to_string())?;
-    let mut command = Command::new(bun);
-
-    command
-        .arg(scripts().join(script))
+fn bun(scripts: &Path, script: &str, args: &[&str]) -> Result<()> {
+    let bun = which::which("bun").map_err(|_| Error::code("command_not_found", "bun"))?;
+    let output = platform::hidden(bun)
+        .arg(scripts.join(script))
         .args(args)
-        .stdin(Stdio::null());
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let output = command
+        .stdin(Stdio::null())
         .output()
-        .map_err(|e| format!("pcb_derive_failed:{e}"))?;
+        .map_err(|e| Error::code("pcb_derive_failed", e))?;
 
     if output.status.success() {
         return Ok(());
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let tail: Vec<&str> = stderr.trim().lines().rev().take(6).collect();
-    let detail: Vec<&str> = tail.into_iter().rev().collect();
+    let lines: Vec<&str> = stderr.trim().lines().collect();
 
-    Err(format!(
-        "pcb_derive_failed:{}",
-        detail.join(
-            "
-"
-        )
+    Err(Error::code(
+        "pcb_derive_failed",
+        lines[lines.len().saturating_sub(6)..].join("\n"),
     ))
 }
 
 fn derive_board(
+    scripts: &Path,
     cache: &Path,
     root: &str,
     manifest: &Manifest,
     board: &Board,
-) -> Result<PathBuf, String> {
+) -> Result<PathBuf> {
     let project = &manifest.project.name;
     let main = manifest.board.first().is_some_and(|b| b.name == board.name);
     let out = if main {
@@ -166,7 +141,7 @@ fn derive_board(
     };
     let pcb = inside(root, &board.pcb)?;
 
-    if derived_sha(&out) == Some(sha256(&pcb)?) {
+    if derived_sha(&out) == Some(file_sha(&pcb)?) {
         return Ok(out);
     }
 
@@ -182,17 +157,18 @@ fn derive_board(
         args.extend(["--title", title]);
     }
 
-    bun("derive-pcb.ts", &args)?;
+    bun(scripts, "derive-pcb.ts", &args)?;
 
     Ok(out)
 }
 
 fn derive_assembly(
+    scripts: &Path,
     cache: &Path,
     root: &str,
     manifest: &Manifest,
     boards: &[PathBuf],
-) -> Result<Option<PathBuf>, String> {
+) -> Result<Option<PathBuf>> {
     let Some(assembly) = &manifest.project.assembly else {
         return Ok(None);
     };
@@ -204,7 +180,7 @@ fn derive_assembly(
         .iter()
         .any(|b| modified(&b.join("manifest.json")) > built);
 
-    if derived_sha(&out) == Some(sha256(&spec)?) && !newer_board {
+    if derived_sha(&out) == Some(file_sha(&spec)?) && !newer_board {
         return Ok(Some(out));
     }
 
@@ -216,6 +192,7 @@ fn derive_assembly(
     let out_arg = out.to_string_lossy().into_owned();
 
     bun(
+        scripts,
         "derive-assembly.ts",
         &[
             &source,
@@ -237,18 +214,19 @@ pub struct Outputs {
 
 static DERIVE: Mutex<()> = Mutex::new(());
 
-fn derive(app: &AppHandle, root: &str, assembly: bool) -> Result<Outputs, String> {
+fn derive(app: &AppHandle, root: &str, assembly: bool) -> Result<Outputs> {
     // concurrent kicad-cli exports of one board write truncated GLBs
-    let _guard = DERIVE.lock().map_err(|e| e.to_string())?;
+    let _guard = DERIVE.lock()?;
     let parsed = manifest(Path::new(root))?;
     let cache = cache_root(app, root)?;
+    let scripts = app.path().resource_dir()?.join("scripts");
     let dirs = parsed
         .board
         .iter()
-        .map(|b| derive_board(&cache, root, &parsed, b))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|b| derive_board(&scripts, &cache, root, &parsed, b))
+        .collect::<Result<Vec<_>>>()?;
     let assembly = if assembly {
-        derive_assembly(&cache, root, &parsed, &dirs)?
+        derive_assembly(&scripts, &cache, root, &parsed, &dirs)?
     } else {
         None
     };
@@ -281,8 +259,8 @@ fn files_under(root: &Path, dir: &Path, out: &mut Vec<String>) {
     }
 }
 
-#[tauri::command]
-pub fn pcb_project(cwd: String) -> Result<Option<Project>, String> {
+#[tauri::command(async)]
+pub fn pcb_project(cwd: String) -> Result<Option<Project>> {
     let Some(root) = Path::new(&cwd)
         .ancestors()
         .find(|dir| dir.join(MANIFEST).is_file())
@@ -301,15 +279,13 @@ pub fn pcb_project(cwd: String) -> Result<Option<Project>, String> {
     }))
 }
 
-#[tauri::command]
-pub fn pcb_read(root: String, path: String) -> Result<Response, String> {
-    let bytes = fs::read(inside(&root, &path)?).map_err(|e| e.to_string())?;
-
-    Ok(Response::new(bytes))
+#[tauri::command(async)]
+pub fn pcb_read(root: String, path: String) -> Result<Response> {
+    Ok(Response::new(fs::read(inside(&root, &path)?)?))
 }
 
-#[tauri::command]
-pub fn pcb_files(root: String, dir: String) -> Result<Vec<String>, String> {
+#[tauri::command(async)]
+pub fn pcb_files(root: String, dir: String) -> Result<Vec<String>> {
     let mut out = Vec::new();
 
     files_under(Path::new(&root), &inside(&root, &dir)?, &mut out);
@@ -319,8 +295,6 @@ pub fn pcb_files(root: String, dir: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub async fn pcb_derive(app: AppHandle, root: String, assembly: bool) -> Result<Outputs, String> {
-    tauri::async_runtime::spawn_blocking(move || derive(&app, &root, assembly))
-        .await
-        .map_err(|e| e.to_string())?
+pub async fn pcb_derive(app: AppHandle, root: String, assembly: bool) -> Result<Outputs> {
+    tauri::async_runtime::spawn_blocking(move || derive(&app, &root, assembly)).await?
 }

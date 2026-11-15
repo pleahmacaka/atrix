@@ -1,6 +1,8 @@
 <script lang="ts">
 import { createQuery } from "@tanstack/svelte-query"
+import { z } from "zod"
 import { m } from "#lib/paraglide/messages.js"
+import { persisted } from "#lib/store/stored.svelte.ts"
 import { lcscUrl } from "../bom/bom.ts"
 import { loadDerived, type Outputs } from "../derived.ts"
 import { type BomLine, DERIVED, type Pcb, type PriceLadder, type PurchaseItem } from "../types.ts"
@@ -10,15 +12,9 @@ type Board = { key: string; label: string; outputs: Outputs }
 
 let { boards, storageKey }: { boards: Board[]; storageKey: string } = $props()
 
-const saved = (): Record<string, number> => {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey) ?? "{}")
-  } catch {
-    return {}
-  }
-}
+const saved = () => persisted(storageKey, {}, z.record(z.string(), z.number()))
 
-let counts = $state<Record<string, number>>(saved())
+let counts = $state(saved())
 
 const countOf = (key: string) => counts[key] ?? 1
 

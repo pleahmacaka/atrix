@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { untrack } from "svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { derivedQuery, loadDerived, type Outputs } from "../derived.ts"
 import { saveFile } from "../save.ts"
@@ -338,47 +339,35 @@ const savePdf = async () => {
         <span class="text-base-content/70 min-w-12 text-center text-xs tabular-nums">
           {matches.length > 0 ? `${current + 1}/${matches.length}` : m.pcb_schematic_no_results()}
         </span>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_schematic_previous()}
+        <IconButton
+          icon="lucide:chevron-up"
+          label={m.pcb_schematic_previous()}
           disabled={matches.length === 0}
           onclick={() => step(-1)}
-        >
-          <Icon icon="lucide:chevron-up" class="size-4" />
-        </button>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_schematic_next()}
+        />
+        <IconButton
+          icon="lucide:chevron-down"
+          label={m.pcb_schematic_next()}
           disabled={matches.length === 0}
           onclick={() => step(1)}
-        >
-          <Icon icon="lucide:chevron-down" class="size-4" />
-        </button>
+        />
       </div>
     {/if}
     <div class="ml-auto flex items-center gap-1">
       <div class="flex items-center">
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_schematic_zoom_out()}
+        <IconButton
+          icon="lucide:minus"
+          label={m.pcb_schematic_zoom_out()}
           onclick={() => zoomTo(view.scale / 1.25)}
-        >
-          <Icon icon="lucide:minus" class="size-4" />
-        </button>
+        />
         <span class="text-base-content/70 flex w-12 items-center justify-center text-xs tabular-nums">
           {percent}%
         </span>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_schematic_zoom_in()}
+        <IconButton
+          icon="lucide:plus"
+          label={m.pcb_schematic_zoom_in()}
           onclick={() => zoomTo(view.scale * 1.25)}
-        >
-          <Icon icon="lucide:plus" class="size-4" />
-        </button>
+        />
       </div>
       <button type="button" class="btn btn-ghost btn-sm" onclick={fit}>{m.pcb_schematic_fit()}</button>
       <button

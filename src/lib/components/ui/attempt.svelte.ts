@@ -1,3 +1,14 @@
+import { isBusyError } from "#lib/p2p/protocol.ts"
+import { m } from "#lib/paraglide/messages.js"
+
+export const errorText = (e: unknown) => {
+  if (isBusyError(e)) {
+    return m.chat_session_busy()
+  }
+
+  return e instanceof Error ? e.message : String(e)
+}
+
 export class Attempt {
   busy = $state(false)
 
@@ -12,7 +23,7 @@ export class Attempt {
 
       return true
     } catch (e) {
-      this.failure = e instanceof Error ? e.message : String(e)
+      this.failure = errorText(e)
 
       return false
     } finally {

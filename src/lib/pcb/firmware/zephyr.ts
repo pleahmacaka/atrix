@@ -128,8 +128,6 @@ export const mentions = (focus: Focus, line: string) => {
   )
 }
 
-export const baseName = (path: string) => path.split("/").at(-1) ?? path
-
 export const starterHref = (report: ZephyrReport) =>
   `https://github.com/${report.starter.repo}/tree/${report.starter.sha}`
 

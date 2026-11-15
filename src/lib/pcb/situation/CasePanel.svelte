@@ -3,6 +3,7 @@ import Icon from "@iconify/svelte"
 import { createQuery } from "@tanstack/svelte-query"
 import { Canvas } from "@threlte/core"
 import { NeutralToneMapping } from "three"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { derivedHrefs, type Outputs } from "../derived.ts"
 import { RANGE, TOOLBAR } from "../ToolChip.svelte"
@@ -56,15 +57,12 @@ const sizeText = $derived(info.size.map(v => v.toFixed(1)).join(" × "))
         />
       </label>
       {#if !panel}
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square ml-auto"
-          aria-label={m.pcb_fea_expand_panel()}
-          title={m.pcb_fea_expand_panel()}
+        <IconButton
+          icon="lucide:panel-right-open"
+          label={m.pcb_fea_expand_panel()}
+          class="ml-auto"
           onclick={() => (panel = true)}
-        >
-          <Icon icon="lucide:panel-right-open" class="size-4" />
-        </button>
+        />
       {/if}
     </div>
     <div class="relative min-h-64 flex-1 touch-none select-none">
@@ -86,15 +84,11 @@ const sizeText = $derived(info.size.map(v => v.toFixed(1)).join(" × "))
           <h3 class="text-sm font-semibold">{info.title}</h3>
           <p class="text-xs text-base-content/60 tabular-nums">{m.pcb_sim_outline({ size: sizeText })}</p>
         </div>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.pcb_fea_collapse_panel()}
-          title={m.pcb_fea_collapse_panel()}
+        <IconButton
+          icon="lucide:panel-right-close"
+          label={m.pcb_fea_collapse_panel()}
           onclick={() => (panel = false)}
-        >
-          <Icon icon="lucide:panel-right-close" class="size-4" />
-        </button>
+        />
       </div>
 
       {#if info.variants?.length}
@@ -117,28 +111,22 @@ const sizeText = $derived(info.size.map(v => v.toFixed(1)).join(" × "))
 
       <ul class="flex flex-col gap-1">
         <li class="flex items-center gap-2">
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm btn-square"
-            aria-label={m.pcb_sim_show_board()}
+          <IconButton
+            icon={shown.board === false ? "lucide:eye-off" : "lucide:eye"}
+            label={m.pcb_sim_show_board()}
             aria-pressed={shown.board !== false}
             onclick={() => toggle("board")}
-          >
-            <Icon icon={shown.board === false ? "lucide:eye-off" : "lucide:eye"} class="size-4" />
-          </button>
+          />
           <span class="flex-1 text-sm">{m.pcb_sim_board()}</span>
         </li>
         {#each info.parts as part, i (part.name)}
           <li class="flex items-center gap-2">
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-square"
-              aria-label={m.pcb_sim_show_part({ part: part.title })}
+            <IconButton
+              icon={shown[part.name] === false ? "lucide:eye-off" : "lucide:eye"}
+              label={m.pcb_sim_show_part({ part: part.title })}
               aria-pressed={shown[part.name] !== false}
               onclick={() => toggle(part.name)}
-            >
-              <Icon icon={shown[part.name] === false ? "lucide:eye-off" : "lucide:eye"} class="size-4" />
-            </button>
+            />
             <span class="min-w-0 flex-1 truncate text-sm">
               {part.title}
               {#if part.translucent}

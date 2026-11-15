@@ -1,17 +1,11 @@
 import { Color } from "three"
+import { z } from "zod"
+import { persisted } from "#lib/store/stored.svelte.ts"
 import { netColor } from "./netColor.ts"
 
 export type ColorKind = "net" | "part"
 
 const KEY = "pcb-colors"
-
-const load = (): Record<string, string> => {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) ?? "{}")
-  } catch {
-    return {}
-  }
-}
 
 const hashColor = (text: string) => {
   let hash = 0
@@ -26,7 +20,7 @@ const hashColor = (text: string) => {
 const hex = (color: string) => `#${new Color(color).getHexString()}`
 
 class Palette {
-  overrides = $state<Record<string, string>>(load())
+  overrides = $state(persisted(KEY, {}, z.record(z.string(), z.string())))
 
   net = (name: string) => this.overrides[`net:${name}`] ?? hex(netColor(name))
 
