@@ -3,10 +3,12 @@ import {
   appendText,
   attachFile,
   attachUi,
-  type ChatItem,
   DETAIL_LIMIT,
+  type FileRef,
   type Log,
   type Shell,
+  settleTool,
+  visible,
 } from "./items.ts"
 
 const KINDS: Record<string, string> = {
@@ -161,6 +163,7 @@ const trackResult = (shells: Shell[], result: z.infer<typeof toolResult>) => {
 
 const record = z.object({
   type: z.string(),
+  timestamp: z.string().optional(),
   attachment: z.unknown().optional(),
   operation: z.string().optional(),
   content: z.string().optional(),
@@ -169,13 +172,37 @@ const record = z.object({
   message: z
     .object({
       id: z.string().optional(),
+      model: z.string().optional(),
+      usage: z.object({ output_tokens: z.number() }).partial().optional(),
       content: z.union([z.string(), z.array(z.unknown())]),
     })
     .optional(),
 })
 
-const visible = (text: string) =>
-  text.trim() !== "" && !text.trimStart().startsWith("<")
+type Row = z.infer<typeof record>
+
+const tagged = (text: string, tag: string) => {
+  const start = text.indexOf(`<${tag}>`)
+  const end = text.indexOf(`</${tag}>`)
+
+  return start === -1 || end < start
+    ? ""
+    : text.slice(start + tag.length + 2, end).trim()
+}
+
+const commandOf = ({ type, content, message }: Row) => {
+  const text =
+    type === "system"
+      ? (content ?? "")
+      : type === "user" && typeof message?.content === "string"
+        ? message.content
+        : ""
+  const name = tagged(text, "command-name")
+
+  return name
+    ? [name, tagged(text, "command-args")].filter(Boolean).join(" ")
+    : ""
+}
 
 const subjectOf = (input: Record<string, unknown>) => {
   const key = SUBJECTS.find(k => typeof input[k] === "string")
@@ -188,19 +215,14 @@ const resultText = (content: z.infer<typeof toolResult>["content"]) =>
     ? content
     : (content ?? []).map(c => c.text ?? "").join("\n")
 
-const settle = (items: ChatItem[], result: z.infer<typeof toolResult>) => {
-  const tool = items.find(i => i.type === "tool" && i.id === result.tool_use_id)
+const blocksOf = (content: string | unknown[]) =>
+  typeof content === "string" ? [{ type: "text", text: content }] : content
 
-  if (tool?.type !== "tool") {
-    return
-  }
-
-  tool.status = result.is_error ? "failed" : "completed"
-  tool.detail = [tool.detail, resultText(result.content)]
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, DETAIL_LIMIT)
-}
+const imageOf = (source: z.infer<typeof imageBlock>["source"]): FileRef => ({
+  name: "image",
+  mimeType: source?.media_type ?? "image/png",
+  url: source ? `data:${source.media_type};base64,${source.data}` : null,
+})
 
 const parseLine = (line: string) => {
   try {
@@ -208,6 +230,12 @@ const parseLine = (line: string) => {
   } catch {
     return null
   }
+}
+
+const mainRecord = (line: string) => {
+  const parsed = parseLine(line)
+
+  return parsed?.success && !parsed.data.isSidechain ? parsed.data : null
 }
 
 const unqueue = (queue: string[], text: string) => {
@@ -224,7 +252,9 @@ const applyQueue = (
   content = "",
 ) => {
   if (operation === "enqueue" && visible(content) && !content.startsWith("/")) {
-    queue.push(content)
+    if (!queue.includes(content)) {
+      queue.push(content)
+    }
   } else if (operation === "remove" && queue.includes(content)) {
     unqueue(queue, content)
     sent.push(content)
@@ -232,6 +262,14 @@ const applyQueue = (
   } else if (operation === "popAll") {
     queue.length = 0
   }
+}
+
+export const turnTokens = (log: Log) =>
+  [...(log.usage?.values() ?? [])].reduce((a, b) => a + b, 0)
+
+const startTurn = (log: Log, at: string | undefined) => {
+  log.since = at ? Date.parse(at) : Date.now()
+  log.usage = new Map()
 }
 
 const appendUser = ({ items, queue, sent }: Log, text: string) => {
@@ -248,32 +286,22 @@ const appendUser = ({ items, queue, sent }: Log, text: string) => {
   appendText(items, "user", text, undefined)
 }
 
-export const SHELL_NEEDLES = [
-  "run_in_background",
-  NOTIFICATION,
-  "with ID: ",
-  ...STOP_TOOLS,
-]
-
-export const applyShells = ({ shells }: Log, line: string) => {
-  const parsed = parseLine(line)
-
-  if (!parsed?.success || parsed.data.isSidechain) {
-    return
-  }
-
-  const notice = anyQueued.safeParse(parsed.data.attachment)
+const trackShells = (shells: Shell[], data: Row) => {
+  const notice = anyQueued.safeParse(data.attachment)
 
   if (notice.success) {
     finishShell(shells, promptText(notice.data.prompt))
   }
 
-  const { type, message } = parsed.data
-  const content = message?.content ?? []
-  const blocks =
-    typeof content === "string" ? [{ type: "text", text: content }] : content
+  finishShell(shells, data.content ?? "")
 
-  for (const b of blocks) {
+  const { type, message } = data
+
+  if (type !== "user" && type !== "assistant") {
+    return
+  }
+
+  for (const b of blocksOf(message?.content ?? [])) {
     const text = textBlock.safeParse(b)
     const use = toolUse.safeParse(b)
     const result = toolResult.safeParse(b)
@@ -288,75 +316,66 @@ export const applyShells = ({ shells }: Log, line: string) => {
   }
 }
 
-export const applyTranscript = (log: Log, line: string) => {
-  const { items, shells } = log
-  const parsed = parseLine(line)
+const applyRecord = (log: Log, data: Row) => {
+  const { items } = log
 
-  if (!parsed?.success || parsed.data.isSidechain) {
-    return
-  }
-
-  if (parsed.data.type === "queue-operation") {
-    applyQueue(log, parsed.data.operation ?? "", parsed.data.content)
+  if (data.type === "queue-operation") {
+    applyQueue(log, data.operation ?? "", data.content)
 
     return
   }
 
-  const notice = anyQueued.safeParse(parsed.data.attachment)
-
-  if (notice.success) {
-    finishShell(shells, promptText(notice.data.prompt))
-  }
-
-  const queued = queuedPrompt.safeParse(parsed.data.attachment)
-
+  const queued = queuedPrompt.safeParse(data.attachment)
   const queuedText = queued.success ? promptText(queued.data.prompt) : ""
 
   if (queued.success && visible(queuedText)) {
     appendUser(log, queuedText)
 
     for (const { source } of promptImages(queued.data.prompt)) {
-      attachFile(items, {
-        name: "image",
-        mimeType: source?.media_type ?? "image/png",
-        url: source ? `data:${source.media_type};base64,${source.data}` : null,
-      })
+      attachFile(items, imageOf(source))
     }
 
     return
   }
 
-  const { type, isMeta, message } = parsed.data
+  const { type, isMeta, message, timestamp } = data
+  const command = isMeta ? "" : commandOf(data)
+
+  if (command) {
+    startTurn(log, timestamp)
+    appendUser(log, command)
+
+    return
+  }
 
   if (!message || isMeta || (type !== "user" && type !== "assistant")) {
     return
   }
 
-  const blocks =
-    typeof message.content === "string"
-      ? [{ type: "text", text: message.content }]
-      : message.content
+  if (message.model && !message.model.startsWith("<")) {
+    log.model = message.model
+  }
 
-  for (const b of blocks) {
+  if (type === "assistant" && message.id && message.usage?.output_tokens) {
+    log.usage ??= new Map()
+    log.usage.set(message.id, message.usage.output_tokens)
+  }
+
+  for (const b of blocksOf(message.content)) {
     const text = textBlock.safeParse(b)
     const thinking = thinkingBlock.safeParse(b)
     const use = toolUse.safeParse(b)
     const result = toolResult.safeParse(b)
     const image = imageBlock.safeParse(b)
 
-    if (text.success && type === "user") {
-      finishShell(shells, text.data.text)
-    }
-
     if (text.success && type === "user" && visible(text.data.text)) {
+      startTurn(log, timestamp)
       appendUser(log, text.data.text)
     } else if (text.success && type === "assistant") {
       appendText(items, "agent", text.data.text, message.id)
     } else if (thinking.success && thinking.data.thinking.trim()) {
       appendText(items, "thought", thinking.data.thinking, message.id)
     } else if (use.success) {
-      trackUse(shells, use.data)
-
       const subject = subjectOf(use.data.input)
 
       items.push({
@@ -369,16 +388,66 @@ export const applyTranscript = (log: Log, line: string) => {
       })
       attachUi(items, use.data.id, use.data.name, use.data.input)
     } else if (result.success) {
-      trackResult(shells, result.data)
-      settle(items, result.data)
+      settleTool(
+        items,
+        result.data.tool_use_id,
+        !!result.data.is_error,
+        resultText(result.data.content),
+      )
     } else if (image.success && type === "user") {
-      const source = image.data.source
-
-      attachFile(items, {
-        name: "image",
-        mimeType: source?.media_type ?? "image/png",
-        url: source ? `data:${source.media_type};base64,${source.data}` : null,
-      })
+      attachFile(items, imageOf(image.data.source))
     }
   }
+}
+
+export const SHELL_NEEDLES = [
+  "run_in_background",
+  NOTIFICATION,
+  "with ID: ",
+  ...STOP_TOOLS,
+]
+
+export const applyShells = ({ shells }: Log, line: string) => {
+  const data = mainRecord(line)
+
+  if (data) {
+    trackShells(shells, data)
+  }
+}
+
+export const applyTranscript = (log: Log, line: string) => {
+  const data = mainRecord(line)
+
+  if (data) {
+    trackShells(log.shells, data)
+    applyRecord(log, data)
+  }
+}
+
+export const stepOf = (lines: string[]) => {
+  for (const line of lines.toReversed()) {
+    const parsed = parseLine(line)
+    const content = parsed?.success ? parsed.data.message?.content : undefined
+
+    if (parsed?.data?.type !== "assistant" || !Array.isArray(content)) {
+      continue
+    }
+
+    for (const b of content.toReversed()) {
+      const use = toolUse.safeParse(b)
+      const text = textBlock.safeParse(b)
+
+      if (use.success) {
+        return [use.data.name, subjectOf(use.data.input)]
+          .filter(Boolean)
+          .join(" ")
+      }
+
+      if (text.success && text.data.text.trim()) {
+        return text.data.text.trim().split("\n")[0]
+      }
+    }
+  }
+
+  return ""
 }

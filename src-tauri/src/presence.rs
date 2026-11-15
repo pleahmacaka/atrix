@@ -15,18 +15,14 @@ pub fn claude_presence(app: AppHandle) -> Vec<Value> {
         return Vec::new();
     };
 
-    let records: Vec<Value> = entries
+    let records: Vec<(Pid, Value)> = entries
         .flatten()
         .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
         .filter_map(|e| fs::read(e.path()).ok())
-        .filter_map(|bytes| serde_json::from_slice(&bytes).ok())
+        .filter_map(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .filter_map(|r| Some((Pid::from_u32(r["pid"].as_u64()? as u32), r)))
         .collect();
-
-    let pids: Vec<Pid> = records
-        .iter()
-        .filter_map(|r| r["pid"].as_u64())
-        .map(|p| Pid::from_u32(p as u32))
-        .collect();
+    let pids: Vec<Pid> = records.iter().map(|(pid, _)| *pid).collect();
     let mut system = System::new();
 
     system.refresh_processes_specifics(
@@ -37,11 +33,8 @@ pub fn claude_presence(app: AppHandle) -> Vec<Value> {
 
     records
         .into_iter()
-        .filter(|r| {
-            r["pid"]
-                .as_u64()
-                .is_some_and(|p| system.process(Pid::from_u32(p as u32)).is_some())
-        })
+        .filter(|(pid, _)| system.process(*pid).is_some())
+        .map(|(_, record)| record)
         .collect()
 }
 
@@ -100,4 +93,55 @@ pub fn codex_rollout(app: AppHandle, id: String) -> Option<String> {
         .flat_map(|day| newest_first(&day))
         .find(|f| f.to_string_lossy().ends_with(&suffix))
         .map(|f| f.to_string_lossy().into_owned())
+}
+
+const SUBAGENT_TAIL_BYTES: u64 = 64 * 1024;
+
+const SUBAGENT_TAIL_LINES: usize = 24;
+
+fn tail_lines(path: &Path) -> Vec<String> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let Ok(mut file) = fs::File::open(path) else {
+        return Vec::new();
+    };
+    let length = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let mut buffer = Vec::new();
+
+    if file
+        .seek(SeekFrom::Start(length.saturating_sub(SUBAGENT_TAIL_BYTES)))
+        .and_then(|_| file.read_to_end(&mut buffer))
+        .is_err()
+    {
+        return Vec::new();
+    }
+
+    let text = String::from_utf8_lossy(&buffer);
+    let lines: Vec<String> = text
+        .lines()
+        .filter(|l| l.starts_with('{'))
+        .map(String::from)
+        .collect();
+
+    lines[lines.len().saturating_sub(SUBAGENT_TAIL_LINES)..].to_vec()
+}
+
+#[tauri::command(async)]
+pub fn claude_subagents(transcript: String) -> Vec<Value> {
+    let folder = Path::new(&transcript).with_extension("").join("subagents");
+    let Ok(entries) = fs::read_dir(&folder) else {
+        return Vec::new();
+    };
+
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            let id = path.file_name()?.to_str()?.strip_suffix(".meta.json")?;
+            let meta: Value = serde_json::from_slice(&fs::read(&path).ok()?).ok()?;
+            let tail = tail_lines(&folder.join(format!("{id}.jsonl")));
+
+            Some(serde_json::json!({ "id": id, "meta": meta, "tail": tail }))
+        })
+        .collect()
 }

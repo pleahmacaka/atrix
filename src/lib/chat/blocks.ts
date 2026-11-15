@@ -164,3 +164,63 @@ export const UI_INSTRUCTIONS = [
   "To show live data stored in an Atrix datasource, use a query block with one SELECT statement; it re-runs every time the view or saved app opens.",
   "To ask the user to choose or fill something in, use an actions block (buttons whose reply is sent back as the user's message) or a form block (its answers come back as one message).",
 ].join("\n")
+
+const UI_FENCE = "```atrix-ui"
+
+const FENCE_END = "\n```"
+
+export type TextPart =
+  | { kind: "text"; text: string }
+  | { kind: "ui"; blocks: Block[] }
+
+const parseBlocks = (json: string) => {
+  try {
+    return uiBlocksIn(JSON.parse(json))
+  } catch {
+    return null
+  }
+}
+
+const fenceAt = (text: string) => {
+  for (
+    let at = text.indexOf(UI_FENCE);
+    at !== -1;
+    at = text.indexOf(UI_FENCE, at + 1)
+  ) {
+    const after = text.slice(at + UI_FENCE.length)
+    const lineStart = at === 0 || text[at - 1] === "\n"
+    const opens = after.startsWith("\n") || after.startsWith("\r\n")
+
+    if (lineStart && opens) {
+      return at
+    }
+  }
+
+  return -1
+}
+
+export const splitUi = (text: string): TextPart[] => {
+  const parts: TextPart[] = []
+  let rest = text
+
+  for (;;) {
+    const start = fenceAt(rest)
+    const body = start === -1 ? -1 : rest.indexOf("\n", start)
+    const end = body === -1 ? -1 : rest.indexOf(FENCE_END, body)
+    const blocks = end === -1 ? null : parseBlocks(rest.slice(body + 1, end))
+
+    if (!blocks) {
+      break
+    }
+
+    parts.push(
+      { kind: "text", text: rest.slice(0, start) },
+      { kind: "ui", blocks },
+    )
+    rest = rest.slice(end + FENCE_END.length)
+  }
+
+  parts.push({ kind: "text", text: rest })
+
+  return parts.filter(p => p.kind === "ui" || p.text.trim())
+}

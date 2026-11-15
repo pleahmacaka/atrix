@@ -1,14 +1,37 @@
-import type { HarnessKind, Listed, SessionView } from "#lib/p2p/protocol.ts"
+import { z } from "zod"
+import { native } from "#lib/native.ts"
+import type {
+  HarnessKind,
+  Listed,
+  SessionView,
+  Subagent,
+} from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { ChatItem, Log } from "./items.ts"
-import { native } from "./native.ts"
 import { type Presence, SOURCES, type Source } from "./sources.ts"
+import { stepOf, turnTokens } from "./transcript.ts"
 
-const POLL_MS = 1500
+type RawAgent = {
+  id: string
+  meta: { description?: string; finished?: boolean }
+  tail: string[]
+}
+
+const POLL_MS = 500
 
 const TAIL_BYTES = 4_000_000
 
 type Lines = { lines: string[]; offset: number }
+
+const entrypointLine = z.object({ entrypoint: z.string() })
+
+const entrypointOf = (line: string) => {
+  try {
+    return entrypointLine.safeParse(JSON.parse(line)).data?.entrypoint
+  } catch {
+    return undefined
+  }
+}
 
 type Watch = {
   source: Source
@@ -16,6 +39,8 @@ type Watch = {
   offset: number
   log: Log
   view: SessionView | null
+  owner?: string
+  owned: boolean
   paused: boolean
   dirty: boolean
   turn: Promise<void>
@@ -28,28 +53,40 @@ export class ExternalSessions {
 
   #shelling = new Set<string>()
 
+  #owners = new Map<string, string>()
+
+  #pids = new Map<string, number>()
+
+  #waiting = new Set<string>()
+
   #watches = new Map<string, Watch>()
 
   #timer: ReturnType<typeof setInterval> | null = null
 
+  #home = ""
+
+  ready: Promise<void> = Promise.resolve()
+
   constructor(
-    private readonly home: string,
     private readonly onPresence: () => void,
     private readonly onItems: (view: SessionView) => void,
   ) {}
 
-  ready: Promise<void> = Promise.resolve()
-
-  start = () => {
+  start = (home: string) => {
     if (this.#timer) {
       return
     }
 
+    this.#home = home
     this.ready = this.#poll().catch(() => {})
     this.#timer = setInterval(() => {
       this.#poll().catch(() => {})
     }, POLL_MS)
   }
+
+  live = (id: string) => this.presence.has(id)
+
+  busy = (id: string) => this.presence.get(id) === true
 
   get = (id: string) => this.#watches.get(id)?.view ?? undefined
 
@@ -68,8 +105,30 @@ export class ExternalSessions {
   }
 
   idle = async (id: string) => {
-    while (this.presence.get(id) === true) {
+    while (this.busy(id)) {
       await new Promise(done => setTimeout(done, POLL_MS))
+    }
+  }
+
+  type = async (id: string, text: string) => {
+    const pid = this.#pids.get(id)
+
+    if (pid === undefined) {
+      throw new Error(m.chat_terminal_live())
+    }
+
+    if (this.#waiting.has(id)) {
+      throw new Error(m.chat_terminal_waiting())
+    }
+
+    await native("terminal_type", { pid, text })
+
+    const watch = this.#watches.get(id)
+
+    if (watch?.view) {
+      watch.log.queue.push(text)
+      watch.view.queued = [...watch.log.queue]
+      this.onItems(watch.view)
     }
   }
 
@@ -86,7 +145,7 @@ export class ExternalSessions {
 
     watch.log.items = items
     watch.view.items = items
-    watch.view.running = this.presence.get(id) === true
+    watch.view.running = this.busy(id)
     watch.paused = false
     this.onItems(watch.view)
   }
@@ -116,7 +175,10 @@ export class ExternalSessions {
       external: true,
       queued: [...watch.log.queue],
       shells: [],
+      model: watch.log.model,
     }
+
+    watch.view.commands = (await SOURCES[kind].commands?.(this.#home)) ?? []
 
     return watch.view
   }
@@ -130,7 +192,7 @@ export class ExternalSessions {
       return known
     }
 
-    const path = await source.locate(this.home, id, cwd)
+    const path = await source.locate(this.#home, id, cwd)
 
     if (!path) {
       return null
@@ -142,6 +204,8 @@ export class ExternalSessions {
       offset: 0,
       log: { items: [], queue: [], sent: [], running: false, shells: [] },
       view: null,
+      owner: this.#owners.get(id),
+      owned: false,
       paused: false,
       dirty: false,
       turn: Promise.resolve(),
@@ -157,9 +221,9 @@ export class ExternalSessions {
           needles: source.head.needles,
         })
 
-        for (const line of lines) {
-          source.head.apply(watch.log, line)
-        }
+        this.#feed(watch, lines, source.head.apply)
+
+        watch.owned = false
       }
 
       await this.#pull(watch)
@@ -179,6 +243,47 @@ export class ExternalSessions {
     return next
   }
 
+  #feed = (
+    watch: Watch,
+    lines: string[],
+    apply: (log: Log, line: string) => void,
+  ) => {
+    for (const line of lines) {
+      if (!this.#foreign(watch, line)) {
+        apply(watch.log, line)
+      }
+    }
+  }
+
+  #foreign = (watch: Watch, line: string) => {
+    if (!watch.owner || !line.includes('"entrypoint":"')) {
+      return false
+    }
+
+    const entrypoint = entrypointOf(line)
+
+    if (entrypoint === undefined) {
+      return false
+    }
+
+    if (entrypoint === watch.owner) {
+      watch.owned = true
+
+      return false
+    }
+
+    return watch.owned
+  }
+
+  #agents = async (transcript: string): Promise<Subagent[]> =>
+    (await native<RawAgent[]>("claude_subagents", { transcript }))
+      .filter(a => a.meta.finished !== true)
+      .map(a => ({
+        id: a.id,
+        description: a.meta.description ?? "",
+        step: stepOf(a.tail),
+      }))
+
   #lines = (watch: Watch) =>
     native<Lines>("read_lines", {
       path: watch.path,
@@ -197,14 +302,15 @@ export class ExternalSessions {
       return
     }
 
-    for (const line of lines) {
-      watch.source.apply(watch.log, line)
-    }
+    this.#feed(watch, lines, watch.source.apply)
 
     watch.dirty = true
 
     if (watch.view) {
       watch.view.queued = [...watch.log.queue]
+      watch.view.model = watch.log.model
+      watch.view.since = watch.log.since
+      watch.view.tokens = turnTokens(watch.log)
     }
   }
 
@@ -226,7 +332,21 @@ export class ExternalSessions {
         [...found.values()].flatMap(p => p.listing ?? []),
       )
 
-      for (const [id, { busy, shell }] of found) {
+      for (const [id, { busy, shell, owner, pid, waiting }] of found) {
+        if (waiting) {
+          this.#waiting.add(id)
+        } else {
+          this.#waiting.delete(id)
+        }
+
+        if (owner) {
+          this.#owners.set(id, owner)
+        }
+
+        if (pid !== undefined) {
+          this.#pids.set(id, pid)
+        }
+
         if (shell) {
           shelling.add(id)
         }
@@ -267,43 +387,60 @@ export class ExternalSessions {
     }
 
     for (const [id, watch] of this.#watches) {
-      if (!watch.view || watch.paused) {
-        continue
-      }
-
-      await this.#read(watch).catch(() => {})
-
-      const running = next.get(id) ?? false
-
-      const alive = running || this.#shelling.has(id)
-
-      if (!alive && watch.log.shells.length > 0) {
-        watch.log.shells.length = 0
-      }
-
-      if (
-        JSON.stringify(watch.view.shells ?? []) !==
-        JSON.stringify(watch.log.shells)
-      ) {
-        watch.view.shells = watch.log.shells.map(s => ({ ...s }))
-        watch.dirty = true
-      }
-
-      if (!running && watch.log.queue.length > 0) {
-        watch.log.queue.length = 0
-        watch.view.queued = []
-        watch.dirty = true
-      }
-
-      if (watch.dirty || watch.view.running !== running) {
-        watch.dirty = false
-        watch.view.running = running
-        this.onItems(watch.view)
+      if (watch.view && !watch.paused) {
+        await this.#read(watch).catch(() => {})
+        await this.#refresh(watch, watch.view, next.get(id) ?? false, id)
       }
     }
 
     if (changed) {
       this.onPresence()
+    }
+  }
+
+  #refresh = async (
+    watch: Watch,
+    view: SessionView,
+    running: boolean,
+    id: string,
+  ) => {
+    const { log } = watch
+
+    if (!running && !this.#shelling.has(id) && log.shells.length > 0) {
+      log.shells.length = 0
+    }
+
+    if (JSON.stringify(view.shells ?? []) !== JSON.stringify(log.shells)) {
+      view.shells = log.shells.map(s => ({ ...s }))
+      watch.dirty = true
+    }
+
+    if (!running && log.queue.length > 0) {
+      log.queue.length = 0
+      view.queued = []
+      watch.dirty = true
+    }
+
+    const agents =
+      running && watch.source.shared
+        ? await this.#agents(watch.path).catch(() => [])
+        : []
+
+    if (JSON.stringify(agents) !== JSON.stringify(view.agents ?? [])) {
+      view.agents = agents
+      watch.dirty = true
+    }
+
+    if (running && log.since === undefined) {
+      log.since = Date.now()
+      view.since = log.since
+      watch.dirty = true
+    }
+
+    if (watch.dirty || view.running !== running) {
+      watch.dirty = false
+      view.running = running
+      this.onItems(view)
     }
   }
 }

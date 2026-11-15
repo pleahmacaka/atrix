@@ -1,4 +1,6 @@
 import { join } from "@tauri-apps/api/path"
+import { z } from "zod"
+import { native } from "#lib/native.ts"
 import type {
   ConfigDoc,
   HarnessConfig,
@@ -6,9 +8,14 @@ import type {
   Skill,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { native } from "./native.ts"
 
-export type Profile = { id: string; base: string; name: string }
+const profilesSchema = z.array(
+  z.object({ id: z.string(), base: z.string(), name: z.string() }),
+)
+
+const objectSchema = z.record(z.string(), z.unknown())
+
+export type Profile = z.infer<typeof profilesSchema>[number]
 
 type DocSpec = Omit<ConfigDoc, "content">
 
@@ -64,7 +71,7 @@ export const envFor = (kind: HarnessKind, dir: string) => ({
   [LAYOUTS[kind].env]: dir,
 })
 
-export const atrixDir = (home: string) => join(home, ".atrix")
+const atrixDir = (home: string) => join(home, ".atrix")
 
 export const profileDir = async (home: string, id: string) =>
   join(await atrixDir(home), "profiles", id)
@@ -75,7 +82,11 @@ const profilesFile = async (home: string) =>
 export const loadProfiles = async (home: string): Promise<Profile[]> => {
   const raw = await readText(await profilesFile(home))
 
-  return raw ? (JSON.parse(raw) as Profile[]) : []
+  if (!raw) {
+    return []
+  }
+
+  return profilesSchema.safeParse(JSON.parse(raw)).data ?? []
 }
 
 export const saveProfiles = async (home: string, profiles: Profile[]) =>
@@ -89,27 +100,27 @@ const rootOf = ({ kind, home, dir }: Target) =>
 const claudeState = (target: Target) =>
   target.dir ? join(target.dir, CLAUDE_STATE) : join(target.home, CLAUDE_STATE)
 
-const readMcp = async (target: Target) => {
+const readState = async (target: Target) => {
   const raw = await readText(await claudeState(target))
-  const state = raw ? (JSON.parse(raw) as { mcpServers?: unknown }) : {}
 
-  return JSON.stringify(state.mcpServers ?? {}, null, 2)
+  return raw ? objectSchema.safeParse(JSON.parse(raw)).data : undefined
 }
 
-const writeMcp = async (target: Target, content: string) => {
-  const servers: unknown = JSON.parse(content)
+const readMcp = async (target: Target) =>
+  JSON.stringify((await readState(target))?.mcpServers ?? {}, null, 2)
 
-  if (!servers || typeof servers !== "object" || Array.isArray(servers)) {
+const writeMcp = async (target: Target, content: string) => {
+  const servers = objectSchema.safeParse(JSON.parse(content))
+
+  if (!servers.success) {
     throw new Error(m.error_mcp_shape())
   }
 
-  const path = await claudeState(target)
-  const raw = await readText(path)
-  const state = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+  const state = await readState(target)
 
   await writeText(
-    path,
-    JSON.stringify({ ...state, mcpServers: servers }, null, 2),
+    await claudeState(target),
+    JSON.stringify({ ...state, mcpServers: servers.data }, null, 2),
   )
 }
 
@@ -145,10 +156,12 @@ export const readConfig = async (target: Target): Promise<HarnessConfig> => {
     path: await join(root, "skills"),
   })
   const skills: Skill[] = await Promise.all(
-    names.map(async name => ({
-      name,
-      content: (await readText(await skillPath(target, name))) ?? "",
-    })),
+    names
+      .filter(name => !name.startsWith("."))
+      .map(async name => ({
+        name,
+        content: (await readText(await skillPath(target, name))) ?? "",
+      })),
   )
 
   return { dir: root, docs, skills }

@@ -6,6 +6,7 @@ import type {
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk"
 import { type Block, isShowUi, uiBlocksIn } from "#lib/chat/blocks.ts"
+import { baseName } from "#lib/path.ts"
 
 export type ToolItem = {
   type: "tool"
@@ -14,6 +15,24 @@ export type ToolItem = {
   kind: string
   status: string
   detail: string
+}
+
+export const shownInTurn = (items: ChatItem[], blocks: Block[]) => {
+  const wanted = JSON.stringify(blocks)
+
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+
+    if (item.type === "user") {
+      return false
+    }
+
+    if (item.type === "ui" && JSON.stringify(item.blocks) === wanted) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export const attachUi = (
@@ -25,7 +44,7 @@ export const attachUi = (
   const id = `${toolId}:ui`
   const blocks = isShowUi(name) ? uiBlocksIn(input) : null
 
-  if (!blocks || items.some(i => i.id === id)) {
+  if (!blocks || shownInTurn(items, blocks)) {
     return
   }
 
@@ -69,6 +88,9 @@ export type Log = {
   sent: string[]
   running: boolean
   shells: Shell[]
+  model?: string
+  since?: number
+  usage?: Map<string, number>
 }
 
 export const DETAIL_LIMIT = 4000
@@ -155,7 +177,7 @@ const refOf = (content: ContentBlock): FileRef => {
   }
 
   if (content.type === "resource") {
-    const name = content.resource.uri.split("/").at(-1) ?? "file"
+    const name = baseName(content.resource.uri)
 
     return {
       name: decodeURIComponent(name),
@@ -173,6 +195,28 @@ const refOf = (content: ContentBlock): FileRef => {
   }
 
   return { name: content.type, mimeType: "application/octet-stream", url: null }
+}
+
+export const visible = (text: string) =>
+  text.trim() !== "" && !text.trimStart().startsWith("<")
+
+export const settleTool = (
+  items: ChatItem[],
+  id: string,
+  failed: boolean,
+  text: string,
+) => {
+  const tool = items.find(i => i.type === "tool" && i.id === id)
+
+  if (tool?.type !== "tool") {
+    return
+  }
+
+  tool.status = failed ? "failed" : "completed"
+  tool.detail = [tool.detail, text]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, DETAIL_LIMIT)
 }
 
 export const attachFile = (items: ChatItem[], file: FileRef) => {
@@ -267,9 +311,7 @@ const IMAGE_DATA = "](data:image/"
 
 const nameOfRef = (ref: string) =>
   decodeURIComponent(
-    ref.startsWith(ATTACHMENT)
-      ? ref.slice(ATTACHMENT.length)
-      : (ref.split("/").at(-1) ?? ref),
+    ref.startsWith(ATTACHMENT) ? ref.slice(ATTACHMENT.length) : baseName(ref),
   )
 
 export const splitContext = (text: string) => {
@@ -338,4 +380,34 @@ export const splitContext = (text: string) => {
   }))
 
   return { text: rest.trim(), files: [...images, ...files] }
+}
+
+const QUEUED_IMAGES = ["[Image #", "[Image: source: "]
+
+export const splitQueued = (text: string, numbered: (n: string) => string) => {
+  const files: FileRef[] = []
+  let rest = text
+
+  for (const marker of QUEUED_IMAGES) {
+    for (
+      let at = rest.indexOf(marker);
+      at !== -1;
+      at = rest.indexOf(marker, at)
+    ) {
+      const end = rest.indexOf("]", at)
+
+      if (end === -1) {
+        break
+      }
+
+      const inner = rest.slice(at + marker.length, end).trim()
+      const name =
+        marker === QUEUED_IMAGES[0] ? numbered(inner) : baseName(inner)
+
+      files.push({ name, mimeType: "image/png", url: null })
+      rest = rest.slice(0, at) + rest.slice(end + 1)
+    }
+  }
+
+  return { text: rest.trim(), files }
 }

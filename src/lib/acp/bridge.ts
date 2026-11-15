@@ -1,7 +1,7 @@
 import type { McpServer as Declaration } from "@agentclientprotocol/sdk"
 import { createMcpHandler, type McpServer } from "@modelcontextprotocol/server"
 import { Channel } from "@tauri-apps/api/core"
-import { native } from "./native.ts"
+import { native } from "#lib/native.ts"
 
 type Incoming = {
   id: number
@@ -15,6 +15,8 @@ export type Caller = () => string | null
 
 const BEARER = "Bearer "
 
+const STDIO_FLAG = "--mcp-stdio"
+
 const tokenOf = (headers: Headers) => {
   const auth = headers.get("authorization") ?? ""
 
@@ -25,6 +27,8 @@ export class Bridge {
   #tokens = new Map<string, string | null>()
 
   #port = 0
+
+  #exe = ""
 
   #handler
 
@@ -44,17 +48,33 @@ export class Bridge {
       this.#serve(incoming).catch(() => {})
     })
 
-    this.#port = await native<number>("bridge_start", { channel })
+    const { port, exe } = await native<{ port: number; exe: string }>(
+      "bridge_start",
+      { channel },
+    )
+
+    this.#port = port
+    this.#exe = exe
   }
 
-  declare = () => {
+  declare = (http: boolean) => {
     const token = crypto.randomUUID()
-    const server: Declaration = {
-      type: "http",
-      name: "atrix",
-      url: `http://127.0.0.1:${this.#port}/mcp`,
-      headers: [{ name: "Authorization", value: `${BEARER}${token}` }],
-    }
+    const server: Declaration = http
+      ? {
+          type: "http",
+          name: "atrix",
+          url: `http://127.0.0.1:${this.#port}/mcp`,
+          headers: [{ name: "Authorization", value: `${BEARER}${token}` }],
+        }
+      : {
+          name: "atrix",
+          command: this.#exe,
+          args: [STDIO_FLAG],
+          env: [
+            { name: "ATRIX_MCP_PORT", value: String(this.#port) },
+            { name: "ATRIX_MCP_TOKEN", value: token },
+          ],
+        }
 
     this.#tokens.set(token, null)
 

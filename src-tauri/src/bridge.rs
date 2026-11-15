@@ -9,6 +9,8 @@ use tauri::State;
 use tauri::ipc::Channel;
 use tiny_http::{Header, Request, Response, Server};
 
+use crate::error::Result;
+
 #[derive(Clone, Serialize)]
 pub struct Incoming {
     id: u64,
@@ -20,6 +22,12 @@ pub struct Incoming {
 
 type Sink = Arc<Mutex<Option<Channel<Incoming>>>>;
 
+#[derive(Serialize)]
+pub struct Started {
+    port: u16,
+    exe: String,
+}
+
 #[derive(Default)]
 pub struct Bridge {
     port: Mutex<Option<u16>>,
@@ -27,7 +35,7 @@ pub struct Bridge {
     pending: Arc<Mutex<HashMap<u64, Request>>>,
 }
 
-pub(crate) fn incoming(id: u64, request: &mut Request) -> Incoming {
+fn incoming(id: u64, request: &mut Request) -> Incoming {
     let mut body = String::new();
     let upgrade = request.headers().iter().any(|h| h.field.equiv("Upgrade"));
 
@@ -50,16 +58,17 @@ pub(crate) fn incoming(id: u64, request: &mut Request) -> Incoming {
 }
 
 #[tauri::command]
-pub fn bridge_start(bridge: State<'_, Bridge>, channel: Channel<Incoming>) -> Result<u16, String> {
+pub fn bridge_start(bridge: State<'_, Bridge>, channel: Channel<Incoming>) -> Result<Started> {
     *bridge.sink.lock().unwrap() = Some(channel);
 
+    let exe = std::env::current_exe()?.to_string_lossy().into_owned();
     let mut port = bridge.port.lock().unwrap();
 
     if let Some(port) = *port {
-        return Ok(port);
+        return Ok(Started { port, exe });
     }
 
-    let server = Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
+    let server = Server::http("127.0.0.1:0")?;
     let bound = server
         .server_addr()
         .to_ip()
@@ -90,7 +99,7 @@ pub fn bridge_start(bridge: State<'_, Bridge>, channel: Channel<Incoming>) -> Re
 
     *port = Some(bound);
 
-    Ok(bound)
+    Ok(Started { port: bound, exe })
 }
 
 #[tauri::command]
@@ -100,7 +109,7 @@ pub fn bridge_reply(
     status: u16,
     headers: Vec<(String, String)>,
     body: String,
-) -> Result<(), String> {
+) -> Result<()> {
     let request = bridge
         .pending
         .lock()
@@ -120,5 +129,5 @@ pub fn bridge_reply(
         None,
     );
 
-    request.respond(response).map_err(|e| e.to_string())
+    Ok(request.respond(response)?)
 }

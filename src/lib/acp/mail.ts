@@ -1,6 +1,10 @@
+import { isBusyError } from "#lib/p2p/protocol.ts"
+
 const THREAD_LIMIT = 20
 
-const TTL_MS = 10 * 60_000
+const THREAD_WINDOW_MS = 10 * 60_000
+
+const NOTICE_TTL_MS = 10 * 60_000
 
 export type Letter = {
   from: string
@@ -9,7 +13,7 @@ export type Letter = {
   thread: string
   refs: string[]
   text: string
-  expires: number
+  expires?: number
   raw?: boolean
 }
 
@@ -17,17 +21,22 @@ export type Draft = Omit<Letter, "thread" | "expires"> & { thread?: string }
 
 const attr = (value: string) => value.replaceAll('"', "'")
 
-export const letterText = (l: Letter) =>
+const letterText = (l: Letter) =>
   [
     `<atrix-message from="${attr(l.sender)}" from-id="${l.from}" thread="${l.thread}" refs="${l.refs.join(",")}">`,
     l.text,
     "</atrix-message>",
   ].join("\n")
 
+const failureText = (l: Letter, reason: string) =>
+  `<atrix-message-failed to-id="${l.to}" thread="${l.thread}">${reason}</atrix-message-failed>`
+
+const reasonOf = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
 export class Postbox {
   #queues = new Map<string, Letter[]>()
 
-  #threads = new Map<string, number>()
+  #threads = new Map<string, number[]>()
 
   constructor(
     private readonly busy: (sessionId: string) => boolean,
@@ -35,36 +44,37 @@ export class Postbox {
       sessionId: string,
       text: string,
     ) => Promise<unknown>,
+    private readonly refuse: (sessionId: string) => string | null = () => null,
   ) {}
 
   post = async ({ thread = crypto.randomUUID(), ...draft }: Draft) => {
-    const count = (this.#threads.get(thread) ?? 0) + 1
+    const now = Date.now()
+    const recent = (this.#threads.get(thread) ?? []).filter(
+      t => t > now - THREAD_WINDOW_MS,
+    )
 
-    if (count > THREAD_LIMIT) {
+    if (recent.length >= THREAD_LIMIT) {
       throw new Error(
-        `thread_limit: thread ${thread} reached ${THREAD_LIMIT} messages`,
+        `thread_limit: thread ${thread} sent ${THREAD_LIMIT} messages in the last ${THREAD_WINDOW_MS / 60_000} minutes; wait or start a new thread`,
       )
     }
 
-    this.#threads.set(thread, count)
+    const refused = this.refuse(draft.to)
 
-    const letter: Letter = { ...draft, thread, expires: Date.now() + TTL_MS }
-
-    if (this.busy(letter.to)) {
-      this.#queues.set(letter.to, [
-        ...(this.#queues.get(letter.to) ?? []),
-        letter,
-      ])
-
-      return { thread, queued: true }
+    if (refused) {
+      throw new Error(refused)
     }
 
-    await this.deliver(letter.to, letterText(letter))
+    this.#threads.set(thread, [...recent, now])
 
-    return { thread, queued: false }
+    const letter: Letter = { ...draft, thread }
+
+    const queued = await this.#send(letter, letterText(letter))
+
+    return { thread, queued }
   }
 
-  notice = async (to: string, text: string) => {
+  notice = async (to: string, text: string, expires = true) => {
     const letter: Letter = {
       from: "atrix",
       sender: "atrix",
@@ -72,7 +82,7 @@ export class Postbox {
       thread: "",
       refs: [],
       text,
-      expires: Date.now() + TTL_MS,
+      expires: expires ? Date.now() + NOTICE_TTL_MS : undefined,
       raw: true,
     }
 
@@ -82,22 +92,91 @@ export class Postbox {
       return
     }
 
-    if (this.busy(to)) {
-      this.#queues.set(to, [...queue, letter])
-    } else {
-      await this.deliver(to, text)
-    }
+    await this.#send(letter, text)
   }
 
   drain = async (sessionId: string) => {
     const queue = this.#queues.get(sessionId) ?? []
 
     for (let next = queue.shift(); next; next = queue.shift()) {
-      if (next.expires > Date.now()) {
-        await this.deliver(sessionId, next.raw ? next.text : letterText(next))
+      if (next.raw) {
+        if (next.expires === undefined || next.expires > Date.now()) {
+          try {
+            await this.deliver(sessionId, next.text)
+          } catch (e) {
+            if (isBusyError(e)) {
+              queue.unshift(next)
+            }
+          }
+
+          return
+        }
+
+        continue
+      }
+
+      const refused = this.refuse(sessionId)
+
+      if (refused) {
+        this.#bounce(next, refused)
+
+        continue
+      }
+
+      try {
+        await this.deliver(sessionId, letterText(next))
 
         return
+      } catch (e) {
+        if (isBusyError(e)) {
+          queue.unshift(next)
+
+          return
+        }
+
+        this.#bounce(next, reasonOf(e))
       }
     }
+  }
+
+  fail = (sessionId: string, reason: string) => {
+    const queue = this.#queues.get(sessionId) ?? []
+
+    this.#queues.delete(sessionId)
+
+    for (const letter of queue) {
+      if (!letter.raw) {
+        this.#bounce(letter, reason)
+      }
+    }
+  }
+
+  #send = async (letter: Letter, text: string) => {
+    if (!this.busy(letter.to)) {
+      try {
+        await this.deliver(letter.to, text)
+
+        return false
+      } catch (e) {
+        if (!isBusyError(e)) {
+          throw e
+        }
+      }
+    }
+
+    const queue = this.#queues.get(letter.to) ?? []
+
+    queue.push(letter)
+    this.#queues.set(letter.to, queue)
+
+    return true
+  }
+
+  #bounce = (letter: Letter, reason: string) => {
+    if (letter.from === "atrix" || letter.from === letter.to) {
+      return
+    }
+
+    this.notice(letter.from, failureText(letter, reason), false).catch(() => {})
   }
 }

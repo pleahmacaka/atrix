@@ -1,0 +1,784 @@
+import * as acp from "@agentclientprotocol/sdk"
+import { channels, sendToChannel } from "#lib/channels/store.svelte.ts"
+import type { Block } from "#lib/chat/blocks.ts"
+import type { Actor } from "#lib/knowledge/document.ts"
+import { logFailure } from "#lib/logging.ts"
+import { native } from "#lib/native.ts"
+import type {
+  Ask,
+  Attachment,
+  Command,
+  HarnessKind,
+  HostEvent,
+  Listed,
+  OpenSession,
+  Patch,
+  SessionView,
+} from "#lib/p2p/protocol.ts"
+import { SESSION_BUSY } from "#lib/p2p/protocol.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { settings } from "#lib/store/settings.svelte.ts"
+import {
+  type Conn,
+  choicesOf,
+  connectAgent,
+  folderError,
+  listSessions,
+  promptBlocks,
+} from "./agent.ts"
+import type { Bridge } from "./bridge.ts"
+import { applyUpdate, shownInTurn } from "./items.ts"
+import type { ExternalSessions } from "./mirror.ts"
+import { type Harnesses, mirrorKind } from "./registry.ts"
+import {
+  forget,
+  isNamed,
+  keep,
+  kept,
+  optionsFor,
+  remember,
+  remembered,
+  rename,
+} from "./saved.ts"
+import { SOURCES } from "./sources.ts"
+import type { Reachable } from "./tools.ts"
+
+type Live = SessionView & {
+  conn: Conn
+  answer: ((optionId: string | null) => void) | null
+  handback: boolean
+}
+
+type Spawned = { key: string; conn: Promise<Conn> }
+
+export type SessionDeps = {
+  harnesses: Harnesses
+  external: ExternalSessions
+  bridge: Bridge
+  emit: (event: HostEvent) => void
+  changed: () => void
+  drain: (sessionId: string) => Promise<void>
+  closed: (sessionId: string) => void
+}
+
+const TITLE_LIMIT = 60
+
+const CANCELLED = { outcome: { outcome: "cancelled" as const } }
+
+const VENDORS: Record<HarnessKind, string> = {
+  claude: "anthropic",
+  codex: "openai",
+}
+
+const viewOf = ({
+  conn: _conn,
+  answer: _answer,
+  handback: _handback,
+  ...view
+}: Live): SessionView => view
+
+const summaryOf = (s: SessionView): OpenSession => ({
+  id: s.id,
+  harness: s.harness,
+  cwd: s.cwd,
+  title: s.title,
+  running: s.running,
+})
+
+export class Sessions {
+  #conns = new Map<string, Spawned>()
+
+  #spawned = 0
+
+  #listed = new Map<string, Listed[]>()
+
+  #live = new Map<string, Live>()
+
+  #taking = new Map<string, Promise<Live>>()
+
+  #early = new Map<string, Command[]>()
+
+  #usage = new Map<string, number>()
+
+  #harnesses: Harnesses
+
+  #external: ExternalSessions
+
+  constructor(private readonly deps: SessionDeps) {
+    this.#harnesses = deps.harnesses
+    this.#external = deps.external
+  }
+
+  open = (): OpenSession[] =>
+    [
+      ...this.#live.values(),
+      ...this.#external.views().filter(v => !this.#live.has(v.id)),
+    ].map(summaryOf)
+
+  reachable = (): Reachable[] =>
+    this.open().map(s => ({
+      id: s.id,
+      title: s.title,
+      harness: s.harness,
+      running: s.running || this.busy(s.id),
+    }))
+
+  busy = (id: string) =>
+    this.#taking.has(id) ||
+    (this.#live.get(id)?.running ?? this.#external.busy(id))
+
+  tokens = (id: string) =>
+    this.#usage.get(id) ?? this.#external.get(id)?.tokens ?? 0
+
+  release = async (harness: string) => {
+    const known = this.#conns.get(harness)
+
+    this.#conns.delete(harness)
+
+    if (known) {
+      await native("agent_close", { key: known.key })
+    }
+  }
+
+  list = async (harness: string): Promise<Listed[]> => {
+    const conn = await this.#connect(harness)
+
+    if (!conn.list) {
+      return []
+    }
+
+    const kind = mirrorKind(this.#harnesses.entry(harness))
+    const live = kind ? (this.#external.listings.get(kind) ?? []) : []
+    const listed = await listSessions(conn)
+
+    listed.push(
+      ...live.filter(l => !listed.some(s => s.sessionId === l.sessionId)),
+    )
+    this.#listed.set(harness, listed)
+
+    return listed
+  }
+
+  create = async (harness: string, cwd: string) => {
+    const conn = await this.#connect(harness)
+    const { token, servers } = this.deps.bridge.declare(conn.http)
+    const created = await conn.agent.request(acp.methods.agent.session.new, {
+      cwd,
+      mcpServers: servers,
+    })
+    const session = this.#register(conn, harness, created.sessionId, cwd)
+
+    this.deps.bridge.bind(token, created.sessionId)
+
+    session.config = choicesOf(created.configOptions ?? [])
+    await this.#restore(session)
+    keep({ harness, sessionId: session.id, cwd, title: session.title })
+    this.deps.changed()
+
+    return structuredClone(viewOf(session))
+  }
+
+  load = async (
+    harness: string,
+    sessionId: string,
+    cwd: string,
+    hint: string,
+  ) => {
+    await this.#external.ready
+
+    const open = this.#live.get(sessionId)
+
+    if (open) {
+      return structuredClone(viewOf(open))
+    }
+
+    const source = mirrorKind(this.#harnesses.entry(harness))
+    const title = () => this.#title(harness, sessionId) || hint
+    const mirrored =
+      !!this.#external.get(sessionId) || this.#external.live(sessionId)
+
+    if (source && (mirrored || SOURCES[source].shared)) {
+      const view = await this.#external.open(
+        source,
+        harness,
+        sessionId,
+        cwd,
+        title(),
+      )
+
+      this.deps.changed()
+
+      return structuredClone(view)
+    }
+
+    const conn = await this.#connect(harness)
+
+    if (!conn.load) {
+      throw new Error(m.error_no_load())
+    }
+
+    const session = this.#register(conn, harness, sessionId, cwd, title())
+
+    try {
+      await this.#attach(session, acp.methods.agent.session.load)
+      await this.#restore(session)
+    } catch (e) {
+      this.#live.delete(sessionId)
+      throw folderError(e, cwd)
+    }
+
+    keep({ harness, sessionId, cwd, title: session.title })
+    this.deps.changed()
+
+    return structuredClone(viewOf(session))
+  }
+
+  revive = async () => {
+    for (const k of kept()) {
+      try {
+        await this.load(k.harness, k.sessionId, k.cwd, k.title)
+      } catch (e) {
+        if (
+          this.#harnesses.find(k.harness) &&
+          !this.#harnesses.disabled(k.harness)
+        ) {
+          forget(k.sessionId)
+        }
+
+        logFailure("session restore", e)
+      }
+    }
+  }
+
+  prompt = async (
+    sessionId: string,
+    text: string,
+    attachments: Attachment[],
+  ) => {
+    if (!this.#live.has(sessionId) && this.#external.live(sessionId)) {
+      if (attachments.length > 0) {
+        throw new Error(m.chat_terminal_attachments())
+      }
+
+      await this.#external.type(sessionId, text)
+
+      return null
+    }
+
+    const session = await this.#writable(sessionId)
+
+    await this.#restore(session)
+
+    if (session.running) {
+      throw new Error(SESSION_BUSY)
+    }
+
+    const prompt = promptBlocks(session.conn, text, attachments)
+
+    for (const content of prompt) {
+      this.#apply(session, { sessionUpdate: "user_message_chunk", content })
+    }
+
+    this.#patch(session, {
+      running: true,
+      since: Date.now(),
+      ...(!session.title && { title: text.slice(0, TITLE_LIMIT) }),
+    })
+
+    session.conn.agent
+      .request(acp.methods.agent.session.prompt, { sessionId, prompt })
+      .catch((e: unknown) => {
+        const message = e instanceof Error ? e.message : String(e)
+
+        this.#update(sessionId, {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: `\n\n${m.chat_error({ message })}` },
+        })
+      })
+      .finally(async () => {
+        this.#patch(session, { running: false })
+
+        if (session.handback && this.#external.live(session.id)) {
+          await this.#handback(session)
+        } else {
+          session.handback = false
+        }
+
+        await this.deps.drain(sessionId).catch(() => {})
+      })
+
+    return null
+  }
+
+  permit = (sessionId: string, optionId: string | null) => {
+    this.#session(sessionId).answer?.(optionId)
+  }
+
+  cancel = async (sessionId: string) => {
+    const session = this.#session(sessionId)
+
+    session.answer?.(null)
+    await session.conn.agent.notify(acp.methods.agent.session.cancel, {
+      sessionId,
+    })
+
+    return null
+  }
+
+  close = async (sessionId: string) => {
+    const session = this.#live.get(sessionId)
+
+    this.#external.drop(sessionId)
+    forget(sessionId)
+    this.#usage.delete(sessionId)
+    this.deps.closed(sessionId)
+
+    if (session) {
+      await this.#detach(session)
+    }
+
+    this.deps.changed()
+
+    return null
+  }
+
+  configure = async (sessionId: string, configId: string, value: string) => {
+    const session = this.#session(sessionId)
+    const { configOptions } = await session.conn.agent.request(
+      acp.methods.agent.session.setConfigOption,
+      { sessionId, configId, value },
+    )
+
+    this.#patch(session, { config: choicesOf(configOptions) })
+    remember(session.harness, session.cwd, configId, value)
+
+    return null
+  }
+
+  retitle = (sessionId: string, title: string) => {
+    const live = this.#live.get(sessionId)
+
+    if (live) {
+      this.#patch(live, { title })
+    } else {
+      this.deps.changed()
+    }
+  }
+
+  show = (sessionId: string | null, blocks: Block[]) => {
+    const session = sessionId ? this.#live.get(sessionId) : null
+
+    if (!session || shownInTurn(session.items, blocks)) {
+      return
+    }
+
+    session.items.push({ type: "ui", id: crypto.randomUUID(), blocks })
+    this.#emitView(viewOf(session))
+  }
+
+  yieldToTerminals = async () => {
+    for (const session of [...this.#live.values()]) {
+      const kind = mirrorKind(this.#harnesses.find(session.harness))
+      if (
+        !kind ||
+        !SOURCES[kind].shared ||
+        this.busy(session.id) ||
+        !this.#external.live(session.id)
+      ) {
+        continue
+      }
+
+      if (this.#external.get(session.id)) {
+        await this.#handback(session)
+
+        continue
+      }
+
+      this.#detach(session)
+
+      const view = await this.#external.open(
+        kind,
+        session.harness,
+        session.id,
+        session.cwd,
+        session.title,
+      )
+
+      this.#emitView(view)
+    }
+  }
+
+  actorOf = (sessionId: string): Actor => {
+    const live = this.#live.get(sessionId)
+    const view = live ?? this.#external.get(sessionId)
+    const entry = view ? this.#harnesses.find(view.harness) : undefined
+    const vendor = entry?.kind ? VENDORS[entry.kind] : "unknown"
+    const model = live?.config.find(o => o.category === "model")?.current
+
+    return {
+      kind: "agent",
+      agent: view?.title || sessionId,
+      session: `atrix:${sessionId}`,
+      device: settings.deviceName || "unknown",
+      harness: live?.conn.info ?? {
+        name: entry?.base ?? "unknown",
+        version: "unknown",
+      },
+      model: { id: model ?? "unknown", vendor },
+      route: [{ kind: "provider", name: vendor }],
+    }
+  }
+
+  #emitView = (view: SessionView) => {
+    this.deps.emit({ type: "view", view: structuredClone(view) })
+  }
+
+  #patch = (session: Live, patch: Patch) => {
+    Object.assign(session, patch)
+    this.deps.emit({ type: "patch", sessionId: session.id, patch })
+
+    if (patch.title) {
+      rename(session.id, patch.title)
+    }
+
+    if ("running" in patch || "title" in patch) {
+      this.deps.changed()
+    }
+  }
+
+  #apply = (session: Live, update: acp.SessionUpdate) => {
+    applyUpdate(session.items, update)
+    this.deps.emit({ type: "update", sessionId: session.id, update })
+  }
+
+  #session = (id: string) => {
+    const session = this.#live.get(id)
+
+    if (!session) {
+      throw new Error(m.error_session_not_found())
+    }
+
+    return session
+  }
+
+  #title = (harness: string, sessionId: string) =>
+    this.#listed.get(harness)?.find(s => s.sessionId === sessionId)?.title ?? ""
+
+  #connect = (harness: string) => {
+    const known = this.#conns.get(harness)
+
+    if (known) {
+      return known.conn
+    }
+
+    const key = `${harness}:${++this.#spawned}`
+    const spawned: Spawned = {
+      key,
+      conn: this.#spawn(harness, key, () => this.#closed(harness, spawned)),
+    }
+
+    this.#conns.set(harness, spawned)
+    spawned.conn.catch(() => this.#closed(harness, spawned))
+
+    return spawned.conn
+  }
+
+  #spawn = async (
+    id: string,
+    key: string,
+    closed: () => void,
+  ): Promise<Conn> => {
+    const harness = this.#harnesses.entry(id)
+
+    if (this.#harnesses.disabled(id)) {
+      throw new Error(m.error_harness_off())
+    }
+
+    return connectAgent(key, harness.launch, {
+      update: this.#update,
+      permission: this.#permission,
+      closed,
+    })
+  }
+
+  #closed = (harness: string, spawned: Spawned) => {
+    if (this.#conns.get(harness) === spawned) {
+      this.#conns.delete(harness)
+    }
+
+    native("agent_close", { key: spawned.key }).catch(() => {})
+
+    spawned.conn
+      .then(
+        conn => {
+          for (const [id, session] of this.#live) {
+            if (session.conn === conn) {
+              session.answer?.(null)
+              this.#live.delete(id)
+            }
+          }
+        },
+        () => {},
+      )
+      .finally(() => this.deps.changed())
+  }
+
+  #register = (
+    conn: Conn,
+    harness: string,
+    id: string,
+    cwd: string,
+    title = "",
+  ): Live => {
+    const session: Live = {
+      id,
+      harness,
+      cwd,
+      title,
+      running: false,
+      items: [],
+      ask: null,
+      config: [],
+      commands: this.#early.get(id) ?? [],
+      conn,
+      answer: null,
+      handback: false,
+    }
+
+    this.#early.delete(id)
+    this.#live.set(id, session)
+
+    return session
+  }
+
+  #attach = async (
+    session: Live,
+    method:
+      | typeof acp.methods.agent.session.load
+      | typeof acp.methods.agent.session.resume,
+  ) => {
+    const { conn, id, cwd } = session
+    const { token, servers } = this.deps.bridge.declare(conn.http)
+
+    this.deps.bridge.bind(token, id)
+
+    const attached = await conn.agent.request(method, {
+      sessionId: id,
+      cwd,
+      mcpServers: servers,
+    })
+
+    session.config = choicesOf(attached.configOptions ?? [])
+  }
+
+  #detach = (session: Live) => {
+    session.answer?.(null)
+    this.#live.delete(session.id)
+
+    return session.conn.agent
+      .request(acp.methods.agent.session.close, { sessionId: session.id })
+      .catch(() => null)
+  }
+
+  #writable = async (sessionId: string) => {
+    const taking = this.#taking.get(sessionId)
+
+    if (taking) {
+      return taking
+    }
+
+    const mirror = this.#external.get(sessionId)
+
+    if (this.#live.has(sessionId) || !mirror) {
+      return this.#session(sessionId)
+    }
+
+    if (this.#external.live(sessionId)) {
+      throw new Error(m.chat_terminal_live())
+    }
+
+    const takeover = this.#takeover(sessionId, mirror)
+
+    this.#taking.set(sessionId, takeover)
+
+    try {
+      return await takeover.finally(() => this.#taking.delete(sessionId))
+    } catch (e) {
+      this.deps.drain(sessionId).catch(() => {})
+      throw e
+    }
+  }
+
+  #takeover = async (sessionId: string, mirror: SessionView) => {
+    this.#external.pause(sessionId)
+    mirror.running = true
+    this.#emitView(mirror)
+    await this.#external.idle(sessionId)
+
+    let session: Live | null = null
+
+    try {
+      const conn = await this.#connect(mirror.harness)
+
+      session = this.#register(
+        conn,
+        mirror.harness,
+        sessionId,
+        mirror.cwd,
+        mirror.title,
+      )
+      session.handback = true
+
+      if (conn.resume) {
+        session.items = structuredClone(mirror.items)
+        await this.#attach(session, acp.methods.agent.session.resume)
+      } else if (conn.load) {
+        await this.#attach(session, acp.methods.agent.session.load)
+      } else {
+        throw new Error(m.error_no_load())
+      }
+    } catch (e) {
+      this.#live.delete(sessionId)
+      await this.#external.adopt(sessionId, mirror.items)
+      throw folderError(e, mirror.cwd)
+    }
+
+    await this.#restore(session)
+    this.#emitView(viewOf(session))
+
+    return session
+  }
+
+  #handback = async (session: Live) => {
+    this.#detach(session)
+    await this.#external.adopt(session.id, session.items)
+    this.deps.changed()
+  }
+
+  #restore = async (session: Live) => {
+    const wanted = optionsFor(remembered(), session.harness, session.cwd)
+    const order = (id: string) =>
+      session.config.find(o => o.id === id)?.category === "model" ? 0 : 1
+    const entries = Object.entries(wanted).toSorted(
+      ([a], [b]) => order(a) - order(b),
+    )
+
+    let changed = false
+
+    for (const [configId, value] of entries) {
+      const option = session.config.find(o => o.id === configId)
+      const valid = option?.values.some(v => v.value === value)
+
+      if (!option || !valid || option.current === value) {
+        continue
+      }
+
+      const result = await session.conn.agent
+        .request(acp.methods.agent.session.setConfigOption, {
+          sessionId: session.id,
+          configId,
+          value,
+        })
+        .catch(() => null)
+
+      if (result) {
+        session.config = choicesOf(result.configOptions)
+        changed = true
+      }
+    }
+
+    if (changed) {
+      this.#patch(session, { config: session.config })
+    }
+  }
+
+  #update = (sessionId: string, update: acp.SessionUpdate) => {
+    const session = this.#live.get(sessionId)
+
+    if (update.sessionUpdate === "available_commands_update") {
+      const commands = update.availableCommands.map(c => ({
+        name: c.name,
+        description: c.description,
+        hint: c.input?.hint,
+      }))
+
+      if (session) {
+        this.#patch(session, { commands })
+      } else {
+        this.#early.set(sessionId, commands)
+      }
+
+      return
+    }
+
+    if (!session) {
+      return
+    }
+
+    if (update.sessionUpdate === "usage_update") {
+      this.#usage.set(sessionId, update.used)
+    }
+
+    if (update.sessionUpdate === "config_option_update") {
+      this.#patch(session, { config: choicesOf(update.configOptions) })
+    } else if (update.sessionUpdate === "session_info_update") {
+      if (update.title && !isNamed(sessionId)) {
+        this.#patch(session, { title: update.title })
+      }
+    } else {
+      this.#apply(session, update)
+    }
+  }
+
+  #permission = async (
+    params: acp.RequestPermissionRequest,
+    signal: AbortSignal,
+  ): Promise<acp.RequestPermissionResponse> => {
+    const session = this.#live.get(params.sessionId)
+
+    if (!session) {
+      return CANCELLED
+    }
+
+    const ask: Ask = {
+      title: params.toolCall.title ?? m.chat_tool_run(),
+      options: params.options.map(o => ({
+        optionId: o.optionId,
+        name: o.name,
+        kind: o.kind,
+      })),
+    }
+    const optionId = await new Promise<string | null>(resolve => {
+      session.answer = resolve
+      signal.addEventListener("abort", () => resolve(null))
+      this.#patch(session, { ask })
+      this.#announce(session, ask)
+    })
+
+    session.answer = null
+    this.#patch(session, { ask: null })
+
+    return optionId
+      ? { outcome: { outcome: "selected" as const, optionId } }
+      : CANCELLED
+  }
+
+  #announce = (session: Live, ask: Ask) => {
+    if (channels.status !== "on") {
+      return
+    }
+
+    const own = channels.bindings.filter(b => b.sessionId === session.id)
+    const targets = own.length > 0 ? own : channels.bindings
+    const text = m.channel_ask_notice({
+      session: session.title || session.id,
+      ask: ask.title,
+    })
+
+    for (const b of targets) {
+      sendToChannel(b.discordChannelId, text).catch((e: unknown) =>
+        logFailure("channel ask notice", e),
+      )
+    }
+  }
+}

@@ -1,5 +1,12 @@
 import { z } from "zod"
-import { appendText, type ChatItem, DETAIL_LIMIT, type Log } from "./items.ts"
+import {
+  appendText,
+  type ChatItem,
+  DETAIL_LIMIT,
+  type Log,
+  settleTool,
+  visible,
+} from "./items.ts"
 
 const part = z.object({ type: z.string(), text: z.string().optional() })
 
@@ -62,7 +69,7 @@ const applyItem = (items: ChatItem[], payload: unknown) => {
   if (msg.success && msg.data.role === "user") {
     const text = textOf(msg.data.content)
 
-    if (text.trim() && !text.trimStart().startsWith("<")) {
+    if (visible(text)) {
       appendText(items, "user", text, undefined)
     }
   } else if (msg.success && msg.data.role === "assistant") {
@@ -82,21 +89,10 @@ const applyItem = (items: ChatItem[], payload: unknown) => {
       ),
     })
   } else if (result.success) {
-    const tool = items.find(
-      i => i.type === "tool" && i.id === result.data.call_id,
-    )
-    const text =
-      typeof result.data.output === "string"
-        ? result.data.output
-        : textOf(result.data.output)
+    const { call_id, output } = result.data
+    const text = typeof output === "string" ? output : textOf(output)
 
-    if (tool?.type === "tool") {
-      tool.status = "completed"
-      tool.detail = [tool.detail, text]
-        .filter(Boolean)
-        .join("\n\n")
-        .slice(0, DETAIL_LIMIT)
-    }
+    settleTool(items, call_id, false, text)
   }
 }
 

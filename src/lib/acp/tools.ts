@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/server"
 import { z } from "zod"
-import { SHOW_UI, showUiInput } from "#lib/chat/blocks.ts"
+import type { EventInput } from "#lib/calendar/events.ts"
+import { type Block, SHOW_UI, showUiInput } from "#lib/chat/blocks.ts"
+import { type OpenArgs, openArgs } from "#lib/p2p/protocol.ts"
 import type { Caller } from "./bridge.ts"
 
 export type Reachable = {
@@ -8,6 +10,7 @@ export type Reachable = {
   title: string
   harness: string
   running: boolean
+  host?: string
 }
 
 export type Message = {
@@ -26,7 +29,19 @@ const fields = {
     .array(z.object({ to: z.string(), rel: z.string() }))
     .optional()
     .describe("Typed links to other document ids"),
+  sources: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Names of knowledge-flagged datasources (ds_list knowledge: true) that hold this document's data",
+    ),
 }
+
+const TEXT_RULES = [
+  "Documents hold text only: no images, data: URIs, base64 or binary, which are rejected.",
+  "External https links, including images hosted elsewhere, are fine.",
+  "Put structured data and datasets in a datasource flagged for knowledge (ds_execute with knowledge: true), name it in `sources` and describe or link it in the body.",
+].join(" ")
 
 const create = z.object({
   path: z.string().describe("Folder path and name, e.g. storage/versioning.md"),
@@ -50,10 +65,11 @@ export type UpdateArgs = z.infer<typeof update>
 
 export type KnowledgeDesk = {
   list: (prefix?: string) => unknown
-  read: (ref: string) => Promise<unknown>
+  read: (ref: string, versionId?: string) => Promise<unknown>
   history: (ref: string) => Promise<unknown>
   create: (caller: string, args: CreateArgs) => Promise<unknown>
   update: (caller: string, args: UpdateArgs) => Promise<unknown>
+  delete: (caller: string, ref: string, etag: string) => Promise<unknown>
   watch: (caller: string, ref: string, on: boolean) => unknown
 }
 
@@ -65,6 +81,7 @@ export type DatasourceDesk = {
     sql: string,
     params: unknown[],
     create: boolean,
+    knowledge: boolean | undefined,
   ) => Promise<unknown>
 }
 
@@ -76,16 +93,35 @@ export type AppsDesk = {
   ) => Promise<unknown>
 }
 
+export type CalendarDesk = {
+  list: (from: string, to: string) => Promise<unknown>
+  add: (caller: string, event: EventInput) => Promise<unknown>
+}
+
+export type ChannelDesk = {
+  send: (to: string, text: string) => Promise<unknown>
+}
+
 export type Desk = {
   apps: AppsDesk
+  channels: ChannelDesk
+  calendar: CalendarDesk
   knowledge: KnowledgeDesk
   datasource: DatasourceDesk
-  sessions: (caller: string) => Reachable[]
+  show: (caller: string | null, blocks: Block[]) => void
+  sessions: (caller: string) => Promise<Reachable[]>
   send: (
     caller: string,
     message: Message,
   ) => Promise<{ thread: string; queued: boolean }>
+  open: (caller: string, args: OpenArgs) => Promise<unknown>
+  close: (caller: string, session: string) => Promise<unknown>
 }
+
+const LEDGER = [
+  "Ledger convention: each project's worker keeps its status in the knowledge document ledger/<project>.md and is the only session that writes it;",
+  "the orchestrator reads those and writes only ledger/index.md, the overview of all projects.",
+].join(" ")
 
 const json = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
@@ -110,13 +146,20 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
     SHOW_UI,
     {
       description: [
-        "Show structured UI to the user inside the Atrix chat: card, keyvalue, table, list, bar chart,",
-        "image, links, a 3D scene of primitive shapes, buttons (actions) or a form. Buttons and forms",
-        "send the user's answer back to you as a new message. Text only, never HTML or scripts.",
+        "Render native UI blocks in the user's Atrix chat, right after this tool call. This is your rendering primitive:",
+        "use it instead of ASCII art or long markdown when a table, chart, key facts, links, image, 3D scene or a choice helps the user.",
+        "Blocks: card, keyvalue, table, list, bar, image, links, scene (primitive 3D shapes, y up), actions (buttons) and form.",
+        "A pressed button or a submitted form comes back to you as the user's next message.",
+        "A query block shows live rows from an Atrix datasource (see ds_list). Text only, never HTML or scripts.",
+        "To keep a view for later, save the same blocks with app_save.",
       ].join(" "),
       inputSchema: showUiInput,
     },
-    async ({ blocks }) => json({ shown: blocks.length }),
+    async ({ blocks }) => {
+      desk.show(caller(), blocks)
+
+      return json({ shown: blocks.length })
+    },
   )
 
   server.registerTool(
@@ -153,10 +196,10 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
     "list_sessions",
     {
       description:
-        "List other Atrix agent sessions on this device that can receive messages.",
+        "List other Atrix agent sessions that can receive messages, on this device and on every online Atrix device in the user's network. Sessions on other devices have ids ending in @<device> and a `host` field naming the device.",
       inputSchema: z.object({}),
     },
-    async () => json(desk.sessions(callerOf(caller))),
+    async () => json(await desk.sessions(callerOf(caller))),
   )
 
   server.registerTool(
@@ -165,17 +208,66 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
       description: [
         "Send a message to another Atrix agent session. It arrives there as a new user turn,",
         "or after its current turn ends. Pass `thread` from a received <atrix-message> to reply",
-        "in the same thread. Each thread allows a limited number of messages, so reply only",
-        "when the message needs an answer.",
+        "in the same thread. Each thread allows 20 messages per 10 minutes, so reply only",
+        "when the message needs an answer. If a queued message cannot be delivered later,",
+        "you get an <atrix-message-failed> message with the reason.",
       ].join(" "),
       inputSchema: z.object({
-        to: z.string().describe("Target session id or exact session title"),
+        to: z
+          .string()
+          .describe(
+            "Target session id from list_sessions, or exact session title; append @<device> for a session on another device",
+          ),
         text: z.string().min(1),
         thread: z.string().optional(),
         refs: z.array(z.string()).optional().describe("Knowledge document ids"),
       }),
     },
     async message => json(await desk.send(callerOf(caller), message)),
+  )
+
+  server.registerTool(
+    "open_session",
+    {
+      description: [
+        "Open a long-lived worker session for one project, or get the existing one with the same title and cwd (also after a restart).",
+        "Pattern: one orchestrator session talks to the user and delegates; each project gets one worker that does the work in its own folder.",
+        "Give the worker its task with send_message using the returned id; its replies come back to you as <atrix-message>.",
+        "Workers stay open and are restored when Atrix restarts. The worker reuses the model, mode and effort last chosen for that harness and folder.",
+        LEDGER,
+      ].join(" "),
+      inputSchema: openArgs,
+    },
+    async args => json(await desk.open(callerOf(caller), args)),
+  )
+
+  server.registerTool(
+    "close_session",
+    {
+      description: [
+        "Close a worker session that was opened with open_session, when its project needs no more work.",
+        "A session cannot close itself. The worker's ledger/<project>.md stays in the knowledge graph.",
+      ].join(" "),
+      inputSchema: z.object({
+        session: z.string().min(1).describe("Worker session id or exact title"),
+      }),
+    },
+    async ({ session }) => json(await desk.close(callerOf(caller), session)),
+  )
+
+  server.registerTool(
+    "channel_send",
+    {
+      description: [
+        "Post a message to a chat channel bound to an Atrix session in Settings > Channels.",
+        "Only bound Discord channels are accepted. Long text is split automatically.",
+      ].join(" "),
+      inputSchema: z.object({
+        to: z.string().describe("Discord channel id of a bound channel"),
+        text: z.string().min(1),
+      }),
+    },
+    async ({ to, text }) => json(await desk.channels.send(to, text)),
   )
 
   const { knowledge } = desk
@@ -194,19 +286,22 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
     "kg_read",
     {
       description:
-        "Read one knowledge document: frontmatter, markdown body and the etag needed to update it.",
+        "Read one knowledge document: frontmatter, markdown body and the etag needed to update it. Pass a versionId from kg_history to read an older version, also of a deleted document.",
       inputSchema: z.object({
         ref: z.string().describe("Document id or path"),
+        versionId: z.string().optional(),
       }),
     },
-    async ({ ref }) => json(await knowledge.read(ref)),
+    async ({ ref, versionId }) => json(await knowledge.read(ref, versionId)),
   )
 
   server.registerTool(
     "kg_create",
     {
-      description:
+      description: [
         "Create a knowledge document. Atrix fills id, timestamps and author. Link other documents with [[kg_id]] in the body or `links`.",
+        TEXT_RULES,
+      ].join(" "),
       inputSchema: create,
     },
     async args => json(await knowledge.create(callerOf(caller), args)),
@@ -215,18 +310,34 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
   server.registerTool(
     "kg_update",
     {
-      description:
+      description: [
         "Update a knowledge document. Pass the etag you read. On conflict the result holds the latest version: merge it and retry with its etag.",
+        TEXT_RULES,
+      ].join(" "),
       inputSchema: update,
     },
     async args => json(await knowledge.update(callerOf(caller), args)),
   )
 
   server.registerTool(
+    "kg_delete",
+    {
+      description:
+        "Delete a knowledge document. Pass the etag you read; on conflict the result holds the latest version. History is kept: kg_history and kg_read with a versionId still reach every earlier version.",
+      inputSchema: z.object({
+        ref: z.string().describe("Document id or path"),
+        etag: z.string().describe("ETag from kg_read"),
+      }),
+    },
+    async ({ ref, etag }) =>
+      json(await knowledge.delete(callerOf(caller), ref, etag)),
+  )
+
+  server.registerTool(
     "kg_history",
     {
       description:
-        "List the versions of a knowledge document with their authors.",
+        "List the versions of a knowledge document with their authors, also after it was deleted. A deleted: true entry marks the deletion.",
       inputSchema: z.object({ ref: z.string() }),
     },
     async ({ ref }) => json(await knowledge.history(ref)),
@@ -241,6 +352,41 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
     },
     async ({ ref, on }) =>
       json({ id: knowledge.watch(callerOf(caller), ref, on), on }),
+  )
+
+  const { calendar } = desk
+
+  const instant = z
+    .string()
+    .min(1)
+    .describe("ISO 8601 date-time, or YYYY-MM-DD for local midnight")
+
+  server.registerTool(
+    "calendar_list",
+    {
+      description:
+        "List the user's Atrix calendar events that overlap the range from `from` to `to`.",
+      inputSchema: z.object({ from: instant, to: instant }),
+    },
+    async ({ from, to }) => json(await calendar.list(from, to)),
+  )
+
+  server.registerTool(
+    "calendar_add",
+    {
+      description: [
+        "Add an event to the user's Atrix calendar. For an all-day event set allDay",
+        "and pass dates; `end` is exclusive, so a one-day event ends the next day.",
+      ].join(" "),
+      inputSchema: z.object({
+        title: z.string().trim().min(1).max(200),
+        start: instant,
+        end: instant,
+        allDay: z.boolean().optional(),
+        note: z.string().max(4000).optional(),
+      }),
+    },
+    async event => json(await calendar.add(callerOf(caller), event)),
   )
 
   const { datasource } = desk
@@ -261,7 +407,7 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
     "ds_list",
     {
       description:
-        "List Atrix datasources (embedded SQLite databases for generated apps) with their tables. Read a table's columns with ds_query on sqlite_schema or PRAGMA table_info.",
+        "List Atrix datasources (embedded SQLite databases for generated apps and knowledge data) with their tables. knowledge: true marks a datasource for the knowledge base, which documents may name in `sources`. Read a table's columns with ds_query on sqlite_schema or PRAGMA table_info.",
       inputSchema: z.object({}),
     },
     async () => json(await datasource.list()),
@@ -289,10 +435,16 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
           .boolean()
           .default(false)
           .describe("Create the database first when it does not exist"),
+        knowledge: z
+          .boolean()
+          .optional()
+          .describe(
+            "Set true when the database holds data for knowledge documents; false clears the flag",
+          ),
       }),
     },
-    async ({ name, sql, params, create }) =>
-      json(await datasource.execute(name, sql, params, create)),
+    async ({ name, sql, params, create, knowledge }) =>
+      json(await datasource.execute(name, sql, params, create, knowledge)),
   )
 
   return server

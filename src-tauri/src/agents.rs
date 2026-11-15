@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{ChildStdin, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use process_wrap::std::ChildWrapper;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
 use tauri::ipc::Channel;
 
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+use crate::error::Result;
+use crate::{platform, process};
 
 #[derive(Deserialize)]
 pub struct Launch {
@@ -27,8 +28,14 @@ pub enum Frame {
 }
 
 struct Agent {
-    child: Mutex<Child>,
+    child: Mutex<Box<dyn ChildWrapper>>,
     stdin: Mutex<ChildStdin>,
+}
+
+impl Agent {
+    fn kill(&self) {
+        let _ = self.child.lock().unwrap().kill();
+    }
 }
 
 #[derive(Default)]
@@ -41,37 +48,25 @@ impl Agents {
 
     fn remove(&self, key: &str) {
         if let Some(agent) = self.0.lock().unwrap().remove(key) {
-            let _ = agent.child.lock().unwrap().kill();
+            agent.kill();
         }
     }
 
     pub fn kill_all(&self) {
         for (_, agent) in self.0.lock().unwrap().drain() {
-            let _ = agent.child.lock().unwrap().kill();
+            agent.kill();
         }
     }
 }
 
-fn command(launch: &Launch) -> Result<Command, String> {
-    let program = which::which(&launch.command)
-        .map_err(|_| format!("command_not_found:{}", launch.command))?;
-    let mut command = Command::new(program);
-
-    command
-        .args(&launch.args)
-        .envs(&launch.env)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-
-        command.creation_flags(CREATE_NO_WINDOW);
+fn relay(stdout: impl BufRead, channel: Channel<Frame>) {
+    for line in stdout.split(b'\n').map_while(std::io::Result::ok) {
+        if let Ok(message) = serde_json::from_slice(&line) {
+            let _ = channel.send(Frame::Message { message });
+        }
     }
 
-    Ok(command)
+    let _ = channel.send(Frame::Exit);
 }
 
 #[tauri::command]
@@ -80,12 +75,21 @@ pub fn agent_spawn(
     key: String,
     launch: Launch,
     channel: Channel<Frame>,
-) -> Result<(), String> {
+) -> Result<()> {
     agents.remove(&key);
 
-    let mut child = command(&launch)?.spawn().map_err(|e| e.to_string())?;
-    let stdin = child.stdin.take().ok_or("stdin unavailable")?;
-    let stdout = child.stdout.take().ok_or("stdout unavailable")?;
+    let mut command = process::command(&launch.command)?;
+
+    command
+        .args(&launch.args)
+        .envs(&launch.env)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    let mut child = platform::tree(command).spawn()?;
+    let stdin = child.stdin().take().ok_or("stdin unavailable")?;
+    let stdout = child.stdout().take().ok_or("stdout unavailable")?;
 
     agents.0.lock().unwrap().insert(
         key,
@@ -95,35 +99,24 @@ pub fn agent_spawn(
         }),
     );
 
-    thread::spawn(move || {
-        let mut lines = BufReader::new(stdout);
-        let mut line = Vec::new();
-
-        while lines.read_until(b'\n', &mut line).is_ok_and(|n| n > 0) {
-            if let Ok(message) = serde_json::from_slice(&line) {
-                let _ = channel.send(Frame::Message { message });
-            }
-
-            line.clear();
-        }
-
-        let _ = channel.send(Frame::Exit);
-    });
+    thread::spawn(move || relay(BufReader::new(stdout), channel));
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn agent_send(agents: State<'_, Agents>, key: String, message: Value) -> Result<(), String> {
+pub fn agent_send(agents: State<'_, Agents>, key: String, message: Value) -> Result<()> {
     let agent = agents.get(&key).ok_or("agent_closed")?;
-    let mut line = serde_json::to_vec(&message).map_err(|e| e.to_string())?;
+    let mut line = serde_json::to_vec(&message)?;
 
     line.push(b'\n');
 
     let mut stdin = agent.stdin.lock().unwrap();
 
-    stdin.write_all(&line).map_err(|e| e.to_string())?;
-    stdin.flush().map_err(|e| e.to_string())
+    stdin.write_all(&line)?;
+    stdin.flush()?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -135,6 +128,6 @@ pub fn agent_close(agents: State<'_, Agents>, key: String) {
 pub fn installed_commands(names: Vec<String>) -> Vec<String> {
     names
         .into_iter()
-        .filter(|n| which::which(n).is_ok())
+        .filter(|n| process::which(n).is_some())
         .collect()
 }
