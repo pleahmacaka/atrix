@@ -79,6 +79,8 @@
 
 @theme inline {
   --color-raised: var(--raised);
+  --color-inset: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+  --spacing-hairline: var(--border);
 }
 
 :root {
@@ -101,6 +103,57 @@
   --radius-selector: 0.25rem;
 }
 
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
+
+:root {
+  /* Chromium ignores ::-webkit-scrollbar once scrollbar-color is set, and DaisyUI sets it */
+  scrollbar-color: auto;
+}
+
+::-webkit-scrollbar {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 0.1875rem solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+  background-color: color-mix(in oklab, var(--color-base-content) 22%, transparent);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
+}
+
+svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([fill]) {
+  fill: currentColor;
+}
+
+@utility fade-y {
+  mask-image: linear-gradient(to bottom, transparent, black 32%, black 68%, transparent);
+}
+
+@utility max-w-viewport {
+  max-width: calc(100dvw - 0.5rem);
+}
+
+@utility squircle {
+  border-radius: 50%;
+  corner-shape: squircle;
+}
+
 @utility island {
   border-radius: var(--radius-box);
   border: var(--border) solid var(--island-edge);
@@ -112,6 +165,23 @@
   --font-sans: "Pretendard Variable", Pretendard, sans-serif;
   --font-mono: var(--font-sans);
   --default-transition-duration: 140ms;
+  --transition-property-size: width, height;
+  --transition-property-width: width;
+  --transition-property-width-color: width, background-color;
+  --transition-property-height-shadow: height, box-shadow;
+  --transition-property-top-opacity: top, opacity;
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.35;
+    }
+  }
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --default-transition-timing-function: var(--ease-standard);
 }
@@ -133,6 +203,11 @@ html,
 body {
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+    env(safe-area-inset-left);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -158,11 +233,10 @@ body {
 @custom-variant dark (&:where([data-theme=atrix-dark], [data-theme=atrix-dark] *));
 
 .popover-box {
-  @apply rounded-box border border-base-300 bg-base-100 shadow-lg;
+  @apply rounded-box border border-base-300 bg-raised shadow-lg;
 
   @variant dark {
     border-color: color-mix(in oklab, var(--color-base-content) 16%, transparent);
-    background-color: var(--raised);
     @apply shadow-black/60;
   }
 }
@@ -178,9 +252,8 @@ body {
 }
 
 [data-effect="on"] {
-  --root-bg: transparent;
   --gutter: calc(var(--surface) * 0.2);
-  --solid: max(var(--surface), 0.92);
+  --solid: 1;
 }
 
 [data-effect="on"][data-theme="atrix-dark"] {
@@ -195,7 +268,9 @@ body {
   --raised: oklch(100% 0 0 / var(--solid));
 }
 
-[data-effect="on"] body {
+[data-effect="on"] body,
+:root[data-overlay],
+:root[data-overlay] body {
   background: transparent;
 }
 
@@ -276,7 +351,7 @@ body {
 }
 
 .markdown code {
-  background: var(--color-base-200);
+  background: var(--color-inset);
   border-radius: var(--radius-field);
   padding: 0 0.25rem;
   font-size: 0.875em;
@@ -284,7 +359,7 @@ body {
 }
 
 .markdown pre {
-  background: var(--color-base-200);
+  background: var(--color-inset);
   border: var(--border) solid var(--color-base-300);
   border-radius: var(--radius-box);
   padding: 0.75rem 1rem;
@@ -413,7 +488,7 @@ body {
   }
 
   & img {
-    @apply rounded-box border border-base-300 bg-base-200;
+    @apply rounded-box border border-base-300 bg-inset;
     max-width: 100%;
     margin-inline: auto;
   }
@@ -426,7 +501,7 @@ body {
   }
 
   & th {
-    @apply bg-base-200 text-left font-semibold;
+    @apply bg-inset text-left font-semibold;
   }
 
   & th,
@@ -439,11 +514,11 @@ body {
   }
 
   & code {
-    @apply rounded-md bg-base-200 px-1.5 py-0.5 text-sm;
+    @apply rounded-md bg-inset px-1.5 py-0.5 text-sm;
   }
 
   & pre {
-    @apply rounded-box bg-base-200 p-4 overflow-x-auto;
+    @apply rounded-box bg-inset p-4 overflow-x-auto;
 
     & code {
       @apply bg-transparent p-0;
@@ -507,6 +582,19 @@ body {
   opacity: var(--grain);
 }
 
-.iconify--logos {
-  fill: currentColor;
+.popover-anchor {
+  position-area: var(--area, block-end span-inline-end);
+  position-try-fallbacks: flip-block, flip-inline;
+}
+
+@media (width < 40rem) {
+  .popover-anchor.popover-sheet {
+    position-area: none;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+:where(button, a, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 0.125rem solid var(--color-primary);
+  outline-offset: 0.125rem;
 }

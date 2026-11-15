@@ -13,6 +13,7 @@ export const PAGES: PageInfo[] = [
   { id: "chat", label: m.shell_page_chat, icon: "lucide:messages-square" },
   { id: "knowledge", label: m.shell_page_knowledge, icon: "lucide:library" },
   { id: "data", label: m.shell_page_data, icon: "lucide:database" },
+  { id: "calendar", label: m.shell_page_calendar, icon: "lucide:calendar" },
   { id: "agent", label: m.shell_page_agent, icon: "lucide:bot" },
   {
     id: "devices",

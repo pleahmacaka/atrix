@@ -1,4 +1,5 @@
 <script lang="ts">
+import { trackPointer } from "#lib/components/ui/pointer.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { type Node, panes } from "#lib/store/panes.svelte.ts"
 import PaneNode from "./PaneNode.svelte"
@@ -14,27 +15,37 @@ const drag = (e: PointerEvent) => {
   }
 
   const split = node
-  const handle = e.currentTarget as HTMLElement
   const rect = box.getBoundingClientRect()
 
-  handle.setPointerCapture(e.pointerId)
-
-  const move = (m: PointerEvent) => {
+  trackPointer(e, p => {
     const ratio =
       split.dir === "row"
-        ? (m.clientX - rect.left) / rect.width
-        : (m.clientY - rect.top) / rect.height
+        ? (p.clientX - rect.left) / rect.width
+        : (p.clientY - rect.top) / rect.height
 
-    panes.resize(split.id, ratio)
+    panes.resize(split.id, ratio, split.dir === "row" ? rect.width : rect.height)
+  })
+}
+
+const STEP = 0.05
+
+const nudge = (e: KeyboardEvent) => {
+  if (node.kind !== "split" || !box) {
+    return
   }
 
-  const stop = () => {
-    handle.removeEventListener("pointermove", move)
-    handle.removeEventListener("pointerup", stop)
-  }
+  const rect = box.getBoundingClientRect()
+  const back = node.dir === "row" ? "ArrowLeft" : "ArrowUp"
+  const forward = node.dir === "row" ? "ArrowRight" : "ArrowDown"
 
-  handle.addEventListener("pointermove", move)
-  handle.addEventListener("pointerup", stop)
+  if (e.key === back || e.key === forward) {
+    e.preventDefault()
+    panes.resize(
+      node.id,
+      node.ratio + (e.key === back ? -STEP : STEP),
+      node.dir === "row" ? rect.width : rect.height,
+    )
+  }
 }
 </script>
 
@@ -52,18 +63,17 @@ const drag = (e: PointerEvent) => {
       type="button"
       aria-label={m.shell_resize_pane()}
       class={[
-        "group/resize relative shrink-0 bg-base-300/70 transition-colors",
-        "hover:bg-primary active:bg-primary",
-        node.dir === "row"
-          ? "w-px cursor-col-resize"
-          : "h-px cursor-row-resize",
+        "relative shrink-0 rounded-full transition-colors",
+        "hover:bg-primary/60 focus-visible:bg-primary/60 active:bg-primary",
+        node.dir === "row" ? "w-1 cursor-col-resize" : "h-1 cursor-row-resize",
       ]}
       onpointerdown={drag}
+      onkeydown={nudge}
     >
       <span
         class={[
           "absolute",
-          node.dir === "row" ? "inset-y-0 -inset-x-1" : "inset-x-0 -inset-y-1",
+          node.dir === "row" ? "inset-y-0 -inset-x-1.5" : "inset-x-0 -inset-y-1.5",
         ]}
       ></span>
     </button>

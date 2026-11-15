@@ -1,9 +1,11 @@
+import { z } from "zod"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { keyOf } from "./keys.ts"
 import type { Current } from "./nav.svelte.ts"
+import { Stored } from "./stored.svelte.ts"
 
 export type Recent = {
   key: string
@@ -16,8 +18,6 @@ export type Recent = {
   harness: string | null
   at: number
 }
-
-export { keyOf }
 
 const sessions = (): Recent[] =>
   hostList().flatMap(host => {
@@ -62,6 +62,8 @@ const sessions = (): Recent[] =>
     return [...new Map([...listed, ...open].map(r => [r.key, r])).values()]
   })
 
+export const titles = new Stored("title:", "", z.string())
+
 export const recents = (): Recent[] =>
   [
     ...sessions(),
@@ -76,7 +78,9 @@ export const recents = (): Recent[] =>
       live: true,
       at: c.at,
     })),
-  ].toSorted((a, b) => b.at - a.at)
+  ]
+    .map(r => ({ ...r, title: titles.get(r.key) || r.title }))
+    .toSorted((a, b) => b.at - a.at)
 
 export const describe = (current: Current) =>
   current ? recents().find(r => r.key === keyOf(current)) : undefined

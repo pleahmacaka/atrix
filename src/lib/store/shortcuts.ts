@@ -1,9 +1,21 @@
 import { m } from "#lib/paraglide/messages.js"
-import { layout } from "#lib/widgets/layout.svelte.ts"
-import { nav, openConversation, setSidebar } from "./nav.svelte.ts"
+import { goPage, nav, openConversation } from "./nav.svelte.ts"
 import { panes } from "./panes.svelte.ts"
+import { shell } from "./shell.svelte.ts"
+
+export type ShortcutId =
+  | "palette"
+  | "find"
+  | "settings"
+  | "new"
+  | "sidebar"
+  | "splitRight"
+  | "splitDown"
+  | "closePane"
+  | "harness"
 
 export type Shortcut = {
+  id: ShortcutId
   keys: string[]
   label: string
   icon: string
@@ -15,6 +27,7 @@ const mod = (e: KeyboardEvent) => e.ctrlKey || e.metaKey
 
 export const SHORTCUTS: Shortcut[] = [
   {
+    id: "palette",
     keys: ["Ctrl", "K"],
     label: m.shortcut_palette(),
     icon: "lucide:search",
@@ -24,6 +37,7 @@ export const SHORTCUTS: Shortcut[] = [
     },
   },
   {
+    id: "find",
     keys: ["Ctrl", "F"],
     label: m.shortcut_find(),
     icon: "lucide:text-search",
@@ -33,6 +47,7 @@ export const SHORTCUTS: Shortcut[] = [
     },
   },
   {
+    id: "settings",
     keys: ["Ctrl", ","],
     label: m.common_settings(),
     icon: "lucide:settings",
@@ -42,6 +57,7 @@ export const SHORTCUTS: Shortcut[] = [
     },
   },
   {
+    id: "new",
     keys: ["Ctrl", "N"],
     label: m.shortcut_new(),
     icon: "lucide:square-pen",
@@ -49,22 +65,15 @@ export const SHORTCUTS: Shortcut[] = [
     run: () => openConversation(null),
   },
   {
-    keys: ["Ctrl", "E"],
-    label: m.widget_edit(),
-    icon: "lucide:layout-dashboard",
-    matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "e",
-    run: () => {
-      layout.editing = !layout.editing
-    },
-  },
-  {
+    id: "sidebar",
     keys: ["Ctrl", "B"],
     label: m.shortcut_sidebar(),
     icon: "lucide:panel-left",
     matches: e => mod(e) && e.key.toLowerCase() === "b",
-    run: () => setSidebar(!nav.sidebar),
+    run: shell.toggle,
   },
   {
+    id: "splitRight",
     keys: ["Ctrl", "\\"],
     label: m.shell_split_right(),
     icon: "lucide:columns-2",
@@ -72,6 +81,7 @@ export const SHORTCUTS: Shortcut[] = [
     run: () => panes.split(panes.active.id, "right"),
   },
   {
+    id: "splitDown",
     keys: ["Ctrl", "Shift", "\\"],
     label: m.shell_split_down(),
     icon: "lucide:rows-2",
@@ -79,6 +89,7 @@ export const SHORTCUTS: Shortcut[] = [
     run: () => panes.split(panes.active.id, "bottom"),
   },
   {
+    id: "closePane",
     keys: ["Ctrl", "W"],
     label: m.shortcut_close_pane(),
     icon: "lucide:x",
@@ -86,15 +97,22 @@ export const SHORTCUTS: Shortcut[] = [
     run: () => panes.close(panes.active.id),
   },
   {
+    id: "harness",
     keys: ["Ctrl", "Shift", "H"],
     label: m.shortcut_harness(),
     icon: "lucide:bot",
     matches: e => mod(e) && e.shiftKey && e.key.toLowerCase() === "h",
     run: () => {
-      nav.page = nav.page === "agent" ? "chat" : "agent"
+      goPage(nav.page === "agent" ? "chat" : "agent")
     },
   },
 ]
+
+export const keysOf = (id: ShortcutId) =>
+  SHORTCUTS.find(s => s.id === id)?.keys.join("+")
+
+export const withKeys = (label: string, id: ShortcutId) =>
+  `${label} (${keysOf(id)})`
 
 export const handleShortcut = (e: KeyboardEvent) => {
   const found = SHORTCUTS.find(s => s.matches(e))

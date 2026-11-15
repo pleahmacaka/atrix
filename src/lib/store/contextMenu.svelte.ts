@@ -14,17 +14,49 @@ export type MenuItem = MenuAction | "separator"
 
 type Open = { x: number; y: number; items: MenuItem[] }
 
+const focusableOf = (target: EventTarget | null) =>
+  target instanceof Element
+    ? target.closest<HTMLElement>(
+        "button, a, input, textarea, select, [tabindex]",
+      )
+    : null
+
 class ContextMenu {
   current = $state<Open | null>(null)
+
+  private invoker: HTMLElement | null = null
 
   show = (e: MouseEvent, items: MenuItem[]) => {
     e.preventDefault()
     e.stopPropagation()
+
+    const active = document.activeElement
+
+    if (!this.current) {
+      this.invoker =
+        active instanceof HTMLElement && active !== document.body
+          ? active
+          : focusableOf(e.target)
+    }
+
     this.current = { x: e.clientX, y: e.clientY, items }
   }
 
   close = () => {
+    if (!this.current) {
+      return
+    }
+
     this.current = null
+
+    const invoker = this.invoker
+    const active = document.activeElement
+
+    this.invoker = null
+
+    if (!active || active === document.body || active.closest("[role=menu]")) {
+      invoker?.focus({ preventScroll: true })
+    }
   }
 }
 

@@ -1,17 +1,27 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
+import { tick } from "svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
+import MenuLabel from "#lib/components/ui/MenuLabel.svelte"
+import { reveal } from "#lib/components/ui/popover.ts"
+import SearchField from "#lib/components/ui/SearchField.svelte"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { nav, openConversation, openSettings } from "#lib/store/nav.svelte.ts"
+import { goPage, nav, openConversation, openSettings } from "#lib/store/nav.svelte.ts"
+import { APPS_PAGE, PAGES } from "#lib/store/pages.ts"
 import { recents } from "#lib/store/recent.ts"
+import { settings } from "#lib/store/settings.svelte.ts"
+import { keysOf } from "#lib/store/shortcuts.ts"
 
 type Item = {
   key: string
   icon: string
   label: string
   hint?: string
+  keys?: string
   running?: boolean
   run: () => unknown
 }
@@ -20,17 +30,23 @@ type Section = { title: string | null; items: Item[] }
 
 type Drill = { host: string; harness: string; name: string }
 
+const uid = $props.id()
+
+const RECENT_LIMIT = 20
+
 const attempt = new Attempt()
 
-let dialog = $state<HTMLDialogElement>()
+let list = $state<HTMLElement>()
 
-let input = $state<HTMLInputElement>()
+let dialog = $state<HTMLDialogElement>()
 
 let query = $state("")
 
 let drill = $state<Drill | null>(null)
 
 let active = $state(0)
+
+const focusInput = () => dialog?.querySelector("input")?.focus()
 
 $effect(() => {
   if (nav.palette) {
@@ -39,7 +55,7 @@ $effect(() => {
     active = 0
     attempt.failure = null
     dialog?.showModal()
-    input?.focus()
+    focusInput()
   } else {
     dialog?.close()
   }
@@ -60,7 +76,7 @@ const enter = (target: Drill) =>
     drill = target
     query = ""
     active = 0
-    input?.focus()
+    focusInput()
     await hostById(target.host)?.list(target.harness)
   })
 
@@ -70,6 +86,12 @@ const load = (target: Drill, sessionId: string, cwd: string) =>
     openConversation({ kind: "session", host: target.host, id: sessionId })
     close()
   })
+
+const toggleTheme = () => {
+  const dark = document.documentElement.dataset.theme === "atrix-dark"
+
+  settings.setTheme(dark ? "light" : "dark")
+}
 
 const sections = $derived.by((): Section[] => {
   if (drill) {
@@ -94,20 +116,21 @@ const sections = $derived.by((): Section[] => {
 
   const actions: Item[] = [
     {
-      key: "agent",
-      icon: "lucide:bot",
-      label: m.shell_page_agent(),
+      key: "new",
+      icon: "lucide:square-pen",
+      label: m.chat_new(),
+      keys: keysOf("new"),
       run: () => {
-        nav.page = "agent"
+        openConversation(null)
         close()
       },
     },
     {
-      key: "new",
-      icon: "lucide:plus",
-      label: m.chat_new(),
+      key: "theme",
+      icon: "lucide:sun-moon",
+      label: m.palette_theme(),
       run: () => {
-        openConversation(null)
+        toggleTheme()
         close()
       },
     },
@@ -115,17 +138,29 @@ const sections = $derived.by((): Section[] => {
       key: "settings",
       icon: "lucide:settings",
       label: m.common_settings(),
-      run: () => openSettings("sync"),
+      keys: keysOf("settings"),
+      run: () => openSettings("appearance"),
     },
   ]
 
+  const pages: Item[] = [...PAGES, APPS_PAGE].map(p => ({
+    key: `page:${p.id}`,
+    icon: p.icon,
+    label: p.label(),
+    run: () => {
+      goPage(p.id)
+      close()
+    },
+  }))
+
   const recent: Item[] = recents()
     .filter(r => matches(r.title, r.source))
+    .slice(0, query.trim() ? undefined : RECENT_LIMIT)
     .map(r => ({
       key: r.key,
       icon: r.icon,
       label: r.title,
-      hint: r.source,
+      hint: hostList().length > 1 ? r.source : undefined,
       running: r.running,
       run: () => {
         openConversation(r.current)
@@ -148,19 +183,28 @@ const sections = $derived.by((): Section[] => {
   return [
     { title: null, items: actions.filter(a => matches(a.label)) },
     { title: m.palette_recent(), items: recent },
+    { title: m.shell_pages(), items: pages.filter(p => matches(p.label)) },
     { title: m.palette_load(), items: harnesses },
   ].filter(s => s.items.length > 0)
 })
 
 const flat = $derived(sections.flatMap(s => s.items))
 
+const move = async (index: number) => {
+  active = index
+
+  await tick()
+
+  reveal(document.getElementById(`${uid}-${index}`))
+}
+
 const keydown = (e: KeyboardEvent) => {
   if (e.key === "ArrowDown") {
     e.preventDefault()
-    active = Math.min(active + 1, flat.length - 1)
+    move(Math.min(active + 1, flat.length - 1))
   } else if (e.key === "ArrowUp") {
     e.preventDefault()
-    active = Math.max(active - 1, 0)
+    move(Math.max(active - 1, 0))
   } else if (e.key === "Enter" && !e.isComposing) {
     e.preventDefault()
     flat[active]?.run()
@@ -170,84 +214,83 @@ const keydown = (e: KeyboardEvent) => {
 }
 </script>
 
-<dialog bind:this={dialog} class="modal modal-top" onclose={close}>
+<dialog bind:this={dialog} class="modal modal-top grid-cols-1" onclose={close}>
   <div
     class={[
-      "modal-box mx-auto mt-20 flex max-h-120 w-full max-w-xl",
-      "flex-col gap-0 p-0",
+      "modal-box popover-box mx-auto mt-20 flex max-h-120 w-full max-w-xl flex-col gap-1 p-1.5",
+      "max-sm:mx-4 max-sm:mt-4 max-sm:w-auto max-sm:justify-self-stretch",
     ]}
   >
-    <div class="flex items-center gap-2 border-b border-base-300 px-4">
+    <div class="flex shrink-0 items-center gap-1">
       {#if drill}
-        <button
-          type="button"
-          class="btn btn-ghost btn-xs btn-square"
-          aria-label={m.common_back()}
+        <IconButton
+          icon="lucide:chevron-left"
+          label={m.common_back()}
+          class="shrink-0"
           onclick={() => {
             drill = null
+            focusInput()
           }}
-        >
-          <Icon icon="lucide:chevron-left" class="size-4" />
-        </button>
-        <span class="text-sm whitespace-nowrap text-base-content/70">
+        />
+        <span class="max-w-1/3 shrink-0 truncate text-sm text-base-content/70" title={drill.name}>
           {drill.name}
         </span>
-      {:else}
-        <Icon icon="lucide:search" class="size-4 text-base-content/50" />
       {/if}
-      <input
-        bind:this={input}
-        class="min-w-0 flex-1 bg-transparent py-4 outline-none"
-        placeholder={drill ? m.palette_search_sessions() : m.palette_search()}
-        aria-label={m.common_search()}
+      <SearchField
         bind:value={query}
+        placeholder={drill ? m.palette_search_sessions() : m.palette_search()}
+        class="h-10 flex-1"
         oninput={() => {
           active = 0
+          list?.scrollTo({ top: 0 })
         }}
         onkeydown={keydown}
       />
       {#if attempt.busy}
-        <span class="loading loading-spinner loading-xs opacity-60"></span>
+        <span class="loading loading-spinner loading-xs shrink-0 opacity-60"></span>
       {/if}
     </div>
-    <div class="min-h-0 overflow-y-auto p-2">
+    <div bind:this={list} class="min-h-0 overflow-y-auto" role="menu">
       {#each sections as section (section.title)}
         {#if section.title}
-          <p class="px-3 pt-3 pb-1 text-xs text-base-content/50">{section.title}</p>
+          <MenuLabel text={section.title} />
         {/if}
         {#each section.items as item (item.key)}
           {@const index = flat.indexOf(item)}
-          <button
-            type="button"
-            class={[
-              "flex w-full cursor-pointer items-center gap-3 rounded-field px-3 py-2",
-              "text-left",
-              index === active ? "bg-base-content/8" : "",
-            ]}
-            onmouseenter={() => {
+          <MenuItem
+            id="{uid}-{index}"
+            icon={item.icon}
+            label={item.label}
+            hint={item.keys}
+            selected={index === active}
+            class="min-h-9"
+            onpointermove={() => {
               active = index
             }}
             onclick={item.run}
           >
-            <Icon icon={item.icon} class="size-4 shrink-0 text-base-content/60" />
-            <span class="min-w-0 flex-1 truncate">{item.label}</span>
-            {#if item.running}
-              <span class="loading loading-spinner loading-xs"></span>
-            {/if}
-            {#if item.hint}
-              <span class="max-w-48 truncate text-xs text-base-content/50" title={item.hint}>
-                {item.hint}
-              </span>
-            {/if}
-          </button>
+            {#snippet trailing()}
+              {#if item.running}
+                <span class="loading loading-spinner loading-xs shrink-0"></span>
+              {/if}
+              {#if item.hint}
+                <span
+                  class="max-w-1/3 min-w-0 truncate text-xs text-base-content/50"
+                  title={item.hint}
+                >
+                  {item.hint}
+                </span>
+              {/if}
+            {/snippet}
+          </MenuItem>
         {/each}
       {:else}
-        <p class="px-3 py-6 text-center text-sm text-base-content/50">{m.common_no_results()}</p>
+        <EmptyState icon="lucide:search-x" text={m.common_no_results()} class="py-6" />
       {/each}
       <ErrorAlert message={attempt.failure} />
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop">
+  <form method="dialog" class="modal-backdrop bg-base-100/50 backdrop-blur-sm">
     <button type="submit">{m.common_close()}</button>
   </form>
 </dialog>

@@ -14,8 +14,15 @@ const applyEffect = async (effect: WindowEffect) => {
     return
   }
 
-  // Acrylic and Mica turn opaque while the window is inactive on Windows 11; Blur stays translucent
-  await win.setEffects({ effects: [Effect.Blur] })
+  await win.setEffects({ effects: [Effect.Acrylic] })
+}
+
+const applyTheme = async (theme: "light" | "dark" | null) => {
+  const { getCurrentWindow } = await import("@tauri-apps/api/window")
+
+  await getCurrentWindow().setTheme(theme)
+  // acrylic keeps the tint of the theme it was applied under
+  await applyEffect(settings.effect)
 }
 
 export const startAppearance = () =>
@@ -28,6 +35,12 @@ export const startAppearance = () =>
       const root = document.documentElement
 
       root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
+
+      if (desktop) {
+        applyTheme(
+          settings.theme === "system" ? null : isDark ? "dark" : "light",
+        ).catch(console.error)
+      }
       root.style.setProperty(
         "--color-primary",
         isDark ? `oklch(72% 0.15 ${hue})` : `oklch(53% 0.19 ${hue})`,

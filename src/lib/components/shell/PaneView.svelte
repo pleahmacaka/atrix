@@ -2,12 +2,21 @@
 import Icon from "@iconify/svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
+import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { droppedConversation, isConversationDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
-import { type Leaf, panes, type Side } from "#lib/store/panes.svelte.ts"
+import {
+  type Leaf,
+  panes,
+  providePane,
+  type Side,
+} from "#lib/store/panes.svelte.ts"
 import { describe } from "#lib/store/recent.ts"
+import { withKeys } from "#lib/store/shortcuts.ts"
 import { markRead } from "#lib/store/unread.svelte.ts"
 import Start from "./Start.svelte"
 
@@ -16,6 +25,8 @@ type Zone = Side | "center"
 const EDGE = 0.25
 
 let { leaf }: { leaf: Leaf } = $props()
+
+providePane(() => leaf.id)
 
 let zone = $state<Zone | null>(null)
 
@@ -27,7 +38,7 @@ const host = $derived(current?.kind === "session" ? hostById(current.host) : nul
 
 const info = $derived(describe(current))
 
-let failure = $state<string | null>(null)
+const opening = new Attempt()
 
 $effect(() => {
   if (current) {
@@ -37,10 +48,9 @@ $effect(() => {
 
 $effect(() => {
   if (host && current?.kind === "session" && !host.views[current.id]) {
-    failure = null
-    host.open(current.id).catch((e: unknown) => {
-      failure = e instanceof Error ? e.message : String(e)
-    })
+    const id = current.id
+
+    opening.run(() => host.open(id))
   }
 })
 
@@ -48,8 +58,8 @@ const split = $derived(panes.leaves.length > 1)
 
 const focused = $derived(panes.focused === leaf.id)
 
-const zoneOf = (e: DragEvent): Zone => {
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+const zoneOf = (e: DragEvent & { currentTarget: HTMLElement }): Zone => {
+  const rect = e.currentTarget.getBoundingClientRect()
   const x = (e.clientX - rect.left) / rect.width
   const y = (e.clientY - rect.top) / rect.height
   const edges: [Side, number][] = [
@@ -60,10 +70,10 @@ const zoneOf = (e: DragEvent): Zone => {
   ]
   const [side, distance] = edges.toSorted((p, q) => p[1] - q[1])[0]
 
-  return distance < EDGE ? side : "center"
+  return distance < EDGE && panes.canSplit(leaf.id, side) ? side : "center"
 }
 
-const over = (e: DragEvent) => {
+const over = (e: DragEvent & { currentTarget: HTMLElement }) => {
   if (!isConversationDrag(e)) {
     return
   }
@@ -107,7 +117,7 @@ const HINTS: Record<Zone, string> = {
   onpointerdowncapture={() => panes.focus(leaf.id)}
   ondragover={over}
   ondragleave={e => {
-    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+    if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) {
       zone = null
     }
   }}
@@ -123,15 +133,12 @@ const HINTS: Record<Zone, string> = {
     >
       <Icon icon={info?.icon ?? "lucide:square-pen"} class="size-4 shrink-0 opacity-70" />
       <span class="min-w-0 flex-1 truncate">{info?.title ?? m.chat_new()}</span>
-      <button
-        type="button"
-        class="btn btn-ghost btn-xs btn-square"
-        aria-label={m.shell_close_pane()}
-        title="{m.shell_close_pane()} (Ctrl+W)"
+      <IconButton
+        icon="lucide:x"
+        label={m.shell_close_pane()}
+        title={withKeys(m.shell_close_pane(), "closePane")}
         onclick={() => panes.close(leaf.id)}
-      >
-        <Icon icon="lucide:x" class="size-3.5" />
-      </button>
+      />
     </header>
   {/if}
 
@@ -141,12 +148,9 @@ const HINTS: Record<Zone, string> = {
         <ModelChat {stored} />
       {/key}
     {/await}
-  {:else if failure}
+  {:else if opening.failure}
     <div class="grid flex-1 place-items-center p-6">
-      <div role="alert" class="alert alert-error alert-soft text-sm">
-        <Icon icon="lucide:circle-alert" class="size-4" />
-        {failure}
-      </div>
+      <ErrorAlert message={opening.failure} />
     </div>
   {:else if host && current?.kind === "session"}
     <SessionChat {host} sessionId={current.id} />

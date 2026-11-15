@@ -49,6 +49,20 @@ class Settings {
     Number(read("window-transparency", this.effect === "none" ? "0" : "60")),
   )
 
+  voiceURL = $state<string>(read("voice-url", ""))
+
+  setVoiceURL = (url: string) => {
+    this.voiceURL = url.trim().replace(/\/+$/, "")
+    localStorage.setItem("voice-url", this.voiceURL)
+  }
+
+  voiceRate = $state<number>(Number(read("voice-rate", "1")) || 1)
+
+  setVoiceRate = (rate: number) => {
+    this.voiceRate = rate
+    localStorage.setItem("voice-rate", String(rate))
+  }
+
   setName = (name: string) => {
     this.deviceName = name.trim() || this.deviceName
     localStorage.setItem("device-name", this.deviceName)
@@ -82,6 +96,13 @@ class Settings {
   setTransparency = (percent: number) => {
     this.transparency = percent
     localStorage.setItem("window-transparency", String(percent))
+  }
+
+  mailTokenCap = $state<number>(Number(read("mail-token-cap", "0")) || 0)
+
+  setMailTokenCap = (cap: number) => {
+    this.mailTokenCap = cap
+    localStorage.setItem("mail-token-cap", String(cap))
   }
 }
 

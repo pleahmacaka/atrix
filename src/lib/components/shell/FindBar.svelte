@@ -1,5 +1,6 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import SearchField from "#lib/components/ui/SearchField.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { nav } from "#lib/store/nav.svelte.ts"
 
@@ -7,7 +8,7 @@ const ALL = "find"
 
 const CURRENT = "find-current"
 
-let input = $state<HTMLInputElement>()
+let bar = $state<HTMLElement>()
 
 let query = $state("")
 
@@ -17,12 +18,36 @@ let index = $state(0)
 
 const rootOf = () => document.querySelector<HTMLElement>("[data-find-root]")
 
+const clipped = (range: Range, root: HTMLElement) => {
+  const rect = range.getBoundingClientRect()
+
+  for (let el = range.startContainer.parentElement; el && el !== root; el = el.parentElement) {
+    const { overflowX } = getComputedStyle(el)
+
+    if (overflowX !== "hidden" && overflowX !== "clip") {
+      continue
+    }
+
+    const box = el.getBoundingClientRect()
+
+    if (rect.right > box.right + 1 || rect.left < box.left - 1) {
+      return true
+    }
+  }
+
+  return false
+}
+
 const collect = (root: HTMLElement, needle: string) => {
   const found: Range[] = []
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const lower = needle.toLowerCase()
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.parentElement?.checkVisibility({ visibilityProperty: true })) {
+      continue
+    }
+
     const text = node.textContent?.toLowerCase() ?? ""
 
     for (let at = text.indexOf(lower); at !== -1; at = text.indexOf(lower, at + lower.length)) {
@@ -30,11 +55,40 @@ const collect = (root: HTMLElement, needle: string) => {
 
       range.setStart(node, at)
       range.setEnd(node, at + lower.length)
-      found.push(range)
+
+      if (!clipped(range, root)) {
+        found.push(range)
+      }
     }
   }
 
   return found
+}
+
+const scrollerOf = (node: Node) => {
+  for (let el = node.parentElement; el; el = el.parentElement) {
+    const { overflowY } = getComputedStyle(el)
+
+    if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
+      return el
+    }
+  }
+
+  return document.scrollingElement
+}
+
+const reveal = (range: Range) => {
+  const scroller = scrollerOf(range.startContainer)
+
+  if (!scroller) {
+    return
+  }
+
+  const match = range.getBoundingClientRect()
+  const view = scroller.getBoundingClientRect()
+  const offset = match.top + match.height / 2 - (view.top + view.height / 2)
+
+  scroller.scrollBy({ top: offset, behavior: "smooth" })
 }
 
 const paint = (scroll: boolean) => {
@@ -46,7 +100,7 @@ const paint = (scroll: boolean) => {
     CSS.highlights.set(CURRENT, new Highlight(current))
 
     if (scroll) {
-      current.startContainer.parentElement?.scrollIntoView({ block: "center" })
+      reveal(current)
     }
   } else {
     CSS.highlights.delete(CURRENT)
@@ -78,6 +132,8 @@ $effect(() => {
   if (!nav.find) {
     return
   }
+
+  const input = bar?.querySelector("input")
 
   input?.focus()
   input?.select()
@@ -114,57 +170,47 @@ const keydown = (e: KeyboardEvent) => {
 
 {#if nav.find}
   <search
+    bind:this={bar}
     class={[
-      "absolute top-12 right-4 z-40 flex items-center gap-1 rounded-box border",
-      "border-base-300 bg-raised p-1 shadow-lg",
+      "popover-box absolute top-12 right-4 z-40 flex items-center gap-1 p-1",
+      "max-sm:inset-x-4",
     ]}
   >
-    <label class="input input-sm input-ghost w-56">
-      <Icon icon="lucide:search" class="size-4 opacity-60" />
-      <input
-        bind:this={input}
-        class="grow"
-        placeholder={m.find_label()}
-        aria-label={m.find_label()}
-        bind:value={query}
-        oninput={() => {
-          index = 0
-          search(true)
-        }}
-        onkeydown={keydown}
-      />
-    </label>
-    <span class="min-w-14 text-center text-xs text-base-content/60 tabular-nums">
+    <SearchField
+      bind:value={query}
+      label={m.find_label()}
+      class="w-56 max-sm:w-auto max-sm:flex-1"
+      oninput={() => {
+        index = 0
+        search(true)
+      }}
+      onkeydown={keydown}
+    />
+    <span class="min-w-14 shrink-0 text-center text-xs text-base-content/60 tabular-nums">
       {ranges.length ? `${index + 1}/${ranges.length}` : query ? "0/0" : ""}
     </span>
-    <button
-      type="button"
-      class="btn btn-ghost btn-xs btn-square"
-      aria-label={m.common_previous()}
+    <IconButton
+      icon="lucide:chevron-up"
+      label={m.common_previous()}
       title="{m.common_previous()} (Shift+Enter)"
+      class="shrink-0"
       disabled={ranges.length === 0}
       onclick={() => step(-1)}
-    >
-      <Icon icon="lucide:chevron-up" class="size-4" />
-    </button>
-    <button
-      type="button"
-      class="btn btn-ghost btn-xs btn-square"
-      aria-label={m.common_next()}
+    />
+    <IconButton
+      icon="lucide:chevron-down"
+      label={m.common_next()}
       title="{m.common_next()} (Enter)"
+      class="shrink-0"
       disabled={ranges.length === 0}
       onclick={() => step(1)}
-    >
-      <Icon icon="lucide:chevron-down" class="size-4" />
-    </button>
-    <button
-      type="button"
-      class="btn btn-ghost btn-xs btn-square"
-      aria-label={m.common_close()}
+    />
+    <IconButton
+      icon="lucide:x"
+      label={m.common_close()}
       title={m.common_close_hint()}
+      class="shrink-0"
       onclick={close}
-    >
-      <Icon icon="lucide:x" class="size-4" />
-    </button>
+    />
   </search>
 {/if}

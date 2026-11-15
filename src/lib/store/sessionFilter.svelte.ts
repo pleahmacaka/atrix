@@ -1,35 +1,24 @@
+import { z } from "zod"
 import type { Recent } from "./recent.ts"
+import { persisted } from "./stored.svelte.ts"
 import { unread } from "./unread.svelte.ts"
-
-export type KindFilter = "all" | "chat" | "session"
-
-export type StatusFilter = "all" | "running" | "unread" | "open"
-
-export type SortKey = "activity" | "title" | "status"
 
 const KEY = "session-filter"
 
-type Saved = {
-  kind: KindFilter
-  status: StatusFilter
-  harness: string | null
-  sort: SortKey
-}
+const savedSchema = z.object({
+  kind: z.enum(["all", "chat", "session"]).catch("all"),
+  status: z.enum(["all", "running", "unread", "open"]).catch("all"),
+  harness: z.string().nullable().catch(null),
+  sort: z.enum(["activity", "title", "status"]).catch("activity"),
+})
 
-const DEFAULTS: Saved = {
-  kind: "all",
-  status: "all",
-  harness: null,
-  sort: "activity",
-}
+type Saved = z.infer<typeof savedSchema>
 
-const load = (): Saved => {
-  try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }
-  } catch {
-    return DEFAULTS
-  }
-}
+export type KindFilter = Saved["kind"]
+
+export type StatusFilter = Saved["status"]
+
+export type SortKey = Saved["sort"]
 
 const rank = (r: Recent) => {
   if (r.running) {
@@ -44,7 +33,7 @@ const rank = (r: Recent) => {
 }
 
 class SessionFilter {
-  value = $state<Saved>(load())
+  value = $state<Saved>(persisted(KEY, savedSchema.parse({}), savedSchema))
 
   get active() {
     const { kind, status, harness } = this.value

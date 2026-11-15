@@ -98,9 +98,10 @@ const ready = $derived(
 
 <div class="flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-24">
   <p class="text-2xl font-medium text-base-content/80">{m.chat_prompt()}</p>
-  <div class="w-full max-w-2xl">
+  <div class="w-full">
     <Composer
       busy={attempt.busy}
+      draft="start"
       disabled={!ready}
       placeholder={ready ? m.chat_placeholder() : m.chat_connect_gateway()}
       onSend={send}

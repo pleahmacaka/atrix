@@ -1,18 +1,22 @@
 import { get, set } from "idb-keyval"
+import { z } from "zod"
 import type { ChatMessage } from "#lib/chat/live.svelte.ts"
+import type { Peer } from "#lib/p2p/net.ts"
 
 const STORE = "atrix"
 
-export type Gateway = {
-  id: string
-  name: string
-  kind: "openrouter" | "openai"
-  baseURL: string
-  key: string | null
-  model: string
-  at: number
-  removed?: boolean
-}
+export const gateway = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(["openrouter", "openai"]),
+  baseURL: z.string(),
+  key: z.string().nullable(),
+  model: z.string(),
+  at: z.number(),
+  removed: z.boolean().optional(),
+})
+
+export type Gateway = z.infer<typeof gateway>
 
 type Legacy = { openrouter?: { key: string | null; at: number } }
 
@@ -27,13 +31,12 @@ export type StoredChat = {
 
 export type Contents = {
   gateways: Gateway[]
-  sync: string | null
+  net?: { key?: string; peers: Peer[] }
   chats: StoredChat[]
 }
 
 const EMPTY: Contents = {
   gateways: [],
-  sync: null,
   chats: [],
 }
 
