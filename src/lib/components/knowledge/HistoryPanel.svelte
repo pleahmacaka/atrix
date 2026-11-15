@@ -4,7 +4,9 @@ import { diffArrays, diffLines } from "diff"
 import { onMount } from "svelte"
 import Markdown from "#lib/components/chat/Markdown.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import Segmented from "#lib/components/ui/Segmented.svelte"
 import { actorDetail, actorName, timeAgo, timeOf } from "#lib/knowledge/actor.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { Version } from "#lib/p2p/protocol.ts"
@@ -37,13 +39,18 @@ let selected = $state<number | null>(null)
 
 let view = $state<"rendered" | "source">("rendered")
 
+const VIEWS = [
+  { id: "rendered" as const, label: m.knowledge_rendered(), icon: "lucide:eye" },
+  { id: "source" as const, label: m.knowledge_source(), icon: "lucide:code" },
+]
+
 const lineCount = (text: string) => text.split("\n").filter(Boolean).length
 
 onMount(() =>
   attempt.run(async () => {
-    const versions = (await host.historyDoc(id)).toSorted((a, b) =>
-      a.modified.localeCompare(b.modified),
-    )
+    const versions = (await host.historyDoc(id))
+      .filter(v => !v.deleted)
+      .toSorted((a, b) => a.modified.localeCompare(b.modified))
     const bodies = await Promise.all(
       versions.map(async v => (await host.readDoc(id, v.versionId)).body),
     )
@@ -118,12 +125,14 @@ const clip = (text: string) => {
           {m.knowledge_history_title()}
         </button>
       </li>
-      <li>r{detail.number}</li>
+      <li>{m.knowledge_revision({ number: detail.number })}</li>
     </ul>
   </nav>
   <div class="mt-2 flex flex-wrap items-end justify-between gap-4">
     <div>
-      <h2 class="text-2xl font-bold tracking-tight">r{detail.number}</h2>
+      <h2 class="text-2xl font-bold tracking-tight">
+        {m.knowledge_revision({ number: detail.number })}
+      </h2>
       <p class="mt-2 text-sm text-base-content/60">
         <span title={actorDetail(detail.actor)}>{actorName(detail.actor)}</span>,
         <time class="tabular-nums">{timeOf(detail.modified)}</time>,
@@ -139,30 +148,15 @@ const clip = (text: string) => {
       </button>
     {/if}
   </div>
-  <div role="tablist" class="tabs tabs-box tabs-sm mt-6 w-fit">
-    <button
-      type="button"
-      role="tab"
-      class={["tab", view === "rendered" && "tab-active"]}
-      onclick={() => (view = "rendered")}
-    >
-      {m.knowledge_rendered()}
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class={["tab", view === "source" && "tab-active"]}
-      onclick={() => (view = "source")}
-    >
-      {m.knowledge_source()}
-    </button>
+  <div class="mt-6 flex">
+    <Segmented items={VIEWS} value={view} onpick={id => (view = id)} />
   </div>
   {#if view === "rendered"}
     <div class="mt-4 grid gap-2">
       {#each rendered as block, i (i)}
         <div
           class={[
-            "rounded-box border-l-4 px-5 py-3",
+            "rounded-box border-l-4 px-4 py-3 sm:px-5",
             block.kind === "added" && "border-success bg-success/8",
             block.kind === "removed" && "border-error bg-error/8 line-through opacity-70",
             block.kind === "same" && "border-transparent opacity-55",
@@ -190,20 +184,19 @@ const clip = (text: string) => {
   {/if}
 {:else}
   <h2 class="text-2xl font-bold tracking-tight">{m.knowledge_history_title()}</h2>
-  <ol class="mt-6 flex flex-col gap-1">
+  <ol class="mt-6 flex flex-col gap-0.5">
     {#each revisions as revision (revision.versionId)}
       <li>
         <button
           type="button"
           class={[
-            "flex w-full cursor-pointer items-center gap-4 rounded-box px-5 py-3.5",
-            "text-start",
-            "transition-colors hover:bg-base-200",
+            "flex w-full cursor-pointer items-center gap-3 rounded-field px-2 py-1.5",
+            "text-start text-sm transition-colors duration-150 hover:bg-base-content/8",
           ]}
           onclick={() => (selected = revision.number)}
         >
-          <span class="w-12 shrink-0 font-semibold text-primary tabular-nums">
-            r{revision.number}
+          <span class="w-14 shrink-0 truncate font-semibold text-primary tabular-nums">
+            {m.knowledge_revision({ number: revision.number })}
           </span>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium" title={actorDetail(revision.actor)}>
@@ -225,11 +218,11 @@ const clip = (text: string) => {
         </button>
       </li>
     {:else}
-      <li class="px-5 py-8 text-center text-sm text-base-content/55">
+      <li class="flex justify-center">
         {#if attempt.busy}
-          <span class="loading loading-spinner loading-sm"></span>
+          <span class="loading loading-spinner loading-sm my-12 opacity-60"></span>
         {:else}
-          {m.knowledge_no_history()}
+          <EmptyState icon="lucide:history" text={m.knowledge_no_history()} />
         {/if}
       </li>
     {/each}

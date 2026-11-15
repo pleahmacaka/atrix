@@ -1,9 +1,10 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
+import Section from "#lib/components/ui/Section.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { type HostEntry, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { SyncConfig } from "#lib/p2p/protocol.ts"
@@ -49,69 +50,77 @@ const syncNow = (host: HostEntry, name: string) =>
   })
 </script>
 
-{#each hosts as host (host.id)}
-  <section class="border-b border-base-300 py-4 last:border-b-0">
-    <div class="mb-2 flex items-center gap-3">
-      <span class="grid size-8 shrink-0 place-items-center rounded-field bg-base-200">
-        <Icon icon="lucide:monitor" class="size-4 text-base-content/70" />
-      </span>
-      <p class="min-w-0 flex-1 truncate text-sm font-medium">{host.name}</p>
-    </div>
-    {#each host.view.datasources as name (name)}
-      {@const key = keyOf(host, name)}
-      {#if drafts[key]}
-        <SettingRow icon="lucide:database" title={name}>
+<div class="flex flex-col gap-6">
+  {#each hosts as host (host.id)}
+    <Section icon="lucide:monitor" title={host.name}>
+      {#each host.view.datasources as name (name)}
+        {@const key = keyOf(host, name)}
+        {#if drafts[key]}
           <form
-            class="flex items-center gap-2 max-sm:flex-col max-sm:items-stretch"
+            class="flex flex-col gap-2 pb-3"
             onsubmit={e => {
               e.preventDefault()
               save(host, name)
             }}
           >
-            <IconInput
-              icon="lucide:link"
-              label={m.ds_sync_url()}
-              placeholder={m.ds_sync_url()}
-              ghost={false}
-              bind:value={drafts[key].url}
-            />
-            <IconInput
-              icon="lucide:key-round"
-              label={m.ds_sync_token()}
-              placeholder={m.ds_sync_token()}
-              ghost={false}
-              type="password"
-              autocomplete="off"
-              bind:value={drafts[key].token}
-            />
-            <button
-              type="submit"
-              class="btn btn-sm btn-square"
-              aria-label={m.common_save()}
-              title={m.common_save()}
-              disabled={attempt.busy}
-            >
-              <Icon icon="lucide:save" class="size-4" />
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-square"
-              aria-label={m.ds_sync_now()}
-              title={m.ds_sync_now()}
-              disabled={attempt.busy || !drafts[key].url.trim()}
-              onclick={() => syncNow(host, name)}
-            >
-              <Icon
+            <SettingRow icon="lucide:database" title={name}>
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm toggle-primary"
+                  checked={host.view.knowledgeSources.includes(name)}
+                  disabled={attempt.busy}
+                  onchange={e =>
+                    attempt.run(() =>
+                      host.view.dsSetKnowledge(name, e.currentTarget.checked),
+                    )}
+                />
+                {m.ds_knowledge()}
+              </label>
+              <IconButton
                 icon={synced === key ? "lucide:check" : "lucide:refresh-cw"}
-                class="size-4"
+                label={m.ds_sync_now()}
+                disabled={attempt.busy || !drafts[key].url.trim()}
+                onclick={() => syncNow(host, name)}
               />
-            </button>
+              <IconButton
+                type="submit"
+                icon="lucide:save"
+                label={m.common_save()}
+                tone="primary"
+                disabled={attempt.busy}
+              />
+            </SettingRow>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <IconInput
+                icon="lucide:link"
+                label={m.ds_sync_url()}
+                placeholder={m.ds_sync_url()}
+                ghost={false}
+                bind:value={drafts[key].url}
+              />
+              <IconInput
+                icon="lucide:key-round"
+                label={m.ds_sync_token()}
+                placeholder={m.ds_sync_token()}
+                ghost={false}
+                type="password"
+                autocomplete="off"
+                bind:value={drafts[key].token}
+              />
+            </div>
           </form>
-        </SettingRow>
-      {/if}
-    {:else}
-      <EmptyState icon="lucide:database" text={m.ds_empty()} />
-    {/each}
-  </section>
-{/each}
+        {/if}
+      {:else}
+        <EmptyState icon="lucide:database" text={m.ds_empty()} />
+      {/each}
+    </Section>
+  {:else}
+    <EmptyState
+      icon="lucide:monitor-off"
+      title={m.harness_no_desktop()}
+      text={m.harness_no_hosts_text()}
+    />
+  {/each}
+</div>
 <ErrorAlert message={attempt.failure} />

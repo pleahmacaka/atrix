@@ -1,6 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt::Display;
+use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value as Json};
 use tauri::async_runtime::Mutex;
@@ -9,9 +14,16 @@ use turso::{Connection, Value, params_from_iter};
 use turso_parser::ast::{Cmd, Stmt};
 use turso_parser::parser::Parser;
 
+use crate::error::{Error, Result};
+use crate::secret;
+
 const EXTENSION: &str = "db";
 
 const SYNC_FILE: &str = "sync.json";
+
+const KNOWLEDGE_FILE: &str = "knowledge.json";
+
+const KEYRING_SERVICE: &str = "atrix-datasource";
 
 const NAME_LIMIT: usize = 64;
 
@@ -21,13 +33,20 @@ pub struct SyncConfig {
     token: String,
 }
 
+#[derive(Default, Serialize, Deserialize)]
+struct StoredSync {
+    url: String,
+    #[serde(default, skip_serializing)]
+    token: String,
+}
+
 enum Handle {
     Local(turso::Database),
     Synced(turso::sync::Database),
 }
 
 impl Handle {
-    async fn connect(&self) -> Result<Connection, String> {
+    async fn connect(&self) -> Result<Connection> {
         match self {
             Handle::Local(db) => db.connect(),
             Handle::Synced(db) => db.connect().await,
@@ -37,7 +56,7 @@ impl Handle {
 }
 
 #[derive(Default)]
-pub struct Datasources(Mutex<HashMap<String, Handle>>);
+pub struct Datasources(Mutex<HashMap<String, Arc<Handle>>>);
 
 #[derive(Serialize)]
 pub struct Rows {
@@ -52,24 +71,30 @@ pub struct Executed {
     last_insert_rowid: i64,
 }
 
-fn failed(e: impl std::fmt::Display) -> String {
-    format!("ds_failed:{e}")
+fn failed(e: impl Display) -> Error {
+    Error::code("ds_failed", e)
 }
 
-fn root(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .home_dir()
-        .map_err(|e| e.to_string())?
-        .join(".atrix")
-        .join("data");
+fn token_of(name: &str) -> String {
+    secret::read(KEYRING_SERVICE, name)
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
 
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+fn store_token(name: &str, token: &str) -> Result<()> {
+    secret::write(KEYRING_SERVICE, name, token).map_err(failed)
+}
+
+fn root(app: &AppHandle) -> Result<PathBuf> {
+    let dir = app.path().home_dir()?.join(".atrix").join("data");
+
+    fs::create_dir_all(&dir)?;
 
     Ok(dir)
 }
 
-fn checked(name: &str) -> Result<&str, String> {
+fn checked(name: &str) -> Result<&str> {
     let valid = !name.is_empty()
         && name.len() <= NAME_LIMIT
         && name
@@ -79,29 +104,86 @@ fn checked(name: &str) -> Result<&str, String> {
     if valid {
         Ok(name)
     } else {
-        Err(format!("ds_name_invalid:{name}"))
+        Err(Error::code("ds_name_invalid", name))
     }
 }
 
-fn file_of(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
+fn file_of(app: &AppHandle, name: &str) -> Result<PathBuf> {
     Ok(root(app)?.join(format!("{}.{EXTENSION}", checked(name)?)))
 }
 
-fn read_sync(app: &AppHandle) -> Result<HashMap<String, SyncConfig>, String> {
-    match std::fs::read_to_string(root(app)?.join(SYNC_FILE)) {
-        Ok(text) => serde_json::from_str(&text).map_err(|e| e.to_string()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
-        Err(e) => Err(e.to_string()),
+fn existing(app: &AppHandle, name: &str) -> Result<()> {
+    if file_of(app, name)?.exists() {
+        Ok(())
+    } else {
+        Err(Error::code("ds_not_found", name))
     }
 }
 
-fn write_sync(app: &AppHandle, all: &HashMap<String, SyncConfig>) -> Result<(), String> {
-    let text = serde_json::to_string_pretty(all).map_err(|e| e.to_string())?;
-
-    std::fs::write(root(app)?.join(SYNC_FILE), text).map_err(|e| e.to_string())
+fn read_json<T: DeserializeOwned + Default>(app: &AppHandle, file: &str) -> Result<T> {
+    match fs::read_to_string(root(app)?.join(file)) {
+        Ok(text) => Ok(serde_json::from_str(&text)?),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(T::default()),
+        Err(e) => Err(e.into()),
+    }
 }
 
-async fn open(app: &AppHandle, name: &str) -> Result<Handle, String> {
+fn write_json(app: &AppHandle, file: &str, value: &impl Serialize) -> Result<()> {
+    let text = serde_json::to_string_pretty(value)?;
+
+    Ok(fs::write(root(app)?.join(file), text)?)
+}
+
+fn read_sync(app: &AppHandle) -> Result<HashMap<String, SyncConfig>> {
+    let stored: HashMap<String, StoredSync> = read_json(app, SYNC_FILE)?;
+    let legacy: Vec<_> = stored.iter().filter(|(_, s)| !s.token.is_empty()).collect();
+
+    for (name, sync) in &legacy {
+        store_token(name, &sync.token)?;
+    }
+
+    if !legacy.is_empty() {
+        write_json(app, SYNC_FILE, &stored)?;
+    }
+
+    Ok(stored
+        .into_iter()
+        .map(|(name, sync)| {
+            let token = token_of(&name);
+
+            (
+                name,
+                SyncConfig {
+                    url: sync.url,
+                    token,
+                },
+            )
+        })
+        .collect())
+}
+
+fn write_sync(app: &AppHandle, all: &HashMap<String, SyncConfig>) -> Result<()> {
+    let mut stored = HashMap::new();
+
+    for (name, sync) in all {
+        store_token(name, &sync.token)?;
+        stored.insert(
+            name.clone(),
+            StoredSync {
+                url: sync.url.clone(),
+                token: String::new(),
+            },
+        );
+    }
+
+    write_json(app, SYNC_FILE, &stored)
+}
+
+fn read_knowledge(app: &AppHandle) -> Result<BTreeSet<String>> {
+    read_json(app, KNOWLEDGE_FILE)
+}
+
+async fn open(app: &AppHandle, name: &str) -> Result<Handle> {
     let file = file_of(app, name)?;
     let path = file.to_string_lossy();
 
@@ -124,21 +206,18 @@ async fn open(app: &AppHandle, name: &str) -> Result<Handle, String> {
     Ok(Handle::Local(db))
 }
 
-async fn connect(app: &AppHandle, store: &Datasources, name: &str) -> Result<Connection, String> {
+async fn connect(app: &AppHandle, store: &Datasources, name: &str) -> Result<Connection> {
     let mut open_dbs = store.0.lock().await;
 
     if !open_dbs.contains_key(name) {
-        if !file_of(app, name)?.exists() {
-            return Err(format!("ds_not_found:{name}"));
-        }
-
-        open_dbs.insert(name.to_string(), open(app, name).await?);
+        existing(app, name)?;
+        open_dbs.insert(name.to_string(), Arc::new(open(app, name).await?));
     }
 
     open_dbs[name].connect().await
 }
 
-fn single(sql: &str) -> Result<&str, String> {
+fn single(sql: &str) -> Result<&str> {
     let mut statements = Parser::new(sql.as_bytes());
 
     match (statements.next(), statements.next()) {
@@ -149,7 +228,7 @@ fn single(sql: &str) -> Result<&str, String> {
     }
 }
 
-fn read_only(sql: &str) -> Result<(), String> {
+fn read_only(sql: &str) -> Result<()> {
     match Parser::new(sql.as_bytes()).next() {
         Some(Ok(Cmd::Stmt(Stmt::Select(_)) | Cmd::Explain(_) | Cmd::ExplainQueryPlan { .. })) => {
             Ok(())
@@ -182,7 +261,7 @@ fn unbind(value: Value) -> Json {
     }
 }
 
-async fn select(conn: &Connection, sql: &str, params: Vec<Json>) -> Result<Rows, String> {
+async fn select(conn: &Connection, sql: &str, params: Vec<Json>) -> Result<Rows> {
     let mut statement = conn.prepare(single(sql)?).await.map_err(failed)?;
     let columns = statement.column_names();
     let mut cursor = statement
@@ -203,10 +282,9 @@ async fn select(conn: &Connection, sql: &str, params: Vec<Json>) -> Result<Rows,
     Ok(Rows { columns, rows })
 }
 
-#[tauri::command]
-pub fn ds_list(app: AppHandle) -> Result<Vec<String>, String> {
-    let mut names = std::fs::read_dir(root(&app)?)
-        .map_err(|e| e.to_string())?
+#[tauri::command(async)]
+pub fn ds_list(app: AppHandle) -> Result<Vec<String>> {
+    let mut names = fs::read_dir(root(&app)?)?
         .filter_map(|entry| {
             let path = entry.ok()?.path();
 
@@ -222,42 +300,34 @@ pub fn ds_list(app: AppHandle) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub async fn ds_create(
-    app: AppHandle,
-    store: State<'_, Datasources>,
-    name: String,
-) -> Result<(), String> {
+pub async fn ds_create(app: AppHandle, store: State<'_, Datasources>, name: String) -> Result<()> {
     if file_of(&app, &name)?.exists() {
-        return Err(format!("ds_exists:{name}"));
+        return Err(Error::code("ds_exists", name));
     }
 
     let handle = open(&app, &name).await?;
 
     handle.connect().await?;
-    store.0.lock().await.insert(name, handle);
+    store.0.lock().await.insert(name, Arc::new(handle));
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn ds_delete(
-    app: AppHandle,
-    store: State<'_, Datasources>,
-    name: String,
-) -> Result<(), String> {
+pub async fn ds_delete(app: AppHandle, store: State<'_, Datasources>, name: String) -> Result<()> {
     let prefix = format!("{}.{EXTENSION}", checked(&name)?);
 
     store.0.lock().await.remove(&name);
 
-    for entry in std::fs::read_dir(root(&app)?).map_err(|e| e.to_string())? {
-        let path = entry.map_err(|e| e.to_string())?.path();
+    for entry in fs::read_dir(root(&app)?)? {
+        let path = entry?.path();
         let owned = path
             .file_name()
             .and_then(|f| f.to_str())
             .is_some_and(|f| f.starts_with(&prefix));
 
         if owned {
-            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+            fs::remove_file(&path)?;
         }
     }
 
@@ -265,6 +335,35 @@ pub async fn ds_delete(
 
     if all.remove(&name).is_some() {
         write_sync(&app, &all)?;
+    }
+
+    let mut knowledge = read_knowledge(&app)?;
+
+    if knowledge.remove(&name) {
+        write_json(&app, KNOWLEDGE_FILE, &knowledge)?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command(async)]
+pub fn ds_knowledge_get(app: AppHandle) -> Result<BTreeSet<String>> {
+    read_knowledge(&app)
+}
+
+#[tauri::command(async)]
+pub fn ds_knowledge_set(app: AppHandle, name: String, on: bool) -> Result<()> {
+    existing(&app, &name)?;
+
+    let mut knowledge = read_knowledge(&app)?;
+    let changed = if on {
+        knowledge.insert(name)
+    } else {
+        knowledge.remove(&name)
+    };
+
+    if changed {
+        write_json(&app, KNOWLEDGE_FILE, &knowledge)?;
     }
 
     Ok(())
@@ -275,7 +374,7 @@ pub async fn ds_tables(
     app: AppHandle,
     store: State<'_, Datasources>,
     name: String,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>> {
     let conn = connect(&app, &store, &name).await?;
     let found = select(
         &conn,
@@ -301,7 +400,7 @@ pub async fn ds_query(
     name: String,
     sql: String,
     params: Vec<Json>,
-) -> Result<Rows, String> {
+) -> Result<Rows> {
     read_only(single(&sql)?)?;
 
     let conn = connect(&app, &store, &name).await?;
@@ -316,7 +415,7 @@ pub async fn ds_execute(
     name: String,
     sql: String,
     params: Vec<Json>,
-) -> Result<Executed, String> {
+) -> Result<Executed> {
     let conn = connect(&app, &store, &name).await?;
     let changes = conn
         .execute(
@@ -332,8 +431,8 @@ pub async fn ds_execute(
     })
 }
 
-#[tauri::command]
-pub fn ds_sync_get(app: AppHandle) -> Result<HashMap<String, SyncConfig>, String> {
+#[tauri::command(async)]
+pub fn ds_sync_get(app: AppHandle) -> Result<HashMap<String, SyncConfig>> {
     read_sync(&app)
 }
 
@@ -343,14 +442,17 @@ pub async fn ds_sync_set(
     store: State<'_, Datasources>,
     name: String,
     config: Option<SyncConfig>,
-) -> Result<(), String> {
+) -> Result<()> {
     checked(&name)?;
 
     let mut all = read_sync(&app)?;
 
     match config {
         Some(c) if !c.url.trim().is_empty() => all.insert(name.clone(), c),
-        _ => all.remove(&name),
+        _ => {
+            store_token(&name, "")?;
+            all.remove(&name)
+        }
     };
 
     write_sync(&app, &all)?;
@@ -360,20 +462,15 @@ pub async fn ds_sync_set(
 }
 
 #[tauri::command]
-pub async fn ds_sync(
-    app: AppHandle,
-    store: State<'_, Datasources>,
-    name: String,
-) -> Result<bool, String> {
+pub async fn ds_sync(app: AppHandle, store: State<'_, Datasources>, name: String) -> Result<bool> {
     connect(&app, &store, &name).await?;
 
-    let open_dbs = store.0.lock().await;
+    let handle = store.0.lock().await.get(&name).cloned();
 
-    let Some(Handle::Synced(db)) = open_dbs.get(&name) else {
-        return Err(format!("ds_sync_unset:{name}"));
+    let Some(Handle::Synced(db)) = handle.as_deref() else {
+        return Err(Error::code("ds_sync_unset", name));
     };
 
     db.push().await.map_err(failed)?;
-
     db.pull().await.map_err(failed)
 }

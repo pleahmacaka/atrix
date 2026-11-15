@@ -2,6 +2,7 @@
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import PageHeader from "#lib/components/ui/PageHeader.svelte"
 import { previewQuery } from "#lib/datasource/client.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { Rows } from "#lib/p2p/protocol.ts"
@@ -39,21 +40,34 @@ const shown = (value: unknown) =>
     : String(value)
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col gap-2">
-  <ErrorAlert message={attempt.failure} />
-  {#if result && result.rows.length > 0}
-    <div class="min-h-0 flex-1 overflow-auto">
+<div class="flex min-h-0 flex-1 flex-col">
+  <PageHeader icon="lucide:table-2" title={table}>
+    {#snippet actions()}
+      {#if result}
+        <span class="text-xs text-base-content/60 tabular-nums">
+          {m.ds_row_count({ count: result.rows.length })}
+        </span>
+      {/if}
+    {/snippet}
+  </PageHeader>
+  {#if attempt.failure}
+    <div class="px-4 sm:px-6">
+      <ErrorAlert message={attempt.failure} />
+    </div>
+  {/if}
+  {#if result}
+    <div class="min-h-0 overflow-auto px-2 sm:px-4">
       <table class="table table-xs table-pin-rows tabular-nums">
         <thead>
-          <tr>
+          <tr class="border-0 bg-raised">
             {#each result.columns as column, i (i)}
-              <th class="whitespace-nowrap">{column}</th>
+              <th class="bg-inset whitespace-nowrap">{column}</th>
             {/each}
           </tr>
         </thead>
         <tbody>
           {#each result.rows as row, r (r)}
-            <tr class="hover:bg-base-200">
+            <tr class="border-0 hover:bg-base-content/5">
               {#each row as value, c (c)}
                 <td
                   class={[
@@ -70,12 +84,16 @@ const shown = (value: unknown) =>
         </tbody>
       </table>
     </div>
-    <p class="px-2 text-xs text-base-content/60 tabular-nums">
-      {m.ds_row_count({ count: result.rows.length })}
-    </p>
-  {:else if result}
-    <EmptyState icon="lucide:table-2" text={m.ds_no_rows()} />
+    {#if result.rows.length === 0}
+      <EmptyState
+        icon="lucide:table-2"
+        text={m.ds_no_rows()}
+        centered
+      />
+    {/if}
   {:else if attempt.busy}
-    <span class="loading loading-spinner loading-sm self-center"></span>
+    <div class="grid flex-1 place-items-center">
+      <span class="loading loading-spinner loading-sm opacity-60"></span>
+    </div>
   {/if}
 </div>

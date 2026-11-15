@@ -2,8 +2,11 @@
 import Icon from "@iconify/svelte"
 import { onDestroy, onMount, untrack } from "svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import CopyButton from "#lib/components/ui/CopyButton.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import Island from "#lib/components/ui/Island.svelte"
+import Separator from "#lib/components/ui/Separator.svelte"
 import { actorDetail, actorName, timeAgo, timeOf } from "#lib/knowledge/actor.ts"
 import { GRAPH } from "#lib/knowledge/host.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
@@ -36,8 +39,6 @@ let locked = $state(true)
 
 let stale = $state(false)
 
-let copied = $state(false)
-
 let root = $state<HTMLElement | null>(null)
 
 let lossy = $state(false)
@@ -55,6 +56,20 @@ const load = async () => {
 
 const dirty = $derived(
   !!loaded && !!draft && JSON.stringify(draftOf(loaded)) !== JSON.stringify(draft),
+)
+
+const scope = $derived(
+  loaded?.meta.scope === "network"
+    ? m.knowledge_scope_network()
+    : (loaded?.meta.scope.replace(/^p2p:/, "") ?? ""),
+)
+
+const saveState = $derived(
+  attempt.busy
+    ? m.knowledge_saving()
+    : !locked && !dirty
+      ? m.knowledge_saved()
+      : null,
 )
 
 const crumbs = $derived(loaded?.key.split("/").slice(0, -1) ?? [])
@@ -159,17 +174,19 @@ const revert = (version: Version) =>
     history = false
     await load()
   })
-
-const copyId = async () => {
-  await navigator.clipboard.writeText(id)
-  copied = true
-  setTimeout(() => (copied = false), 1600)
-}
 </script>
+
+{#snippet properties()}
+  {#if draft}
+    <Island title={m.knowledge_properties()}>
+      <Properties {host} {id} bind:draft />
+    </Island>
+  {/if}
+{/snippet}
 
 {#if loaded && draft}
   <div class="scroll-stable min-h-0 flex-1 overflow-y-auto">
-    <div class="mx-auto flex max-w-6xl gap-8 px-8 py-8">
+    <div class="mx-auto flex max-w-6xl gap-8 px-4 py-6 sm:px-8 sm:py-8">
       <article class="mx-auto w-full max-w-2xl min-w-0">
         {#if crumbs.length}
           <nav class="breadcrumbs mb-1 py-0 text-sm text-base-content/50">
@@ -198,45 +215,38 @@ const copyId = async () => {
           {/if}
           <div class="flex shrink-0 items-center gap-0.5">
             <span
-              class={[
-                "flex min-w-20 items-center justify-end gap-1.5 pe-1 text-xs",
-                "whitespace-nowrap text-base-content/55",
-              ]}
+              class="grid size-8 place-items-center text-base-content/55"
+              role="status"
+              title={saveState ?? undefined}
+              aria-label={saveState ?? undefined}
             >
               {#if attempt.busy}
                 <span class="loading loading-spinner loading-xs"></span>
-                {m.knowledge_saving()}
-              {:else if !locked && !dirty}
-                <Icon icon="lucide:check" class="size-3.5" />
-                {m.knowledge_saved()}
+              {:else if saveState}
+                <Icon icon="lucide:cloud-check" class="size-4" />
               {/if}
             </span>
-            <button
-              type="button"
-              class="btn btn-sm btn-ghost btn-square text-base-content/55"
-              aria-label={m.knowledge_copy_id()}
-              title={m.knowledge_copy_id()}
-              onclick={copyId}
-            >
-              <Icon icon={copied ? "lucide:check" : "lucide:link"} class="size-4" />
-            </button>
-            <span class="mx-1.5 h-5 w-px bg-base-300"></span>
-            <button
-              type="button"
-              class={["btn btn-sm btn-ghost btn-square", history && "btn-active"]}
-              aria-label={m.knowledge_history_title()}
-              title={m.knowledge_history_title()}
+            <CopyButton
+              text={id}
+              label={m.knowledge_copy_id()}
+              icon="lucide:link"
+              size="sm"
+              class="text-base-content/55"
+            />
+            <Separator vertical />
+            <IconButton
+              icon="lucide:history"
+              label={m.knowledge_history_title()}
+              class={[history && "btn-active"]}
               aria-pressed={history}
               onclick={() => {
                 history = !history
               }}
-            >
-              <Icon icon="lucide:history" class="size-4" />
-            </button>
-            <button
-              type="button"
-              class={["btn btn-sm btn-square", locked ? "btn-primary" : "btn-ghost"]}
-              aria-label={locked ? m.knowledge_unlock() : m.knowledge_lock()}
+            />
+            <IconButton
+              icon={locked ? "lucide:pencil" : "lucide:lock"}
+              label={locked ? m.knowledge_unlock() : m.knowledge_lock()}
+              tone={locked ? "primary" : "ghost"}
               title={lossy
                 ? m.knowledge_lossy()
                 : locked
@@ -248,9 +258,7 @@ const copyId = async () => {
                 locked = !locked
                 history = false
               }}
-            >
-              <Icon icon={locked ? "lucide:pencil" : "lucide:lock"} class="size-4" />
-            </button>
+            />
           </div>
         </div>
 
@@ -267,8 +275,11 @@ const copyId = async () => {
             </span>
           {/if}
           <span class="flex items-center gap-1.5" title={m.knowledge_scope()}>
-            <Icon icon="lucide:globe" class="size-4 text-base-content/40" />
-            {loaded.meta.scope}
+            <Icon
+              icon={loaded.meta.scope === "network" ? "lucide:globe" : "lucide:users"}
+              class="size-4 text-base-content/40"
+            />
+            {scope}
           </span>
           <span
             class="flex min-w-0 items-center gap-1.5"
@@ -283,7 +294,6 @@ const copyId = async () => {
         {#if loaded.meta.description}
           <p class="mt-2 text-sm text-base-content/60">{loaded.meta.description}</p>
         {/if}
-
 
         {#if stale}
           <div role="alert" class="alert alert-warning alert-soft mt-4 text-sm">
@@ -300,9 +310,11 @@ const copyId = async () => {
             {m.knowledge_lossy()}
           </div>
         {/if}
-        {#if attempt.failure}
-          <div class="mt-4">
-            <ErrorAlert message={attempt.failure} />
+        <ErrorAlert message={attempt.failure} />
+
+        {#if !locked}
+          <div class="mt-4 lg:hidden">
+            {@render properties()}
           </div>
         {/if}
 
@@ -347,19 +359,18 @@ const copyId = async () => {
           {/if}
           <Island title={m.knowledge_graph()}>
             {#snippet action()}
-              <button
-                type="button"
-                class="btn btn-ghost btn-xs btn-square -my-1"
-                aria-label={m.knowledge_graph_all()}
-                title={m.knowledge_graph_all()}
+              <IconButton
+                icon="lucide:maximize-2"
+                label={m.knowledge_graph_all()}
+                size="xs"
+                iconClass="size-3.5"
+                class="-my-1"
                 onclick={() => {
                   nav.doc = GRAPH
                 }}
-              >
-                <Icon icon="lucide:maximize-2" class="size-3.5" />
-              </button>
+              />
             {/snippet}
-            <div class="overflow-hidden rounded-field bg-base-200/40">
+            <div class="overflow-hidden rounded-field bg-inset/40">
               <GraphView {host} focus={id} compact />
             </div>
             {#if related.length}
@@ -371,7 +382,8 @@ const copyId = async () => {
                       class={[
                         "flex w-full cursor-pointer items-center gap-2 rounded-field",
                         "px-2 py-1 text-start text-sm text-base-content/70",
-                        "transition-colors hover:bg-base-200 hover:text-base-content",
+                        "transition-colors duration-150 hover:bg-base-content/8",
+                        "hover:text-base-content",
                       ]}
                       onclick={() => {
                         nav.doc = edge.to
@@ -379,7 +391,9 @@ const copyId = async () => {
                     >
                       <Icon icon={edge.icon} class="size-3.5 shrink-0 text-base-content/40" />
                       <span class="min-w-0 flex-1 truncate">{titleOf(edge.to)}</span>
-                      <span class="text-xs text-base-content/40">{edge.rel}</span>
+                      <span class="max-w-1/3 truncate text-xs text-base-content/40" title={edge.rel}>
+                        {edge.rel}
+                      </span>
                     </button>
                   </li>
                 {/each}
@@ -387,16 +401,14 @@ const copyId = async () => {
             {/if}
           </Island>
           {#if !locked}
-            <Island title={m.knowledge_properties()}>
-              <Properties {host} {id} bind:draft />
-            </Island>
+            {@render properties()}
           {/if}
         </div>
       </aside>
     </div>
   </div>
 {:else}
-  <div class="grid flex-1 place-items-center">
+  <div class="grid flex-1 place-items-center p-4">
     {#if attempt.failure}
       <ErrorAlert message={attempt.failure} />
     {:else}

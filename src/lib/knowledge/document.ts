@@ -4,11 +4,13 @@ import { ulid } from "ulid"
 import { parse, stringify } from "yaml"
 import { z } from "zod"
 
-const ID = /^kg_[0-9A-HJKMNP-TV-Z]{26}$/
+export const ID_SOURCE = "kg_[0-9A-HJKMNP-TV-Z]{26}"
+
+const ID = new RegExp(`^${ID_SOURCE}$`)
 
 const FENCE = "---"
 
-const WIKILINK = /\[\[(kg_[0-9A-HJKMNP-TV-Z]{26})(?:\|[^\]]*)?\]\]/g
+const WIKILINK = new RegExp(`\\[\\[(${ID_SOURCE})(?:\\|[^\\]]*)?\\]\\]`, "g")
 
 export const docId = z.string().regex(ID)
 
@@ -39,7 +41,19 @@ export const editable = z.object({
   tags: z.array(known).default([]),
   scope: scope.default("network"),
   links: z.array(link).default([]),
+  sources: z.array(known).optional(),
 })
+
+export const editablePatch = z
+  .object({
+    title: editable.shape.title,
+    description: editable.shape.description.unwrap(),
+    tags: editable.shape.tags.unwrap(),
+    scope: editable.shape.scope.unwrap(),
+    links: editable.shape.links.unwrap(),
+    sources: editable.shape.sources.unwrap(),
+  })
+  .partial()
 
 export const frontmatter = editable.extend({
   id: docId,
@@ -94,6 +108,40 @@ export const serializeDoc = ({ meta, body }: Doc) => {
   const shared = same ? { ...meta, updated_by: meta.created_by } : meta
 
   return `${FENCE}\n${stringify(shared)}${FENCE}\n${body}`
+}
+
+const DATA_URI = /\bdata:[a-z]+\/[\w.+-]+[;,]/i
+
+const BASE64_RUN = /[A-Za-z0-9+/=]{1000,}/
+
+const TEXT_CONTROLS = new Set(["\t", "\n", "\r", "\f", "\v"])
+
+const binaryByte = (text: string) =>
+  [...text].some(c => c < " " && !TEXT_CONTROLS.has(c))
+
+const EMBED = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g
+
+const REMOTE = /^https?:\/\//i
+
+const localEmbed = (text: string) =>
+  [...text.matchAll(EMBED)].some(e => !REMOTE.test(e[1]))
+
+const TEXT_ONLY = [
+  "text_only: knowledge documents hold text only, without data: URIs, base64 blobs, binary bytes or embeds of local images and files.",
+  "Put data and files in a datasource flagged for knowledge (ds_execute with knowledge: true), name it in `sources` and link to it.",
+  "External https links, including to images hosted elsewhere, are fine.",
+].join(" ")
+
+const isTextOnly = (text: string) =>
+  !DATA_URI.test(text) &&
+  !BASE64_RUN.test(text) &&
+  !binaryByte(text) &&
+  !localEmbed(text)
+
+export const assertTextOnly = ({ meta, body }: Doc) => {
+  if (!isTextOnly(JSON.stringify(meta)) || !isTextOnly(body)) {
+    throw new Error(TEXT_ONLY)
+  }
 }
 
 export const linksOf = ({ meta, body }: Doc) => {

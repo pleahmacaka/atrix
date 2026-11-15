@@ -124,9 +124,12 @@ const dim = (id: string) => (hovered ?? focus) !== null && !near.has(id)
 </script>
 
 {#if host.knowledge.length === 0}
-  <div class="grid flex-1 place-items-center">
-    <EmptyState icon="lucide:waypoints" text={m.knowledge_empty()} />
-  </div>
+  <EmptyState
+    icon="lucide:waypoints"
+    title={m.knowledge_empty()}
+    text={m.knowledge_empty_hint()}
+    centered
+  />
 {:else}
   <div
     class={[

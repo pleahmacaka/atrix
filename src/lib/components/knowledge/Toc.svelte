@@ -50,8 +50,8 @@ const jump = (index: number) =>
       <button
         type="button"
         class={[
-          "flex w-full cursor-pointer gap-2 rounded-field py-1 pe-2 text-start",
-          "text-base-content/65 transition-colors hover:bg-base-200",
+          "flex w-full cursor-pointer gap-2 rounded-field py-1.5 pe-2 text-start",
+          "text-base-content/65 transition-colors duration-150 hover:bg-base-content/8",
           "hover:text-base-content",
           INDENT[heading.depth],
         ]}

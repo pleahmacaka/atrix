@@ -1,6 +1,7 @@
 import { Node } from "@tiptap/core"
+import { ID_SOURCE } from "./document.ts"
 
-const PATTERN = /^\[\[(kg_[0-9A-HJKMNP-TV-Z]{26})(?:\|([^\]]*))?\]\]/
+const PATTERN = new RegExp(`^\\[\\[(${ID_SOURCE})(?:\\|([^\\]]*))?\\]\\]`)
 
 type Options = {
   title: (id: string) => string | null

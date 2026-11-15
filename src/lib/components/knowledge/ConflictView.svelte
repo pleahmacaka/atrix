@@ -29,30 +29,30 @@ $effect.pre(() => {
   merged = mine
 })
 
-const COLUMN = "textarea min-h-0 w-full flex-1 resize-none text-sm leading-relaxed"
+const COLUMN = "textarea h-72 w-full resize-y text-sm leading-relaxed"
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col gap-3">
+<div class="flex flex-col gap-3">
   <div role="alert" class="alert alert-warning alert-soft text-sm">
     <Icon icon="lucide:git-merge" class="size-4" />
     {m.knowledge_conflict()}
   </div>
-  <div class="grid min-h-0 flex-1 grid-cols-3 gap-3">
-    <label class="flex min-h-0 flex-col gap-1 text-xs text-base-content/60">
+  <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <label class="flex flex-col gap-1 text-xs font-medium text-base-content/60">
       {m.knowledge_base()}
       <textarea class={COLUMN} readonly value={base}></textarea>
     </label>
-    <label class="flex min-h-0 flex-col gap-1 text-xs text-base-content/60">
+    <label class="flex flex-col gap-1 text-xs font-medium text-base-content/60">
       {m.knowledge_mine()}
       <textarea class={[COLUMN, "border-primary"]} bind:value={merged}></textarea>
     </label>
-    <label class="flex min-h-0 flex-col gap-1 text-xs text-base-content/60">
+    <label class="flex flex-col gap-1 text-xs font-medium text-base-content/60">
       {m.knowledge_theirs()}
       <textarea class={COLUMN} readonly value={theirs}></textarea>
     </label>
   </div>
   <ErrorAlert message={ai.failure} />
-  <div class="flex justify-end gap-2">
+  <div class="flex flex-wrap justify-end gap-2">
     <button type="button" class="btn btn-ghost btn-sm" onclick={oncancel}>
       {m.common_cancel()}
     </button>

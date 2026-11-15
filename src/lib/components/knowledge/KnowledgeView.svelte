@@ -8,6 +8,12 @@ import GraphView from "./GraphView.svelte"
 import KnowledgeDoc from "./KnowledgeDoc.svelte"
 
 const host = $derived(knowledgeHost())
+
+const empty = $derived(
+  !!host?.state?.knowledge?.ready &&
+    host.knowledge.length === 0 &&
+    host.canvases.length === 0,
+)
 </script>
 
 {#if host && nav.doc === GRAPH}
@@ -20,8 +26,13 @@ const host = $derived(knowledgeHost())
   {#key nav.doc}
     <KnowledgeDoc {host} id={nav.doc} />
   {/key}
+{:else if empty}
+  <EmptyState
+    icon="lucide:library"
+    title={m.knowledge_empty()}
+    text={m.knowledge_empty_hint()}
+    centered
+  />
 {:else}
-  <div class="grid flex-1 place-items-center">
-    <EmptyState icon="lucide:library" text={m.knowledge_select()} />
-  </div>
+  <EmptyState icon="lucide:library" text={m.knowledge_select()} centered />
 {/if}

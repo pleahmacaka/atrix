@@ -35,6 +35,29 @@ let editor = $state<Editor | null>(null)
 
 let tick = $state(0)
 
+const NOTICE_MS = 4000
+
+let notice = $state(false)
+
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+
+const carriesFiles = (data: DataTransfer | null) =>
+  !!data && [...data.items].some(i => i.kind === "file")
+
+const refuseFiles = (data: DataTransfer | null) => {
+  if (!carriesFiles(data)) {
+    return false
+  }
+
+  notice = true
+  clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => {
+    notice = false
+  }, NOTICE_MS)
+
+  return true
+}
+
 const squash = (text: string) => text.replace(/\s+/g, "")
 
 onMount(() => {
@@ -55,7 +78,11 @@ onMount(() => {
     content: markdown,
     contentType: "markdown",
     editable,
-    editorProps: { attributes: { class: "wiki min-h-96 outline-none" } },
+    editorProps: {
+      attributes: { class: "wiki min-h-96 outline-none" },
+      handlePaste: (_, e) => refuseFiles(e.clipboardData),
+      handleDrop: (_, e) => refuseFiles(e.dataTransfer),
+    },
     onTransaction: () => {
       untrack(() => tick++)
     },
@@ -65,7 +92,10 @@ onMount(() => {
   lossy = squash(editor.getMarkdown()) !== squash(markdown)
 })
 
-onDestroy(() => editor?.destroy())
+onDestroy(() => {
+  clearTimeout(noticeTimer)
+  editor?.destroy()
+})
 
 $effect(() => {
   editor?.setEditable(editable, false)
@@ -88,11 +118,16 @@ $effect(() => {
     <div
       class={[
         "sticky top-0 z-20 -mx-2 mb-6 flex flex-wrap items-center gap-1",
-        "rounded-box border border-base-300 bg-base-100/95 p-1.5 backdrop-blur",
+        "rounded-box border border-base-300 bg-raised p-1.5",
       ]}
     >
       <Toolbar {editor} {tick} />
     </div>
+  {/if}
+  {#if notice}
+    <p role="status" class="alert alert-warning alert-soft mb-4 text-sm">
+      {m.knowledge_text_only()}
+    </p>
   {/if}
   <div bind:this={element}></div>
 </div>

@@ -1,15 +1,20 @@
 <script module lang="ts">
+import { SvelteSet } from "svelte/reactivity"
+
 export type TableRef = { name: string; table: string }
+
+const expanded = new SvelteSet<string>()
+
+const tables = $state<Record<string, string[]>>({})
 </script>
 
 <script lang="ts">
-import Icon from "@iconify/svelte"
-import { untrack } from "svelte"
-import { SvelteSet } from "svelte/reactivity"
+import { onMount, untrack } from "svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import DraftField from "#lib/components/ui/DraftField.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
-import IconInput from "#lib/components/ui/IconInput.svelte"
+import TreeRow from "#lib/components/ui/TreeRow.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
@@ -20,10 +25,6 @@ let {
 }: { host: HostView; selected?: TableRef | null } = $props()
 
 const attempt = new Attempt()
-
-const expanded = new SvelteSet<string>()
-
-let tables = $state<Record<string, string[]>>({})
 
 let creating = $state(false)
 
@@ -46,6 +47,15 @@ const refresh = () =>
       }
     }
   })
+
+onMount(() => {
+  const db = selected?.name
+
+  if (db && !expanded.has(db)) {
+    expanded.add(db)
+    loadTables(db)
+  }
+})
 
 $effect(() => {
   const change = host.dsChange
@@ -70,6 +80,11 @@ const toggle = (db: string) => {
   loadTables(db)
 }
 
+const cancel = () => {
+  creating = false
+  name = ""
+}
+
 const create = () =>
   attempt.run(async () => {
     const value = name.trim()
@@ -79,8 +94,7 @@ const create = () =>
     }
 
     await host.dsCreate(value)
-    creating = false
-    name = ""
+    cancel()
   })
 
 const remove = (db: string) =>
@@ -109,6 +123,17 @@ const databaseMenu = (db: string): MenuItem[] => [
     run: () => navigator.clipboard.writeText(db),
   },
   { label: m.ds_new(), icon: "lucide:database", run: startCreate },
+  host.knowledgeSources.includes(db)
+    ? {
+        label: m.ds_knowledge_off(),
+        icon: "lucide:book-x",
+        run: () => attempt.run(() => host.dsSetKnowledge(db, false)),
+      }
+    : {
+        label: m.ds_knowledge_on(),
+        icon: "lucide:book-marked",
+        run: () => attempt.run(() => host.dsSetKnowledge(db, true)),
+      },
   "separator",
   {
     label: m.common_delete(),
@@ -128,101 +153,68 @@ const tableMenu = (table: string): MenuItem[] => [
 ]
 </script>
 
-<div class="flex flex-col gap-1 p-2">
+<nav
+  class="flex min-h-full flex-col gap-0.5 p-2"
+  aria-label={m.shell_page_data()}
+  oncontextmenu={e => contextMenu.show(e, listMenu())}
+>
   {#if creating}
-    <form
-      class="flex items-center gap-1"
-      onsubmit={e => {
-        e.preventDefault()
-        create()
-      }}
-    >
-      <IconInput
-        icon="lucide:database"
-        label={m.ds_name()}
-        placeholder={m.ds_name()}
-        class="w-full"
-        bind:value={name}
-        onkeydown={e => {
-          if (e.key === "Escape") {
-            creating = false
-          }
-        }}
-      />
-    </form>
+    <DraftField
+      icon="lucide:database"
+      label={m.ds_name()}
+      bind:value={name}
+      dismissable={() => !name.trim() && !attempt.busy}
+      onsubmit={create}
+      oncancel={cancel}
+    />
   {:else}
-    <button
-      type="button"
-      class="btn btn-ghost btn-sm justify-start font-normal"
-      onclick={startCreate}
-      oncontextmenu={e => contextMenu.show(e, listMenu())}
-    >
-      <Icon icon="lucide:database" class="size-4" />
-      {m.ds_new()}
-    </button>
+    <TreeRow icon="lucide:plus" label={m.ds_new()} onclick={startCreate} />
   {/if}
   <ErrorAlert message={attempt.failure} />
-  <ul class="flex flex-col">
-    {#each host.datasources as db (db)}
-      <li>
-        <button
-          type="button"
-          class={[
-            "flex w-full cursor-pointer items-center gap-2 rounded-field px-2 py-1",
-            "text-sm font-medium transition-colors duration-150 hover:bg-base-200",
-          ]}
-          aria-expanded={expanded.has(db)}
-          onclick={() => toggle(db)}
-          oncontextmenu={e => contextMenu.show(e, databaseMenu(db))}
-        >
-          <Icon
-            icon={expanded.has(db) ? "lucide:chevron-down" : "lucide:chevron-right"}
-            class="size-4 shrink-0 text-base-content/50"
+  {#if host.datasources.length === 0}
+    <EmptyState
+      icon="lucide:database"
+      title={m.ds_empty()}
+      text={m.ds_empty_hint()}
+      centered
+    />
+  {:else}
+    <ul class="mt-1 flex flex-col gap-0.5">
+      {#each host.datasources as db (db)}
+        <li>
+          <TreeRow
+            icon="lucide:database"
+            label={db}
+            badge={host.knowledgeSources.includes(db) ? m.ds_knowledge() : undefined}
+            expanded={expanded.has(db)}
+            strong
+            accent
+            onclick={() => toggle(db)}
+            oncontextmenu={e => contextMenu.show(e, databaseMenu(db))}
           />
-          <Icon icon="lucide:database" class="size-4 shrink-0 text-primary" />
-          <span class="min-w-0 flex-1 truncate text-start">{db}</span>
-        </button>
-        {#if expanded.has(db)}
-          <ul class="ms-3.5 border-s border-base-300 ps-1.5">
-            {#each tables[db] ?? [] as table (table)}
-              {@const active = selected?.name === db && selected.table === table}
-              <li>
-                <button
-                  type="button"
-                  class={[
-                    "flex w-full cursor-pointer items-center gap-2 rounded-field px-2 py-1",
-                    "text-sm transition-colors duration-150",
-                    active
-                      ? "bg-primary/8 font-medium text-primary"
-                      : "text-base-content/70 hover:bg-base-200 hover:text-base-content",
-                  ]}
-                  onclick={() => {
-                    selected = { name: db, table }
-                  }}
-                  oncontextmenu={e => contextMenu.show(e, tableMenu(table))}
-                >
-                  <Icon
+          {#if expanded.has(db)}
+            <ul class="flex flex-col gap-0.5 ps-4 pt-0.5">
+              {#each tables[db] ?? [] as table (table)}
+                <li>
+                  <TreeRow
                     icon="lucide:table-2"
-                    class={[
-                      "size-4 shrink-0",
-                      active ? "text-primary" : "text-base-content/35",
-                    ]}
+                    label={table}
+                    selected={selected?.name === db && selected.table === table}
+                    onclick={() => {
+                      selected = { name: db, table }
+                    }}
+                    oncontextmenu={e => contextMenu.show(e, tableMenu(table))}
                   />
-                  <span class="min-w-0 flex-1 truncate text-start">{table}</span>
-                </button>
-              </li>
-            {:else}
-              <li class="px-2 py-1 text-sm text-base-content/50">
-                {m.ds_no_tables()}
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </li>
-    {:else}
-      <li>
-        <EmptyState icon="lucide:database" text={m.ds_empty()} />
-      </li>
-    {/each}
-  </ul>
-</div>
+                </li>
+              {:else}
+                <li class="flex h-8 items-center px-2 text-sm text-base-content/50">
+                  {m.ds_no_tables()}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</nav>

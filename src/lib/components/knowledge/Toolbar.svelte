@@ -1,6 +1,9 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import type { Editor } from "@tiptap/core"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import Popover from "#lib/components/ui/Popover.svelte"
+import Select from "#lib/components/ui/Select.svelte"
+import Separator from "#lib/components/ui/Separator.svelte"
 import { m } from "#lib/paraglide/messages.js"
 
 let { editor, tick }: { editor: Editor; tick: number } = $props()
@@ -34,10 +37,10 @@ const history = $derived.by(() => {
 const chain = () => editor.chain().focus()
 
 const BLOCKS = [
-  { value: "p", label: m.editor_paragraph },
-  { value: "2", label: m.editor_heading2 },
-  { value: "3", label: m.editor_heading3 },
-  { value: "4", label: m.editor_heading4 },
+  { value: "p", label: m.editor_paragraph() },
+  { value: "2", label: m.editor_heading2() },
+  { value: "3", label: m.editor_heading3() },
+  { value: "4", label: m.editor_heading4() },
 ]
 
 const MARKS: Item[] = [
@@ -119,88 +122,69 @@ const applyLink = () => {
 </script>
 
 {#snippet item(entry: Item)}
-  <button
-    type="button"
-    class={["btn btn-ghost btn-sm btn-square", is(entry.name) && "btn-active"]}
-    aria-label={entry.label()}
-    title={entry.label()}
+  <IconButton
+    icon={entry.icon}
+    label={entry.label()}
+    class={[is(entry.name) && "btn-active"]}
     aria-pressed={is(entry.name)}
     onclick={entry.run}
-  >
-    <Icon icon={entry.icon} class="size-4" />
-  </button>
+  />
 {/snippet}
 
-<select
-  class="select select-sm select-ghost w-28"
-  aria-label={m.editor_block()}
+<Select
+  options={BLOCKS}
   value={block}
-  onchange={e => setBlock(e.currentTarget.value)}
->
-  {#each BLOCKS as option (option.value)}
-    <option value={option.value}>{option.label()}</option>
-  {/each}
-</select>
-<span class="mx-0.5 h-5 w-px bg-base-300"></span>
+  label={m.editor_block()}
+  class="select-sm select-ghost w-28"
+  onchange={setBlock}
+/>
+<Separator vertical />
 {#each MARKS as mark (mark.name)}
   {@render item(mark)}
 {/each}
-<div class={["dropdown", linkOpen && "dropdown-open"]}>
-  <button
-    type="button"
-    class={["btn btn-ghost btn-sm btn-square", is("link") && "btn-active"]}
-    aria-label={m.editor_link()}
-    title={m.editor_link()}
-    onclick={() => {
-      linkUrl = editor.getAttributes("link").href ?? ""
-      linkOpen = !linkOpen
+<Popover label={m.editor_link()} width="w-80" sheet bind:open={linkOpen}>
+  {#snippet trigger(p)}
+    <IconButton
+      {...p}
+      icon="lucide:link"
+      label={m.editor_link()}
+      class={[is("link") && "btn-active"]}
+      onclick={() => {
+        linkUrl = editor.getAttributes("link").href ?? ""
+      }}
+    />
+  {/snippet}
+  <form
+    class="flex gap-1"
+    onsubmit={e => {
+      e.preventDefault()
+      applyLink()
     }}
   >
-    <Icon icon="lucide:link" class="size-4" />
-  </button>
-  {#if linkOpen}
-    <form
-      class={[
-        "dropdown-content z-30 mt-2 flex w-80 gap-2 rounded-box border",
-        "border-base-300 bg-base-100 p-2 shadow-lg",
-      ]}
-      onsubmit={e => {
-        e.preventDefault()
-        applyLink()
-      }}
-    >
-      <input
-        class="input input-sm min-w-0 flex-1"
-        aria-label={m.editor_link()}
-        placeholder="https://"
-        bind:value={linkUrl}
-      />
-      <button type="submit" class="btn btn-sm btn-primary">{m.editor_apply()}</button>
-    </form>
-  {/if}
-</div>
-<span class="mx-0.5 h-5 w-px bg-base-300"></span>
+    <input
+      class="input input-sm min-w-0 flex-1"
+      aria-label={m.editor_link()}
+      placeholder={m.editor_link_hint()}
+      data-autofocus
+      bind:value={linkUrl}
+    />
+    <IconButton type="submit" icon="lucide:check" label={m.editor_apply()} tone="primary" />
+  </form>
+</Popover>
+<Separator vertical />
 {#each BLOCK_ITEMS as entry (entry.name)}
   {@render item(entry)}
 {/each}
-<span class="mx-0.5 h-5 w-px bg-base-300"></span>
-<button
-  type="button"
-  class="btn btn-ghost btn-sm btn-square"
-  aria-label={m.editor_undo()}
-  title={m.editor_undo()}
+<Separator vertical />
+<IconButton
+  icon="lucide:undo-2"
+  label={m.editor_undo()}
   disabled={!history.undo}
   onclick={() => chain().undo().run()}
->
-  <Icon icon="lucide:undo-2" class="size-4" />
-</button>
-<button
-  type="button"
-  class="btn btn-ghost btn-sm btn-square"
-  aria-label={m.editor_redo()}
-  title={m.editor_redo()}
+/>
+<IconButton
+  icon="lucide:redo-2"
+  label={m.editor_redo()}
   disabled={!history.redo}
   onclick={() => chain().redo().run()}
->
-  <Icon icon="lucide:redo-2" class="size-4" />
-</button>
+/>

@@ -1,8 +1,12 @@
-import type { HostRequest, Saved } from "#lib/p2p/protocol.ts"
+import type { Handlers, Op } from "#lib/p2p/protocol.ts"
 import type { Actor } from "./document.ts"
-import { type Change, Conflict, type Entry, KnowledgeStore } from "./store.ts"
-
-type Request = Extract<HostRequest, { op: `kg.${string}` }>
+import {
+  type Change,
+  Conflict,
+  type Entry,
+  KnowledgeStore,
+  type Saved,
+} from "./store.ts"
 
 type Deps = {
   emit: (change: Change) => void
@@ -116,73 +120,48 @@ export class Knowledge {
     return id
   }
 
-  handle = (request: Request) => {
-    const { store } = this
+  handlers: Handlers<Extract<Op, `kg.${string}`>> = {
+    "kg.list": async () => this.store.list(),
+    "kg.canvases": async () => this.store.canvasList(),
+    "kg.folders": async () => this.store.folderList(),
+    "kg.apps": async () => this.store.appList(),
+    "kg.object.read": r => this.store.readObject(r.key),
+    "kg.object.write": r =>
+      this.store.writeObject(r.key, r.etag, r.value, human(r.device)),
+    "kg.folder.create": async r => {
+      await this.store.createFolder(r.path, human(r.device))
 
-    switch (request.op) {
-      case "kg.list":
-        return store.list()
-      case "kg.canvases":
-        return store.canvasList()
-      case "kg.folders":
-        return store.folderList()
-      case "kg.apps":
-        return store.appList()
-      case "kg.object.read":
-        return store.readObject(request.key)
-      case "kg.object.write":
-        return store.writeObject(
-          request.key,
-          request.etag,
-          request.value,
-          human(request.device),
-        )
-      case "kg.folder.create":
-        return store.createFolder(request.path, human(request.device))
-      case "kg.remove":
-        return store.remove(request.path, human(request.device))
-      case "kg.move":
-        return store.move(request.from, request.to, human(request.device))
-      case "kg.canvas.read":
-        return store.readCanvas(request.path)
-      case "kg.canvas.save":
-        return store.saveCanvas(
-          request.path,
-          request.etag,
-          request.canvas,
-          human(request.device),
-        )
-      case "kg.read":
-        return store.read(request.ref, request.versionId)
-      case "kg.history":
-        return store.history(request.ref)
-      case "kg.create":
-        return this.save(() =>
-          store.create(
-            request.path,
-            request.fields,
-            request.body,
-            human(request.device),
-          ),
-        )
-      case "kg.update":
-        return this.save(() =>
-          store.update(
-            request.ref,
-            request.etag,
-            request.patch,
-            human(request.device),
-          ),
-        )
-      case "kg.revert":
-        return this.save(() =>
-          store.revert(
-            request.ref,
-            request.versionId,
-            request.etag,
-            human(request.device),
-          ),
-        )
-    }
+      return null
+    },
+    "kg.remove": async r => {
+      await this.store.remove(r.path, human(r.device))
+
+      return null
+    },
+    "kg.move": async r => {
+      await this.store.move(r.from, r.to, human(r.device))
+
+      return null
+    },
+    "kg.canvas.read": r => this.store.readCanvas(r.path),
+    "kg.canvas.save": r =>
+      this.store.saveCanvas(r.path, r.etag, r.canvas, human(r.device)),
+    "kg.read": r => this.store.read(r.ref, r.versionId),
+    "kg.history": r => this.store.history(r.ref),
+    "kg.trash": () => this.store.trash(),
+    "kg.restore": r =>
+      this.save(() => this.store.restore(r.ref, r.versionId, human(r.device))),
+    "kg.create": r =>
+      this.save(() =>
+        this.store.create(r.path, r.fields, r.body, human(r.device)),
+      ),
+    "kg.update": r =>
+      this.save(() =>
+        this.store.update(r.ref, r.etag, r.patch, human(r.device)),
+      ),
+    "kg.revert": r =>
+      this.save(() =>
+        this.store.revert(r.ref, r.versionId, r.etag, human(r.device)),
+      ),
   }
 }

@@ -4,7 +4,13 @@ import { zoomIdentity } from "d3-zoom"
 import { onMount } from "svelte"
 import Markdown from "#lib/components/chat/Markdown.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
+import PageHeader from "#lib/components/ui/PageHeader.svelte"
+import Popover from "#lib/components/ui/Popover.svelte"
+import SearchField from "#lib/components/ui/SearchField.svelte"
 import { type Canvas, type CanvasNode, docOf, fileOf } from "#lib/knowledge/canvas.ts"
 import { pan } from "#lib/knowledge/pan.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
@@ -41,6 +47,16 @@ let linking = $state<string | null>(null)
 let picking = $state(false)
 
 let conflict = $state(false)
+
+let query = $state("")
+
+const title = $derived(path.split("/").at(-1)?.replace(/.canvas$/, "") ?? path)
+
+const docs = $derived(
+  host.knowledge.filter(e =>
+    e.meta.title.toLowerCase().includes(query.trim().toLowerCase()),
+  ),
+)
 
 const load = async () => {
   const loaded = await host.readCanvas(path)
@@ -122,7 +138,10 @@ const pick = (id: string) => {
   selected = id
 }
 
-const drag = (e: PointerEvent, node: CanvasNode) => {
+const drag = (
+  e: PointerEvent & { currentTarget: HTMLElement },
+  node: CanvasNode,
+) => {
   if (locked || e.button !== 0) {
     return
   }
@@ -130,7 +149,7 @@ const drag = (e: PointerEvent, node: CanvasNode) => {
   e.stopPropagation()
 
   const start = { x: e.clientX, y: e.clientY, nodeX: node.x, nodeY: node.y }
-  const target = e.currentTarget as HTMLElement
+  const target = e.currentTarget
 
   target.setPointerCapture(e.pointerId)
 
@@ -166,107 +185,116 @@ const save = () =>
 
 {#if canvas}
   <div class="flex min-h-0 flex-1 flex-col">
-    <div class="flex flex-wrap items-center gap-1 px-3 py-2">
-      <span class="min-w-0 flex-1 truncate text-sm font-semibold">{path}</span>
-      {#if !locked}
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          onclick={addText}
-          aria-label={m.knowledge_canvas_text()}
-          title={m.knowledge_canvas_text()}
-        >
-          <Icon icon="lucide:type" class="size-4" />
-        </button>
-        <div class={["dropdown", picking && "dropdown-open"]}>
-          <button type="button" class="btn btn-ghost btn-sm btn-square" onclick={() => (picking = !picking)}>
-            aria-label={m.knowledge_canvas_doc()}
-            title={m.knowledge_canvas_doc()}
-            <Icon icon="lucide:file-plus" class="size-4" />
-          </button>
-          {#if picking}
-            <ul
-              class={[
-                "dropdown-content menu z-30 mt-2 max-h-80 w-64 flex-nowrap overflow-y-auto",
-                "rounded-box border border-base-300 bg-base-100 p-2 shadow-lg",
-              ]}
-            >
-              {#each host.knowledge as entry (entry.meta.id)}
-                <li>
-                  <button
-                    type="button"
-                    onclick={() => {
-                      addDoc(entry.meta.id)
-                      picking = false
-                    }}
-                  >
-                    <Icon icon="lucide:file-text" class="size-4" />
-                    <span class="truncate">{entry.meta.title}</span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-        <button
-          type="button"
-          class={["btn btn-ghost btn-sm btn-square", linking && "bg-primary/8 text-primary"]}
-          disabled={!selected}
-          title={m.knowledge_canvas_connect_hint()}
-          onclick={() => (linking = linking ? null : selected)}
-          aria-label={m.knowledge_canvas_connect()}
-        >
-          <Icon icon="lucide:spline" class="size-4" />
-        </button>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-square"
-          aria-label={m.knowledge_canvas_delete()}
-          title={m.knowledge_canvas_delete()}
-          disabled={!selected}
-          onclick={remove}
-        >
-          <Icon icon="lucide:trash-2" class="size-4" />
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
-          disabled={!dirty || attempt.busy}
-          onclick={save}
-        >
-          <Icon icon="lucide:save" class="size-4" />
-          {m.common_save()}
-        </button>
-      {/if}
-      <button
-        type="button"
-        class={["btn btn-sm btn-square", locked ? "btn-primary" : "btn-ghost"]}
-        aria-label={locked ? m.knowledge_unlock() : m.knowledge_lock()}
-        title={locked ? m.knowledge_unlock() : m.knowledge_lock()}
-        aria-pressed={!locked}
-        onclick={() => {
-          locked = !locked
-          selected = null
-          linking = null
-        }}
-      >
-        <Icon icon={locked ? "lucide:pencil" : "lucide:lock"} class="size-4" />
-      </button>
-    </div>
-    {#if conflict}
-      <div role="alert" class="alert alert-warning alert-soft m-3 text-sm">
-        <Icon icon="lucide:git-compare" class="size-4" />
-        <span class="flex-1">{m.knowledge_canvas_conflict()}</span>
-        <button type="button" class="btn btn-sm" onclick={() => attempt.run(load)}>
-          {m.knowledge_reload()}
-        </button>
+    <PageHeader icon="lucide:layout-dashboard" {title}>
+      {#snippet actions()}
+        {#if !locked}
+          <IconButton icon="lucide:type" label={m.knowledge_canvas_text()} onclick={addText} />
+          <Popover
+            label={m.knowledge_canvas_doc()}
+            placement="bottom-end"
+            width="w-72"
+            sheet
+            bind:open={picking}
+          >
+            {#snippet trigger(p)}
+              <IconButton
+                {...p}
+                icon="lucide:file-plus"
+                label={m.knowledge_canvas_doc()}
+                onclick={() => {
+                  query = ""
+                }}
+              />
+            {/snippet}
+            <SearchField bind:value={query} data-autofocus class="mb-1" />
+            {#each docs as entry (entry.meta.id)}
+              <MenuItem
+                icon="lucide:file-text"
+                label={entry.meta.title}
+                onclick={() => {
+                  addDoc(entry.meta.id)
+                  picking = false
+                }}
+              />
+            {:else}
+              <EmptyState icon="lucide:file-search" text={m.common_no_results()} />
+            {/each}
+          </Popover>
+          <IconButton
+            icon="lucide:spline"
+            label={m.knowledge_canvas_connect()}
+            title={m.knowledge_canvas_connect_hint()}
+            class={[linking && "bg-primary/8 text-primary"]}
+            disabled={!selected}
+            aria-pressed={!!linking}
+            onclick={() => (linking = linking ? null : selected)}
+          />
+          <IconButton
+            icon="lucide:trash-2"
+            label={m.knowledge_canvas_delete()}
+            disabled={!selected}
+            onclick={remove}
+          />
+          <IconButton
+            icon="lucide:save"
+            label={m.common_save()}
+            tone="primary"
+            busy={attempt.busy}
+            disabled={!dirty || attempt.busy}
+            onclick={save}
+          />
+        {/if}
+        <IconButton
+          icon={locked ? "lucide:pencil" : "lucide:lock"}
+          label={locked ? m.knowledge_unlock() : m.knowledge_lock()}
+          tone={locked ? "primary" : "ghost"}
+          aria-pressed={!locked}
+          onclick={() => {
+            locked = !locked
+            selected = null
+            linking = null
+          }}
+        />
+      {/snippet}
+    </PageHeader>
+    {#if conflict || attempt.failure}
+      <div class="px-4 pb-2 sm:px-6">
+        {#if conflict}
+          <div role="alert" class="alert alert-warning alert-soft text-sm">
+            <Icon icon="lucide:git-compare" class="size-4" />
+            <span class="flex-1">{m.knowledge_canvas_conflict()}</span>
+            <button type="button" class="btn btn-sm" onclick={() => attempt.run(load)}>
+              {m.knowledge_reload()}
+            </button>
+          </div>
+        {/if}
+        <ErrorAlert message={attempt.failure} />
       </div>
     {/if}
-    <ErrorAlert message={attempt.failure} />
     <div
-      class="relative min-h-0 flex-1 cursor-grab overflow-hidden bg-base-200/40 active:cursor-grabbing"
-      {@attach node => pan(node, t => (view = t), e => !(e.target as Element).closest("[data-node]"))}
+      class={[
+        "relative min-h-0 flex-1 cursor-grab overflow-hidden bg-inset/40",
+        "active:cursor-grabbing",
+      ]}
+      {@attach node =>
+        pan(
+          node,
+          t => (view = t),
+          e => !(e.target instanceof Element && e.target.closest("[data-node]")),
+        )}
     >
+      {#if canvas.nodes.length === 0}
+        <div class="pointer-events-none absolute inset-0 flex">
+          <EmptyState
+            icon="lucide:layout-dashboard"
+            title={m.knowledge_canvas_empty()}
+            text={locked
+              ? m.knowledge_canvas_empty_hint()
+              : m.knowledge_canvas_add_hint()}
+            centered
+          />
+        </div>
+      {/if}
       <div
         class="absolute top-0 left-0 m-10 origin-top-left"
         style:transform="translate({view.x}px, {view.y}px) scale({view.k})"
@@ -297,7 +325,7 @@ const save = () =>
             data-node
             class={[
               "absolute flex flex-col overflow-hidden rounded-box border bg-base-100",
-              "text-sm transition-colors",
+              "text-sm transition-colors duration-150",
               selected === node.id || linking === node.id
                 ? "border-primary"
                 : "border-base-300",
@@ -327,14 +355,17 @@ const save = () =>
                   : node.type === "group"
                     ? (node.label ?? "")
                     : node.type === "link"
-                      ? node.url
+                      ? m.knowledge_canvas_link()
                       : m.knowledge_canvas_note()}
               </span>
             </button>
             {#if node.type === "text"}
               {#if locked}
                 <div class="min-h-0 flex-1 overflow-y-auto p-3">
-                  <Markdown text={node.text || m.knowledge_canvas_empty()} look="wiki compact" />
+                  <Markdown
+                    text={node.text || m.knowledge_canvas_text_empty()}
+                    look="wiki compact"
+                  />
                 </div>
               {:else}
                 <textarea
@@ -348,7 +379,7 @@ const save = () =>
                 {host.knowledge.find(e => e.meta.id === docOf(node.file))?.meta.description}
               </p>
             {:else if node.type === "link"}
-              <p class="truncate p-3 text-primary">{node.url}</p>
+              <p class="truncate p-3 text-primary" title={node.url}>{node.url}</p>
             {:else}
               <p class="p-3 text-xs font-semibold text-base-content/55">{node.label}</p>
             {/if}
@@ -358,7 +389,7 @@ const save = () =>
     </div>
   </div>
 {:else}
-  <div class="grid flex-1 place-items-center">
+  <div class="grid flex-1 place-items-center p-4">
     {#if attempt.failure}
       <ErrorAlert message={attempt.failure} />
     {:else}

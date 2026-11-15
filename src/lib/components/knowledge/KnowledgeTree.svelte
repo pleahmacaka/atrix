@@ -1,13 +1,14 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { SvelteSet } from "svelte/reactivity"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import DraftField from "#lib/components/ui/DraftField.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
-import IconInput from "#lib/components/ui/IconInput.svelte"
+import TreeRow from "#lib/components/ui/TreeRow.svelte"
 import { GRAPH, knowledgeHost } from "#lib/knowledge/host.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import { nav } from "#lib/store/nav.svelte.ts"
+import TrashList from "./TrashList.svelte"
 
 type Leaf = { key: string; id: string; title: string; icon: string }
 
@@ -94,6 +95,14 @@ const withoutExtension = (key: string) => key.replace(/\.(md|canvas)$/, "")
 const begin = (next: Draft, value = "") => {
   draft = next
   path = value
+}
+
+const untouched = () => {
+  const value = path.trim()
+
+  const renaming = draft?.kind === "rename" && value === draft.from
+
+  return !value || value.endsWith("/") || renaming
 }
 
 const finish = () => {
@@ -260,6 +269,8 @@ const docMenu = (doc: Leaf): MenuItem[] => {
   ]
 }
 
+const empty = $derived(tree.folders.length === 0 && tree.docs.length === 0)
+
 const toggle = (folder: string) => {
   if (closed.has(folder)) {
     closed.delete(folder)
@@ -272,24 +283,18 @@ const toggle = (folder: string) => {
 {#snippet branch(folder: Folder)}
   {#each folder.folders as child (child.path)}
     <li>
-      <button
-        type="button"
-        class={[
-          "flex w-full cursor-pointer items-center gap-2 rounded-field px-2 py-1",
-          "text-sm font-medium transition-colors hover:bg-base-200",
-        ]}
-        aria-expanded={!closed.has(child.path)}
+      <TreeRow
+        icon={closed.has(child.path) ? "lucide:folder" : "lucide:folder-open"}
+        label={child.name}
+        title={child.path}
+        expanded={!closed.has(child.path)}
+        strong
+        accent
         onclick={() => toggle(child.path)}
         oncontextmenu={e => contextMenu.show(e, folderMenu(child))}
-      >
-        <Icon
-          icon={closed.has(child.path) ? "lucide:folder" : "lucide:folder-open"}
-          class="size-4 shrink-0 text-primary"
-        />
-        <span class="min-w-0 flex-1 truncate text-start">{child.name}</span>
-      </button>
+      />
       {#if !closed.has(child.path)}
-        <ul class="ms-3.5 border-s border-base-300 ps-1.5">
+        <ul class="flex flex-col gap-0.5 ps-4 pt-0.5">
           {@render branch(child)}
         </ul>
       {/if}
@@ -297,38 +302,23 @@ const toggle = (folder: string) => {
   {/each}
   {#each folder.docs as doc (doc.key)}
     <li>
-      <button
-        type="button"
-        class={[
-          "flex w-full cursor-pointer items-center gap-2 rounded-field px-2 py-1",
-          "text-sm transition-colors",
-          nav.doc === doc.id
-            ? "bg-primary/8 font-medium text-primary"
-            : "text-base-content/70 hover:bg-base-200 hover:text-base-content",
-        ]}
+      <TreeRow
+        icon={doc.icon}
+        label={doc.title}
         title={doc.key}
+        selected={nav.doc === doc.id}
         onclick={() => {
           nav.doc = doc.id
         }}
         oncontextmenu={e => contextMenu.show(e, docMenu(doc))}
-      >
-        <Icon
-          icon={doc.icon}
-          class={[
-            "size-4 shrink-0",
-            nav.doc === doc.id ? "text-primary" : "text-base-content/35",
-          ]}
-        />
-        <span class="min-w-0 flex-1 truncate text-start">{doc.title}</span>
-      </button>
+      />
     </li>
   {/each}
 {/snippet}
 
-<div
-  class="flex min-h-full flex-col gap-1 p-2"
-  role="tree"
-  tabindex="-1"
+<nav
+  class="flex min-h-full flex-col gap-0.5 p-2"
+  aria-label={m.shell_page_knowledge()}
   oncontextmenu={e => {
     if (status?.ready) {
       contextMenu.show(e, creationItems(""))
@@ -337,65 +327,49 @@ const toggle = (folder: string) => {
 >
   {#if status?.ready}
     {#if draft}
-      <form
-        class="flex items-center gap-1"
-        onsubmit={e => {
-          e.preventDefault()
-          submit()
-        }}
-      >
-        <IconInput
-          icon={DRAFT_ICONS[draft.kind]}
-          label={draft.kind === "folder"
-            ? m.knowledge_folder_path()
-            : m.knowledge_path()}
-          placeholder={draft.kind === "folder"
-            ? m.knowledge_folder_path_hint()
-            : m.knowledge_path_hint()}
-          class="w-full"
-          bind:value={path}
-          onkeydown={e => {
-            if (e.key === "Escape") {
-              finish()
-            }
-          }}
-        />
-      </form>
+      <DraftField
+        icon={DRAFT_ICONS[draft.kind]}
+        label={draft.kind === "folder"
+          ? m.knowledge_folder_path()
+          : m.knowledge_path()}
+        placeholder={draft.kind === "folder"
+          ? m.knowledge_folder_path_hint()
+          : m.knowledge_path_hint()}
+        bind:value={path}
+        dismissable={() => untouched() && !attempt.busy}
+        onsubmit={submit}
+        oncancel={finish}
+      />
     {:else}
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm justify-start font-normal"
+      <TreeRow
+        icon="lucide:file-plus"
+        label={m.knowledge_new()}
         onclick={() => begin({ kind: "doc" })}
-      >
-        <Icon icon="lucide:file-plus" class="size-4" />
-        {m.knowledge_new()}
-      </button>
+      />
     {/if}
-    <button
-      type="button"
-      class={[
-        "btn btn-ghost btn-sm justify-start font-normal",
-        nav.doc === GRAPH && "bg-primary/8 text-primary",
-      ]}
+    <TreeRow
+      icon="lucide:waypoints"
+      label={m.knowledge_graph()}
+      selected={nav.doc === GRAPH}
       onclick={() => {
         nav.doc = GRAPH
       }}
-    >
-      <Icon icon="lucide:waypoints" class="size-4" />
-      {m.knowledge_graph()}
-    </button>
+    />
     <ErrorAlert message={attempt.failure} />
-    <ul class="flex flex-col">
-      {@render branch(tree)}
-    </ul>
+    {#if !empty}
+      <ul class="mt-1 flex flex-col gap-0.5">
+        {@render branch(tree)}
+      </ul>
+    {/if}
+    {#if host}
+      <TrashList {host} />
+    {/if}
   {:else if status?.error}
-    <p class="px-2 py-1 text-sm text-error">
-      {m.knowledge_unavailable({ error: status.error })}
-    </p>
+    <ErrorAlert message={m.knowledge_unavailable({ error: status.error })} />
   {:else}
-    <p class="flex items-center gap-2 px-2 py-1 text-sm text-base-content/60">
+    <p class="flex h-8 items-center gap-2 px-2 text-sm text-base-content/60">
       <span class="loading loading-spinner loading-xs"></span>
       {m.knowledge_starting()}
     </p>
   {/if}
-</div>
+</nav>

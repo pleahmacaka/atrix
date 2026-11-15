@@ -1,5 +1,5 @@
-import { native } from "#lib/acp/native.ts"
-import type { DatasourceRequest } from "#lib/p2p/protocol.ts"
+import { native } from "#lib/native.ts"
+import type { Answer, DatasourceRequest } from "#lib/p2p/protocol.ts"
 
 const WRITES = new Set<DatasourceRequest["op"]>([
   "ds.create",
@@ -7,9 +7,12 @@ const WRITES = new Set<DatasourceRequest["op"]>([
   "ds.execute",
   "ds.sync.set",
   "ds.sync",
+  "ds.knowledge.set",
 ])
 
 export const isWrite = (request: DatasourceRequest) => WRITES.has(request.op)
 
-export const datasourceCall = ({ op, ...args }: DatasourceRequest) =>
-  native(op.replaceAll(".", "_"), args)
+export const datasourceCall = <R extends DatasourceRequest>({
+  op,
+  ...args
+}: R) => native<Answer<R>>(op.replaceAll(".", "_"), args)

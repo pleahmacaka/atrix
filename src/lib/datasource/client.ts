@@ -5,8 +5,13 @@ import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 
 const dialect = new SQLiteSyncDialect()
 
+export type Backend = Pick<
+  HostView,
+  "dsList" | "dsCreate" | "dsQuery" | "dsExecute"
+>
+
 export const datasource = <TSchema extends Record<string, unknown>>(
-  host: HostView,
+  host: Pick<Backend, "dsQuery" | "dsExecute">,
   name: string,
   schema?: TSchema,
 ) =>

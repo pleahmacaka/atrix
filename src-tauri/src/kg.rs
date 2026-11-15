@@ -1,21 +1,18 @@
 use std::env::consts::{ARCH, OS};
 use std::fs;
-use std::net::{TcpListener, TcpStream};
+use std::io::Read;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::Mutex;
-use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_http::reqwest;
+use tokio::net::TcpStream;
 
-use crate::pcb::hex;
-
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+use crate::error::{Error, Result};
+use crate::{fetch, platform};
 
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -47,28 +44,42 @@ pub struct Endpoint {
 }
 
 #[derive(Default)]
-pub struct Store(Mutex<Option<(Child, Endpoint)>>);
+pub struct Store {
+    running: Mutex<Option<(Child, Endpoint)>>,
+
+    starting: tokio::sync::Mutex<()>,
+}
 
 impl Store {
     pub fn kill(&self) {
-        if let Some((mut child, _)) = self.0.lock().unwrap().take() {
+        if let Some((mut child, _)) = self.running.lock().unwrap().take() {
             let _ = child.kill();
         }
     }
+
+    fn running(&self) -> Option<Endpoint> {
+        let mut running = self.running.lock().unwrap();
+        let (child, endpoint) = running.as_mut()?;
+
+        child
+            .try_wait()
+            .is_ok_and(|status| status.is_none())
+            .then(|| endpoint.clone())
+    }
 }
 
-fn asset_name() -> Result<String, String> {
+fn asset_name() -> Result<String> {
     let os = match OS {
         "windows" => "Windows",
         "linux" => "Linux",
         "macos" => "Darwin",
         "freebsd" => "Freebsd",
-        other => return Err(format!("unsupported_platform:{other}")),
+        other => return Err(Error::code("unsupported_platform", other)),
     };
     let arch = match ARCH {
         "x86_64" => "x86_64",
         "aarch64" => "arm64",
-        other => return Err(format!("unsupported_platform:{other}")),
+        other => return Err(Error::code("unsupported_platform", other)),
     };
     let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
 
@@ -76,40 +87,32 @@ fn asset_name() -> Result<String, String> {
 }
 
 #[cfg(windows)]
-fn unpack(archive: &[u8]) -> Result<Vec<u8>, String> {
-    use std::io::{Cursor, Read};
-
-    let mut zip = zip::ZipArchive::new(Cursor::new(archive)).map_err(|e| e.to_string())?;
+fn unpack(archive: &[u8]) -> Result<Vec<u8>> {
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(archive))?;
     let name = zip
         .file_names()
-        .filter_map(Result::ok)
+        .flatten()
         .find(|n| n.ends_with(&format!("/{EXECUTABLE}")))
         .map(|n| n.into_owned())
         .ok_or("versitygw_archive_invalid")?;
     let mut bytes = Vec::new();
 
-    zip.by_name(&name)
-        .map_err(|e| e.to_string())?
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
+    zip.by_name(&name)?.read_to_end(&mut bytes)?;
 
     Ok(bytes)
 }
 
 #[cfg(not(windows))]
-fn unpack(archive: &[u8]) -> Result<Vec<u8>, String> {
-    use std::io::Read;
-
+fn unpack(archive: &[u8]) -> Result<Vec<u8>> {
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
 
-    for entry in tar.entries().map_err(|e| e.to_string())? {
-        let mut entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path().map_err(|e| e.to_string())?;
+    for entry in tar.entries()? {
+        let mut entry = entry?;
 
-        if path.file_name().is_some_and(|n| n == EXECUTABLE) {
+        if entry.path()?.file_name().is_some_and(|n| n == EXECUTABLE) {
             let mut bytes = Vec::new();
 
-            entry.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+            entry.read_to_end(&mut bytes)?;
 
             return Ok(bytes);
         }
@@ -118,23 +121,15 @@ fn unpack(archive: &[u8]) -> Result<Vec<u8>, String> {
     Err("versitygw_archive_invalid".into())
 }
 
-async fn download(target: &Path) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .user_agent("atrix")
-        .build()
-        .map_err(|e| e.to_string())?;
-    let listing = client
-        .get(format!(
-            "https://api.github.com/repos/versity/versitygw/releases/tags/{VERSITYGW}"
-        ))
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| format!("versitygw_download:{e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("versitygw_download:{e}"))?;
-    let release: Release = serde_json::from_slice(&listing).map_err(|e| e.to_string())?;
+async fn download(target: &Path) -> Result<()> {
+    let client = fetch::client()?;
+    let listing = fetch::get(
+        &client,
+        &format!("https://api.github.com/repos/versity/versitygw/releases/tags/{VERSITYGW}"),
+        "versitygw_download",
+    )
+    .await?;
+    let release: Release = serde_json::from_slice(&listing)?;
     let name = asset_name()?;
     let asset = release
         .assets
@@ -147,39 +142,24 @@ async fn download(target: &Path) -> Result<(), String> {
         .and_then(|d| d.strip_prefix("sha256:"))
         .ok_or("versitygw_archive_invalid")?
         .to_owned();
-    let archive = client
-        .get(&asset.browser_download_url)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| format!("versitygw_download:{e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("versitygw_download:{e}"))?;
+    let archive = fetch::get(&client, &asset.browser_download_url, "versitygw_download").await?;
 
-    if hex(&Sha256::digest(&archive)) != expected {
+    if fetch::sha256_hex(&archive) != expected {
         return Err("versitygw_checksum_mismatch".into());
     }
 
     let binary = unpack(&archive)?;
     let partial = target.with_extension("partial");
 
-    fs::create_dir_all(target.parent().ok_or("versitygw_archive_invalid")?)
-        .map_err(|e| e.to_string())?;
-    fs::write(&partial, binary).map_err(|e| e.to_string())?;
+    fs::create_dir_all(target.parent().ok_or("versitygw_archive_invalid")?)?;
+    fs::write(&partial, binary)?;
+    platform::make_executable(&partial)?;
+    fs::rename(&partial, target)?;
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        fs::set_permissions(&partial, fs::Permissions::from_mode(0o755))
-            .map_err(|e| e.to_string())?;
-    }
-
-    fs::rename(&partial, target).map_err(|e| e.to_string())
+    Ok(())
 }
 
-async fn binary(home: &Path) -> Result<PathBuf, String> {
+async fn binary(home: &Path) -> Result<PathBuf> {
     let local = home.join(".atrix").join("bin").join(EXECUTABLE);
 
     if local.exists() {
@@ -195,37 +175,22 @@ async fn binary(home: &Path) -> Result<PathBuf, String> {
     Ok(local)
 }
 
-fn free_port() -> Result<u16, String> {
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
-
-    listener
-        .local_addr()
-        .map(|a| a.port())
-        .map_err(|e| e.to_string())
+fn free_port() -> Result<u16> {
+    Ok(TcpListener::bind("127.0.0.1:0")?.local_addr()?.port())
 }
 
-fn wait_ready(port: u16) -> Result<(), String> {
+async fn wait_ready(port: u16) -> Result<()> {
     let start = Instant::now();
 
     while start.elapsed() < READY_TIMEOUT {
-        if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+        if TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
             return Ok(());
         }
 
-        thread::sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
     Err("kg_store_timeout".into())
-}
-
-fn running(store: &Store) -> Option<Endpoint> {
-    let mut running = store.0.lock().unwrap();
-    let (child, endpoint) = running.as_mut()?;
-
-    child
-        .try_wait()
-        .is_ok_and(|status| status.is_none())
-        .then(|| endpoint.clone())
 }
 
 #[tauri::command]
@@ -234,26 +199,25 @@ pub async fn kg_start(
     store: State<'_, Store>,
     access: String,
     secret: String,
-) -> Result<Endpoint, String> {
-    if let Some(endpoint) = running(&store) {
+) -> Result<Endpoint> {
+    let _starting = store.starting.lock().await;
+
+    if let Some(endpoint) = store.running() {
         return Ok(endpoint);
     }
 
-    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let home = app.path().home_dir()?;
     let program = binary(&home).await?;
-    let mut running = store.0.lock().unwrap();
     let root = home.join(".atrix").join("kg");
     let dirs = ["data", "meta", "versions"].map(|d| root.join(d));
 
     for dir in &dirs {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(dir)?;
     }
 
     let [data, meta, versions] = dirs;
     let port = free_port()?;
-    let mut command = Command::new(program);
-
-    command
+    let mut child = platform::hidden(program)
         .env("ROOT_ACCESS_KEY", &access)
         .env("ROOT_SECRET_KEY", &secret)
         .args(["--port", &format!("127.0.0.1:{port}"), "--quiet", "posix"])
@@ -264,24 +228,22 @@ pub async fn kg_start(
         .arg(data)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let child = command.spawn().map_err(|e| e.to_string())?;
+        .stderr(Stdio::null())
+        .spawn()?;
     let endpoint = Endpoint {
         port,
         access,
         secret,
     };
 
-    *running = Some((child, endpoint.clone()));
-    wait_ready(port)?;
+    if let Err(e) = wait_ready(port).await {
+        let _ = child.kill();
+        let _ = child.wait();
+
+        return Err(e);
+    }
+
+    *store.running.lock().unwrap() = Some((child, endpoint.clone()));
 
     Ok(endpoint)
 }
