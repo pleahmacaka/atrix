@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:net": "cargo build --manifest-path crates/web/Cargo.toml --release --target wasm32-unknown-unknown && wasm-bindgen --target web --out-dir static/net --out-name atrix_web target/wasm32-unknown-unknown/release/atrix_web.wasm",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo \"\"",
     "check": "vite build --logLevel error && svelte-check --tsconfig ./tsconfig.json",
@@ -55,6 +56,7 @@
     "@noble/hashes": "^2.4.0",
     "@tanstack/svelte-query": "^6.4.1",
     "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-barcode-scanner": "^2.5.3",
     "@tauri-apps/plugin-http": "~2",
     "@tauri-apps/plugin-log": "^2.10.2",
     "@tauri-apps/plugin-opener": "~2",
@@ -82,9 +84,10 @@
     "idb-keyval": "^6.3.0",
     "marked": "^18.2.0",
     "pretendard": "^1.3.9",
+    "qr": "^0.7.2",
     "shiki": "^4.6.0",
+    "svelte-thinking-orbs": "^0.1.0",
     "three": "^0.187.0",
-    "trystero": "^0.26.0",
     "ulid": "^3.0.2",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"

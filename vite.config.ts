@@ -15,7 +15,7 @@ export default defineConfig({
   server: {
     port: 1460,
     strictPort: true,
-    watch: { ignored: ["**/src-tauri/**", "**/build/**"] },
+    watch: { ignored: ["**/src-tauri/**", "**/build/**", "**/target/**"] },
   },
   plugins: [
     paraglideVitePlugin({

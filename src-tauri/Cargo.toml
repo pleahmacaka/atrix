@@ -6,7 +6,7 @@ authors = ["ArixLab"]
 license = ""
 repository = ""
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.91"
 
 
 [lib]
@@ -17,8 +17,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
 tauri = { version = "2.12.5", features = ["protocol-asset"] }
 which = "8.0.6"
 tauri-plugin-opener = "2"
@@ -30,14 +30,22 @@ tiny_http = "0.12.0"
 tauri-plugin-log = "2.10.2"
 turso = { version = "0.8.3", features = ["sync"] }
 turso_parser = "0.8.3"
-ipnet = "2.12.2"
-tungstenite = "0.30.0"
 sysinfo = { version = "0.38.4", default-features = false, features = ["system"] }
-if-addrs = "0.15.0"
-
-[target."cfg(windows)".dependencies]
+keyring = "4.2.0"
+twilight-gateway = { version = "0.18.0", default-features = false, features = ["rustls-platform-verifier"] }
+twilight-http = "0.18.0"
+twilight-model = "0.18.0"
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs"] }
 zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
-
-[target."cfg(not(windows))".dependencies]
 flate2 = "1.1.11"
 tar = "0.4.46"
+bzip2 = "0.6.1"
+atrix-net = { workspace = true, features = ["tls-aws-lc-rs", "portmapper"] }
+tokio = { workspace = true, features = ["time", "net"] }
+process-wrap = { version = "10.0.1", default-features = false, features = ["std", "job-object", "creation-flags", "process-group"] }
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-barcode-scanner = "2.5.3"
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

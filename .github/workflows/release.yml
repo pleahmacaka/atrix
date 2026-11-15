@@ -46,7 +46,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri -> target
+          workspaces: . -> target
           shared-key: atrix-windows
           cache-on-failure: true
 
