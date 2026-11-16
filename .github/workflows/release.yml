@@ -42,7 +42,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
         with:
