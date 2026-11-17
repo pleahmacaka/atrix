@@ -32,9 +32,9 @@ const connect = (name: string) => {
       {...p}
       icon="lucide:plus"
       label={m.chat_add_menu()}
-      size="md"
+      size="sm"
       shape="circle"
-      iconClass="size-5"
+      iconClass="size-4"
     />
   {/snippet}
   <div role="menu" tabindex="-1" class="flex flex-col" {@attach menuKeys}>

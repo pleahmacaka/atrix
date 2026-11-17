@@ -1,3 +1,5 @@
+import { m } from "#lib/paraglide/messages.js"
+
 type Named = { name: string }
 
 const versionOf = (name: string) => {
@@ -88,3 +90,27 @@ export const terminalChoices = (
       name: found.find(c => !older.has(c.name))?.name ?? modelLabel(alias),
     }
   })
+
+export const PRIMARY = ["mode", "model", "thought_level"]
+
+export const OPTION_ICONS: Record<string, string> = {
+  mode: "lucide:shield-check",
+  model: "lucide:cpu",
+  thought_level: "lucide:brain",
+}
+
+export const efforts = () => [
+  { value: "", name: m.effort_default() },
+  { value: "low", name: m.effort_low() },
+  { value: "medium", name: m.effort_medium() },
+  { value: "high", name: m.effort_high() },
+  { value: "xhigh", name: m.effort_xhigh() },
+  { value: "max", name: m.effort_max() },
+]
+
+export const matchChoice = (
+  values: { value: string; name: string }[],
+  wanted: string,
+) =>
+  values.find(v => v.value === wanted)?.value ??
+  values.find(v => `${v.value} ${v.name}`.toLowerCase().includes(wanted))?.value

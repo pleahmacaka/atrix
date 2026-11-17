@@ -51,3 +51,52 @@ pub fn install<R: Runtime, M: Manager<R>>(app: &M) {
         tauri_plugin_log::log::warn!("backdrop: {e}");
     }
 }
+
+#[cfg(windows)]
+#[tauri::command]
+pub fn window_backdrop(window: WebviewWindow, glass: bool) -> Result<()> {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{
+        DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE,
+        DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+        DwmSetWindowAttribute,
+    };
+
+    let hwnd = HWND(window.hwnd()?.0);
+    let corner = DWMWCP_ROUND;
+    let border = DWMWA_COLOR_NONE;
+    let backdrop = if glass {
+        DWMSBT_TRANSIENTWINDOW
+    } else {
+        DWMSBT_NONE
+    };
+
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            (&raw const backdrop).cast(),
+            size_of_val(&backdrop) as u32,
+        )?;
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            (&raw const corner).cast(),
+            size_of_val(&corner) as u32,
+        )?;
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_BORDER_COLOR,
+            (&raw const border).cast(),
+            size_of_val(&border) as u32,
+        )?;
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+pub fn window_backdrop(_glass: bool) -> Result<()> {
+    Ok(())
+}

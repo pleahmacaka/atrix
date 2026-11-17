@@ -3,7 +3,13 @@ import Icon from "@iconify/svelte"
 import { untrack } from "svelte"
 import { fade } from "svelte/transition"
 
-type Item = { key: string; icon: string; label: string; group: string }
+type Item = {
+  key: string
+  icon: string
+  label: string
+  group: string
+  badge?: string
+}
 
 let {
   items,
@@ -226,6 +232,14 @@ const keydown = (e: KeyboardEvent) => {
               slot.offset === 0 && !open ? "size-3/5" : "size-5",
             ]}
           />
+          {#if slot.item.badge}
+            <span
+              class="absolute right-0.5 bottom-0.5 grid size-4 place-items-center rounded-full bg-base-300"
+              title={slot.item.badge}
+            >
+              <Icon icon="lucide:plug" class="size-2.5" />
+            </span>
+          {/if}
         </div>
       {/each}
     </div>

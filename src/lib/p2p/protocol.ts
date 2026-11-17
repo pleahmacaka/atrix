@@ -108,12 +108,26 @@ export type ConfigChoice = {
   values: { value: string; name: string }[]
 }
 
+export type Limit = {
+  id: string
+  percent: number
+  resetsAt: number | null
+}
+
+export type ContextUse = { used: number; size: number }
+
 export type SessionView = OpenSession & {
   items: ChatItem[]
   ask: Ask | null
   config: ConfigChoice[]
   external?: boolean
   queued?: string[]
+  queuedImages?: Record<string, string>
+  context?: ContextUse
+  contextFrom?: number
+  contextChars?: Record<string, number>
+  contextBase?: number
+  limits?: Limit[]
   shells?: Shell[]
   model?: string
   since?: number
@@ -129,7 +143,7 @@ export type Subagent = { id: string; description: string; step: string }
 export type Patch = Partial<
   Pick<
     SessionView,
-    "running" | "ask" | "config" | "title" | "since" | "commands"
+    "running" | "ask" | "config" | "title" | "since" | "commands" | "context"
   >
 >
 
@@ -168,6 +182,11 @@ export const SESSION_BUSY = "session_busy"
 
 export const isBusyError = (e: unknown) =>
   e instanceof Error && e.message === SESSION_BUSY
+
+export const SESSION_GONE = "session_gone"
+
+export const isGoneError = (e: unknown) =>
+  e instanceof Error && e.message === SESSION_GONE
 
 export const openArgs = z.object({
   harness: z
@@ -265,6 +284,9 @@ export const hostRequest = z.discriminatedUnion("op", [
   }),
   request("cancel", session),
   request("close", session),
+  request("speech.stt", { audio: z.string(), mime: z.string() }),
+  request("speech.tts", { text: z.string() }),
+  request("rename", { ...session, title: z.string() }),
   request("permit", { ...session, optionId: z.string().nullable() }),
   request("option", { ...session, configId: z.string(), value: z.string() }),
   request("harness.toggle", { ...harness, enabled: z.boolean() }),
@@ -366,6 +388,9 @@ export type Answers = {
   prompt: null
   cancel: null
   close: null
+  "speech.stt": { text: string }
+  "speech.tts": { audio: string; mime: string }
+  rename: null
   permit: null
   option: null
   "harness.toggle": null

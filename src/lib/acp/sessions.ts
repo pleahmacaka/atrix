@@ -1,4 +1,5 @@
 import * as acp from "@agentclientprotocol/sdk"
+import { homeDir } from "@tauri-apps/api/path"
 import { channels, sendToChannel } from "#lib/channels/store.svelte.ts"
 import type { Block } from "#lib/chat/blocks.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
@@ -15,7 +16,7 @@ import type {
   Patch,
   SessionView,
 } from "#lib/p2p/protocol.ts"
-import { SESSION_BUSY } from "#lib/p2p/protocol.ts"
+import { SESSION_BUSY, SESSION_GONE } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { settings } from "#lib/store/settings.svelte.ts"
 import {
@@ -42,6 +43,8 @@ import {
 } from "./saved.ts"
 import { SOURCES } from "./sources.ts"
 import type { Reachable } from "./tools.ts"
+
+const RESOURCE_NOT_FOUND = -32002
 
 type Live = SessionView & {
   conn: Conn
@@ -256,16 +259,21 @@ export class Sessions {
     attachments: Attachment[],
   ) => {
     if (!this.#live.has(sessionId) && this.#external.live(sessionId)) {
-      if (attachments.length > 0) {
-        throw new Error(m.chat_terminal_attachments())
-      }
-
-      await this.#external.type(sessionId, text)
+      await this.#external.type(sessionId, text, attachments)
 
       return null
     }
 
-    const session = await this.#writable(sessionId)
+    const session = await this.#writable(sessionId).catch(
+      async (e: unknown) => {
+        if (e instanceof acp.RequestError && e.code === RESOURCE_NOT_FOUND) {
+          await this.close(sessionId)
+          throw new Error(SESSION_GONE)
+        }
+
+        throw e
+      },
+    )
 
     await this.#restore(session)
 
@@ -351,6 +359,36 @@ export class Sessions {
 
     this.#patch(session, { config: choicesOf(configOptions) })
     remember(session.harness, session.cwd, configId, value)
+
+    return null
+  }
+
+  rename = async (sessionId: string, title: string) => {
+    const view = this.#live.get(sessionId) ?? this.#external.get(sessionId)
+
+    if (!view) {
+      throw new Error(m.error_session_not_found())
+    }
+
+    if (mirrorKind(this.#harnesses.entry(view.harness)) === "claude") {
+      if (!this.#live.has(sessionId) && this.#external.live(sessionId)) {
+        await this.#external.keys(sessionId, `/rename ${title}`)
+      } else {
+        const record = { type: "custom-title", customTitle: title, sessionId }
+
+        await native("append_text", {
+          path: await SOURCES.claude.locate(
+            await homeDir(),
+            sessionId,
+            view.cwd,
+          ),
+          content: `${JSON.stringify(record)}
+`,
+        })
+      }
+    }
+
+    this.retitle(sessionId, title)
 
     return null
   }
@@ -717,6 +755,9 @@ export class Sessions {
 
     if (update.sessionUpdate === "usage_update") {
       this.#usage.set(sessionId, update.used)
+      this.#patch(session, {
+        context: { used: update.used, size: update.size },
+      })
     }
 
     if (update.sessionUpdate === "config_option_update") {

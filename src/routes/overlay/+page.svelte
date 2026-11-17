@@ -55,7 +55,7 @@ $effect(() => {
 </script>
 
 {#if sync}
-  <div bind:this={box} class="w-max p-2">
+  <div bind:this={box} class="w-max px-5 pt-3 pb-7">
     <CallBubble
       call={sync.call}
       collapsed={sync.collapsed}

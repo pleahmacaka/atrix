@@ -11,6 +11,7 @@ import Attachments from "./Attachments.svelte"
 import { copyMenu } from "./copy.ts"
 import { BUBBLE, REVEAL } from "./labels.ts"
 import Markdown from "./Markdown.svelte"
+import SpeakButton from "./SpeakButton.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
 let {
@@ -82,6 +83,9 @@ const text = $derived(
   {#if !mine && text}
     <div class={REVEAL}>
       <CopyButton {text} />
+      {#if !mine}
+        <SpeakButton {text} />
+      {/if}
     </div>
   {/if}
 </article>

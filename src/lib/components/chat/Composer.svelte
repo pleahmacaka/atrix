@@ -1,6 +1,8 @@
 <script lang="ts">
 import { Composer, type ComposerProps, provideComposer } from "#lib/chat/composer.svelte.ts"
-import AttachWidget from "./widgets/AttachWidget.svelte"
+import { panes, usePane } from "#lib/store/panes.svelte.ts"
+import CallBar from "./CallBar.svelte"
+import QueuePanel from "./QueuePanel.svelte"
 import InputWidget from "./widgets/InputWidget.svelte"
 import PlusWidget from "./widgets/PlusWidget.svelte"
 import SendWidget from "./widgets/SendWidget.svelte"
@@ -9,10 +11,19 @@ import VoiceWidget from "./widgets/VoiceWidget.svelte"
 let props: ComposerProps = $props()
 
 const composer = provideComposer(new Composer(() => props))
+
+const pane = usePane()
+
+const morph = $derived(!pane || panes.active.id === pane() ? "composer" : undefined)
+
+let box = $state<HTMLElement>()
+
+let typing = $state(false)
 </script>
 
 <form
-  class="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-2 px-2 pb-2 sm:px-4 sm:pb-3"
+  style:view-transition-name={morph}
+  class="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1.5 px-4 pb-2 sm:px-8 sm:pb-3"
   onsubmit={e => {
     e.preventDefault()
     composer.submit()
@@ -28,33 +39,45 @@ const composer = provideComposer(new Composer(() => props))
       e.currentTarget.value = ""
     }}
   />
+  <QueuePanel />
   <div class="flex items-end gap-2">
     {#if props.side}
-      <div class="size-12 shrink-0">
+      <div class="size-10 shrink-0">
         {@render props.side()}
-      </div>
-    {:else}
-      <div class="flex h-12 shrink-0 items-center">
-        <PlusWidget />
       </div>
     {/if}
     <div
+      bind:this={box}
       class={[
-        "relative flex min-h-12 min-w-0 flex-1 rounded-box border border-base-300 bg-raised",
+        "relative flex min-h-10 min-w-0 flex-1 items-end p-0.5",
+        "rounded-box border border-base-300 bg-raised",
         "transition-colors duration-140 focus-within:border-primary",
       ]}
+      onfocusin={e => {
+        typing = e.target instanceof HTMLTextAreaElement
+      }}
+      onfocusout={e => {
+        typing = e.relatedTarget instanceof HTMLTextAreaElement && !!box?.contains(e.relatedTarget)
+      }}
     >
+      <div class="flex h-8 shrink-0 items-center">
+        <PlusWidget />
+      </div>
       <InputWidget />
-    </div>
-    <div class="size-12 shrink-0">
-      <SendWidget />
+      <div class="size-8 shrink-0">
+        <SendWidget />
+      </div>
+      {#if composer.talking && !typing && !composer.text}
+        <CallBar
+          running={props.busy}
+          onopen={() => box?.querySelector("textarea")?.focus()}
+        />
+      {/if}
     </div>
   </div>
   <div class="flex min-w-0 items-center gap-1">
     {#if props.side}
-      <div class="h-8 w-12 shrink-0">
-        <AttachWidget />
-      </div>
+      <div class="w-11 shrink-0"></div>
     {/if}
     <div class="flex min-w-0 flex-1 items-center gap-1">
       {@render props.tools?.()}

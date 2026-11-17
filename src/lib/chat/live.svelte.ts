@@ -42,7 +42,9 @@ const agentFor = (stored: StoredChat) => {
 
   return new ToolLoopAgent({
     model: providerFor(gateway)(stored.model),
-    instructions: UI_INSTRUCTIONS,
+    instructions: [stored.instructions, UI_INSTRUCTIONS]
+      .filter(Boolean)
+      .join("\n\n"),
     tools: TOOLS,
   })
 }
@@ -56,7 +58,14 @@ const transportFor = (stored: StoredChat): ChatTransport<ChatMessage> => ({
 export const modelIds = async (gatewayId: string) => {
   const gateway = findGateway(gatewayId)
 
-  return gateway ? modelIdsOf(gateway) : []
+  if (!gateway) {
+    return []
+  }
+
+  const ids = await modelIdsOf(gateway)
+  const enabled = gateway.models
+
+  return enabled ? ids.filter(id => enabled.includes(id)) : ids
 }
 
 const live = new WeakMap<StoredChat, Chat<ChatMessage>>()

@@ -34,13 +34,13 @@
           "url": "https://cdn.agentclientprotocol.com/*"
         },
         {
-          "url": "http://127.0.0.1:*/*"
+          "url": "http://*:*/*"
         },
         {
-          "url": "http://*.ts.net:*/*"
+          "url": "https://*/*"
         },
         {
-          "url": "https://*.ts.net/*"
+          "url": "https://*:*/*"
         }
       ]
     }

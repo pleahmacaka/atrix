@@ -1,5 +1,9 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
+import { isTauri } from "@tauri-apps/api/core"
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http"
+import { z } from "zod"
 import { sync } from "#lib/p2p/sync.svelte.ts"
+import { m } from "#lib/paraglide/messages.js"
 import { type Gateway, local } from "./local.svelte.ts"
 
 export const OPENROUTER_ID = "openrouter"
@@ -8,10 +12,157 @@ export const OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 export const OPENROUTER_MODEL = "openrouter/auto"
 
-export const GATEWAY_ICONS = {
-  openrouter: "simple-icons:openrouter",
-  openai: "lucide:server",
-} as const
+export type Template = {
+  id: string
+  name: string
+  icon: string
+  baseURL: string
+  oauth?: boolean
+}
+
+export const CUSTOM_TEMPLATE = "custom"
+
+export const TEMPLATES: Template[] = [
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    icon: "simple-icons:openrouter",
+    baseURL: OPENROUTER_URL,
+    oauth: true,
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    icon: "simple-icons:openai",
+    baseURL: "https://api.openai.com/v1",
+  },
+  {
+    id: "mistral",
+    name: "Mistral",
+    icon: "simple-icons:mistralai",
+    baseURL: "https://api.mistral.ai/v1",
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    icon: "simple-icons:googlegemini",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    icon: "simple-icons:deepseek",
+    baseURL: "https://api.deepseek.com/v1",
+  },
+  {
+    id: "ollama",
+    name: "Ollama",
+    icon: "simple-icons:ollama",
+    baseURL: "http://localhost:11434/v1",
+  },
+  {
+    id: "lmstudio",
+    name: "LM Studio",
+    icon: "simple-icons:lmstudio",
+    baseURL: "http://localhost:1234/v1",
+  },
+]
+
+export const templateOf = (baseURL: string) =>
+  TEMPLATES.find(t => t.baseURL === baseURL)
+
+const HOST_ICONS: [string, string][] = [
+  ["openrouter.ai", "simple-icons:openrouter"],
+  ["openai.com", "simple-icons:openai"],
+  ["mistral.ai", "simple-icons:mistralai"],
+  ["googleapis.com", "simple-icons:googlegemini"],
+  ["deepseek.com", "simple-icons:deepseek"],
+  ["anthropic.com", "simple-icons:anthropic"],
+  ["x.ai", "simple-icons:x"],
+  ["perplexity.ai", "simple-icons:perplexity"],
+  [":11434", "simple-icons:ollama"],
+  [":1234", "simple-icons:lmstudio"],
+]
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+export const gatewayIcon = (gateway: Pick<Gateway, "baseURL">) => {
+  const host = hostOf(gateway.baseURL)
+
+  return (
+    templateOf(gateway.baseURL)?.icon ??
+    HOST_ICONS.find(
+      ([needle]) => host.endsWith(needle) || host.includes(needle),
+    )?.[1] ??
+    "lucide:server"
+  )
+}
+
+const MODEL_ICONS: [string, string][] = [
+  ["claude", "simple-icons:claude"],
+  ["gpt", "simple-icons:openai"],
+  ["o1", "simple-icons:openai"],
+  ["o3", "simple-icons:openai"],
+  ["o4", "simple-icons:openai"],
+  ["gemini", "simple-icons:googlegemini"],
+  ["gemma", "simple-icons:googlegemini"],
+  ["mistral", "simple-icons:mistralai"],
+  ["codestral", "simple-icons:mistralai"],
+  ["magistral", "simple-icons:mistralai"],
+  ["devstral", "simple-icons:mistralai"],
+  ["ministral", "simple-icons:mistralai"],
+  ["pixtral", "simple-icons:mistralai"],
+  ["leanstral", "simple-icons:mistralai"],
+  ["deepseek", "simple-icons:deepseek"],
+  ["llama", "simple-icons:meta"],
+  ["grok", "simple-icons:x"],
+  ["sonar", "simple-icons:perplexity"],
+]
+
+export const modelIcon = (id: string) => {
+  const name = id.toLowerCase().split("/").at(-1) ?? ""
+  const vendor = id.toLowerCase().split("/")[0]
+
+  return (
+    MODEL_ICONS.find(
+      ([prefix]) => name.includes(prefix) || vendor.includes(prefix),
+    )?.[1] ?? "lucide:box"
+  )
+}
+
+export const gatewayFetch: typeof fetch = isTauri() ? tauriFetch : fetch
+
+const modelList = z.object({ data: z.array(z.object({ id: z.string() })) })
+
+export const probeGateway = async (baseURL: string, key: string | null) => {
+  let response: Response
+
+  try {
+    response = await gatewayFetch(`${baseURL}/models`, {
+      headers: key ? { Authorization: `Bearer ${key}` } : {},
+    })
+  } catch {
+    throw new Error(m.gateway_probe_failed())
+  }
+
+  if (!response.ok) {
+    throw new Error(m.gateway_probe_status({ status: response.status }))
+  }
+
+  const parsed = modelList.safeParse(await response.json().catch(() => null))
+
+  if (!parsed.success) {
+    throw new Error(m.gateway_probe_shape())
+  }
+
+  return parsed.data.data.map(m => m.id).toSorted()
+}
 
 export const activeGateways = () => local.data.gateways.filter(g => !g.removed)
 
@@ -79,6 +230,7 @@ export const mergeGateways = (incoming: Gateway[]) => {
 
 export const providerFor = (gateway: Gateway) =>
   createOpenAICompatible({
+    fetch: gatewayFetch,
     name: gateway.id,
     baseURL: gateway.baseURL,
     apiKey: gateway.key ?? undefined,
@@ -94,16 +246,11 @@ export const modelIdsOf = (gateway: Gateway) => {
     return known
   }
 
-  const pending = fetch(`${gateway.baseURL}/models`, {
-    headers: gateway.key ? { Authorization: `Bearer ${gateway.key}` } : {},
-  })
-    .then(r => r.json())
-    .then((body: { data: { id: string }[] }) => body.data.map(m => m.id))
-    .catch(() => {
-      models.delete(gateway.id)
+  const pending = probeGateway(gateway.baseURL, gateway.key).catch(() => {
+    models.delete(gateway.id)
 
-      return []
-    })
+    return []
+  })
 
   models.set(gateway.id, pending)
 

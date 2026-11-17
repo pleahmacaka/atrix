@@ -262,6 +262,14 @@ export class HostView {
     delete this.views[sessionId]
   }
 
+  rename = (sessionId: string, title: string) =>
+    this.call({ op: "rename", sessionId, title })
+
+  speechStt = (audio: string, mime: string) =>
+    this.call({ op: "speech.stt", audio, mime })
+
+  speechTts = (text: string) => this.call({ op: "speech.tts", text })
+
   permit = (sessionId: string, optionId: string | null) =>
     this.call({ op: "permit", sessionId, optionId })
 

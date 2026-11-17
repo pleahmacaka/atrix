@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
@@ -229,12 +229,54 @@ pub struct Browse {
     dirs: Vec<Dir>,
 }
 
+fn native_path(path: &str) -> String {
+    let mut chars = path.chars();
+    let drive = (chars.next(), chars.next(), chars.next());
+
+    match drive {
+        (Some('/'), Some(letter), next)
+            if cfg!(windows)
+                && letter.is_ascii_alphabetic()
+                && matches!(next, None | Some('/')) =>
+        {
+            format!(
+                "{}:\\{}",
+                letter.to_ascii_uppercase(),
+                path[2..].trim_start_matches('/')
+            )
+            .replace('/', "\\")
+        }
+        _ => path.to_string(),
+    }
+}
+
+#[cfg(windows)]
+fn concealed(entry: &fs::DirEntry) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    const HIDDEN_OR_SYSTEM: u32 = 0x2 | 0x4;
+
+    entry
+        .metadata()
+        .is_ok_and(|m| m.file_attributes() & HIDDEN_OR_SYSTEM != 0)
+}
+
+#[cfg(not(windows))]
+fn concealed(_: &fs::DirEntry) -> bool {
+    false
+}
+
 #[tauri::command(async)]
 pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse> {
-    let dir = if path.trim().is_empty() {
+    let path = path.trim();
+    let dir = if path.is_empty() {
         app.path().home_dir()?
+    } else if let Some(rest) = path.strip_prefix('~') {
+        app.path()
+            .home_dir()?
+            .join(rest.trim_start_matches(['/', '\\']))
     } else {
-        PathBuf::from(path.trim())
+        PathBuf::from(native_path(path))
     };
 
     if !dir.is_dir() {
@@ -243,7 +285,7 @@ pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse> {
 
     let mut dirs: Vec<Dir> = fs::read_dir(&dir)?
         .flatten()
-        .filter(|e| e.path().is_dir())
+        .filter(|e| e.path().is_dir() && !concealed(e))
         .filter_map(|e| {
             let name = e.file_name().into_string().ok()?;
 
@@ -262,4 +304,30 @@ pub fn browse_dirs(app: AppHandle, path: String) -> Result<Browse> {
         parent: dir.parent().map(|p| p.to_string_lossy().into_owned()),
         dirs,
     })
+}
+
+#[tauri::command(async)]
+pub fn append_text(app: AppHandle, path: String, content: String) -> Result<()> {
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(allowed(&app, &path)?)?;
+
+    Ok(file.write_all(content.as_bytes())?)
+}
+
+const IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "gif", "webp", "bmp"];
+
+#[tauri::command(async)]
+pub fn read_image(path: String) -> Result<tauri::ipc::Response> {
+    let path = PathBuf::from(path);
+    let image = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| IMAGE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
+
+    if !image {
+        return Err(Error::code("path_not_allowed", path.display()));
+    }
+
+    Ok(tauri::ipc::Response::new(fs::read(path)?))
 }

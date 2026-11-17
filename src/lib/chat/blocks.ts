@@ -120,6 +120,11 @@ export const block = z.discriminatedUnion("type", [
       .optional(),
   }),
   z.object({
+    type: z.literal("html"),
+    title,
+    html: z.string().min(1).max(200_000),
+  }),
+  z.object({
     type: z.literal("links"),
     title,
     links: z

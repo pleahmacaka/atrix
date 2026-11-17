@@ -1,14 +1,13 @@
-import { isTauri } from "@tauri-apps/api/core"
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http"
-import { z } from "zod"
 import { plainText } from "#lib/chat/plain.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { settings } from "#lib/store/settings.svelte.ts"
+import {
+  speechReady,
+  synthesizeText,
+  transcribeAudio,
+  ttsReady,
+} from "#lib/store/speech.svelte.ts"
 import { rms } from "./vad.ts"
-
-const request = isTauri() ? tauriFetch : fetch
-
-const transcript = z.object({ text: z.string().optional() })
 
 const SPOKEN_LIMIT = 600
 
@@ -89,7 +88,11 @@ class Voice {
   #envelope: number[] = []
 
   get ready() {
-    return !!settings.voiceURL
+    return speechReady()
+  }
+
+  get canSpeak() {
+    return ttsReady()
   }
 
   fail = (error: unknown) => {
@@ -100,45 +103,9 @@ class Voice {
     }, ERROR_MS)
   }
 
-  #call = async (path: string, init: RequestInit) => {
-    let response: Response
+  transcribe = (audio: Blob) => transcribeAudio(audio)
 
-    try {
-      response = await request(`${settings.voiceURL}${path}`, init)
-    } catch {
-      throw new Error(m.voice_unreachable())
-    }
-
-    if (!response.ok) {
-      throw new Error(m.voice_failed())
-    }
-
-    return response
-  }
-
-  transcribe = async (audio: Blob) => {
-    const body = new FormData()
-    body.append("file", audio, "speech.webm")
-
-    const response = await this.#call("/stt", { method: "POST", body })
-    const parsed = transcript.safeParse(await response.json())
-
-    if (!parsed.success) {
-      throw new Error(m.voice_failed())
-    }
-
-    return (parsed.data.text ?? "").trim()
-  }
-
-  synthesize = async (text: string) => {
-    const response = await this.#call("/tts", {
-      method: "POST",
-      headers: { "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ text, lang: "auto" }),
-    })
-
-    return response.blob()
-  }
+  synthesize = (text: string) => synthesizeText(text)
 
   #prefetch = (text: string) => {
     const pending = this.synthesize(text)

@@ -1,19 +1,29 @@
 <script lang="ts">
+import Icon from "@iconify/svelte"
 import { type Block, splitUi } from "#lib/chat/blocks.ts"
 import CopyButton from "#lib/components/ui/CopyButton.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { m } from "#lib/paraglide/messages.js"
 import { copyMenu } from "./copy.ts"
 import { REVEAL } from "./labels.ts"
 import Markdown from "./Markdown.svelte"
+import SpeakButton from "./SpeakButton.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
 let {
   text,
   onAction,
   onSave,
+  threads = 0,
+  onThread,
+  onOpenThread,
 }: {
   text: string
   onAction: (text: string) => void
   onSave: (blocks: Block[]) => Promise<unknown>
+  threads?: number
+  onThread?: () => void
+  onOpenThread?: () => void
 } = $props()
 </script>
 
@@ -25,7 +35,26 @@ let {
       <Markdown text={part.text} />
     {/if}
   {/each}
+  {#if threads > 0}
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs self-start font-normal text-primary"
+      onclick={onOpenThread}
+    >
+      <Icon icon="lucide:messages-square" class="size-3.5" />
+      {m.thread_count({ count: threads })}
+    </button>
+  {/if}
   <div class={REVEAL}>
     <CopyButton {text} />
+    <SpeakButton {text} />
+    {#if onThread}
+      <IconButton
+        icon="lucide:message-square-reply"
+        label={m.thread_start()}
+        size="xs"
+        onclick={onThread}
+      />
+    {/if}
   </div>
 </article>

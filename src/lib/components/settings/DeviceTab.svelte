@@ -29,15 +29,6 @@ const openDataFolder = async () => {
     }}
   />
 </SettingRow>
-<SettingRow icon="lucide:audio-lines" title={m.voice_gateway()}>
-  <input
-    type="url"
-    class="input input-sm w-48 max-sm:w-full"
-    aria-label={m.voice_gateway()}
-    value={settings.voiceURL}
-    onchange={e => settings.setVoiceURL(e.currentTarget.value)}
-  />
-</SettingRow>
 <SettingRow icon="lucide:boxes" title={m.device_runs_harness()}>
   <span
     class={[

@@ -3,8 +3,9 @@ import AppsHome from "#lib/components/apps/AppsHome.svelte"
 import CalendarView from "#lib/components/calendar/CalendarView.svelte"
 import TableView from "#lib/components/datasource/TableView.svelte"
 import DevicesView from "#lib/components/devices/DevicesView.svelte"
-import HarnessView from "#lib/components/harness/HarnessView.svelte"
+import AgentEditor from "#lib/components/harness/AgentEditor.svelte"
 import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
+import SettingsView from "#lib/components/settings/SettingsView.svelte"
 import FindBar from "#lib/components/shell/FindBar.svelte"
 import PaneNode from "#lib/components/shell/PaneNode.svelte"
 import TitleBar from "#lib/components/shell/TitleBar.svelte"
@@ -40,8 +41,19 @@ const local = $derived(hostById(LOCAL))
     >
       <PaneNode node={panes.root} />
     </div>
+  {:else if nav.page === "settings"}
+    <SettingsView />
   {:else if nav.page === "agent"}
-    <HarnessView />
+    {#if nav.agent}
+      <AgentEditor />
+    {:else}
+      <EmptyState
+        centered
+        icon="lucide:contact-round"
+        title={m.agents_pick_title()}
+        text={m.agents_pick_text()}
+      />
+    {/if}
   {:else if nav.page === "knowledge"}
     <KnowledgeView />
   {:else if nav.page === "apps"}

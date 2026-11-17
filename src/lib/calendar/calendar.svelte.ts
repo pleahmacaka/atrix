@@ -4,16 +4,15 @@ import type { CalendarEvent } from "./events.ts"
 export const addDays = (d: Date, n: number) =>
   new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
 
-export const monthOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1)
+export const WEEKS = 4
+
+const weekOf = (d: Date) => addDays(d, -d.getDay())
 
 export const sameDay = (a: Date, b: Date) =>
   a.toDateString() === b.toDateString()
 
-export const monthGrid = (month: Date) => {
-  const start = addDays(month, -month.getDay())
-
-  return Array.from({ length: 42 }, (_, i) => addDays(start, i))
-}
+export const weeksFrom = (start: Date) =>
+  Array.from({ length: WEEKS * 7 }, (_, i) => addDays(start, i))
 
 export const onDay = (e: CalendarEvent, day: Date) => {
   const from = day.toISOString()
@@ -50,12 +49,16 @@ export const TONES: Record<string, string> = {
 
 const today = addDays(new Date(), 0)
 
-export const calendar = $state({ month: monthOf(today), selected: today })
+const startFor = (day: Date) => addDays(weekOf(day), -7)
+
+export const calendar = $state({ start: startFor(today), selected: today })
 
 export const pick = (day: Date) => {
   calendar.selected = day
 
-  if (!sameDay(monthOf(day), calendar.month)) {
-    calendar.month = monthOf(day)
+  const end = addDays(calendar.start, WEEKS * 7)
+
+  if (day < calendar.start || day >= end) {
+    calendar.start = startFor(day)
   }
 }

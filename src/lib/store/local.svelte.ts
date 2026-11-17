@@ -12,6 +12,7 @@ export const gateway = z.object({
   baseURL: z.string(),
   key: z.string().nullable(),
   model: z.string(),
+  models: z.array(z.string()).optional(),
   at: z.number(),
   removed: z.boolean().optional(),
 })
@@ -24,8 +25,71 @@ export type StoredChat = {
   id: string
   title: string
   gateway?: string
+  instructions?: string
   model: string
   messages: ChatMessage[]
+  at: number
+}
+
+export type SpeechRole = "stt" | "tts"
+
+export type SpeechProvider = {
+  id: string
+  role: SpeechRole
+  kind: "atrix" | "openai"
+  name: string
+  baseURL: string
+  key: string | null
+  model: string
+  voice: string
+  at: number
+  removed?: boolean
+}
+
+export type GroupMember = {
+  host: string
+  id: string
+  from: number
+  offset: number
+  role?: "worker" | "reviewer"
+  label?: string
+  agent?: string
+}
+
+export type GroupMessage = {
+  id: string
+  text: string
+  at: number
+  targets?: string[]
+}
+
+export type StoredGroup = {
+  id: string
+  title: string
+  cwd?: string
+  members: GroupMember[]
+  messages: GroupMessage[]
+  at: number
+}
+
+export type StoredAgent = {
+  id: string
+  name: string
+  provider: string
+  model: string
+  effort: string
+  instructions: string
+  variables?: Record<string, string>
+  cwd: string
+  at: number
+}
+
+export type StoredThread = {
+  id: string
+  host: string
+  parent: string
+  item: string
+  session: string
   at: number
 }
 
@@ -33,11 +97,20 @@ export type Contents = {
   gateways: Gateway[]
   net?: { key?: string; peers: Peer[] }
   chats: StoredChat[]
+  groups: StoredGroup[]
+  speech: SpeechProvider[]
+  threads: StoredThread[]
+  agents: StoredAgent[]
+  speechActive?: Partial<Record<SpeechRole, string>>
 }
 
 const EMPTY: Contents = {
   gateways: [],
   chats: [],
+  groups: [],
+  speech: [],
+  threads: [],
+  agents: [],
 }
 
 class Local {

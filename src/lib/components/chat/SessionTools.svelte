@@ -6,8 +6,16 @@ import Popover from "#lib/components/ui/Popover.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { ConfigChoice, SessionView } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { baseName } from "#lib/path.ts"
-import { olderModels, terminalChoices, terminalModel } from "./models.ts"
+import ContextRing from "./ContextRing.svelte"
+import ModelEffort from "./ModelEffort.svelte"
+import {
+  efforts,
+  OPTION_ICONS,
+  olderModels,
+  PRIMARY,
+  terminalChoices,
+  terminalModel,
+} from "./models.ts"
 
 let {
   host,
@@ -23,14 +31,6 @@ let {
   send: (text: string) => void
 } = $props()
 
-const PRIMARY = ["mode", "model", "thought_level"]
-
-const OPTION_ICONS: Record<string, string> = {
-  mode: "lucide:shield-check",
-  model: "lucide:cpu",
-  thought_level: "lucide:brain",
-}
-
 const isPrimary = (option: ConfigChoice) => PRIMARY.includes(option.category ?? "")
 
 const configured = $derived(view.config.length > 0)
@@ -39,13 +39,34 @@ const primary = $derived(view.config.filter(isPrimary))
 
 const secondary = $derived(view.config.filter(o => !isPrimary(o)))
 
+const claude = $derived(
+  host.state?.harnesses.find(h => h.id === view.harness)?.base === "claude-acp",
+)
+
+const EFFORTS = efforts()
+
+let effort = $state("")
+
+const modelOption = $derived(view.config.find(o => o.category === "model"))
+
+const effortOption = $derived(view.config.find(o => o.category === "thought_level"))
+
+const choicesOf = (option: ConfigChoice) => {
+  const older = option.category === "model" ? olderModels(option.values) : null
+
+  return option.values.map(v => ({
+    value: v.value,
+    name: v.name,
+    older: older?.has(v.name),
+  }))
+}
+
 const knownModels = $derived(
   Object.values(host.views).flatMap(
     v => v?.config.filter(o => o.category === "model").flatMap(o => o.values) ?? [],
   ),
 )
 
-const folder = $derived(baseName(view.cwd))
 </script>
 
 {#snippet picker(option: ConfigChoice, ghost: boolean)}
@@ -64,21 +85,30 @@ const folder = $derived(baseName(view.cwd))
   />
 {/snippet}
 
-<span
-  class="inline-flex h-8 max-w-40 min-w-0 items-center gap-1.5 rounded-field px-2 text-sm"
-  title={view.cwd}
->
-  <Icon icon="lucide:folder" class="size-4 shrink-0 opacity-60" />
-  <span class="min-w-0 truncate">{folder}</span>
-</span>
 {#if !configured && elsewhere}
-  <IconSelect
-    icon="lucide:cpu"
-    label={m.chat_model()}
-    ghost
-    value={terminalModel(view.model)}
-    choices={terminalChoices(view.model, knownModels)}
-    onchange={alias => send(`/model ${alias}`)}
+  <ModelEffort
+    models={terminalChoices(view.model, knownModels)}
+    model={terminalModel(view.model)}
+    efforts={claude ? EFFORTS : []}
+    {effort}
+    onmodel={alias => send(`/model ${alias}`)}
+    oneffort={level => {
+      effort = level
+
+      if (level) {
+        send(`/effort ${level}`)
+      }
+    }}
+  />
+{:else if modelOption}
+  <ModelEffort
+    models={choicesOf(modelOption)}
+    model={modelOption.current}
+    efforts={effortOption ? choicesOf(effortOption) : []}
+    effort={effortOption?.current ?? ""}
+    onmodel={value => attempt(() => host.configure(view.id, modelOption.id, value))}
+    oneffort={value =>
+      effortOption && attempt(() => host.configure(view.id, effortOption.id, value))}
   />
 {:else if !configured && view.model}
   <span
@@ -98,8 +128,8 @@ const folder = $derived(baseName(view.cwd))
     sheet
   >
     {#snippet trigger(p)}
-      <button {...p} type="button" class="btn btn-ghost btn-sm font-normal text-info">
-        <Icon icon="lucide:square-terminal" class="size-4" />
+      <button {...p} type="button" class="btn btn-ghost btn-sm font-normal">
+        <Icon icon="lucide:square-terminal" class="size-4 opacity-60" />
         {m.chat_shells({ count: shells.length })}
       </button>
     {/snippet}
@@ -120,7 +150,7 @@ const folder = $derived(baseName(view.cwd))
     {/each}
   </Popover>
 {/if}
-{#each primary as option (option.id)}
+{#each primary.filter(o => o !== modelOption && o !== effortOption) as option (option.id)}
   {@render picker(option, true)}
 {/each}
 {#if secondary.length > 0}
@@ -142,3 +172,4 @@ const folder = $derived(baseName(view.cwd))
     </div>
   </Popover>
 {/if}
+<ContextRing {view} {claude} />

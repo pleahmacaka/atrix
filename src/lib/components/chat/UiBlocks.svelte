@@ -140,6 +140,13 @@ const titleOf = (block: Block) =>
         </a>
       {/each}
     </div>
+  {:else if block.type === "html"}
+    <iframe
+      title={block.title ?? "html"}
+      sandbox="allow-scripts"
+      srcdoc={block.html}
+      class="h-72 w-full rounded-field border-0 bg-white"
+    ></iframe>
   {:else if block.type === "scene"}
     {#await import("./SceneBlock.svelte") then { default: SceneBlock }}
       <SceneBlock {block} />

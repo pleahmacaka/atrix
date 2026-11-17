@@ -7,6 +7,7 @@ export type Choice = {
   name: string
   detail?: string
   older?: boolean
+  icon?: string
 }
 
 export type ChoiceGroup = { label: string; choices: Choice[] }
@@ -39,6 +40,7 @@ const options = $derived<SelectOption<string>[]>([
     label: c.name,
     detail: c.detail,
     older: c.older,
+    icon: c.icon,
   })),
   ...groups.flatMap(g =>
     g.choices.map(c => ({
@@ -46,6 +48,7 @@ const options = $derived<SelectOption<string>[]>([
       label: c.name,
       detail: c.detail,
       group: g.label,
+      icon: c.icon,
     })),
   ),
 ])
@@ -59,7 +62,7 @@ const selected = $derived(options.find(o => o.value === value))
   {label}
   {disabled}
   onchange={onchange}
-  class={["select-sm w-auto max-w-60 min-w-0", ghost && "select-ghost", extra]}
+  class={["select-sm min-w-0", ghost && "select-ghost", extra || "w-auto max-w-60"]}
 >
   {#snippet display()}
     <Icon {icon} class="size-4 shrink-0 opacity-60" />

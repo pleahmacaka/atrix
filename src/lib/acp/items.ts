@@ -6,6 +6,7 @@ import type {
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk"
 import { type Block, isShowUi, uiBlocksIn } from "#lib/chat/blocks.ts"
+import type { ContextUse, Limit } from "#lib/p2p/protocol.ts"
 import { baseName } from "#lib/path.ts"
 
 export type ToolItem = {
@@ -55,7 +56,12 @@ export const attachUi = (
 
 export type PlanEntry = { content: string; status: string }
 
-export type FileRef = { name: string; mimeType: string; url: string | null }
+export type FileRef = {
+  name: string
+  mimeType: string
+  url: string | null
+  path?: string
+}
 
 export type TextItem = {
   type: "user" | "agent" | "thought"
@@ -91,6 +97,13 @@ export type Log = {
   model?: string
   since?: number
   usage?: Map<string, number>
+  context?: ContextUse
+  contextFrom?: number
+  contextChars?: Record<string, number>
+  contextBase?: number
+  compacted?: boolean
+  toolKinds?: Map<string, string>
+  limits?: Limit[]
 }
 
 export const DETAIL_LIMIT = 4000
@@ -384,7 +397,11 @@ export const splitContext = (text: string) => {
 
 const QUEUED_IMAGES = ["[Image #", "[Image: source: "]
 
-export const splitQueued = (text: string, numbered: (n: string) => string) => {
+export const splitQueued = (
+  text: string,
+  numbered: (n: string) => string,
+  imageOf: (n: string) => string | undefined = () => undefined,
+) => {
   const files: FileRef[] = []
   let rest = text
 
@@ -404,7 +421,12 @@ export const splitQueued = (text: string, numbered: (n: string) => string) => {
       const name =
         marker === QUEUED_IMAGES[0] ? numbered(inner) : baseName(inner)
 
-      files.push({ name, mimeType: "image/png", url: null })
+      files.push({
+        name,
+        mimeType: "image/png",
+        url: marker === QUEUED_IMAGES[0] ? (imageOf(inner) ?? null) : null,
+        ...(marker === QUEUED_IMAGES[1] && { path: inner }),
+      })
       rest = rest.slice(0, at) + rest.slice(end + 1)
     }
   }

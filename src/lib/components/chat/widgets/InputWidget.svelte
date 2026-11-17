@@ -110,6 +110,23 @@ const sizeOf = (bytes: number) =>
     ? kilobytes.format(Math.max(1, bytes / 1024))
     : megabytes.format(bytes / 1024 / 1024)
 
+const grow = (node: HTMLTextAreaElement) => {
+  void composer.text
+
+  const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+  const from = node.offsetHeight
+
+  node.style.transition = "none"
+  node.style.height = "auto"
+
+  const to = node.scrollHeight + node.offsetHeight - node.clientHeight
+
+  node.style.height = `${from / rem}rem`
+  void node.offsetHeight
+  node.style.transition = ""
+  node.style.height = `${to / rem}rem`
+}
+
 let zoomed = $state<Viewed | null>(null)
 
 const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
@@ -188,9 +205,10 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
   {/if}
   <textarea
     bind:this={field}
+    {@attach grow}
     class={[
-      "field-sizing-content max-h-40 w-full resize-none",
-      "bg-transparent px-4 py-3.5 text-sm leading-5 outline-none",
+      "max-h-40 w-full resize-none transition-[height] duration-140",
+      "bg-transparent py-1.5 pr-1.5 pl-0.5 text-sm leading-5 outline-none",
       "placeholder:truncate",
     ]}
     placeholder={composer.props.placeholder}

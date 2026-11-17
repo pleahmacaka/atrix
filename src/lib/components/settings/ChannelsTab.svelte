@@ -230,7 +230,7 @@ const remove = (id: string) => {
         icon="lucide:boxes"
         label={m.channels_harness()}
         ghost={false}
-        class="max-w-none!"
+        class="w-auto max-w-none"
         value={harness}
         choices={harnesses.map(h => ({ value: h.id, name: h.name }))}
         onchange={value => {

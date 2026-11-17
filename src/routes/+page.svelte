@@ -1,7 +1,6 @@
 <script lang="ts">
 import { tick } from "svelte"
 import CallDock from "#lib/components/chat/CallDock.svelte"
-import SettingsSheet from "#lib/components/settings/SettingsSheet.svelte"
 import Palette from "#lib/components/shell/Palette.svelte"
 import Sidebar from "#lib/components/shell/Sidebar.svelte"
 import Workspace from "#lib/components/shell/Workspace.svelte"
@@ -47,7 +46,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 
 <svelte:window onkeydown={keydown} oncontextmenu={handleContextMenu} />
 
-<div class="flex h-dvh gap-2 bg-base-200 p-2" data-tauri-drag-region>
+<div class="window-frame flex h-dvh gap-2 bg-base-200 p-2" data-frame data-tauri-drag-region>
   {#if shell.docked}
     <div
       class="flex min-h-0 shrink-0 transition-width duration-140"
@@ -95,5 +94,4 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 
 <Palette />
 <ContextMenu />
-<SettingsSheet />
 <CallDock />

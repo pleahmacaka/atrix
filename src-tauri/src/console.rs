@@ -1,11 +1,15 @@
-use crate::error::Result;
+use tauri::ipc::{InvokeBody, Request};
+
+use crate::error::{Error, Result};
 
 #[cfg(windows)]
 mod imp {
+    use std::borrow::Cow;
     use std::sync::Mutex;
     use std::thread;
     use std::time::Duration;
 
+    use arboard::{Clipboard, ImageData};
     use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
@@ -16,16 +20,28 @@ mod imp {
     };
     use windows::core::w;
 
-    use crate::error::Result;
+    use crate::error::{Error, Result};
 
     const VK_RETURN: u16 = 0x0D;
 
     const VK_J: u16 = 0x4A;
 
+    const VK_V: u16 = 0x56;
+
+    const LEFT_ALT_PRESSED: u32 = 0x0002;
+
     const LEFT_CTRL_PRESSED: u32 = 0x0008;
 
     // a burst of keys reads as a paste, which turns Enter into a newline, so submit after a pause
     const SUBMIT_DELAY: Duration = Duration::from_millis(150);
+
+    // Claude Code reads the clipboard through a PowerShell child and reports no completion
+    const CLIPBOARD_READ: Duration = Duration::from_millis(1500);
+
+    // another process holding the clipboard makes SetClipboardData fail with 1418 for a moment
+    const CLIPBOARD_RETRY: Duration = Duration::from_millis(50);
+
+    const CLIPBOARD_TRIES: u32 = 40;
 
     static ATTACH: Mutex<()> = Mutex::new(());
 
@@ -71,8 +87,8 @@ mod imp {
         unsafe { WriteConsoleInputW(input, records, &mut written) }
     }
 
-    fn send_keys(text: &[INPUT_RECORD], submit: &[INPUT_RECORD]) -> Result<()> {
-        let input = unsafe {
+    fn open_input() -> windows::core::Result<HANDLE> {
+        unsafe {
             CreateFileW(
                 w!("CONIN$"),
                 (GENERIC_READ | GENERIC_WRITE).0,
@@ -82,30 +98,94 @@ mod imp {
                 FILE_FLAGS_AND_ATTRIBUTES(0),
                 None,
             )
-        }?;
-        let wrote = write(input, text).and_then(|_| {
-            thread::sleep(SUBMIT_DELAY);
-            write(input, submit)
-        });
-        let _ = unsafe { CloseHandle(input) };
+        }
+    }
 
-        Ok(wrote?)
+    fn with_input(pid: u32, work: impl FnOnce(HANDLE) -> windows::core::Result<()>) -> Result<()> {
+        let _guard = ATTACH.lock()?;
+
+        let _ = unsafe { FreeConsole() };
+        unsafe { AttachConsole(pid) }?;
+
+        let result = open_input().and_then(|input| {
+            let done = work(input);
+            let _ = unsafe { CloseHandle(input) };
+
+            done
+        });
+        let _ = unsafe { FreeConsole() };
+
+        Ok(result?)
     }
 
     pub fn type_into(pid: u32, text: &str) -> Result<()> {
-        let _guard = ATTACH.lock()?;
         let records = records_of(text);
         let mut submit = Vec::new();
 
         press(&mut submit, u16::from(b'\r'), VK_RETURN, 0);
 
-        let _ = unsafe { FreeConsole() };
-        unsafe { AttachConsole(pid) }?;
+        with_input(pid, |input| {
+            write(input, &records)?;
+            thread::sleep(SUBMIT_DELAY);
+            write(input, &submit)
+        })
+    }
 
-        let result = send_keys(&records, &submit);
-        let _ = unsafe { FreeConsole() };
+    pub fn paste_image(pid: u32, bytes: &[u8]) -> Result<()> {
+        let image = image::load_from_memory(bytes)
+            .map_err(|e| Error::code("image_invalid", e))?
+            .to_rgba8();
+        let mut clipboard = Clipboard::new().map_err(|e| Error::code("clipboard", e))?;
+        let previous = clipboard.get_text().ok();
+        let data = ImageData {
+            width: image.width() as usize,
+            height: image.height() as usize,
+            bytes: Cow::Owned(image.into_raw()),
+        };
 
-        result
+        let mut tries = 0;
+
+        while let Err(e) = clipboard.set_image(data.clone()) {
+            tries += 1;
+
+            if tries == CLIPBOARD_TRIES {
+                return Err(Error::code("clipboard", e));
+            }
+
+            thread::sleep(CLIPBOARD_RETRY);
+        }
+
+        let mut paste = Vec::new();
+
+        press(&mut paste, u16::from(b'v'), VK_V, LEFT_ALT_PRESSED);
+
+        let pasted = with_input(pid, |input| write(input, &paste));
+
+        thread::sleep(CLIPBOARD_READ);
+
+        if let Some(text) = previous {
+            let _ = clipboard.set_text(text);
+        }
+
+        pasted
+    }
+
+    pub fn clipboard_png() -> Result<Vec<u8>> {
+        let Ok(image) = Clipboard::new().and_then(|mut c| c.get_image()) else {
+            return Ok(Vec::new());
+        };
+        let rgba = image::RgbaImage::from_raw(
+            image.width as u32,
+            image.height as u32,
+            image.bytes.into_owned(),
+        )
+        .ok_or(Error::code("image_invalid", "clipboard"))?;
+        let mut png = std::io::Cursor::new(Vec::new());
+
+        rgba.write_to(&mut png, image::ImageFormat::Png)
+            .map_err(|e| Error::code("image_invalid", e))?;
+
+        Ok(png.into_inner())
     }
 }
 
@@ -116,9 +196,37 @@ mod imp {
     pub fn type_into(_: u32, _: &str) -> Result<()> {
         Err("unsupported".into())
     }
+
+    pub fn paste_image(_: u32, _: &[u8]) -> Result<()> {
+        Err("unsupported".into())
+    }
+
+    pub fn clipboard_png() -> Result<Vec<u8>> {
+        Ok(Vec::new())
+    }
+}
+
+#[tauri::command(async)]
+pub fn clipboard_image() -> Result<tauri::ipc::Response> {
+    Ok(tauri::ipc::Response::new(imp::clipboard_png()?))
 }
 
 #[tauri::command]
 pub async fn terminal_type(pid: u32, text: String) -> Result<()> {
     tauri::async_runtime::spawn_blocking(move || imp::type_into(pid, &text)).await?
+}
+
+#[tauri::command(async)]
+pub fn terminal_paste_image(request: Request<'_>) -> Result<()> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(Error::code("image_invalid", "body"));
+    };
+    let pid = request
+        .headers()
+        .get("pid")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .ok_or(Error::code("image_invalid", "pid"))?;
+
+    imp::paste_image(pid, bytes)
 }

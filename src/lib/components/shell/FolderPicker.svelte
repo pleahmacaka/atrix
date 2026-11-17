@@ -17,8 +17,20 @@ import { baseName } from "#lib/path.ts"
 let {
   host,
   value = $bindable(),
+  onpick,
   class: extra,
-}: { host: HostView | undefined; value: string; class?: ClassValue } = $props()
+}: {
+  host: HostView | undefined
+  value: string
+  onpick?: (path: string) => void
+  class?: ClassValue
+} = $props()
+
+const isPath = (text: string) =>
+  text.startsWith("/") ||
+  text.startsWith("~") ||
+  text.startsWith("\\\\") ||
+  /^[a-z]:[\\/]/i.test(text)
 
 const RECENT_LIMIT = 6
 
@@ -38,16 +50,37 @@ const dirs = $derived(
   ),
 )
 
+const nativePath = (path: string) =>
+  /^[a-z]:/i.test(path) ? path.replaceAll("/", "\\") : path
+
+const isTemporary = (path: string) =>
+  path.toLowerCase().includes("\\appdata\\local\\temp\\")
+
+const unique = (paths: string[]) => {
+  const seen = new Set<string>()
+
+  return paths.filter(path => {
+    const key = path.toLowerCase()
+    const fresh = !seen.has(key)
+
+    seen.add(key)
+
+    return fresh
+  })
+}
+
 const recent = $derived(
-  [
-    ...new Set([
+  unique(
+    [
       ...(host?.state?.open ?? []).map(s => s.cwd),
       ...Object.values(host?.lists ?? {})
         .flat()
         .toSorted((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
         .map(s => s.cwd),
-    ]),
-  ]
+    ]
+      .map(nativePath)
+      .filter(path => !isTemporary(path)),
+  )
     .filter(
       path =>
         !!path && baseName(path).toLowerCase().includes(filter.trim().toLowerCase()),
@@ -66,6 +99,7 @@ const browse = (path: string) =>
 const pick = (path: string) => {
   value = path
   open = false
+  onpick?.(path)
 }
 </script>
 
@@ -89,7 +123,7 @@ const pick = (path: string) => {
       <Icon icon="lucide:chevron-down" class="size-4 shrink-0 opacity-60" />
     </button>
   {/snippet}
-  <div class="flex h-112 flex-col gap-1.5 p-0.5">
+  <div class="flex h-80 flex-col gap-1.5 p-0.5">
     {#if current}
       <div class="flex shrink-0 items-center gap-1">
         <IconButton
@@ -101,12 +135,14 @@ const pick = (path: string) => {
         <span class="min-w-0 flex-1 truncate font-medium" title={current.path}>
           {current.path}
         </span>
-        <IconButton
-          icon="lucide:check"
-          label={m.folder_select()}
-          tone="primary"
+        <button
+          type="button"
+          class="btn btn-primary btn-sm shrink-0"
           onclick={() => current && pick(current.path)}
-        />
+        >
+          <Icon icon="lucide:check" class="size-4" />
+          {m.folder_select()}
+        </button>
         <IconButton
           icon="lucide:x"
           label={m.common_close()}
@@ -117,11 +153,42 @@ const pick = (path: string) => {
       </div>
       <SearchField
         bind:value={filter}
+        onkeydown={e => {
+          const typed = filter.trim()
+
+          if (e.key === "Enter" && isPath(typed)) {
+            e.preventDefault()
+            browse(typed)
+          }
+        }}
         placeholder={m.folder_filter()}
         class="shrink-0"
         data-autofocus
         {@attach node => node.focus({ preventScroll: true })}
       />
+      {#if recent.length}
+        <MenuLabel text={m.folder_recent()} class="shrink-0" />
+        <div role="menu" class="flex shrink-0 flex-col">
+          {#each recent as path (path)}
+            <MenuItem
+              icon="lucide:history"
+              label={baseName(path)}
+              selected={path.toLowerCase() === nativePath(value).toLowerCase()}
+              title={path}
+              onclick={() => pick(path)}
+            >
+              {#snippet trailing()}
+                <span
+                  dir="rtl"
+                  class="max-w-48 min-w-0 truncate text-xs text-base-content/45"
+                >
+                  <bdi>{path}</bdi>
+                </span>
+              {/snippet}
+            </MenuItem>
+          {/each}
+        </div>
+      {/if}
       <div role="menu" class="flex min-h-40 flex-1 flex-col overflow-y-auto">
         {#each dirs as dir (dir.path)}
           <MenuItem
@@ -141,26 +208,6 @@ const pick = (path: string) => {
               class="py-6"
             />
           {/if}
-        {/each}
-      </div>
-    {/if}
-    {#if recent.length}
-      <MenuLabel text={m.folder_recent()} class="shrink-0" />
-      <div role="menu" class="flex shrink-0 flex-col">
-        {#each recent as path (path)}
-          <MenuItem
-            icon="lucide:history"
-            label={baseName(path)}
-            selected={path === value}
-            title={path}
-            onclick={() => pick(path)}
-          >
-            {#snippet trailing()}
-              <span class="max-w-40 min-w-0 truncate text-xs text-base-content/45">
-                {path}
-              </span>
-            {/snippet}
-          </MenuItem>
         {/each}
       </div>
     {/if}

@@ -161,6 +161,15 @@ const trackResult = (shells: Shell[], result: z.infer<typeof toolResult>) => {
     text.slice(text.indexOf(marker) + marker.length).split(/[\s.]/)[0] || null
 }
 
+const STANDARD_WINDOW = 200_000
+
+const LONG_WINDOW = 1_000_000
+
+const windowOf = (model: string | undefined, used: number) =>
+  used > STANDARD_WINDOW || model?.includes("[1m]")
+    ? LONG_WINDOW
+    : STANDARD_WINDOW
+
 const record = z.object({
   type: z.string(),
   timestamp: z.string().optional(),
@@ -169,11 +178,20 @@ const record = z.object({
   content: z.string().optional(),
   isMeta: z.boolean().optional(),
   isSidechain: z.boolean().optional(),
+  subtype: z.string().optional(),
   message: z
     .object({
       id: z.string().optional(),
       model: z.string().optional(),
-      usage: z.object({ output_tokens: z.number() }).partial().optional(),
+      usage: z
+        .object({
+          input_tokens: z.number(),
+          output_tokens: z.number(),
+          cache_read_input_tokens: z.number(),
+          cache_creation_input_tokens: z.number(),
+        })
+        .partial()
+        .optional(),
       content: z.union([z.string(), z.array(z.unknown())]),
     })
     .optional(),
@@ -316,8 +334,52 @@ const trackShells = (shells: Shell[], data: Row) => {
   }
 }
 
+const toolCategory = (name: string) =>
+  name === "Skill" ? "skill" : name.startsWith("mcp__") ? "mcp" : "tool"
+
+const countContext = (log: Log, type: string, content: string | unknown[]) => {
+  log.contextChars ??= {}
+
+  const chars = log.contextChars
+  const add = (id: string, n: number) => {
+    chars[id] = (chars[id] ?? 0) + n
+  }
+
+  for (const b of blocksOf(content)) {
+    const text = textBlock.safeParse(b)
+    const thinking = thinkingBlock.safeParse(b)
+    const use = toolUse.safeParse(b)
+    const result = toolResult.safeParse(b)
+
+    if (text.success) {
+      add(type === "user" ? "user" : "agent", text.data.text.length)
+    } else if (thinking.success) {
+      add("thought", thinking.data.thinking.length)
+    } else if (use.success) {
+      const id = toolCategory(use.data.name)
+
+      log.toolKinds ??= new Map()
+      log.toolKinds.set(use.data.id, id)
+      add(id, JSON.stringify(use.data.input).length)
+    } else if (result.success) {
+      add(
+        log.toolKinds?.get(result.data.tool_use_id) ?? "tool",
+        resultText(result.data.content).length,
+      )
+    }
+  }
+}
+
 const applyRecord = (log: Log, data: Row) => {
   const { items } = log
+
+  if (data.subtype === "compact_boundary") {
+    log.contextFrom = items.length
+    log.context = undefined
+    log.contextChars = {}
+    log.contextBase = undefined
+    log.compacted = true
+  }
 
   if (data.type === "queue-operation") {
     applyQueue(log, data.operation ?? "", data.content)
@@ -360,6 +422,23 @@ const applyRecord = (log: Log, data: Row) => {
     log.usage ??= new Map()
     log.usage.set(message.id, message.usage.output_tokens)
   }
+
+  if (type === "assistant" && message.usage?.input_tokens !== undefined) {
+    const u = message.usage
+    const used =
+      (u.input_tokens ?? 0) +
+      (u.cache_read_input_tokens ?? 0) +
+      (u.cache_creation_input_tokens ?? 0) +
+      (u.output_tokens ?? 0)
+
+    log.context = { used, size: windowOf(log.model, used) }
+
+    if (log.compacted && log.contextBase === undefined) {
+      log.contextBase = used
+    }
+  }
+
+  countContext(log, type, message.content)
 
   for (const b of blocksOf(message.content)) {
     const text = textBlock.safeParse(b)

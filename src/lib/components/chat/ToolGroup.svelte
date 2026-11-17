@@ -5,9 +5,18 @@ import { plainText } from "#lib/chat/plain.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { KIND_ICONS } from "./labels.ts"
 
-let { items }: { items: (ToolItem | ThoughtItem)[] } = $props()
+let { items, latest = false }: { items: (ToolItem | ThoughtItem)[]; latest?: boolean } =
+  $props()
 
 const tools = $derived(items.filter(i => i.type === "tool"))
+
+const RECENT = 5
+
+let all = $state(false)
+
+const shown = $derived(all ? items : items.slice(-RECENT))
+
+const hidden = $derived(items.length - shown.length)
 
 const notes = $derived(items.some(i => i.type === "thought" && i.text.trim()))
 
@@ -62,8 +71,8 @@ const summary = $derived.by(() => {
   {/if}
 {/snippet}
 
-{#snippet tool(item: ToolItem)}
-  <details class="group/tool">
+{#snippet tool(item: ToolItem, open = false)}
+  <details class="group/tool" {open}>
     <summary
       class={[
         "flex cursor-pointer list-none items-center gap-1.5 text-xs",
@@ -97,10 +106,10 @@ const summary = $derived.by(() => {
 
 {#if tools.length === 1 && !notes}
   <div class="my-1">
-    {@render tool(tools[0])}
+    {@render tool(tools[0], latest)}
   </div>
 {:else if tools.length > 0 || notes}
-  <details class="group/tools my-1">
+  <details class="group/tools my-1" open={latest}>
     <summary
       class={[
         "badge badge-soft h-auto cursor-pointer list-none gap-1.5 py-1",
@@ -118,7 +127,20 @@ const summary = $derived.by(() => {
       class="mt-2 flex flex-col gap-1.5 border-l border-base-300 pl-3"
       aria-label={m.tools_activity()}
     >
-      {#each items as item (item.id)}
+      {#if hidden > 0}
+        <li>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs font-normal text-base-content/60"
+            onclick={() => {
+              all = true
+            }}
+          >
+            {m.tools_show_earlier({ count: hidden })}
+          </button>
+        </li>
+      {/if}
+      {#each shown as item (item.id)}
         {#if item.type === "thought"}
           {#if item.text.trim()}
             <li

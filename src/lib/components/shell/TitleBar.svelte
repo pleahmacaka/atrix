@@ -2,25 +2,18 @@
 import Icon from "@iconify/svelte"
 import { onMount } from "svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
-import MenuItem from "#lib/components/ui/MenuItem.svelte"
-import Popover from "#lib/components/ui/Popover.svelte"
 import Separator from "#lib/components/ui/Separator.svelte"
+import { logFailure } from "#lib/logging.ts"
+import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { baseName } from "#lib/path.ts"
 import { desktop } from "#lib/platform.ts"
 import { nav, openConversation } from "#lib/store/nav.svelte.ts"
-import { APPS_PAGE, PAGES } from "#lib/store/pages.ts"
+import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
-import { describe, titles } from "#lib/store/recent.ts"
+import { describe, type Recent, titles } from "#lib/store/recent.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
-import { keysOf, type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
-
-type Action = {
-  label: string
-  icon: string
-  shortcut: ShortcutId
-  disabled: boolean
-  run: () => void
-}
+import { withKeys } from "#lib/store/shortcuts.ts"
 
 const info = $derived(
   panes.leaves.length === 1 ? describe(panes.active.current) : undefined,
@@ -29,39 +22,30 @@ const info = $derived(
 const page = $derived(
   nav.page === "chat"
     ? null
-    : [...PAGES, APPS_PAGE].find(p => p.id === nav.page),
+    : [...PAGES, APPS_PAGE, CALENDAR_PAGE, SETTINGS_PAGE].find(p => p.id === nav.page),
 )
 
-const actions: Action[] = $derived(
-  nav.page === "chat"
-    ? [
-        {
-          label: m.shell_split_right(),
-          icon: "lucide:columns-2",
-          shortcut: "splitRight",
-          disabled: !panes.canSplit(panes.active.id, "right"),
-          run: () => panes.split(panes.active.id, "right"),
-        },
-        {
-          label: m.shell_split_down(),
-          icon: "lucide:rows-2",
-          shortcut: "splitDown",
-          disabled: !panes.canSplit(panes.active.id, "bottom"),
-          run: () => panes.split(panes.active.id, "bottom"),
-        },
-      ]
-    : [],
+const cwd = $derived(
+  info?.current.kind === "session"
+    ? hostById(info.current.host)?.views[info.current.id]?.cwd
+    : undefined,
 )
 
 let maximized = $state(false)
 
-let more = $state(false)
-
 let renaming = $state(false)
 
-const rename = (key: string, value: string) => {
+const rename = (current: Recent["current"], key: string, value: string) => {
+  const title = value.trim()
+
   renaming = false
-  titles.set(key, value.trim())
+  titles.set(key, title)
+
+  if (title && current.kind === "session") {
+    hostById(current.host)
+      ?.rename(current.id, title)
+      .catch((e: unknown) => logFailure("session rename", e))
+  }
 }
 
 const win = () =>
@@ -86,7 +70,7 @@ onMount(() => {
 </script>
 
 <header
-  class="flex h-12 min-w-0 shrink-0 items-center gap-1 px-2 select-none"
+  class="flex h-10 min-w-0 shrink-0 items-center gap-1 px-1.5 select-none"
   data-tauri-drag-region
 >
   {#if !shell.docked && !shell.drawer}
@@ -108,16 +92,16 @@ onMount(() => {
         <span class="min-w-0 truncate">{page.label()}</span>
       </span>
     {:else if info && renaming}
-      {@const key = info.key}
+      {@const { key, current } = info}
       <input
         class="input input-sm w-80 max-w-full min-w-0"
         aria-label={m.menu_rename()}
         value={info.title}
         {@attach node => node.select()}
-        onblur={e => rename(key, e.currentTarget.value)}
+        onblur={e => rename(current, key, e.currentTarget.value)}
         onkeydown={e => {
           if (e.key === "Enter") {
-            rename(key, e.currentTarget.value)
+            rename(current, key, e.currentTarget.value)
           } else if (e.key === "Escape") {
             renaming = false
           }
@@ -135,40 +119,26 @@ onMount(() => {
         <Icon icon={info.icon} class="size-4 shrink-0 opacity-70" />
         <span class="min-w-0 truncate">{info.title}</span>
       </button>
+      {#if cwd}
+        <span
+          class="badge badge-soft badge-primary badge-sm ms-2 max-w-40 min-w-0 shrink-0 gap-1"
+          title={cwd}
+        >
+          <Icon icon="lucide:folder" class="size-3 shrink-0 opacity-60" />
+          <span class="min-w-0 truncate">{baseName(cwd)}</span>
+        </span>
+      {/if}
     {/if}
   </div>
-  <div class="flex shrink-0 items-center gap-0.5 max-sm:hidden">
-    {#each actions as action (action.icon)}
-      <IconButton
-        icon={action.icon}
-        label={action.label}
-        title={withKeys(action.label, action.shortcut)}
-        disabled={action.disabled}
-        onclick={action.run}
-      />
-    {/each}
-  </div>
-  <div class="shrink-0 sm:hidden">
-    <Popover label={m.shell_more()} placement="bottom-end" width="w-60" bind:open={more}>
-      {#snippet trigger(p)}
-        <IconButton {...p} icon="lucide:ellipsis" label={m.shell_more()} />
-      {/snippet}
-      <div role="menu" class="flex flex-col">
-        {#each actions as action (action.icon)}
-          <MenuItem
-            icon={action.icon}
-            label={action.label}
-            hint={keysOf(action.shortcut)}
-            disabled={action.disabled}
-            onclick={() => {
-              more = false
-              action.run()
-            }}
-          />
-        {/each}
-      </div>
-    </Popover>
-  </div>
+  {#if nav.page === "chat"}
+    <IconButton
+      icon={shell.side ? "lucide:panel-right-close" : "lucide:panel-right-open"}
+      label={m.shell_side_panel()}
+      aria-pressed={shell.side}
+      class="shrink-0"
+      onclick={shell.toggleSide}
+    />
+  {/if}
   {#if nav.page === "chat"}
     <IconButton
       icon="lucide:square-pen"
@@ -177,6 +147,9 @@ onMount(() => {
       class="shrink-0"
       onclick={() => openConversation(null)}
     />
+  {/if}
+  {#if import.meta.env.DEV}
+    <span class="badge badge-warning badge-sm shrink-0">{m.shell_dev_build()}</span>
   {/if}
   {#if desktop}
     <Separator vertical />

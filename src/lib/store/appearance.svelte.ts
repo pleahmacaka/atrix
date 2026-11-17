@@ -4,29 +4,42 @@ import { ACCENTS, settings, type WindowEffect } from "./settings.svelte.ts"
 
 const dark = new MediaQuery("(prefers-color-scheme: dark)")
 
-const applyEffect = async (effect: WindowEffect) => {
-  const { Effect, getCurrentWindow } = await import("@tauri-apps/api/window")
+export const frame = $state({ maximized: false })
+
+const trackFrame = async () => {
+  const { getCurrentWindow } = await import("@tauri-apps/api/window")
   const win = getCurrentWindow()
 
-  if (effect === "none") {
-    await win.clearEffects()
-
-    return
+  const sync = async () => {
+    frame.maximized = await win.isMaximized()
+    document.documentElement.toggleAttribute("data-maximized", frame.maximized)
   }
 
-  await win.setEffects({ effects: [Effect.Acrylic] })
+  await win.onResized(sync)
+  await sync()
+}
+
+const applyBackdrop = async (effect: WindowEffect) => {
+  const { invoke } = await import("@tauri-apps/api/core")
+
+  await invoke("window_backdrop", { glass: effect !== "none" })
 }
 
 const applyTheme = async (theme: "light" | "dark" | null) => {
   const { getCurrentWindow } = await import("@tauri-apps/api/window")
 
   await getCurrentWindow().setTheme(theme)
-  // acrylic keeps the tint of the theme it was applied under
-  await applyEffect(settings.effect)
+  // the system backdrop keeps the tint of the theme it was applied under
+  await applyBackdrop(settings.effect)
 }
 
-export const startAppearance = () =>
-  $effect.root(() => {
+export const startAppearance = () => {
+  if (desktop) {
+    document.documentElement.dataset.desktop = ""
+    trackFrame().catch(console.error)
+  }
+
+  return $effect.root(() => {
     $effect(() => {
       const isDark =
         settings.theme === "dark" ||
@@ -61,7 +74,8 @@ export const startAppearance = () =>
       root.style.setProperty("--surface", String(1 - transparency / 100))
 
       if (desktop) {
-        applyEffect(effect).catch(console.error)
+        applyBackdrop(effect).catch(console.error)
       }
     })
   })
+}

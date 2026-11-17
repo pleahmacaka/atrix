@@ -15,6 +15,7 @@ export const RAIL_REM = 3.5
 const savedSchema = z.object({
   width: z.number().catch(DEFAULT_REM),
   hidden: z.boolean().catch(false),
+  side: z.boolean().catch(false),
 })
 
 class Shell {
@@ -27,6 +28,13 @@ class Shell {
   rail = $state(this.#saved.hidden)
 
   drawer = $state(false)
+
+  side = $state(this.#saved.side)
+
+  toggleSide = () => {
+    this.side = !this.side
+    this.#save()
+  }
 
   get docked() {
     return this.#wide.current
@@ -60,7 +68,11 @@ class Shell {
     try {
       localStorage.setItem(
         KEY,
-        JSON.stringify({ width: this.width, hidden: this.rail }),
+        JSON.stringify({
+          width: this.width,
+          hidden: this.rail,
+          side: this.side,
+        }),
       )
     } catch {
       return

@@ -4,13 +4,13 @@ import {
   addDays,
   calendar,
   format,
-  monthGrid,
-  monthOf,
   onDay,
   pick,
   sameDay,
   TONES,
   timeRange,
+  WEEKS,
+  weeksFrom,
 } from "#lib/calendar/calendar.svelte.ts"
 import {
   addEvent,
@@ -42,11 +42,11 @@ let editing = $state<CalendarEvent | "new" | null>(null)
 
 let adder = $state<HTMLButtonElement>()
 
-const days = $derived(monthGrid(calendar.month))
+const days = $derived(weeksFrom(calendar.start))
 
 const today = addDays(new Date(), 0)
 
-const weekdays = monthGrid(monthOf(today))
+const weekdays = weeksFrom(addDays(today, -today.getDay()))
   .slice(0, 7)
   .map(d => format(d, { weekday: "short" }))
 
@@ -55,7 +55,7 @@ const selected = $derived(events.filter(e => onDay(e, calendar.selected)))
 $effect(() => {
   const change = host.dsChange
   const from = days[0]
-  const to = addDays(days[41], 1)
+  const to = addDays(days[days.length - 1], 1)
 
   if (change?.name && change.name !== CALENDAR) {
     return
@@ -68,11 +68,13 @@ $effect(() => {
   )
 })
 
-const shift = (months: number) => {
-  const month = calendar.month
-
-  calendar.month = new Date(month.getFullYear(), month.getMonth() + months, 1)
+const shift = (pages: number) => {
+  calendar.start = addDays(calendar.start, pages * WEEKS * 7)
 }
+
+const focus = $derived(addDays(calendar.start, 7))
+
+const title = $derived(format(focus, { year: "numeric", month: "long" }))
 
 const choose = (day: Date) => {
   editing = null
@@ -118,7 +120,7 @@ const menu = (e: MouseEvent, event: CalendarEvent) =>
 <div class="@container flex min-h-0 flex-1 flex-col">
   <PageHeader
     icon="lucide:calendar"
-    title={format(calendar.month, { year: "numeric", month: "long" })}
+    title={title}
     class="tabular-nums"
   >
     {#snippet actions()}
@@ -143,11 +145,11 @@ const menu = (e: MouseEvent, event: CalendarEvent) =>
   </PageHeader>
   <div class="min-h-0 flex-1 overflow-y-auto">
     <div
-      class="flex flex-col gap-3 px-4 pb-4 sm:px-6 sm:pb-6 @4xl:flex-row @4xl:items-start"
+      class="flex flex-col gap-3 px-4 pb-4 sm:px-6 sm:pb-6 @2xl:flex-row @2xl:items-start"
     >
       <section
         class="flex min-w-0 flex-1 flex-col gap-2 rounded-box border border-base-300 bg-base-100 p-3"
-        aria-label={format(calendar.month, { year: "numeric", month: "long" })}
+        aria-label={title}
       >
         <div class="grid grid-cols-7 gap-1">
           {#each weekdays as weekday (weekday)}
@@ -162,11 +164,9 @@ const menu = (e: MouseEvent, event: CalendarEvent) =>
               type="button"
               class={[
                 "flex min-h-14 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-field p-1",
-                "text-start transition-colors duration-140 @2xl:min-h-24 @2xl:items-start",
+                "text-start transition-colors duration-140 @2xl:min-h-28 @2xl:items-start",
                 active ? "bg-primary/8 text-primary" : "hover:bg-base-content/8",
-                day.getMonth() !== calendar.month.getMonth() &&
-                  !active &&
-                  "text-base-content/40",
+                day < today && !sameDay(day, today) && !active && "text-base-content/40",
               ]}
               aria-pressed={active}
               aria-label={format(day, { dateStyle: "full" })}
@@ -207,7 +207,7 @@ const menu = (e: MouseEvent, event: CalendarEvent) =>
       <section
         class={[
           "flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 p-3",
-          "@4xl:w-80 @4xl:shrink-0",
+          "@2xl:sticky @2xl:top-0 @2xl:w-72 @2xl:shrink-0 @4xl:w-80",
         ]}
       >
         <header class="flex items-center gap-1">

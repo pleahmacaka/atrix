@@ -1,12 +1,15 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { z } from "zod"
+import { groups } from "#lib/chat/groups.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
-import { APPS_PAGE, PAGES } from "#lib/store/pages.ts"
+import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
-import { keysOf, type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
+import { type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
+import { Stored } from "#lib/store/stored.svelte.ts"
 import Navigator from "./Navigator.svelte"
 
 let { rail = false }: { rail?: boolean } = $props()
@@ -19,31 +22,96 @@ type Action = {
   run: () => void
 }
 
-const actions: Action[] = $derived([
+const search: Action = {
+  label: m.chat_search_load(),
+  icon: "lucide:search",
+  shortcut: "palette",
+  run: () => {
+    nav.palette = true
+  },
+}
+
+const chatActions = (): Action[] => [
   {
     label: m.chat_new(),
     icon: "lucide:square-pen",
     shortcut: "new",
-    run: () => openConversation(null),
-  },
-  {
-    label: m.chat_search_load(),
-    icon: "lucide:search",
-    shortcut: "palette",
     run: () => {
-      nav.palette = true
+      goPage("chat")
+      openConversation(null)
     },
   },
   {
-    label: APPS_PAGE.label(),
-    icon: APPS_PAGE.icon,
-    pressed: nav.page === "apps",
-    run: () => goPage("apps"),
+    label: m.group_new(),
+    icon: "lucide:users",
+    run: async () => {
+      goPage("chat")
+      openConversation({ kind: "group", id: await groups.create() })
+    },
   },
-])
+  search,
+]
+
+const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
+  agent: () => [
+    {
+      label: m.agent_new(),
+      icon: "lucide:user-plus",
+      pressed: nav.agent === "new",
+      run: () => {
+        nav.agent = "new"
+      },
+    },
+    search,
+  ],
+  data: () => [search],
+  devices: () => [search],
+  knowledge: () => [search],
+  apps: () => [search],
+  settings: () => [],
+}
+
+const actions: Action[] = $derived((PAGE_ACTIONS[nav.page] ?? chatActions)())
+
+const order = new Stored("order:", [] as string[], z.array(z.string()))
+
+const rank = (id: string) => {
+  const at = order.get("pages").indexOf(id)
+
+  return at === -1 ? Number.MAX_SAFE_INTEGER : at
+}
+
+let dragging = $state<string | null>(null)
+
+let hint = $state<{ id: string; after: boolean } | null>(null)
+
+const hover = (e: DragEvent, id: string) => {
+  if (!dragging) {
+    return
+  }
+
+  e.preventDefault()
+
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const after = rail ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2
+
+  hint = { id, after }
+}
+
+const drop = () => {
+  if (dragging && hint && dragging !== hint.id) {
+    const ids = pages.map(p => p.id).filter(id => id !== dragging)
+    const at = ids.indexOf(hint.id) + (hint.after ? 1 : 0)
+
+    order.set("pages", ids.toSpliced(at, 0, dragging))
+  }
+
+  dragging = null
+  hint = null
+}
 
 const pages = $derived([
-  ...PAGES.map(page => ({
+  ...[...PAGES, CALENDAR_PAGE, APPS_PAGE].map(page => ({
     id: page.id as string,
     label: page.label(),
     icon: page.icon,
@@ -52,14 +120,12 @@ const pages = $derived([
   })),
   {
     id: "settings",
-    label: m.common_settings(),
-    icon: "lucide:settings",
-    active: nav.settings,
-    run: () => {
-      nav.settings = true
-    },
+    label: SETTINGS_PAGE.label(),
+    icon: SETTINGS_PAGE.icon,
+    active: nav.page === "settings",
+    run: () => goPage("settings"),
   },
-])
+].toSorted((a, b) => rank(a.id) - rank(b.id)))
 
 const toggleLabel = $derived(
   rail ? m.shell_expand_sidebar() : m.shell_close_sidebar(),
@@ -97,14 +163,11 @@ const hintOf = (action: Action) =>
     <Icon icon={action.icon} class="size-4 shrink-0" />
     {#if !rail}
       <span class="min-w-0 flex-1 truncate text-start">{action.label}</span>
-      {#if action.shortcut}
-        <kbd class="kbd kbd-xs opacity-60">{keysOf(action.shortcut)}</kbd>
-      {/if}
     {/if}
   </button>
 {/snippet}
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 select-none">
   <section class="island flex min-h-0 flex-1 flex-col overflow-hidden">
     <nav
       class={["flex shrink-0 flex-col gap-0.5 p-2", rail && "items-center"]}
@@ -123,6 +186,10 @@ const hintOf = (action: Action) =>
               {@render toggle()}
             {/if}
           </div>
+        {:else}
+          <div class="flex justify-end">
+            {@render toggle()}
+          </div>
         {/each}
       {/if}
     </nav>
@@ -132,8 +199,36 @@ const hintOf = (action: Action) =>
     class={["island flex shrink-0 gap-0.5 p-1.5", rail && "flex-col items-center"]}
     aria-label={m.shell_pages()}
   >
+    <ul class="contents">
     {#each pages as page (page.id)}
-      <IconButton
+      <li
+        class={["relative flex", !rail && "min-w-0 flex-1", dragging === page.id && "opacity-40"]}
+        draggable="true"
+        ondragstart={e => {
+          dragging = page.id
+          e.dataTransfer?.setData("text/plain", page.id)
+        }}
+        ondragover={e => hover(e, page.id)}
+        ondrop={e => {
+          e.preventDefault()
+          drop()
+        }}
+        ondragend={() => {
+          dragging = null
+          hint = null
+        }}
+      >
+        {#if hint?.id === page.id && dragging !== page.id}
+          <span
+            class={[
+              "pointer-events-none absolute z-10 rounded-full bg-primary",
+              rail
+                ? ["inset-x-1 h-0.5", hint.after ? "-bottom-0.5" : "-top-0.5"]
+                : ["inset-y-1 w-0.5", hint.after ? "-right-0.5" : "-left-0.5"],
+            ]}
+          ></span>
+        {/if}
+        <IconButton
         icon={page.icon}
         label={page.label}
         title={null}
@@ -147,6 +242,8 @@ const hintOf = (action: Action) =>
         {@attach tooltip(() => page.label)}
         onclick={page.run}
       />
+      </li>
     {/each}
+    </ul>
   </nav>
 </div>

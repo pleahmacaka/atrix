@@ -7,6 +7,7 @@ import { Placeholder } from "@tiptap/extensions"
 import { Markdown } from "@tiptap/markdown"
 import StarterKit from "@tiptap/starter-kit"
 import { onDestroy, onMount, untrack } from "svelte"
+import { BUILTIN_VARIABLES, Variable, variablesIn } from "#lib/knowledge/variable.ts"
 import { WikiLink } from "#lib/knowledge/wikilink.ts"
 import { m } from "#lib/paraglide/messages.js"
 import Toolbar from "./Toolbar.svelte"
@@ -19,6 +20,9 @@ let {
   onchange,
   root = $bindable(null),
   lossy = $bindable(false),
+  variables = [],
+  placeholder = m.knowledge_placeholder(),
+  compact = false,
 }: {
   markdown: string
   editable: boolean
@@ -27,6 +31,9 @@ let {
   onchange: (markdown: string) => void
   root?: HTMLElement | null
   lossy?: boolean
+  variables?: string[]
+  placeholder?: string
+  compact?: boolean
 } = $props()
 
 let element = $state<HTMLDivElement>()
@@ -72,14 +79,23 @@ onMount(() => {
       TableKit.configure({ table: { resizable: false } }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Placeholder.configure({ placeholder: m.knowledge_placeholder() }),
+      Placeholder.configure({ placeholder }),
       WikiLink.configure({ title, open }),
+      Variable.configure({
+        items: () => [
+          ...new Set([
+            ...BUILTIN_VARIABLES,
+            ...variables,
+            ...variablesIn(editor?.getMarkdown() ?? markdown),
+          ]),
+        ],
+      }),
     ],
     content: markdown,
     contentType: "markdown",
     editable,
     editorProps: {
-      attributes: { class: "wiki min-h-96 outline-none" },
+      attributes: { class: compact ? "wiki min-h-40 outline-none" : "wiki min-h-96 outline-none" },
       handlePaste: (_, e) => refuseFiles(e.clipboardData),
       handleDrop: (_, e) => refuseFiles(e.dataTransfer),
     },

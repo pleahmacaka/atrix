@@ -5,6 +5,7 @@ import { desktop } from "#lib/platform.ts"
 import { openConversation } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import { bubble, type CallSync, callState, folded, palette, replyOf } from "#lib/voice/call.svelte.ts"
+import { CHAT_HOST, chatViewOf } from "#lib/voice/chatCall.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import { mirrorCall } from "#lib/voice/overlay.svelte.ts"
 import { voice } from "#lib/voice/voice.svelte.ts"
@@ -12,7 +13,13 @@ import CallBubble from "./CallBubble.svelte"
 
 const host = $derived(conversation.host ? hostById(conversation.host) : undefined)
 
-const view = $derived(conversation.owner ? host?.views[conversation.owner] : undefined)
+const view = $derived(
+  !conversation.owner
+    ? undefined
+    : conversation.host === CHAT_HOST
+      ? chatViewOf(conversation.owner)
+      : host?.views[conversation.owner],
+)
 
 const call = $derived(callState(view?.running ?? false, view?.items ?? []))
 
@@ -47,6 +54,12 @@ const open = () => {
   const hostId = conversation.host
 
   if (!owner || !hostId) {
+    return
+  }
+
+  if (hostId === CHAT_HOST) {
+    openConversation({ kind: "chat", id: owner })
+
     return
   }
 

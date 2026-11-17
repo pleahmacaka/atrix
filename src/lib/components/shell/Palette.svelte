@@ -11,7 +11,7 @@ import SearchField from "#lib/components/ui/SearchField.svelte"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { goPage, nav, openConversation, openSettings } from "#lib/store/nav.svelte.ts"
-import { APPS_PAGE, PAGES } from "#lib/store/pages.ts"
+import { APPS_PAGE, CALENDAR_PAGE, PAGES } from "#lib/store/pages.ts"
 import { recents } from "#lib/store/recent.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { keysOf } from "#lib/store/shortcuts.ts"
@@ -143,7 +143,7 @@ const sections = $derived.by((): Section[] => {
     },
   ]
 
-  const pages: Item[] = [...PAGES, APPS_PAGE].map(p => ({
+  const pages: Item[] = [...PAGES, APPS_PAGE, CALENDAR_PAGE].map(p => ({
     key: `page:${p.id}`,
     icon: p.icon,
     label: p.label(),
@@ -290,7 +290,7 @@ const keydown = (e: KeyboardEvent) => {
       <ErrorAlert message={attempt.failure} />
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop bg-base-100/50 backdrop-blur-sm">
+  <form method="dialog" class="modal-backdrop backdrop-blur-sm">
     <button type="submit">{m.common_close()}</button>
   </form>
 </dialog>

@@ -7,6 +7,7 @@ import type {
   HostEvent,
   HostState,
 } from "#lib/p2p/protocol.ts"
+import { synthesizeLocal, transcribeLocal } from "#lib/store/speech.svelte.ts"
 import { Bridge } from "./bridge.ts"
 import { readConfig, removeSkill, writeDoc, writeSkill } from "./config.ts"
 import {
@@ -142,6 +143,20 @@ export class Host {
     prompt: r => this.#sessions.prompt(r.sessionId, r.text, r.attachments),
     cancel: r => this.#sessions.cancel(r.sessionId),
     close: r => this.#sessions.close(r.sessionId),
+    "speech.stt": async r => ({
+      text: await transcribeLocal(
+        new Blob([Uint8Array.fromBase64(r.audio)], { type: r.mime }),
+      ),
+    }),
+    "speech.tts": async r => {
+      const audio = await synthesizeLocal(r.text)
+
+      return {
+        audio: new Uint8Array(await audio.arrayBuffer()).toBase64(),
+        mime: audio.type,
+      }
+    },
+    rename: r => this.#sessions.rename(r.sessionId, r.title),
     permit: async r => {
       this.#sessions.permit(r.sessionId, r.optionId)
 

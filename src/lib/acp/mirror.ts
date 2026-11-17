@@ -1,6 +1,8 @@
+import { invoke } from "@tauri-apps/api/core"
 import { z } from "zod"
-import { native } from "#lib/native.ts"
+import { messageOf, native } from "#lib/native.ts"
 import type {
+  Attachment,
   HarnessKind,
   Listed,
   SessionView,
@@ -18,6 +20,15 @@ type RawAgent = {
 }
 
 const POLL_MS = 500
+
+const IMAGE_MARKER = /[Image #(d+)]/g
+
+const pasteImage = (pid: number, data: string) =>
+  invoke("terminal_paste_image", Uint8Array.fromBase64(data), {
+    headers: { pid: String(pid) },
+  }).catch((e: unknown) => {
+    throw new Error(messageOf(e))
+  })
 
 const TAIL_BYTES = 4_000_000
 
@@ -44,6 +55,7 @@ type Watch = {
   paused: boolean
   dirty: boolean
   turn: Promise<void>
+  seen: Set<string>
 }
 
 export class ExternalSessions {
@@ -110,7 +122,7 @@ export class ExternalSessions {
     }
   }
 
-  type = async (id: string, text: string) => {
+  #pid = (id: string) => {
     const pid = this.#pids.get(id)
 
     if (pid === undefined) {
@@ -121,14 +133,49 @@ export class ExternalSessions {
       throw new Error(m.chat_terminal_waiting())
     }
 
-    await native("terminal_type", { pid, text })
+    return pid
+  }
 
+  keys = (id: string, text: string) =>
+    native("terminal_type", { pid: this.#pid(id), text })
+
+  #showQueue = (id: string, change: (queue: string[]) => void) => {
     const watch = this.#watches.get(id)
 
     if (watch?.view) {
-      watch.log.queue.push(text)
+      change(watch.log.queue)
       watch.view.queued = [...watch.log.queue]
       this.onItems(watch.view)
+    }
+  }
+
+  type = async (id: string, text: string, attachments: Attachment[]) => {
+    const pid = this.#pid(id)
+    const pasted = attachments.flatMap(a => (a.kind === "text" ? a.text : []))
+
+    this.#showQueue(id, queue => queue.push(text))
+
+    try {
+      for (const a of attachments) {
+        if (a.kind === "image") {
+          await pasteImage(pid, a.data)
+        }
+      }
+
+      await native("terminal_type", {
+        pid,
+        text: [text, ...pasted].filter(Boolean).join("\n\n"),
+      })
+    } catch (e) {
+      this.#showQueue(id, queue => {
+        const at = queue.lastIndexOf(text)
+
+        if (at !== -1) {
+          queue.splice(at, 1)
+        }
+      })
+
+      throw e
     }
   }
 
@@ -176,6 +223,11 @@ export class ExternalSessions {
       queued: [...watch.log.queue],
       shells: [],
       model: watch.log.model,
+      context: watch.log.context,
+      contextFrom: watch.log.contextFrom,
+      contextChars: watch.log.contextChars,
+      contextBase: watch.log.contextBase,
+      limits: watch.log.limits,
     }
 
     watch.view.commands = (await SOURCES[kind].commands?.(this.#home)) ?? []
@@ -208,6 +260,7 @@ export class ExternalSessions {
       owned: false,
       paused: false,
       dirty: false,
+      seen: new Set(),
       turn: Promise.resolve(),
     }
 
@@ -293,6 +346,38 @@ export class ExternalSessions {
 
   #read = (watch: Watch) => this.#serial(watch, () => this.#pull(watch))
 
+  #capture = (watch: Watch, view: SessionView) => {
+    const fresh = view.queued?.filter(text => !watch.seen.has(text)) ?? []
+
+    for (const text of fresh) {
+      watch.seen.add(text)
+    }
+
+    const number = fresh
+      .flatMap(text => [...text.matchAll(IMAGE_MARKER)].map(match => match[1]))
+      .at(-1)
+
+    if (number === undefined) {
+      return
+    }
+
+    native<ArrayBuffer>("clipboard_image")
+      .then(bytes => {
+        if (bytes.byteLength === 0) {
+          return
+        }
+
+        const data = new Uint8Array(bytes).toBase64()
+
+        view.queuedImages = {
+          ...view.queuedImages,
+          [number]: `data:image/png;base64,${data}`,
+        }
+        this.onItems(view)
+      })
+      .catch(() => {})
+  }
+
   #pull = async (watch: Watch) => {
     const { lines, offset } = await this.#lines(watch)
 
@@ -308,7 +393,13 @@ export class ExternalSessions {
 
     if (watch.view) {
       watch.view.queued = [...watch.log.queue]
+      this.#capture(watch, watch.view)
       watch.view.model = watch.log.model
+      watch.view.context = watch.log.context
+      watch.view.contextFrom = watch.log.contextFrom
+      watch.view.contextChars = watch.log.contextChars
+      watch.view.contextBase = watch.log.contextBase
+      watch.view.limits = watch.log.limits
       watch.view.since = watch.log.since
       watch.view.tokens = turnTokens(watch.log)
     }

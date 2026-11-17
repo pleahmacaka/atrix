@@ -9,6 +9,7 @@ export type Page =
   | "agent"
   | "devices"
   | "apps"
+  | "settings"
 
 export type SettingsTab =
   | "appearance"
@@ -22,6 +23,7 @@ export type SettingsTab =
 export type Current =
   | { kind: "chat"; id: string }
   | { kind: "session"; host: string; id: string }
+  | { kind: "group"; id: string }
   | null
 
 export type Target =
@@ -32,33 +34,33 @@ export const nav = $state<{
   page: Page
   harness: { host: string; id: string } | null
   doc: string | null
+  agent: string | null
   table: { name: string; table: string } | null
   target: Target
   palette: boolean
   find: boolean
-  settings: boolean
   settingsTab: SettingsTab
 }>({
   page: "chat",
   harness: null,
   doc: null,
+  agent: null,
   table: null,
   target: { kind: "model", gateway: "", model: "" },
   palette: false,
   find: false,
-  settings: false,
   settingsTab: "appearance",
 })
-
-export const openSettings = (tab: SettingsTab) => {
-  nav.settingsTab = tab
-  nav.palette = false
-  nav.settings = true
-}
 
 export const goPage = (page: Page) => {
   nav.page = page
   shell.closeDrawer()
+}
+
+export const openSettings = (tab: SettingsTab) => {
+  nav.settingsTab = tab
+  nav.palette = false
+  goPage("settings")
 }
 
 export const openConversation = (current: Current) => {

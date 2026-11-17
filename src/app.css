@@ -210,6 +210,44 @@ body {
     env(safe-area-inset-left);
 }
 
+:root {
+  interpolate-size: allow-keywords;
+}
+
+details::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition:
+    block-size 140ms ease,
+    content-visibility 140ms allow-discrete;
+}
+
+details[open]::details-content {
+  block-size: auto;
+}
+
+summary {
+  user-select: none;
+}
+
+::view-transition-group(composer) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -242,7 +280,7 @@ body {
 }
 
 .modal[open] {
-  background-color: oklch(0% 0 0 / 0.55);
+  background-color: oklch(0% 0 0 / 0.2);
   backdrop-filter: blur(0.25rem);
 }
 
@@ -272,6 +310,71 @@ body {
 :root[data-overlay],
 :root[data-overlay] body {
   background: transparent;
+}
+
+[data-effect="on"] .window-frame {
+  background-image:
+    radial-gradient(
+      70rem 45rem at 0% 0%,
+      color-mix(in oklab, var(--color-primary) 10%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      60rem 40rem at 100% 100%,
+      color-mix(in oklab, var(--color-primary) 7%, transparent),
+      transparent 70%
+    );
+}
+
+[data-effect="on"] .island {
+  background-image: linear-gradient(
+    165deg,
+    oklch(100% 0 0 / var(--sheen)),
+    transparent 45%
+  );
+  box-shadow:
+    inset 0 0.0625rem 0 0 oklch(100% 0 0 / calc(var(--sheen) * 2.5)),
+    inset 0 -3rem 4rem -3rem oklch(0% 0 0 / 0.22),
+    0 1.5rem 3.5rem -1.5rem oklch(0% 0 0 / 0.5);
+}
+
+[data-effect="on"][data-theme="atrix-dark"] {
+  --sheen: 0.06;
+}
+
+[data-effect="on"][data-theme="atrix-light"] {
+  --sheen: 0.3;
+}
+
+[data-effect="on"] form .bg-raised {
+  background-color: color-mix(in oklab, var(--raised) 86%, transparent);
+  backdrop-filter: blur(1rem) saturate(1.4);
+}
+
+:root[data-desktop],
+:root[data-desktop] body {
+  background: transparent;
+}
+
+:root[data-desktop]:not([data-maximized]) .window-frame {
+  border-radius: calc(var(--radius-box) + 0.5rem);
+  overflow: hidden;
+}
+
+:root[data-desktop][data-effect="on"] .window-frame {
+  border-radius: 0.5rem;
+}
+
+:root[data-desktop][data-effect="on"]:not([data-shape="square"]) {
+  --radius-box: 0.5rem;
+}
+
+.wiki .variable {
+  border-radius: var(--radius-field);
+  background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  padding-inline: 0.25rem;
+  font-weight: 500;
 }
 
 ::highlight(find) {
@@ -314,15 +417,15 @@ body {
 }
 
 .markdown h1 {
-  font-size: 1.375rem;
+  font-size: 1.25em;
 }
 
 .markdown h2 {
-  font-size: 1.1875rem;
+  font-size: 1.125em;
 }
 
 .markdown h3 {
-  font-size: 1.0625rem;
+  font-size: 1.0625em;
 }
 
 .markdown ul {

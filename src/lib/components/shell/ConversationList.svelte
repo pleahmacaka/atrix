@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
+import { groups } from "#lib/chat/groups.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
@@ -134,7 +135,38 @@ const menuFor = (item: Recent): MenuItem[] => {
       icon: "lucide:fingerprint",
       run: () => navigator.clipboard.writeText(current.id),
     },
-    ...(current.kind === "chat"
+    ...(current.kind === "session"
+      ? [
+          "separator" as const,
+          {
+            label: m.group_start_with(),
+            icon: "lucide:users",
+            run: async () => {
+              const id = await groups.create()
+
+              await groups.join(id, current.host, current.id)
+              openConversation({ kind: "group", id })
+            },
+          },
+          ...groups.list.map(g => ({
+            label: m.group_add_to({ name: g.title }),
+            icon: "lucide:user-plus",
+            run: () => groups.join(g.id, current.host, current.id),
+          })),
+        ]
+      : []),
+    ...(current.kind === "group"
+      ? [
+          "separator" as const,
+          {
+            label: m.group_delete(),
+            icon: "lucide:trash-2",
+            danger: true,
+            confirm: m.menu_confirm_delete(),
+            run: () => groups.remove(current.id),
+          },
+        ]
+      : current.kind === "chat"
       ? [
           "separator" as const,
           {
@@ -160,7 +192,7 @@ const menuFor = (item: Recent): MenuItem[] => {
 </script>
 
 <ul
-  class={["menu w-full gap-0.5 pt-0", rail ? "items-center px-1" : "px-2"]}
+  class={["menu w-full gap-0.5 pt-0", rail ? "items-center px-1" : "ps-2 pe-1"]}
   onpointerenter={freeze}
   onpointerleave={thaw}
 >
@@ -171,7 +203,7 @@ const menuFor = (item: Recent): MenuItem[] => {
         type="button"
         class={[
           "min-w-0 cursor-grab active:cursor-grabbing",
-          rail && "size-8 justify-center p-0",
+          rail ? "size-8 content-center justify-center p-0" : "gap-2 pe-1.5",
           activeKey === item.key && "menu-active",
         ]}
         title={rail ? undefined : `${item.source}. ${statusOf(item)}`}

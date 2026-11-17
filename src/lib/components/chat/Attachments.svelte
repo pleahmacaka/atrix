@@ -2,15 +2,36 @@
 import Icon from "@iconify/svelte"
 import type { FileRef } from "#lib/acp/items.ts"
 import ImageViewer, { type Viewed } from "#lib/components/ui/ImageViewer.svelte"
+import { native } from "#lib/native.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 let { files, mine = false }: { files: FileRef[]; mine?: boolean } = $props()
 
-const images = $derived(
-  files.filter(f => f.mimeType.startsWith("image/") && f.url),
+let loaded = $state<Record<string, string>>({})
+
+$effect(() => {
+  for (const file of files) {
+    const path = file.path
+
+    if (path && !file.url && !loaded[path]) {
+      native<ArrayBuffer>("read_image", { path })
+        .then(bytes => {
+          loaded[path] = URL.createObjectURL(new Blob([bytes], { type: file.mimeType }))
+        })
+        .catch(() => {})
+    }
+  }
+})
+
+const resolved = $derived(
+  files.map(f => (f.path && !f.url && loaded[f.path] ? { ...f, url: loaded[f.path] } : f)),
 )
 
-const others = $derived(files.filter(f => !images.includes(f)))
+const images = $derived(
+  resolved.filter(f => f.mimeType.startsWith("image/") && f.url),
+)
+
+const others = $derived(resolved.filter(f => !images.includes(f)))
 
 let zoomed = $state<Viewed | null>(null)
 
@@ -45,7 +66,7 @@ const chip = "island flex h-16 max-w-64 min-w-0 items-center gap-2 px-3 text-sm"
             <img
               src={file.url}
               alt={file.name}
-              class="size-32 object-cover"
+              class="size-20 object-cover"
               loading="lazy"
             />
           </button>

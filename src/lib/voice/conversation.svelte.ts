@@ -40,6 +40,8 @@ class Conversation {
 
   shown = $state(0)
 
+  full = $state(false)
+
   muted = $state(false)
 
   hearing = $state(false)
@@ -93,6 +95,7 @@ class Conversation {
     clearTimeout(this.#wait)
     this.owner = null
     this.host = null
+    this.full = false
     this.muted = false
     this.waiting = false
     this.heard = ""

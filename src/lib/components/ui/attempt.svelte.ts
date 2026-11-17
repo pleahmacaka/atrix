@@ -1,9 +1,13 @@
-import { isBusyError } from "#lib/p2p/protocol.ts"
+import { isBusyError, isGoneError } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 export const errorText = (e: unknown) => {
   if (isBusyError(e)) {
     return m.chat_session_busy()
+  }
+
+  if (isGoneError(e)) {
+    return m.chat_session_gone()
   }
 
   return e instanceof Error ? e.message : String(e)

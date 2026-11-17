@@ -7,28 +7,10 @@ import { voice } from "#lib/voice/voice.svelte.ts"
 
 const composer = useComposer()
 
-const join = (text: string) => {
+const insert = (text: string) => {
   const current = composer.text.trim()
 
-  return current ? `${current} ${text}` : text
-}
-
-const insert = (text: string) => {
-  composer.text = join(text)
-}
-
-const owner = $derived(composer.props.converse ? composer.props.draft : undefined)
-
-const talking = $derived(!!owner && conversation.owner === owner)
-
-const toggleTalk = () => {
-  const { converse, draft } = composer.props
-
-  if (talking) {
-    conversation.end()
-  } else if (converse) {
-    conversation.start(draft, converse.host)
-  }
+  composer.text = current ? `${current} ${text}` : text
 }
 
 const clock = $derived(
@@ -42,44 +24,53 @@ const label = $derived(
       ? m.voice_transcribing()
       : m.voice_record(),
 )
+
+const error = $derived(conversation.error ?? voice.error)
 </script>
 
 {#if voice.ready}
   <div class="flex min-w-0 shrink-0 items-center gap-1">
-    <IconButton
-      icon={voice.recording ? "lucide:square" : "lucide:mic"}
-      iconClass={voice.recording ? "size-3.5 animate-pulse" : "size-4"}
-      {label}
-      tone={voice.recording ? "error" : "ghost"}
-      busy={voice.transcribing}
-      class="relative transition-colors duration-140"
-      aria-pressed={voice.recording}
-      disabled={voice.transcribing || !!conversation.owner}
-      onclick={() => voice.toggle(insert)}
-    >
-      {#if voice.recording && !voice.transcribing}
-        <span
-          class="badge badge-error badge-xs absolute -top-2 left-1/2 -translate-x-1/2 tabular-nums"
-        >
-          {clock}
-        </span>
-      {/if}
-    </IconButton>
-    {#if owner}
-      <IconButton
-        icon="lucide:audio-lines"
-        iconClass={["size-4", talking && "animate-pulse"]}
-        label={m.voice_mode()}
-        class={["transition-colors duration-140", talking && "bg-primary/8 text-primary"]}
-        aria-pressed={talking}
-        disabled={voice.recording || voice.transcribing}
-        onclick={toggleTalk}
-      />
-    {/if}
-    {#if voice.error && !talking}
-      <span role="alert" class="min-w-0 truncate text-xs text-error" title={voice.error}>
-        {voice.error}
+    {#if error}
+      <span role="alert" class="min-w-0 truncate text-xs text-error" title={error}>
+        {error}
       </span>
+    {/if}
+    {#if composer.talking}
+      <IconButton
+        icon={conversation.muted ? "lucide:mic-off" : "lucide:mic"}
+        label={conversation.muted ? m.voice_unmute() : m.voice_mute()}
+        class={["transition-colors duration-140", conversation.muted && "bg-primary/8 text-primary"]}
+        aria-pressed={conversation.muted}
+        onclick={() => conversation.setMuted(!conversation.muted)}
+      />
+      <IconButton
+        icon={conversation.full ? "lucide:minimize-2" : "lucide:maximize-2"}
+        label={conversation.full ? m.voice_exit_fullscreen() : m.voice_fullscreen()}
+        aria-pressed={conversation.full}
+        onclick={() => {
+          conversation.full = !conversation.full
+        }}
+      />
+    {:else}
+      <IconButton
+        icon={voice.recording ? "lucide:square" : "lucide:mic"}
+        iconClass={voice.recording ? "size-3.5 animate-pulse" : "size-4"}
+        {label}
+        tone={voice.recording ? "error" : "ghost"}
+        busy={voice.transcribing}
+        class="relative transition-colors duration-140"
+        aria-pressed={voice.recording}
+        disabled={voice.transcribing || !!conversation.owner}
+        onclick={() => voice.toggle(insert)}
+      >
+        {#if voice.recording && !voice.transcribing}
+          <span
+            class="badge badge-error badge-xs absolute -top-2 left-1/2 -translate-x-1/2 tabular-nums"
+          >
+            {clock}
+          </span>
+        {/if}
+      </IconButton>
     {/if}
   </div>
 {/if}

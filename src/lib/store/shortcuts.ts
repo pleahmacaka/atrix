@@ -52,9 +52,7 @@ export const SHORTCUTS: Shortcut[] = [
     label: m.common_settings(),
     icon: "lucide:settings",
     matches: e => mod(e) && e.key === ",",
-    run: () => {
-      nav.settings = !nav.settings
-    },
+    run: () => goPage(nav.page === "settings" ? "chat" : "settings"),
   },
   {
     id: "new",

@@ -1,6 +1,7 @@
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import type { HostEntry } from "#lib/p2p/hosts.svelte.ts"
-import { activeGateways, GATEWAY_ICONS } from "#lib/store/gateways.svelte.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { activeGateways, gatewayIcon } from "#lib/store/gateways.svelte.ts"
 
 export const GATEWAY = "gateway"
 
@@ -9,6 +10,7 @@ export type TargetOption = {
   icon: string
   label: string
   group: string
+  badge?: string
 }
 
 export const gatewayKey = (id: string) => `${GATEWAY}\n${id}`
@@ -19,9 +21,10 @@ export const harnessKey = (host: string, harness: string) =>
 export const targetsOf = (hosts: HostEntry[]): TargetOption[] => [
   ...activeGateways().map(g => ({
     key: gatewayKey(g.id),
-    icon: GATEWAY_ICONS[g.kind],
+    icon: gatewayIcon(g),
     label: g.name,
     group: "",
+    badge: m.target_api(),
   })),
   ...hosts.flatMap(host =>
     (host.view.state?.harnesses ?? [])

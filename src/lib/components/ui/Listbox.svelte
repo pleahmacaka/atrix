@@ -224,7 +224,7 @@ const toggle = (e: ToggleEvent) => {
     position-area: block-end span-inline-end;
     position-try-fallbacks: flip-inline;
     min-width: anchor-size(width);
-    max-height: min(20rem, 100%);
+    max-height: min(14rem, 100%);
   }
 
   .anchored.above {

@@ -7,6 +7,7 @@ export type SelectOption<T> = {
   keywords?: string[]
   disabled?: string
   older?: boolean
+  icon?: string
 }
 </script>
 
@@ -270,6 +271,9 @@ const leave = (e: FocusEvent) => {
   {#snippet option(o)}
     {#if leading}
       {@render leading(o)}
+    {/if}
+    {#if o.icon}
+      <Icon icon={o.icon} class="size-4 shrink-0 opacity-80" />
     {/if}
     <span class="min-w-0 flex-1 truncate">{o.label}</span>
     {#if o.disabled}

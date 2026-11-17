@@ -1,6 +1,5 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { untrack } from "svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
 import type { SessionView } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -15,14 +14,6 @@ import RunningStatus from "./RunningStatus.svelte"
 let { view, onPermit }: { view: SessionView; onPermit: (optionId: string) => void } =
   $props()
 
-$effect(() => {
-  untrack(() => conversation.shown++)
-
-  return () => {
-    conversation.shown--
-  }
-})
-
 const call = $derived(callState(view.running, view.items))
 
 const error = $derived(conversation.error ?? voice.error)
@@ -36,7 +27,7 @@ const RATES = [0.8, 1, 1.2, 1.4, 1.6]
   onkeydown={e => {
     if (e.key === "Escape") {
       e.preventDefault()
-      conversation.end()
+      conversation.full = false
     }
   }}
 />

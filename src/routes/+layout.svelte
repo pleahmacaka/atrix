@@ -8,6 +8,7 @@ import { startChannels } from "#lib/channels/relay.svelte.ts"
 import Onboarding from "#lib/components/devices/Onboarding.svelte"
 import { errorText } from "#lib/components/ui/attempt.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import { startTitleTips } from "#lib/components/ui/tooltip.ts"
 import { startLogging } from "#lib/logging.ts"
 import { startLocalHost } from "#lib/p2p/hosts.svelte.ts"
 import { sync } from "#lib/p2p/sync.svelte.ts"
@@ -18,6 +19,7 @@ import { connectOpenRouter } from "#lib/store/gateways.svelte.ts"
 import { local } from "#lib/store/local.svelte.ts"
 import { currentLocale } from "#lib/store/locale.ts"
 import { captureCallback, finishCallback } from "#lib/store/openrouter.ts"
+import { migrateVoiceURL } from "#lib/store/speech.svelte.ts"
 
 let { children }: { children: Snippet } = $props()
 
@@ -34,6 +36,7 @@ document.documentElement.lang = currentLocale()
 if (!overlay) {
   startLogging()
   startAppearance()
+  startTitleTips()
 }
 
 onMount(async () => {
@@ -46,6 +49,7 @@ onMount(async () => {
 
   try {
     await local.load()
+    await migrateVoiceURL()
 
     const key = await finishCallback()
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
+import GroupChat from "#lib/components/chat/GroupChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -154,6 +155,8 @@ const HINTS: Record<Zone, string> = {
     </div>
   {:else if host && current?.kind === "session"}
     <SessionChat {host} sessionId={current.id} />
+  {:else if current?.kind === "group"}
+    <GroupChat id={current.id} />
   {:else}
     <Start />
   {/if}
