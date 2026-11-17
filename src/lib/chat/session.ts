@@ -20,11 +20,12 @@ export type Turn = { id: string; prompt: string; reply: string }
 
 export type Prompt = { text: string; files: FileRef[]; interrupted: boolean }
 
-const isActivity = (item: ChatItem): item is Activity =>
-  item.type === "tool" || item.type === "thought"
+const isActivity = (item: ChatItem): item is Activity => item.type === "tool"
+
+const INJECTED = /<(agent-instructions|atrix-agents)>[\s\S]*?<\/\1>\s*/g
 
 export const promptOf = (item: TextItem): Prompt => {
-  const split = splitContext(item.text)
+  const split = splitContext(item.text.replaceAll(INJECTED, ""))
   const own = item.files ?? []
 
   return {

@@ -136,6 +136,8 @@ export class Host {
     "mail.close": r => this.#mail.closeWorker(r.caller, r.session),
     state: async () => this.#state(),
     "fs.browse": r => native("browse_dirs", { path: r.path }),
+    "fs.git": r => native("git_remote", { path: r.path }),
+    "git.run": r => native("git_run", { path: r.path, op: r.action }),
     list: r => this.#sessions.list(r.harness),
     new: r => this.#sessions.create(r.harness, r.cwd),
     load: r =>
@@ -159,6 +161,11 @@ export class Host {
     rename: r => this.#sessions.rename(r.sessionId, r.title),
     permit: async r => {
       this.#sessions.permit(r.sessionId, r.optionId)
+
+      return null
+    },
+    answer: async r => {
+      await this.#sessions.answer(r.sessionId, r.toolId, r.answers)
 
       return null
     },

@@ -61,6 +61,16 @@ const rows = $derived.by(() => {
 
 const flat = $derived(groups.flatMap(g => g.items))
 
+let visible = $state(false)
+
+let tall = $state(false)
+
+$effect(() => {
+  if (visible && header && flat.length > PAGE) {
+    tall = true
+  }
+})
+
 export const move = (to: number, dir: 1 | -1) => {
   const start = Math.max(0, Math.min(to, flat.length - 1))
 
@@ -128,6 +138,13 @@ const placeFor = (e: ToggleEvent) => {
 
 const toggle = (e: ToggleEvent) => {
   shown ||= e.newState === "open"
+
+  visible = e.newState === "open"
+
+  if (!visible) {
+    tall = false
+  }
+
   placeFor(e)
   onbeforetoggle?.(e)
 }
@@ -140,7 +157,8 @@ const toggle = (e: ToggleEvent) => {
   style:position-anchor={anchor}
   class={[
     (above || up) && "above",
-    "anchored popover-box nowheel fixed inset-auto mx-0 my-1 flex w-max max-w-sm",
+    tall && "searchable",
+    "anchored popover-box nowheel fixed inset-auto mx-0 my-1 flex w-80 max-w-viewport",
     "flex-col overflow-hidden p-0 text-base-content",
     popoverMotion,
     sheet && ["sheet", popoverSheet],
@@ -163,7 +181,7 @@ const toggle = (e: ToggleEvent) => {
       role="listbox"
       aria-label={label}
       tabindex="-1"
-      class="min-h-0 overflow-y-auto bg-inherit px-1 pb-1"
+      class="min-h-0 flex-1 overflow-y-auto bg-inherit px-1 pb-1"
       onpointerdown={e => e.preventDefault()}
     >
       {#each rows as row (row.name)}
@@ -227,6 +245,11 @@ const toggle = (e: ToggleEvent) => {
     max-height: min(14rem, 100%);
   }
 
+  .anchored.searchable {
+    height: min(18.5rem, 100%);
+    max-height: none;
+  }
+
   .anchored.above {
     position-area: block-start span-inline-end;
   }
@@ -234,6 +257,10 @@ const toggle = (e: ToggleEvent) => {
   @media (width < 40rem) {
     .anchored {
       max-height: min(28rem, 100%);
+    }
+
+    .anchored.searchable {
+      height: min(28rem, 100%);
     }
 
     .sheet {

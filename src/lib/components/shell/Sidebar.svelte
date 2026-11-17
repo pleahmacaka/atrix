@@ -1,15 +1,17 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { z } from "zod"
-import { groups } from "#lib/chat/groups.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
+import { type SideTool, side, toggleSide } from "#lib/git/side.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { desktop } from "#lib/platform.ts"
 import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
 import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
 import { type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
+import ConversationFilter from "./ConversationFilter.svelte"
 import Navigator from "./Navigator.svelte"
 
 let { rail = false }: { rail?: boolean } = $props()
@@ -22,14 +24,19 @@ type Action = {
   run: () => void
 }
 
-const search: Action = {
-  label: m.chat_search_load(),
-  icon: "lucide:search",
-  shortcut: "palette",
+const sideAction = (tool: SideTool, label: string, icon: string): Action => ({
+  label,
+  icon,
+  pressed: side.tool === tool,
   run: () => {
-    nav.palette = true
+    goPage("chat")
+    toggleSide(tool)
+
+    if (rail && side.tool) {
+      shell.openDrawer()
+    }
   },
-}
+})
 
 const chatActions = (): Action[] => [
   {
@@ -41,15 +48,8 @@ const chatActions = (): Action[] => [
       openConversation(null)
     },
   },
-  {
-    label: m.group_new(),
-    icon: "lucide:users",
-    run: async () => {
-      goPage("chat")
-      openConversation({ kind: "group", id: await groups.create() })
-    },
-  },
-  search,
+  sideAction("git", m.git(), "lucide:git-branch"),
+  ...(desktop ? [sideAction("terminal", m.terminal(), "lucide:square-terminal")] : []),
 ]
 
 const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
@@ -62,12 +62,19 @@ const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
         nav.agent = "new"
       },
     },
-    search,
+    {
+      label: m.prompt_new(),
+      icon: "lucide:file-plus-2",
+      pressed: nav.agent === "prompt:new",
+      run: () => {
+        nav.agent = "prompt:new"
+      },
+    },
   ],
-  data: () => [search],
-  devices: () => [search],
-  knowledge: () => [search],
-  apps: () => [search],
+  data: () => [],
+  devices: () => [],
+  knowledge: () => [],
+  apps: () => [],
   settings: () => [],
 }
 
@@ -116,7 +123,13 @@ const pages = $derived([
     label: page.label(),
     icon: page.icon,
     active: nav.page === page.id,
-    run: () => goPage(page.id),
+    run: () => {
+      goPage(page.id)
+
+      if (rail && page.id !== "chat" && page.id !== "apps") {
+        shell.openDrawer()
+      }
+    },
   })),
   {
     id: "settings",
@@ -170,7 +183,7 @@ const hintOf = (action: Action) =>
 <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 select-none">
   <section class="island flex min-h-0 flex-1 flex-col overflow-hidden">
     <nav
-      class={["flex shrink-0 flex-col gap-0.5 p-2", rail && "items-center"]}
+      class={["flex shrink-0 flex-col gap-0.5", rail ? "items-center p-1.5" : "p-2"]}
       aria-label={m.shell_actions()}
     >
       {#if rail}
@@ -183,6 +196,9 @@ const hintOf = (action: Action) =>
           <div class="flex items-center gap-1">
             {@render actionButton(action)}
             {#if i === 0}
+              {#if nav.page === "chat"}
+                <ConversationFilter />
+              {/if}
               {@render toggle()}
             {/if}
           </div>

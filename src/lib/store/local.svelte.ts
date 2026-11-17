@@ -80,7 +80,21 @@ export type StoredAgent = {
   effort: string
   instructions: string
   variables?: Record<string, string>
+  requires?: Requires
   cwd: string
+  at: number
+}
+
+export type Requires = { skills?: string[]; tools?: string[]; mcp?: string[] }
+
+export type PartKind = "prompt" | "instruction" | "variable"
+
+export type StoredPrompt = {
+  id: string
+  name: string
+  kind?: PartKind
+  text: string
+  requires?: Requires
   at: number
 }
 
@@ -101,6 +115,7 @@ export type Contents = {
   speech: SpeechProvider[]
   threads: StoredThread[]
   agents: StoredAgent[]
+  prompts: StoredPrompt[]
   speechActive?: Partial<Record<SpeechRole, string>>
 }
 
@@ -111,6 +126,7 @@ const EMPTY: Contents = {
   speech: [],
   threads: [],
   agents: [],
+  prompts: [],
 }
 
 class Local {

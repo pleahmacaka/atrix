@@ -18,6 +18,14 @@ const openDataFolder = async () => {
 }
 </script>
 
+<SettingRow icon="lucide:user-round" title={m.user_name()}>
+  <input
+    class="input input-sm w-48 max-sm:w-full"
+    aria-label={m.user_name()}
+    value={settings.userName}
+    onchange={e => settings.setUserName(e.currentTarget.value)}
+  />
+</SettingRow>
 <SettingRow icon="lucide:tag" title={m.device_name()}>
   <input
     class="input input-sm w-48 max-sm:w-full"

@@ -1,13 +1,16 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { untrack } from "svelte"
 import { connect } from "#lib/channels/relay.svelte.ts"
 import {
   channels,
-  clearToken,
   disconnectChannels,
+  liveOf,
+  optionsOf,
+  PROVIDERS,
+  providerOf,
   saveChannels,
-  setToken,
-  tokenPresent,
+  setOptions,
 } from "#lib/channels/store.svelte.ts"
 import FolderPicker from "#lib/components/shell/FolderPicker.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
@@ -31,6 +34,12 @@ const harnesses = $derived(
   (host?.state?.harnesses ?? []).filter(h => h.enabled),
 )
 
+let picked = $state(PROVIDERS[0].id)
+
+const provider = $derived(providerOf(picked))
+
+const live = $derived(liveOf(provider.id))
+
 let present = $state(false)
 
 let token = $state("")
@@ -40,52 +49,74 @@ let draft = $state({ channel: "", harness: "", cwd: "" })
 const harness = $derived(draft.harness || harnesses[0]?.id || "")
 
 const failure = $derived(
-  attempt.failure ?? (channels.error ? messageOf(channels.error) : null),
+  attempt.failure ?? (live.error ? messageOf(live.error) : null),
 )
 
-attempt.run(async () => {
-  present = await tokenPresent()
+$effect(() => {
+  const current = provider
+
+  untrack(() =>
+    attempt.run(async () => {
+      present = await current.tokenPresent()
+    }),
+  )
 })
 
 const nameOf = (id: string) => harnesses.find(h => h.id === id)?.name ?? id
 
 const save = () =>
   attempt.run(async () => {
-    await setToken(token)
+    await provider.setToken(token)
     token = ""
     present = true
   })
 
 const clear = () =>
   attempt.run(async () => {
-    await disconnectChannels()
-    await clearToken()
+    await disconnectChannels(provider)
+    await provider.clearToken()
     present = false
   })
 
 const add = () => {
-  const id = draft.channel.trim()
+  const channel = draft.channel.trim()
 
-  if (!id || !harness || !draft.cwd) {
+  if (!channel || !harness || !draft.cwd) {
     return
   }
 
   channels.bindings = [
-    ...channels.bindings.filter(b => b.discordChannelId !== id),
-    { discordChannelId: id, harness, cwd: draft.cwd, sessionId: null },
+    ...channels.bindings.filter(
+      b => b.provider !== provider.id || b.channel !== channel,
+    ),
+    { provider: provider.id, channel, harness, cwd: draft.cwd, sessionId: null },
   ]
   saveChannels()
   draft.channel = ""
 }
 
-const remove = (id: string) => {
-  channels.bindings = channels.bindings.filter(b => b.discordChannelId !== id)
+const remove = (providerId: string, channel: string) => {
+  channels.bindings = channels.bindings.filter(
+    b => b.provider !== providerId || b.channel !== channel,
+  )
   saveChannels()
 }
 </script>
 
 <div class="flex flex-col gap-6">
   <div class="flex flex-col">
+    <SettingRow icon="lucide:messages-square" title={m.channels_provider()}>
+      <IconSelect
+        icon={provider.icon}
+        label={m.channels_provider()}
+        value={provider.id}
+        choices={PROVIDERS.map(p => ({ value: p.id, name: p.name, icon: p.icon }))}
+        onchange={value => {
+          picked = value
+        }}
+      />
+    </SettingRow>
+
     <SettingRow icon="lucide:key-round" title={m.channels_token()}>
       {#if present}
         <div class="flex items-center justify-end gap-2">
@@ -127,16 +158,16 @@ const remove = (id: string) => {
       {/if}
     </SettingRow>
 
-    <SettingRow icon="simple-icons:discord" title={m.channels_discord()}>
+    <SettingRow icon={provider.icon} title={provider.name}>
       <div class="flex items-center justify-end gap-2">
         <span
           class="flex items-center gap-2 text-sm whitespace-nowrap"
-          title={channels.user ?? undefined}
+          title={live.user ?? undefined}
         >
-          {#if channels.status === "on"}
+          {#if live.status === "on"}
             <Icon icon="lucide:circle-check" class="size-4 text-success" />
             {m.channels_on()}
-          {:else if channels.status === "connecting"}
+          {:else if live.status === "connecting"}
             <span class="loading loading-spinner loading-xs"></span>
             {m.channels_connecting()}
           {:else}
@@ -147,19 +178,19 @@ const remove = (id: string) => {
             {m.channels_off()}
           {/if}
         </span>
-        {#if channels.status === "off"}
+        {#if live.status === "off"}
           <IconButton
             icon="lucide:plug"
             label={m.common_connect()}
             disabled={attempt.busy || !present}
-            onclick={() => attempt.run(connect)}
+            onclick={() => attempt.run(() => connect(provider))}
           />
         {:else}
           <IconButton
             icon="lucide:unplug"
             label={m.channels_disconnect()}
             disabled={attempt.busy}
-            onclick={() => attempt.run(disconnectChannels)}
+            onclick={() => attempt.run(() => disconnectChannels(provider))}
           />
         {/if}
       </div>
@@ -170,27 +201,29 @@ const remove = (id: string) => {
         type="checkbox"
         class="toggle toggle-sm toggle-primary"
         aria-label={m.channels_mention_only()}
-        bind:checked={channels.mentionOnly}
-        onchange={saveChannels}
+        checked={optionsOf(provider.id).mentionOnly}
+        onchange={e => setOptions(provider.id, { mentionOnly: e.currentTarget.checked })}
       />
     </SettingRow>
   </div>
 
   <Section icon="lucide:hash" title={m.channels_bindings()}>
     <ul class="flex flex-col">
-      {#each channels.bindings as binding (binding.discordChannelId)}
+      {#each channels.bindings as binding (`${binding.provider}:${binding.channel}`)}
+        {@const owner = providerOf(binding.provider)}
         <li class="flex items-center gap-3 py-2">
           <span
             class="grid size-8 shrink-0 place-items-center rounded-field bg-inset"
+            title={owner.name}
           >
-            <Icon icon="lucide:hash" class="size-4 text-base-content/70" />
+            <Icon icon={owner.icon} class="size-4 text-base-content/70" />
           </span>
           <div class="flex min-w-0 flex-1 flex-col gap-1">
             <span
               class="truncate text-sm font-medium tabular-nums"
-              title={binding.discordChannelId}
+              title={binding.channel}
             >
-              {binding.discordChannelId}
+              {binding.channel}
             </span>
             <span class="flex min-w-0 items-center gap-2">
               <span class="badge badge-ghost badge-sm whitespace-nowrap">
@@ -206,7 +239,7 @@ const remove = (id: string) => {
           </div>
           <ConfirmButton
             label={m.channels_remove()}
-            onconfirm={() => remove(binding.discordChannelId)}
+            onconfirm={() => remove(binding.provider, binding.channel)}
           />
         </li>
       {/each}
@@ -219,10 +252,10 @@ const remove = (id: string) => {
       }}
     >
       <IconInput
-        icon="lucide:hash"
-        label={m.channels_channel_id()}
-        placeholder={m.channels_channel_id()}
-        inputmode="numeric"
+        icon={provider.channelIcon}
+        label={m.channels_provider_channel_id({ provider: provider.name })}
+        placeholder={m.channels_provider_channel_id({ provider: provider.name })}
+        inputmode={provider.numericChannel ? "numeric" : "text"}
         ghost={false}
         bind:value={draft.channel}
       />

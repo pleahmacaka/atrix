@@ -74,6 +74,36 @@ const openKeys = $derived(
   new Set(panes.leaves.flatMap(l => (l.current ? [keyOf(l.current)] : []))),
 )
 
+const clusterOf = $derived(
+  new Map(panes.clusters.flatMap((keys, c) => keys.map(k => [k, c] as const))),
+)
+
+const ordered = $derived.by(() => {
+  const placed = new Set<number>()
+
+  return shown.flatMap(item => {
+    const cluster = clusterOf.get(item.key)
+
+    if (cluster === undefined) {
+      return [item]
+    }
+
+    if (placed.has(cluster)) {
+      return []
+    }
+
+    placed.add(cluster)
+
+    return shown.filter(x => clusterOf.get(x.key) === cluster)
+  })
+})
+
+const clusterAt = (index: number) => {
+  const item = ordered[index]
+
+  return item ? clusterOf.get(item.key) : undefined
+}
+
 const statusOf = (item: Recent) => {
   if (item.running) {
     return m.session_running()
@@ -183,7 +213,11 @@ const menuFor = (item: Recent): MenuItem[] => {
             {
               label: m.menu_close_session(),
               icon: "lucide:circle-x",
-              run: () => host.close(current.id),
+              run: () => {
+                panes.forget(current)
+
+                return host.close(current.id)
+              },
             },
           ]
         : []),
@@ -196,15 +230,22 @@ const menuFor = (item: Recent): MenuItem[] => {
   onpointerenter={freeze}
   onpointerleave={thaw}
 >
-  {#each shown as item (item.key)}
+  {#each ordered as item, i (item.key)}
     {@const fresh = unread.has(item.key)}
-    <li>
+    {@const cluster = clusterAt(i)}
+    {@const group = cluster !== undefined}
+    {@const above = group && clusterAt(i - 1) === cluster}
+    {@const below = group && clusterAt(i + 1) === cluster}
+    <li class={[above && "-mt-0.5"]}>
       <button
         type="button"
         class={[
           "min-w-0 cursor-grab active:cursor-grabbing",
           rail ? "size-8 content-center justify-center p-0" : "gap-2 pe-1.5",
           activeKey === item.key && "menu-active",
+          group && (cluster === 0 && panes.root.kind === "split" ? "bg-primary/8" : "bg-base-content/5"),
+          above && "rounded-t-none",
+          below && "rounded-b-none",
         ]}
         title={rail ? undefined : `${item.source}. ${statusOf(item)}`}
         aria-label={item.title}
@@ -233,6 +274,11 @@ const menuFor = (item: Recent): MenuItem[] => {
         >
           {item.title}
         </span>
+        {#if item.device}
+          <span class="max-w-20 shrink-0 truncate text-xs text-base-content/50">
+            {item.device}
+          </span>
+        {/if}
         {#if openKeys.has(item.key) && activeKey !== item.key}
           <Icon
             icon="lucide:panel-right"

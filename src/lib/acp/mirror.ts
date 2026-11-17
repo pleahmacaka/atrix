@@ -9,19 +9,58 @@ import type {
   Subagent,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import type { ChatItem, Log } from "./items.ts"
+import type { Asked, ChatItem, Log, Picked } from "./items.ts"
 import { type Presence, SOURCES, type Source } from "./sources.ts"
-import { stepOf, turnTokens } from "./transcript.ts"
+import { stepOf, turnPace, turnTokens, usagePace } from "./transcript.ts"
 
 type RawAgent = {
   id: string
   meta: { description?: string; finished?: boolean }
   tail: string[]
+  usage?: unknown[]
 }
 
 const POLL_MS = 500
 
-const IMAGE_MARKER = /[Image #(d+)]/g
+// presence lags the CLI, so a prompt typed just now can look like it landed on an idle session
+const TYPED_GRACE_MS = 5000
+
+const IMAGE_MARKER = /\[Image #(\d+)\]/g
+
+type Stroke =
+  | { kind: "digit"; digit: number }
+  | { kind: "text"; text: string }
+  | { kind: "tab" }
+  | { kind: "enter" }
+
+const strokesOf = ({ questions }: Asked, answers: Picked[]): Stroke[] => {
+  const strokes = questions.flatMap((q, i): Stroke[] => {
+    const { picks, text } = answers[i] ?? { picks: [] }
+    const valid = picks.every(p => p < q.options.length)
+
+    if (!q.multiSelect && text?.trim()) {
+      return [
+        { kind: "digit", digit: q.options.length + 1 },
+        { kind: "text", text: text.trim() },
+        { kind: "enter" },
+      ]
+    }
+
+    if (!valid || (!q.multiSelect && picks.length !== 1)) {
+      throw new Error(m.chat_question_incomplete())
+    }
+
+    return q.multiSelect
+      ? [
+          ...picks.map(p => ({ kind: "digit" as const, digit: p + 1 })),
+          { kind: "tab" },
+        ]
+      : [{ kind: "digit", digit: picks[0] + 1 }]
+  })
+  const instant = questions.length === 1 && !questions[0].multiSelect
+
+  return instant ? strokes : [...strokes, { kind: "digit", digit: 1 }]
+}
 
 const pasteImage = (pid: number, data: string) =>
   invoke("terminal_paste_image", Uint8Array.fromBase64(data), {
@@ -56,7 +95,11 @@ type Watch = {
   dirty: boolean
   turn: Promise<void>
   seen: Set<string>
+  typed?: number
+  pasted: Pasted[]
 }
+
+type Pasted = { text: string; images: string[]; at: number }
 
 export class ExternalSessions {
   presence = new Map<string, boolean>()
@@ -136,6 +179,42 @@ export class ExternalSessions {
     return pid
   }
 
+  interrupt = (id: string) => {
+    const pid = this.#pids.get(id)
+
+    if (pid === undefined) {
+      throw new Error(m.chat_terminal_live())
+    }
+
+    return native("terminal_interrupt", { pid })
+  }
+
+  answer = async (id: string, toolId: string, answers: Picked[]) => {
+    const watch = this.#watches.get(id)
+    const asked = watch?.log.asked
+    const pid = this.#pids.get(id)
+
+    if (
+      !watch ||
+      asked?.id !== toolId ||
+      pid === undefined ||
+      !this.#waiting.has(id)
+    ) {
+      throw new Error(m.chat_question_closed())
+    }
+
+    const strokes = strokesOf(asked, answers)
+
+    watch.log.asked = null
+
+    if (watch.view) {
+      watch.view.asked = null
+      this.onItems(watch.view)
+    }
+
+    await native("terminal_keys", { pid, strokes })
+  }
+
   keys = (id: string, text: string) =>
     native("terminal_type", { pid: this.#pid(id), text })
 
@@ -153,7 +232,25 @@ export class ExternalSessions {
     const pid = this.#pid(id)
     const pasted = attachments.flatMap(a => (a.kind === "text" ? a.text : []))
 
-    this.#showQueue(id, queue => queue.push(text))
+    const watch = this.#watches.get(id)
+
+    const images = attachments.flatMap(a =>
+      a.kind === "image" ? `data:${a.mimeType};base64,${a.data}` : [],
+    )
+
+    const entry = { text, images, at: Number.MAX_SAFE_INTEGER }
+
+    if (watch) {
+      watch.typed = Date.now()
+
+      if (images.length > 0) {
+        watch.pasted.push(entry)
+      }
+    }
+
+    if (pasted.length === 0) {
+      this.#showQueue(id, queue => queue.push(text))
+    }
 
     try {
       for (const a of attachments) {
@@ -166,7 +263,11 @@ export class ExternalSessions {
         pid,
         text: [text, ...pasted].filter(Boolean).join("\n\n"),
       })
+
+      entry.at = Date.now()
     } catch (e) {
+      entry.at = 0
+
       this.#showQueue(id, queue => {
         const at = queue.lastIndexOf(text)
 
@@ -221,6 +322,7 @@ export class ExternalSessions {
       config: [],
       external: true,
       queued: [...watch.log.queue],
+      asked: watch.log.asked ?? null,
       shells: [],
       model: watch.log.model,
       context: watch.log.context,
@@ -261,6 +363,7 @@ export class ExternalSessions {
       paused: false,
       dirty: false,
       seen: new Set(),
+      pasted: [],
       turn: Promise.resolve(),
     }
 
@@ -335,6 +438,7 @@ export class ExternalSessions {
         id: a.id,
         description: a.meta.description ?? "",
         step: stepOf(a.tail),
+        ...usagePace(a.usage ?? []),
       }))
 
   #lines = (watch: Watch) =>
@@ -348,19 +452,36 @@ export class ExternalSessions {
 
   #capture = (watch: Watch, view: SessionView) => {
     const fresh = view.queued?.filter(text => !watch.seen.has(text)) ?? []
+    const recent = Date.now() - TYPED_GRACE_MS
+
+    watch.pasted = watch.pasted.filter(p => p.at > recent)
 
     for (const text of fresh) {
       watch.seen.add(text)
+
+      const numbers = [...text.matchAll(IMAGE_MARKER)].map(match => match[1])
+      const own = watch.pasted.findIndex(p => text.includes(p.text))
+
+      if (numbers.length === 0) {
+        continue
+      }
+
+      if (own === -1) {
+        this.#clipboardPreview(view, numbers.at(-1) ?? "")
+        continue
+      }
+
+      const [{ images }] = watch.pasted.splice(own, 1)
+      const shown = numbers.flatMap((n, i) =>
+        images[i] ? [[n, images[i]] as const] : [],
+      )
+
+      view.queuedImages = { ...view.queuedImages, ...Object.fromEntries(shown) }
+      this.onItems(view)
     }
+  }
 
-    const number = fresh
-      .flatMap(text => [...text.matchAll(IMAGE_MARKER)].map(match => match[1]))
-      .at(-1)
-
-    if (number === undefined) {
-      return
-    }
-
+  #clipboardPreview = (view: SessionView, number: string) => {
     native<ArrayBuffer>("clipboard_image")
       .then(bytes => {
         if (bytes.byteLength === 0) {
@@ -393,6 +514,7 @@ export class ExternalSessions {
 
     if (watch.view) {
       watch.view.queued = [...watch.log.queue]
+      watch.view.asked = watch.log.asked ?? null
       this.#capture(watch, watch.view)
       watch.view.model = watch.log.model
       watch.view.context = watch.log.context
@@ -402,6 +524,7 @@ export class ExternalSessions {
       watch.view.limits = watch.log.limits
       watch.view.since = watch.log.since
       watch.view.tokens = turnTokens(watch.log)
+      watch.view.pace = turnPace(watch.log)
     }
   }
 
@@ -506,7 +629,9 @@ export class ExternalSessions {
       watch.dirty = true
     }
 
-    if (!running && log.queue.length > 0) {
+    const settled = Date.now() - (watch.typed ?? 0) > TYPED_GRACE_MS
+
+    if (!running && settled && log.queue.length > 0) {
       log.queue.length = 0
       view.queued = []
       watch.dirty = true

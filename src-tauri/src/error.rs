@@ -20,6 +20,8 @@ impl Display for Error {
     }
 }
 
+impl std::error::Error for Error {}
+
 impl Serialize for Error {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.0)

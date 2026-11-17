@@ -1,6 +1,6 @@
 import { m } from "#lib/paraglide/messages.js"
 import { goPage, nav, openConversation } from "./nav.svelte.ts"
-import { panes } from "./panes.svelte.ts"
+import { panes, type Side } from "./panes.svelte.ts"
 import { shell } from "./shell.svelte.ts"
 
 export type ShortcutId =
@@ -13,6 +13,8 @@ export type ShortcutId =
   | "splitDown"
   | "closePane"
   | "harness"
+  | "focusInput"
+  | "focusPane"
 
 export type Shortcut = {
   id: ShortcutId
@@ -20,10 +22,22 @@ export type Shortcut = {
   label: string
   icon: string
   matches: (e: KeyboardEvent) => boolean
-  run: () => void
+  run: (e: KeyboardEvent) => void
 }
 
 const mod = (e: KeyboardEvent) => e.ctrlKey || e.metaKey
+
+const editing = (e: KeyboardEvent) =>
+  e.target instanceof HTMLElement &&
+  (e.target.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))
+
+const ARROWS: Record<string, Side> = {
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "top",
+  ArrowDown: "bottom",
+}
 
 export const SHORTCUTS: Shortcut[] = [
   {
@@ -104,6 +118,34 @@ export const SHORTCUTS: Shortcut[] = [
       goPage(nav.page === "agent" ? "chat" : "agent")
     },
   },
+  {
+    id: "focusInput",
+    keys: ["/"],
+    label: m.shortcut_focus_input(),
+    icon: "lucide:text-cursor-input",
+    matches: e =>
+      e.key === "/" &&
+      !mod(e) &&
+      !e.altKey &&
+      nav.page === "chat" &&
+      !editing(e),
+    run: () => {
+      panes.typing = panes.active.id
+    },
+  },
+  {
+    id: "focusPane",
+    keys: ["Alt", "←↑→↓"],
+    label: m.shortcut_focus_pane(),
+    icon: "lucide:move",
+    matches: e =>
+      e.altKey &&
+      !mod(e) &&
+      !e.shiftKey &&
+      e.key in ARROWS &&
+      nav.page === "chat",
+    run: e => panes.step(ARROWS[e.key]),
+  },
 ]
 
 export const keysOf = (id: ShortcutId) =>
@@ -117,6 +159,6 @@ export const handleShortcut = (e: KeyboardEvent) => {
 
   if (found) {
     e.preventDefault()
-    found.run()
+    found.run(e)
   }
 }

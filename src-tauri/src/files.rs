@@ -331,3 +331,91 @@ pub fn read_image(path: String) -> Result<tauri::ipc::Response> {
 
     Ok(tauri::ipc::Response::new(fs::read(path)?))
 }
+
+const VIEW_EXTENSIONS: [&str; 9] = [
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "pdf", "html", "htm",
+];
+
+#[tauri::command(async)]
+pub fn read_view(path: String) -> Result<tauri::ipc::Response> {
+    let path = PathBuf::from(path);
+    let viewable = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| VIEW_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
+
+    if !viewable {
+        return Err(Error::code("path_not_allowed", path.display()));
+    }
+
+    Ok(tauri::ipc::Response::new(fs::read(path)?))
+}
+
+#[derive(serde::Serialize)]
+pub struct Git {
+    remote: Option<String>,
+}
+
+fn git_dir(start: &Path) -> Option<PathBuf> {
+    start.ancestors().find_map(|dir| {
+        let dot = dir.join(".git");
+
+        if dot.is_dir() {
+            return Some(dot);
+        }
+
+        let pointer = fs::read_to_string(&dot).ok()?;
+        let target = pointer.trim().strip_prefix("gitdir:")?.trim();
+
+        Some(dir.join(target))
+    })
+}
+
+fn remote_of(config: &str) -> Option<String> {
+    let mut section = "";
+    let mut first = None;
+
+    for line in config.lines().map(str::trim) {
+        if line.starts_with('[') {
+            section = line;
+            continue;
+        }
+
+        let Some(url) = line.strip_prefix("url").map(str::trim_start) else {
+            continue;
+        };
+        let Some(url) = url.strip_prefix('=') else {
+            continue;
+        };
+
+        if !section.starts_with("[remote ") {
+            continue;
+        }
+
+        if section == "[remote \"origin\"]" {
+            return Some(url.trim().to_owned());
+        }
+
+        first.get_or_insert_with(|| url.trim().to_owned());
+    }
+
+    first
+}
+
+#[tauri::command(async)]
+pub fn git_remote(path: String) -> Result<Option<Git>> {
+    let Some(dir) = git_dir(Path::new(&path)) else {
+        return Ok(None);
+    };
+    let config = fs::read_to_string(dir.join("config"))
+        .or_else(|_| {
+            let common = fs::read_to_string(dir.join("commondir"))?;
+
+            fs::read_to_string(dir.join(common.trim()).join("config"))
+        })
+        .unwrap_or_default();
+
+    Ok(Some(Git {
+        remote: remote_of(&config),
+    }))
+}

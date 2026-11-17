@@ -5,6 +5,7 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import DataTable from "./DataTable.svelte"
+import FileBlock from "./FileBlock.svelte"
 import FormBlock from "./FormBlock.svelte"
 import { CARD } from "./labels.ts"
 import QueryBlock from "./QueryBlock.svelte"
@@ -147,6 +148,8 @@ const titleOf = (block: Block) =>
       srcdoc={block.html}
       class="h-72 w-full rounded-field border-0 bg-white"
     ></iframe>
+  {:else if block.type === "file"}
+    <FileBlock path={block.path} title={block.title} />
   {:else if block.type === "scene"}
     {#await import("./SceneBlock.svelte") then { default: SceneBlock }}
       <SceneBlock {block} />

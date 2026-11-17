@@ -6,6 +6,25 @@ import type { Available } from "#lib/p2p/protocol.ts"
 const REGISTRY =
   "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"
 
+const BANNED = "antigravity"
+
+const UNSUPPORTED = new Set([
+  "stakpak",
+  "vtcode",
+  "vt code",
+  "kimi",
+  "kimi cli (legacy)",
+  "harn",
+  "dimcode",
+  "factory-droid",
+  "factory droid",
+])
+
+const supported = (e: Entry) =>
+  [e.id, e.name]
+    .map(v => v.toLowerCase())
+    .every(v => !v.includes(BANNED) && !UNSUPPORTED.has(v))
+
 const runner = z.object({
   package: z.string(),
   args: z.array(z.string()).catch([]),
@@ -200,9 +219,10 @@ const pathLaunch = (
 
 export const detectHarnesses = async () => {
   const response = await fetch(REGISTRY)
-  const { agents } = z
+  const agents = z
     .object({ agents: z.array(entry) })
     .parse(await response.json())
+    .agents.filter(supported)
   const platform = await invoke<string>("tool_platform")
   const options = agents.map(e => optionsOf(e, platform))
   const found = await invoke<(Found | null)[]>("tool_find", {

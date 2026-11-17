@@ -1,5 +1,6 @@
 import { MediaQuery } from "svelte/reactivity"
 import { z } from "zod"
+import { settings } from "./settings.svelte.ts"
 import { persisted } from "./stored.svelte.ts"
 
 const KEY = "shell"
@@ -10,12 +11,11 @@ const MAX_REM = 30
 
 const DEFAULT_REM = 18
 
-export const RAIL_REM = 3.5
+export const RAIL_REM = 3
 
 const savedSchema = z.object({
   width: z.number().catch(DEFAULT_REM),
   hidden: z.boolean().catch(false),
-  side: z.boolean().catch(false),
 })
 
 class Shell {
@@ -29,19 +29,22 @@ class Shell {
 
   drawer = $state(false)
 
-  side = $state(this.#saved.side)
-
-  toggleSide = () => {
-    this.side = !this.side
-    this.#save()
-  }
+  peek = $state(false)
 
   get docked() {
     return this.#wide.current
   }
 
+  get collapsed() {
+    return !this.docked || this.rail
+  }
+
+  get compact() {
+    return this.collapsed && settings.sidebarCollapse === "compact"
+  }
+
   get overlay() {
-    return !this.docked && this.drawer
+    return this.collapsed && this.drawer
   }
 
   resize = (rem: number) => {
@@ -49,15 +52,32 @@ class Shell {
     this.#save()
   }
 
+  reset = () => {
+    this.resize(DEFAULT_REM)
+  }
+
   toggle = () => {
     if (!this.docked) {
       this.drawer = !this.drawer
+      this.peek = false
 
       return
     }
 
     this.rail = !this.rail
+    this.drawer = false
     this.#save()
+  }
+
+  openDrawer = () => {
+    this.drawer = true
+    this.peek = true
+  }
+
+  leaveDrawer = () => {
+    if (this.peek) {
+      this.drawer = false
+    }
   }
 
   closeDrawer = () => {
@@ -71,7 +91,6 @@ class Shell {
         JSON.stringify({
           width: this.width,
           hidden: this.rail,
-          side: this.side,
         }),
       )
     } catch {

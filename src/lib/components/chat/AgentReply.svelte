@@ -17,14 +17,22 @@ let {
   threads = 0,
   onThread,
   onOpenThread,
+  pace,
 }: {
   text: string
+  pace?: { tokens: number; ms: number }
   onAction: (text: string) => void
   onSave: (blocks: Block[]) => Promise<unknown>
   threads?: number
   onThread?: () => void
   onOpenThread?: () => void
 } = $props()
+
+const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
+
+const rate = $derived(
+  pace && pace.ms > 0 && pace.tokens > 0 ? decimal.format(pace.tokens / (pace.ms / 1000)) : null,
+)
 </script>
 
 <article class="group flex min-w-0 flex-col gap-1" oncontextmenu={e => copyMenu(e, text)}>
@@ -45,7 +53,8 @@ let {
       {m.thread_count({ count: threads })}
     </button>
   {/if}
-  <div class={REVEAL}>
+  <div class="flex items-center gap-1">
+  <div class={["flex items-center", REVEAL]}>
     <CopyButton {text} />
     <SpeakButton {text} />
     {#if onThread}
@@ -56,5 +65,9 @@ let {
         onclick={onThread}
       />
     {/if}
+  </div>
+  {#if rate}
+    <span class="text-xs text-base-content/45 tabular-nums">{m.chat_pace({ rate })}</span>
+  {/if}
   </div>
 </article>

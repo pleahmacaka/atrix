@@ -1,4 +1,3 @@
-import { icons as devicon } from "@iconify-json/devicon-plain"
 import { icons as logos } from "@iconify-json/logos"
 import { icons as lucide } from "@iconify-json/lucide"
 import { icons as simpleIcons } from "@iconify-json/simple-icons"
@@ -26,7 +25,7 @@ export default defineConfig({
       disableAsyncLocalStorage: true,
     }),
     iconifyEmbed({
-      collections: [lucide, simpleIcons, logos, thesvg, devicon],
+      collections: [lucide, simpleIcons, logos, thesvg],
       scan: ["src"],
     }),
     tailwindcss(),

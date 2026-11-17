@@ -125,6 +125,11 @@ export const block = z.discriminatedUnion("type", [
     html: z.string().min(1).max(200_000),
   }),
   z.object({
+    type: z.literal("file"),
+    title,
+    path: z.string().min(1).max(1_000),
+  }),
+  z.object({
     type: z.literal("links"),
     title,
     links: z

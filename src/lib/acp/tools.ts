@@ -4,6 +4,7 @@ import type { EventInput } from "#lib/calendar/events.ts"
 import { type Block, SHOW_UI, showUiInput } from "#lib/chat/blocks.ts"
 import { type OpenArgs, openArgs } from "#lib/p2p/protocol.ts"
 import type { Caller } from "./bridge.ts"
+import { BRIDGE_NAME } from "./toolNames.ts"
 
 export type Reachable = {
   id: string
@@ -140,7 +141,7 @@ const callerOf = (caller: Caller) => {
 }
 
 export const atrixTools = (caller: Caller, desk: Desk) => {
-  const server = new McpServer({ name: "atrix", version: "0.1.0" })
+  const server = new McpServer({ name: BRIDGE_NAME, version: "0.1.0" })
 
   server.registerTool(
     SHOW_UI,

@@ -61,11 +61,32 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - id: updater
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PUBKEY: ${{ vars.ATRIX_UPDATER_PUBKEY }}
+          ENDPOINT: ${{ vars.ATRIX_UPDATER_ENDPOINT }}
+        run: |
+          if [ -z "$SIGNING_KEY" ] || [ -z "$PUBKEY" ] || [ -z "$ENDPOINT" ]; then
+            echo "args=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          config="$RUNNER_TEMP/updater.json"
+          filter='{bundle: {createUpdaterArtifacts: true}, plugins: {updater: {pubkey: $pubkey, endpoints: [$endpoint]}}}'
+          jq -n --arg pubkey "$PUBKEY" --arg endpoint "$ENDPOINT" "$filter" > "$config"
+          echo "args=--config $config" >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: bun run tauri
+          args: ${{ steps.updater.outputs.args }}
+          updaterJsonPreferNsis: true
           tagName: ${{ needs.version.outputs.version }}
           releaseName: Atrix ${{ needs.version.outputs.version }}
           releaseCommitish: ${{ github.sha }}

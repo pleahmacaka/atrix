@@ -6,8 +6,10 @@ import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import { dock, floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { desktop } from "#lib/platform.ts"
 import { droppedConversation, isConversationDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
 import {
@@ -40,6 +42,22 @@ const host = $derived(current?.kind === "session" ? hostById(current.host) : nul
 const info = $derived(describe(current))
 
 const opening = new Attempt()
+
+const floatKey = $derived(
+  current?.kind === "session" || current?.kind === "chat" ? keyOf(current) : null,
+)
+
+const floated = $derived(!!floatKey && floating.has(floatKey))
+
+const popOut = () => {
+  const title = info?.title ?? ""
+
+  if (current?.kind === "session") {
+    floatOut(current, title)
+  } else if (current?.kind === "chat") {
+    floatChat(current.id, title)
+  }
+}
 
 $effect(() => {
   if (current) {
@@ -115,6 +133,7 @@ const HINTS: Record<Zone, string> = {
   class="relative flex min-h-0 min-w-0 flex-1 flex-col"
   aria-label={info?.title ?? m.chat_new()}
   data-find-root={focused || undefined}
+  data-pane={leaf.id}
   onpointerdowncapture={() => panes.focus(leaf.id)}
   ondragover={over}
   ondragleave={e => {
@@ -134,6 +153,13 @@ const HINTS: Record<Zone, string> = {
     >
       <Icon icon={info?.icon ?? "lucide:square-pen"} class="size-4 shrink-0 opacity-70" />
       <span class="min-w-0 flex-1 truncate">{info?.title ?? m.chat_new()}</span>
+      {#if desktop && floatKey && !floated}
+        <IconButton
+          icon="lucide:picture-in-picture-2"
+          label={m.float_out()}
+          onclick={popOut}
+        />
+      {/if}
       <IconButton
         icon="lucide:x"
         label={m.shell_close_pane()}
@@ -143,7 +169,9 @@ const HINTS: Record<Zone, string> = {
     </header>
   {/if}
 
-  {#if stored}
+  {#if stored && floated && floatKey}
+    {@render docked(floatKey)}
+  {:else if stored}
     {#await import("#lib/components/chat/ModelChat.svelte") then { default: ModelChat }}
       {#key stored.id}
         <ModelChat {stored} />
@@ -152,6 +180,16 @@ const HINTS: Record<Zone, string> = {
   {:else if opening.failure}
     <div class="grid flex-1 place-items-center p-6">
       <ErrorAlert message={opening.failure} />
+    </div>
+  {:else if host && current?.kind === "session" && floated && floatKey}
+    {@const key = floatKey}
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <div class="pointer-events-none flex min-h-0 flex-1 flex-col blur-sm" inert>
+        <SessionChat {host} sessionId={current.id} />
+      </div>
+      <div class="absolute inset-0 grid place-items-center">
+        {@render docked(key)}
+      </div>
     </div>
   {:else if host && current?.kind === "session"}
     <SessionChat {host} sessionId={current.id} />
@@ -171,3 +209,14 @@ const HINTS: Record<Zone, string> = {
     ></div>
   {/if}
 </section>
+
+{#snippet docked(key: string)}
+  <div class="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
+    <Icon icon="lucide:picture-in-picture-2" class="size-6 text-primary" />
+    <span class="font-medium">{m.float_active()}</span>
+    <button type="button" class="btn btn-primary btn-sm" onclick={() => dock(key)}>
+      <Icon icon="lucide:panel-bottom-close" class="size-4" />
+      {m.float_dock()}
+    </button>
+  </div>
+{/snippet}

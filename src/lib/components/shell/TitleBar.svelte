@@ -1,37 +1,57 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { onMount } from "svelte"
+import { repoIcon } from "#lib/components/harness/brands.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
-import Separator from "#lib/components/ui/Separator.svelte"
 import { logFailure } from "#lib/logging.ts"
+import { floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { baseName } from "#lib/path.ts"
 import { desktop } from "#lib/platform.ts"
+import { keyOf } from "#lib/store/keys.ts"
 import { nav, openConversation } from "#lib/store/nav.svelte.ts"
-import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import { describe, type Recent, titles } from "#lib/store/recent.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
 import { withKeys } from "#lib/store/shortcuts.ts"
 
-const info = $derived(
-  panes.leaves.length === 1 ? describe(panes.active.current) : undefined,
+const info = $derived(describe(panes.active.current))
+
+const split = $derived(panes.leaves.length > 1)
+
+const chat = $derived(panes.active.current?.kind === "chat" ? panes.active.current : null)
+
+const session = $derived(
+  panes.active.current?.kind === "session" ? panes.active.current : null,
 )
 
-const page = $derived(
-  nav.page === "chat"
-    ? null
-    : [...PAGES, APPS_PAGE, CALENDAR_PAGE, SETTINGS_PAGE].find(p => p.id === nav.page),
-)
+const trigger = $derived(shell.collapsed && !shell.compact && !shell.drawer)
+
+let repo = $state<{ path: string; icon: string } | null>(null)
+
+$effect(() => {
+  const path = cwd
+  const host = info?.current.kind === "session" ? hostById(info.current.host) : undefined
+
+  if (!path || !host) {
+    return
+  }
+
+  host
+    .git(path)
+    .then(git => {
+      repo = git ? { path, icon: repoIcon(git.remote) } : null
+    })
+    .catch(() => {
+      repo = null
+    })
+})
 
 const cwd = $derived(
   info?.current.kind === "session"
     ? hostById(info.current.host)?.views[info.current.id]?.cwd
     : undefined,
 )
-
-let maximized = $state(false)
 
 let renaming = $state(false)
 
@@ -48,32 +68,14 @@ const rename = (current: Recent["current"], key: string, value: string) => {
   }
 }
 
-const win = () =>
-  import("@tauri-apps/api/window").then(m => m.getCurrentWindow())
-
-onMount(() => {
-  if (!desktop) {
-    return
-  }
-
-  let unlisten = () => {}
-
-  win().then(async w => {
-    maximized = await w.isMaximized()
-    unlisten = await w.onResized(async () => {
-      maximized = await w.isMaximized()
-    })
-  })
-
-  return () => unlisten()
-})
 </script>
 
+{#if nav.page === "chat" || trigger || import.meta.env.DEV}
 <header
   class="flex h-10 min-w-0 shrink-0 items-center gap-1 px-1.5 select-none"
   data-tauri-drag-region
 >
-  {#if !shell.docked && !shell.drawer}
+  {#if trigger}
     <IconButton
       icon="lucide:panel-left-open"
       label={m.shell_expand_sidebar()}
@@ -84,13 +86,8 @@ onMount(() => {
     />
   {/if}
   <div class="flex h-full min-w-0 flex-1 items-center" data-tauri-drag-region>
-    {#if page}
-      <span
-        class="pointer-events-none inline-flex h-8 min-w-0 items-center gap-1.5 px-3 text-sm"
-      >
-        <Icon icon={page.icon} class="size-4 shrink-0 opacity-70" />
-        <span class="min-w-0 truncate">{page.label()}</span>
-      </span>
+    {#if nav.page !== "chat"}
+      {null}
     {:else if info && renaming}
       {@const { key, current } = info}
       <input
@@ -124,19 +121,39 @@ onMount(() => {
           class="badge badge-soft badge-primary badge-sm ms-2 max-w-40 min-w-0 shrink-0 gap-1"
           title={cwd}
         >
-          <Icon icon="lucide:folder" class="size-3 shrink-0 opacity-60" />
+          <Icon
+            icon={repo?.path === cwd ? repo.icon : "lucide:folder"}
+            class="size-3 shrink-0 opacity-60"
+          />
           <span class="min-w-0 truncate">{baseName(cwd)}</span>
         </span>
       {/if}
     {/if}
   </div>
+  {#if desktop && nav.page === "chat" && !split && session && !floating.has(keyOf(session))}
+    {@const target = session}
+    <IconButton
+      icon="lucide:picture-in-picture-2"
+      label={m.float_out()}
+      class="shrink-0"
+      onclick={() => floatOut(target, info?.title ?? "")}
+    />
+  {:else if desktop && nav.page === "chat" && !split && chat && !floating.has(chat.id)}
+    {@const target = chat}
+    <IconButton
+      icon="lucide:picture-in-picture-2"
+      label={m.float_out()}
+      class="shrink-0"
+      onclick={() => floatChat(target.id, info?.title ?? "")}
+    />
+  {/if}
   {#if nav.page === "chat"}
     <IconButton
-      icon={shell.side ? "lucide:panel-right-close" : "lucide:panel-right-open"}
+      icon={panes.hasSide() ? "lucide:panel-right-close" : "lucide:panel-right-open"}
       label={m.shell_side_panel()}
-      aria-pressed={shell.side}
+      aria-pressed={panes.hasSide()}
       class="shrink-0"
-      onclick={shell.toggleSide}
+      onclick={() => panes.toggleSide()}
     />
   {/if}
   {#if nav.page === "chat"}
@@ -151,25 +168,5 @@ onMount(() => {
   {#if import.meta.env.DEV}
     <span class="badge badge-warning badge-sm shrink-0">{m.shell_dev_build()}</span>
   {/if}
-  {#if desktop}
-    <Separator vertical />
-    <div class="flex shrink-0 items-center gap-0.5">
-      <IconButton
-        icon="lucide:minus"
-        label={m.shell_minimize()}
-        onclick={() => win().then(w => w.minimize())}
-      />
-      <IconButton
-        icon={maximized ? "lucide:copy" : "lucide:square"}
-        label={maximized ? m.shell_restore() : m.shell_maximize()}
-        onclick={() => win().then(w => w.toggleMaximize())}
-      />
-      <IconButton
-        icon="lucide:x"
-        label={m.common_close()}
-        class="hover:bg-error hover:text-error-content"
-        onclick={() => win().then(w => w.close())}
-      />
-    </div>
-  {/if}
 </header>
+{/if}

@@ -5,7 +5,7 @@ export const actorName = (actor: Actor | null) =>
   !actor
     ? m.knowledge_none()
     : actor.kind === "human"
-      ? `${m.knowledge_human()} (${actor.device})`
+      ? (actor.user ?? `${m.knowledge_human()} (${actor.device})`)
       : (actor.agent ?? actor.session ?? actor.device)
 
 export const actorDetail = (actor: Actor | null) =>

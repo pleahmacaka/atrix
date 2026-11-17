@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval"
-import { applyUpdate } from "#lib/acp/items.ts"
+import { applyUpdate, type Picked } from "#lib/acp/items.ts"
 import type { Canvas } from "#lib/knowledge/canvas.ts"
 import type { Editable } from "#lib/knowledge/document.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -45,6 +45,8 @@ export class HostView {
 
   installLog = $state<Record<string, string>>({})
 
+  taps = new Set<(event: HostEvent) => void>()
+
   #asked = new Set<string>()
 
   #fresh = new Set<string>()
@@ -77,6 +79,10 @@ export class HostView {
   }
 
   apply = (event: HostEvent) => {
+    for (const tap of this.taps) {
+      tap(event)
+    }
+
     switch (event.type) {
       case "state":
         this.#adopt(event.state)
@@ -273,10 +279,15 @@ export class HostView {
   permit = (sessionId: string, optionId: string | null) =>
     this.call({ op: "permit", sessionId, optionId })
 
+  answer = (sessionId: string, toolId: string, answers: Picked[]) =>
+    this.call({ op: "answer", sessionId, toolId, answers })
+
   configure = (sessionId: string, configId: string, value: string) =>
     this.call({ op: "option", sessionId, configId, value })
 
   browse = (path: string) => this.call({ op: "fs.browse", path })
+
+  git = (path: string) => this.call({ op: "fs.git", path })
 
   toggle = (harness: string, enabled: boolean) =>
     this.call({ op: "harness.toggle", harness, enabled })
@@ -329,16 +340,33 @@ export class HostView {
       etag,
       value,
       device: settings.deviceName,
+      user: settings.userName || undefined,
     })
 
   createFolder = (path: string) =>
-    this.call({ op: "kg.folder.create", path, device: settings.deviceName })
+    this.call({
+      op: "kg.folder.create",
+      path,
+      device: settings.deviceName,
+      user: settings.userName || undefined,
+    })
 
   removePath = (path: string) =>
-    this.call({ op: "kg.remove", path, device: settings.deviceName })
+    this.call({
+      op: "kg.remove",
+      path,
+      device: settings.deviceName,
+      user: settings.userName || undefined,
+    })
 
   movePath = (from: string, to: string) =>
-    this.call({ op: "kg.move", from, to, device: settings.deviceName })
+    this.call({
+      op: "kg.move",
+      from,
+      to,
+      device: settings.deviceName,
+      user: settings.userName || undefined,
+    })
 
   readCanvas = (path: string) => this.call({ op: "kg.canvas.read", path })
 
@@ -349,6 +377,7 @@ export class HostView {
       etag,
       canvas,
       device: settings.deviceName,
+      user: settings.userName || undefined,
     })
 
   readDoc = (ref: string, versionId?: string) =>
@@ -361,6 +390,7 @@ export class HostView {
       fields,
       body,
       device: settings.deviceName,
+      user: settings.userName || undefined,
     })
 
   updateDoc = (ref: string, etag: string, patch: KgPatch) =>
@@ -370,6 +400,7 @@ export class HostView {
       etag,
       patch,
       device: settings.deviceName,
+      user: settings.userName || undefined,
     })
 
   historyDoc = (ref: string) => this.call({ op: "kg.history", ref })
@@ -381,6 +412,7 @@ export class HostView {
       versionId,
       etag,
       device: settings.deviceName,
+      user: settings.userName || undefined,
     })
 
   trashDocs = () => this.call({ op: "kg.trash" })
@@ -391,6 +423,7 @@ export class HostView {
       ref,
       versionId,
       device: settings.deviceName,
+      user: settings.userName || undefined,
     })
 
   loadDatasources = async () => {

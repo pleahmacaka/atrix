@@ -5,6 +5,7 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import MenuItem from "#lib/components/ui/MenuItem.svelte"
 import MenuLabel from "#lib/components/ui/MenuLabel.svelte"
 import Popover from "#lib/components/ui/Popover.svelte"
+import SearchField from "#lib/components/ui/SearchField.svelte"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import {
@@ -23,6 +24,14 @@ const harnesses = $derived(
     ),
     x => x.id,
   ),
+)
+
+const SEARCH_FROM = 6
+
+let query = $state("")
+
+const found = $derived(
+  harnesses.filter(h => h.name.toLowerCase().includes(query.trim().toLowerCase())),
 )
 
 const KINDS: { id: KindFilter; label: () => string; icon: string }[] = [
@@ -46,7 +55,7 @@ const SORTS: { id: SortKey; label: () => string; icon: string }[] = [
 </script>
 
 <div class="flex items-center gap-0.5">
-  <Popover label={m.filter_title()} placement="bottom-end" width="w-60" sheet>
+  <Popover label={m.filter_title()} placement="right" width="w-64" sheet>
     {#snippet trigger(p)}
       <IconButton
         {...p}
@@ -97,17 +106,21 @@ const SORTS: { id: SortKey; label: () => string; icon: string }[] = [
       {/each}
       {#if harnesses.length}
         <MenuLabel text={m.filter_harness()} />
-        <div class="flex flex-wrap gap-1 px-1 pb-1">
-          {#each harnesses as h (h.id)}
+        {#if harnesses.length > SEARCH_FROM}
+          <SearchField bind:value={query} class="mx-1 mb-1" />
+        {/if}
+        <div class="flex max-h-48 flex-col overflow-y-auto">
+          {#each found as h (h.id)}
             {@const selected = sessionFilter.value.harness === h.id}
-            <IconButton
+            <MenuItem
               icon={brandIcon(h.base)}
               label={h.name}
-              class={[selected && "bg-primary/8 text-primary"]}
-              aria-pressed={selected}
-              onclick={() =>
-                sessionFilter.set({ harness: selected ? null : h.id })}
+              {selected}
+              checked={selected}
+              onclick={() => sessionFilter.set({ harness: selected ? null : h.id })}
             />
+          {:else}
+            <MenuItem label={m.common_no_results()} disabled />
           {/each}
         </div>
       {/if}

@@ -10,6 +10,39 @@ export const KIND_ICONS: Record<string, string> = {
   switch_mode: "lucide:list-todo",
 }
 
+export const TOOL_ICONS: Record<string, string> = {
+  Bash: "lucide:square-terminal",
+  PowerShell: "lucide:square-terminal",
+  Read: "lucide:file-text",
+  Write: "lucide:file-plus",
+  Edit: "lucide:file-pen",
+  MultiEdit: "lucide:file-pen",
+  NotebookEdit: "lucide:notebook-pen",
+  Grep: "lucide:text-search",
+  Glob: "lucide:folder-search",
+  WebFetch: "lucide:globe",
+  WebSearch: "lucide:search",
+  Agent: "lucide:bot",
+  Task: "lucide:bot",
+  TodoWrite: "lucide:list-checks",
+  ToolSearch: "lucide:package-search",
+  AskUserQuestion: "lucide:circle-help",
+  SendUserFile: "lucide:send",
+  Skill: "lucide:sparkles",
+  advisor: "lucide:graduation-cap",
+}
+
+export const toolIcon = (title: string, kind: string) => {
+  const name = title.split(":")[0].trim()
+
+  return (
+    TOOL_ICONS[name] ??
+    (name.startsWith("mcp__") ? "lucide:plug" : undefined) ??
+    KIND_ICONS[kind] ??
+    "lucide:wrench"
+  )
+}
+
 export const STATUS_ICONS: Record<string, string> = {
   pending: "lucide:circle-dashed",
   in_progress: "lucide:loader",
@@ -25,6 +58,6 @@ export const BUBBLE = [
 ]
 
 export const REVEAL = [
-  "transition-opacity",
+  "text-base-content/50 transition-opacity",
   "lg:pointer-fine:opacity-0 lg:pointer-fine:group-hover:opacity-100",
 ]

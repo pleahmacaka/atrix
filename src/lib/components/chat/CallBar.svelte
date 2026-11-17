@@ -47,7 +47,7 @@ const measure = (e: PointerEvent) => {
   bind:this={bar}
   type="button"
   class={[
-    "absolute inset-y-0 start-0 end-10 flex cursor-text items-center gap-3 rounded-box px-4",
+    "absolute inset-y-0 start-0 end-10 flex cursor-text items-center gap-3 rounded-3xl px-4",
     "bg-raised/80 backdrop-blur-sm transition-opacity duration-140",
   ]}
   style:opacity={0.15 + 0.85 * distance}

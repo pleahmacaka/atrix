@@ -181,7 +181,7 @@ const limitLabel = (limit: Limit) =>
     <button
       {...p}
       type="button"
-      class="btn btn-ghost btn-sm btn-square"
+      class="btn btn-ghost btn-xs btn-square"
       aria-label={m.context_title()}
       title={context ? m.context_ring({ percent }) : m.context_title()}
     >
@@ -191,8 +191,8 @@ const limitLabel = (limit: Limit) =>
           percent >= 90 ? "text-error" : percent >= 70 ? "text-warning" : "text-primary",
         ]}
         style:--value={percent}
-        style:--size="1.125rem"
-        style:--thickness="0.1875rem"
+        style:--size="0.875rem"
+        style:--thickness="0.125rem"
         role="progressbar"
         aria-valuenow={percent}
       ></span>

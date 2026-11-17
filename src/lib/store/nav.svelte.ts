@@ -64,6 +64,6 @@ export const openSettings = (tab: SettingsTab) => {
 }
 
 export const openConversation = (current: Current) => {
-  panes.open(current)
+  panes.show(current)
   goPage("chat")
 }

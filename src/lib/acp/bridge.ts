@@ -2,6 +2,7 @@ import type { McpServer as Declaration } from "@agentclientprotocol/sdk"
 import { createMcpHandler, type McpServer } from "@modelcontextprotocol/server"
 import { Channel } from "@tauri-apps/api/core"
 import { native } from "#lib/native.ts"
+import { BRIDGE_NAME } from "./toolNames.ts"
 
 type Incoming = {
   id: number
@@ -62,12 +63,12 @@ export class Bridge {
     const server: Declaration = http
       ? {
           type: "http",
-          name: "atrix",
+          name: BRIDGE_NAME,
           url: `http://127.0.0.1:${this.#port}/mcp`,
           headers: [{ name: "Authorization", value: `${BEARER}${token}` }],
         }
       : {
-          name: "atrix",
+          name: BRIDGE_NAME,
           command: this.#exe,
           args: [STDIO_FLAG],
           env: [

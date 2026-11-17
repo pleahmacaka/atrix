@@ -18,9 +18,10 @@ const SETTLE_MS = 3000
 
 const NOTICE_LIMIT = 20
 
-export const human = (device: string): Actor => ({
+export const human = (device: string, user?: string): Actor => ({
   kind: "human",
   device: device.trim() || "unknown",
+  ...(user?.trim() && { user: user.trim() }),
 })
 
 export class Knowledge {
@@ -127,41 +128,43 @@ export class Knowledge {
     "kg.apps": async () => this.store.appList(),
     "kg.object.read": r => this.store.readObject(r.key),
     "kg.object.write": r =>
-      this.store.writeObject(r.key, r.etag, r.value, human(r.device)),
+      this.store.writeObject(r.key, r.etag, r.value, human(r.device, r.user)),
     "kg.folder.create": async r => {
-      await this.store.createFolder(r.path, human(r.device))
+      await this.store.createFolder(r.path, human(r.device, r.user))
 
       return null
     },
     "kg.remove": async r => {
-      await this.store.remove(r.path, human(r.device))
+      await this.store.remove(r.path, human(r.device, r.user))
 
       return null
     },
     "kg.move": async r => {
-      await this.store.move(r.from, r.to, human(r.device))
+      await this.store.move(r.from, r.to, human(r.device, r.user))
 
       return null
     },
     "kg.canvas.read": r => this.store.readCanvas(r.path),
     "kg.canvas.save": r =>
-      this.store.saveCanvas(r.path, r.etag, r.canvas, human(r.device)),
+      this.store.saveCanvas(r.path, r.etag, r.canvas, human(r.device, r.user)),
     "kg.read": r => this.store.read(r.ref, r.versionId),
     "kg.history": r => this.store.history(r.ref),
     "kg.trash": () => this.store.trash(),
     "kg.restore": r =>
-      this.save(() => this.store.restore(r.ref, r.versionId, human(r.device))),
+      this.save(() =>
+        this.store.restore(r.ref, r.versionId, human(r.device, r.user)),
+      ),
     "kg.create": r =>
       this.save(() =>
-        this.store.create(r.path, r.fields, r.body, human(r.device)),
+        this.store.create(r.path, r.fields, r.body, human(r.device, r.user)),
       ),
     "kg.update": r =>
       this.save(() =>
-        this.store.update(r.ref, r.etag, r.patch, human(r.device)),
+        this.store.update(r.ref, r.etag, r.patch, human(r.device, r.user)),
       ),
     "kg.revert": r =>
       this.save(() =>
-        this.store.revert(r.ref, r.versionId, r.etag, human(r.device)),
+        this.store.revert(r.ref, r.versionId, r.etag, human(r.device, r.user)),
       ),
   }
 }

@@ -38,6 +38,7 @@ const output = z.object({
 })
 
 const record = z.object({
+  timestamp: z.string().optional(),
   type: z.string(),
   payload: z.object({ type: z.string() }).loose(),
 })
@@ -53,7 +54,10 @@ const window = z.object({
 const tokenCount = z.object({
   info: z
     .object({
-      last_token_usage: z.object({ total_tokens: z.number() }),
+      last_token_usage: z.object({
+        total_tokens: z.number(),
+        output_tokens: z.number().optional(),
+      }),
       model_context_window: z.number(),
     })
     .nullable()
@@ -86,6 +90,20 @@ const parseLine = (line: string) => {
     return record.safeParse(JSON.parse(line))
   } catch {
     return null
+  }
+}
+
+const INPUTS = new Set(["function_call_output", "custom_tool_call_output"])
+
+const startsRequest = (payload: { type: string; role?: unknown }) =>
+  INPUTS.has(payload.type) ||
+  (payload.type === "message" && payload.role !== "assistant")
+
+const pace = (log: Log, tokens: number | undefined, at: number) => {
+  const last = log.items.at(-1)
+
+  if (last?.type === "agent" && tokens && log.lastAt !== undefined) {
+    last.pace = { tokens, ms: at - log.lastAt }
   }
 }
 
@@ -132,17 +150,28 @@ export const applyRollout = (log: Log, line: string) => {
     return
   }
 
-  const { type, payload } = parsed.data
+  const { timestamp, type, payload } = parsed.data
+  const at = timestamp ? Date.parse(timestamp) : undefined
 
   if (type === "response_item") {
     applyItem(log.items, payload)
+
+    if (at !== undefined && startsRequest(payload)) {
+      log.lastAt = at
+    }
   } else if (type === "event_msg" && payload.type === "token_count") {
     const counted = tokenCount.safeParse(payload)
 
     if (counted.success && counted.data.info) {
+      const usage = counted.data.info.last_token_usage
+
       log.context = {
-        used: counted.data.info.last_token_usage.total_tokens,
+        used: usage.total_tokens,
         size: counted.data.info.model_context_window,
+      }
+
+      if (at !== undefined) {
+        pace(log, usage.output_tokens, at)
       }
     }
 

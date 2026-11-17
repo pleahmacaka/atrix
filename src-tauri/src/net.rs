@@ -66,8 +66,10 @@ async fn node(net: &State<'_, Net>) -> Result<Node> {
 
 #[tauri::command]
 pub fn startup_pair_code() -> Option<String> {
-    let args: Vec<String> = std::env::args().collect();
+    pair_code_in(&std::env::args().collect::<Vec<_>>())
+}
 
+pub fn pair_code_in(args: &[String]) -> Option<String> {
     args.iter()
         .position(|a| a == PAIR_FLAG)
         .and_then(|i| args.get(i + 1).cloned())

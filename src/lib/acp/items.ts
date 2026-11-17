@@ -16,6 +16,9 @@ export type ToolItem = {
   kind: string
   status: string
   detail: string
+  at?: number
+  done?: number
+  timeout?: number
 }
 
 export const shownInTurn = (items: ChatItem[], blocks: Block[]) => {
@@ -69,6 +72,7 @@ export type TextItem = {
   text: string
   message?: string
   files?: FileRef[]
+  pace?: { tokens: number; ms: number }
 }
 
 export type ThoughtItem = TextItem & { type: "thought" }
@@ -88,8 +92,20 @@ export type Shell = {
   description: string
 }
 
+export type Question = {
+  question: string
+  header: string
+  multiSelect: boolean
+  options: { label: string; description: string }[]
+}
+
+export type Asked = { id: string; questions: Question[] }
+
+export type Picked = { picks: number[]; text?: string }
+
 export type Log = {
   items: ChatItem[]
+  asked?: Asked | null
   queue: string[]
   sent: string[]
   running: boolean
@@ -97,6 +113,10 @@ export type Log = {
   model?: string
   since?: number
   usage?: Map<string, number>
+  started?: Map<string, number>
+  ended?: Map<string, number>
+  lastAt?: number
+  requests?: boolean
   context?: ContextUse
   contextFrom?: number
   contextChars?: Record<string, number>
@@ -218,6 +238,7 @@ export const settleTool = (
   id: string,
   failed: boolean,
   text: string,
+  at?: number,
 ) => {
   const tool = items.find(i => i.type === "tool" && i.id === id)
 
@@ -226,6 +247,7 @@ export const settleTool = (
   }
 
   tool.status = failed ? "failed" : "completed"
+  tool.done = at
   tool.detail = [tool.detail, text]
     .filter(Boolean)
     .join("\n\n")

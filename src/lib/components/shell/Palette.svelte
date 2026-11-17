@@ -214,10 +214,15 @@ const keydown = (e: KeyboardEvent) => {
 }
 </script>
 
-<dialog bind:this={dialog} class="modal modal-top grid-cols-1" onclose={close}>
+<dialog
+  bind:this={dialog}
+  class="modal modal-top grid-cols-1 bg-transparent! duration-120"
+  onclose={close}
+>
   <div
     class={[
-      "modal-box popover-box mx-auto mt-20 flex max-h-120 w-full max-w-xl flex-col gap-1 p-1.5",
+      "modal-box popover-box mx-auto mt-1 flex max-h-120 w-full max-w-xl flex-col gap-1 p-1.5",
+      "translate-y-0! duration-120",
       "max-sm:mx-4 max-sm:mt-4 max-sm:w-auto max-sm:justify-self-stretch",
     ]}
   >
@@ -290,7 +295,7 @@ const keydown = (e: KeyboardEvent) => {
       <ErrorAlert message={attempt.failure} />
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop backdrop-blur-sm">
+  <form method="dialog" class="modal-backdrop">
     <button type="submit">{m.common_close()}</button>
   </form>
 </dialog>

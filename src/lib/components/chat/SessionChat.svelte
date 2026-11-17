@@ -1,5 +1,4 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { untrack } from "svelte"
 import { withPrimer } from "#lib/agents/agents.svelte.ts"
 import { appTitleOf } from "#lib/apps/app.ts"
@@ -10,7 +9,6 @@ import { drainFailures } from "#lib/chat/queue.svelte.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
 import { segmentsOf, turnsOf } from "#lib/chat/session.ts"
 import { openThread, startThread, threadsOf } from "#lib/chat/threads.svelte.ts"
-import { brandIcon } from "#lib/components/harness/brands.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
@@ -18,17 +16,19 @@ import { isGoneError } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import PcbSide from "#lib/pcb/PcbSide.svelte"
 import { openConversation } from "#lib/store/nav.svelte.ts"
-import { shell } from "#lib/store/shell.svelte.ts"
+import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import AgentReply from "./AgentReply.svelte"
 import ChatTimeline from "./ChatTimeline.svelte"
 import Composer from "./Composer.svelte"
 import PermissionCard from "./PermissionCard.svelte"
 import PlanCard from "./PlanCard.svelte"
+import QuestionCard from "./QuestionCard.svelte"
 import QueuedPrompts from "./QueuedPrompts.svelte"
 import RunningStatus from "./RunningStatus.svelte"
 import SessionTools from "./SessionTools.svelte"
 import SidePanel from "./SidePanel.svelte"
+import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 import UserPrompt from "./UserPrompt.svelte"
@@ -36,11 +36,16 @@ import VoiceConversation from "./VoiceConversation.svelte"
 
 let { host, sessionId }: { host: HostView; sessionId: string } = $props()
 
-const harness = $derived(host.state?.harnesses.find(h => h.id === view?.harness))
+const pane = usePane()
 
 const tries = new Attempt()
 
 const attempt = tries.run
+
+$effect(() => {
+  void sessionId
+  tries.failure = null
+})
 
 const view = $derived(host.views[sessionId])
 
@@ -81,7 +86,14 @@ const send = (text: string, files: File[] = []) =>
 
       const id = await host.create(view.harness, view.cwd)
 
-      openConversation({ kind: "session", host: host.id, id })
+      const next = { kind: "session" as const, host: host.id, id }
+
+      if (pane) {
+        panes.open(next, pane())
+      } else {
+        openConversation(next)
+      }
+
       await host.prompt(id, text, attachments)
     }
   })
@@ -99,7 +111,7 @@ $effect(() => {
 </script>
 
 {#if view}
-  <div class="flex min-h-0 flex-1">
+  <div class="relative flex min-h-0 flex-1">
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
       {#if talking && conversation.full}
         <VoiceConversation {view} onPermit={permit} />
@@ -111,7 +123,7 @@ $effect(() => {
             {@attach pinToggles}
             {@attach stickBottom}
           >
-            <div class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-8 py-6 text-sm">
+            <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
               {#each segments as segment, i (segment.key)}
                 {#if segment.kind === "activity"}
                   <ToolGroup items={segment.items} latest={i === segments.length - 1} />
@@ -120,6 +132,7 @@ $effect(() => {
                 {:else if segment.item.type === "agent"}
                   <AgentReply
                     text={segment.item.text}
+                    pace={segment.item.pace}
                     onAction={reply}
                     onSave={saveApp}
                     threads={threadsOf(sessionId, segment.item.id).length}
@@ -140,18 +153,39 @@ $effect(() => {
                       }
                     }}
                   />
+                {:else if segment.item.type === "thought"}
+                  <ThoughtNote text={segment.item.text} />
                 {:else if segment.item.type === "plan"}
                   <PlanCard entries={segment.item.entries} />
                 {:else if segment.item.type === "ui"}
                   <UiBlocks blocks={segment.item.blocks} onAction={reply} onSave={saveApp} />
                 {/if}
               {/each}
-              {#if view.running && !view.ask}
-                <RunningStatus since={view.since} tokens={view.tokens} agents={view.agents} />
-              {/if}
               <QueuedPrompts {queued} images={view.queuedImages} />
+              {#if view.running && !view.ask}
+                <RunningStatus
+                  since={view.since}
+                  tokens={view.tokens}
+                  pace={view.pace}
+                  agents={view.agents}
+                />
+              {/if}
               {#if view.ask}
                 <PermissionCard ask={view.ask} onPermit={permit} />
+              {/if}
+              {#if view.asked}
+                {#key view.asked.id}
+                  <QuestionCard
+                    asked={view.asked}
+                    onAnswer={answers => {
+                      const id = view?.asked?.id
+
+                      if (id) {
+                        attempt(() => host.answer(sessionId, id, answers))
+                      }
+                    }}
+                  />
+                {/key}
               {/if}
               <ErrorAlert message={tries.failure ?? drainFailures[sessionId] ?? null} />
             </div>
@@ -161,6 +195,7 @@ $effect(() => {
       {/if}
       <Composer
         busy={!!view.running && !elsewhere}
+        running={!!view.running}
         datasources={host.datasources}
         queue
         converse={{ host: host.id }}
@@ -170,20 +205,12 @@ $effect(() => {
         onSend={send}
         onStop={() => attempt(() => host.cancel(sessionId))}
       >
-        {#snippet side()}
-          <span
-            class="grid size-full place-items-center rounded-full border border-base-300 bg-raised"
-            title={harness?.name}
-          >
-            <Icon icon={brandIcon(harness?.base ?? view.harness)} class="size-5" />
-          </span>
-        {/snippet}
         {#snippet tools()}
           <SessionTools {host} {view} {elsewhere} {attempt} {send} />
         {/snippet}
       </Composer>
     </div>
-    {#if shell.side}
+    {#if panes.hasSide(pane?.())}
       <SidePanel
         entries={view.items.flatMap(i => (i.type === "ui" ? [{ id: i.id, blocks: i.blocks }] : []))}
         onAction={reply}

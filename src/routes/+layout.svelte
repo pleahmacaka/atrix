@@ -9,6 +9,7 @@ import Onboarding from "#lib/components/devices/Onboarding.svelte"
 import { errorText } from "#lib/components/ui/attempt.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { startTitleTips } from "#lib/components/ui/tooltip.ts"
+import UpdatePrompt from "#lib/components/update/UpdatePrompt.svelte"
 import { startLogging } from "#lib/logging.ts"
 import { startLocalHost } from "#lib/p2p/hosts.svelte.ts"
 import { sync } from "#lib/p2p/sync.svelte.ts"
@@ -31,10 +32,15 @@ const report = (e: unknown) => {
 
 const overlay = location.pathname.startsWith("/overlay")
 
+const floating = location.pathname.startsWith("/float")
+
 document.documentElement.lang = currentLocale()
 
 if (!overlay) {
-  startLogging()
+  if (!floating) {
+    startLogging()
+  }
+
   startAppearance()
   startTitleTips()
 }
@@ -42,6 +48,16 @@ if (!overlay) {
 onMount(async () => {
   if (overlay) {
     return
+  }
+
+  if (floating) {
+    await local.load().catch(report)
+
+    return
+  }
+
+  if (desktop) {
+    invoke("tray_labels", { open: m.tray_open(), quit: m.shell_quit() }).catch(() => {})
   }
 
   captureCallback()
@@ -66,13 +82,21 @@ onMount(async () => {
     if (code) {
       await sync.connect(code)
     }
+
+    if (desktop) {
+      const { listen } = await import("@tauri-apps/api/event")
+
+      await listen<string>("pair-code", e => {
+        sync.connect(e.payload).catch(report)
+      })
+    }
   } catch (e) {
     report(e)
   }
 })
 </script>
 
-{#if !overlay && client && sync.loaded && sync.peers.size === 0}
+{#if !overlay && !floating && client && sync.loaded && sync.peers.size === 0}
   <Onboarding />
 {:else if overlay || local.ready}
   {@render children()}
@@ -98,3 +122,8 @@ onMount(async () => {
     </div>
   </div>
 {/if}
+
+{#if !overlay && !floating}
+  <UpdatePrompt />
+{/if}
+

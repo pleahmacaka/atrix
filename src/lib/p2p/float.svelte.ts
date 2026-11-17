@@ -1,0 +1,318 @@
+import { emitTo } from "@tauri-apps/api/event"
+import {
+  getCurrentWebviewWindow,
+  WebviewWindow,
+} from "@tauri-apps/api/webviewWindow"
+import type { ChatStatus, FileUIPart } from "ai"
+import { SvelteMap } from "svelte/reactivity"
+import { chats } from "#lib/chat/chats.svelte.ts"
+import {
+  type ChatLike,
+  type ChatMessage,
+  chatFor,
+} from "#lib/chat/live.svelte.ts"
+import { logFailure } from "#lib/logging.ts"
+import { native } from "#lib/native.ts"
+import { keyOf } from "#lib/store/keys.ts"
+import { hostById } from "./hosts.svelte.ts"
+import { HostView } from "./hostView.svelte.ts"
+import {
+  type Answers,
+  type HostEvent,
+  type HostRequest,
+  type Op,
+  type Reply,
+  type RequestOf,
+  reply,
+} from "./protocol.ts"
+
+type Session = { kind: "session"; host: string; id: string }
+
+type Call = { label: string; seq: number; host: string; request: HostRequest }
+
+type Outgoing = { text: string; files?: FileUIPart[] }
+
+type ChatOp = { op: "sync" | "stop" } | { op: "send"; message: Outgoing }
+
+type ChatCall = { label: string; id: string } & ChatOp
+
+type ChatFrame = {
+  messages: ChatMessage[]
+  status: ChatStatus
+  error: string | null
+}
+
+const MAIN = "main"
+
+const concerns = (event: HostEvent, id: string) => {
+  switch (event.type) {
+    case "state":
+      return true
+    case "view":
+      return event.view.id === id
+    case "update":
+    case "patch":
+      return event.sessionId === id
+    default:
+      return false
+  }
+}
+
+export const floating = new SvelteMap<string, string>()
+
+const answer = async (call: Call): Promise<Reply> => {
+  try {
+    const view = hostById(call.host)
+
+    if (!view) {
+      throw new Error(call.host)
+    }
+
+    return { ok: true, value: await view.call(call.request) }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+const frameOf = (chat: ChatLike) => ({
+  messages: $state.snapshot<unknown>(chat.messages),
+  status: chat.status,
+  error: chat.error?.message ?? null,
+})
+
+const runChat = async (call: ChatCall) => {
+  const stored = chats.find(call.id)
+
+  if (!stored) {
+    return
+  }
+
+  const chat = chatFor(stored)
+
+  if (call.op === "send") {
+    await chat.sendMessage(call.message)
+  } else if (call.op === "stop") {
+    await chat.stop()
+  } else {
+    await emitTo(call.label, "float:chat", frameOf(chat))
+  }
+}
+
+let serving = false
+
+const serve = () => {
+  if (serving) {
+    return
+  }
+
+  serving = true
+
+  const win = getCurrentWebviewWindow()
+
+  win
+    .listen<Call>("float:call", async ({ payload }) => {
+      const result = await answer(payload)
+
+      await emitTo(payload.label, "float:reply", {
+        seq: payload.seq,
+        ...result,
+      })
+    })
+    .catch(e => logFailure("float serve", e))
+  win
+    .listen<ChatCall>("float:chat-call", ({ payload }) => {
+      runChat(payload).catch(e => logFailure("float chat", e))
+    })
+    .catch(e => logFailure("float serve", e))
+}
+
+const openWindow = async (
+  key: string,
+  query: Record<string, string>,
+  title: string,
+  attach: (label: string) => () => void,
+) => {
+  const open = floating.get(key)
+
+  if (open) {
+    await (await WebviewWindow.getByLabel(open))?.setFocus()
+
+    return
+  }
+
+  serve()
+
+  const label = `float-${crypto.randomUUID()}`
+  const detach = attach(label)
+  const done = () => {
+    detach()
+    floating.delete(key)
+  }
+
+  floating.set(key, label)
+
+  try {
+    await native("float_open", {
+      label,
+      url: `/float?${new URLSearchParams(query)}`,
+      title,
+    })
+  } catch (e) {
+    done()
+    throw e
+  }
+
+  const win = await WebviewWindow.getByLabel(label)
+
+  if (!win) {
+    done()
+
+    return
+  }
+
+  win.once("tauri://destroyed", done)
+}
+
+export const floatOut = async (session: Session, title: string) => {
+  const view = hostById(session.host)
+
+  if (!view) {
+    return
+  }
+
+  await openWindow(
+    keyOf(session),
+    { host: session.host, id: session.id },
+    title,
+    label => {
+      const tap = (event: HostEvent) => {
+        if (concerns(event, session.id)) {
+          emitTo(label, "float:event", event).catch(() => {})
+        }
+      }
+
+      view.taps.add(tap)
+
+      return () => view.taps.delete(tap)
+    },
+  )
+}
+
+export const floatChat = async (id: string, title: string) => {
+  const stored = chats.find(id)
+
+  if (!stored) {
+    return
+  }
+
+  const chat = chatFor(stored)
+
+  await openWindow(id, { chat: id }, title, label =>
+    $effect.root(() => {
+      $effect(() => {
+        emitTo(label, "float:chat", frameOf(chat)).catch(() => {})
+      })
+    }),
+  )
+}
+
+export class RemoteChat implements ChatLike {
+  messages = $state<ChatMessage[]>([])
+
+  status = $state<ChatStatus>("ready")
+
+  error = $state<Error | undefined>()
+
+  ready: Promise<unknown>
+
+  #id: string
+
+  #stop: Promise<() => void>
+
+  constructor(id: string) {
+    this.#id = id
+    this.#stop = getCurrentWebviewWindow().listen<ChatFrame>(
+      "float:chat",
+      ({ payload }) => {
+        this.messages = payload.messages
+        this.status = payload.status
+        this.error = payload.error ? new Error(payload.error) : undefined
+      },
+    )
+    this.ready = this.#stop.then(() => this.#call({ op: "sync" }))
+  }
+
+  sendMessage = (message: Outgoing) => this.#call({ op: "send", message })
+
+  stop = () => this.#call({ op: "stop" })
+
+  close = () => {
+    this.#stop.then(f => f())
+  }
+
+  #call = (op: ChatOp) => {
+    const call: ChatCall = {
+      label: getCurrentWebviewWindow().label,
+      id: this.#id,
+      ...op,
+    }
+
+    return emitTo(MAIN, "float:chat-call", call)
+  }
+}
+
+export const dock = async (key: string) => {
+  const label = floating.get(key)
+
+  if (label) {
+    await (await WebviewWindow.getByLabel(label))?.close()
+  }
+}
+
+export const remoteHost = (host: string) => {
+  const win = getCurrentWebviewWindow()
+  const waiting = new Map<number, (r: Reply) => void>()
+  let seq = 0
+
+  const call = async <K extends Op>(
+    request: RequestOf<K>,
+  ): Promise<Answers[K]> => {
+    seq += 1
+
+    const n = seq
+    const result = await new Promise<Reply>(resolve => {
+      waiting.set(n, resolve)
+      emitTo(MAIN, "float:call", {
+        label: win.label,
+        seq: n,
+        host,
+        request,
+      }).catch(e => resolve({ ok: false, error: String(e) }))
+    })
+
+    if (!result.ok) {
+      throw new Error(result.error)
+    }
+
+    return result.value as Answers[K]
+  }
+
+  const view = new HostView(host, call)
+  const stops = [
+    win.listen<Reply & { seq: number }>("float:reply", ({ payload }) => {
+      waiting.get(payload.seq)?.(reply.parse(payload))
+      waiting.delete(payload.seq)
+    }),
+    win.listen<HostEvent>("float:event", ({ payload }) => view.apply(payload)),
+  ]
+
+  return {
+    view,
+    ready: Promise.all(stops),
+    stop: () => {
+      for (const stop of stops) {
+        stop.then(f => f())
+      }
+    },
+  }
+}

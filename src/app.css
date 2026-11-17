@@ -161,6 +161,10 @@ svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([f
   box-shadow: var(--island-shadow);
 }
 
+[data-sidebar-drawer] .island {
+  backdrop-filter: blur(1.5rem);
+}
+
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, sans-serif;
   --font-mono: var(--font-sans);
@@ -281,7 +285,6 @@ summary {
 
 .modal[open] {
   background-color: oklch(0% 0 0 / 0.2);
-  backdrop-filter: blur(0.25rem);
 }
 
 .modal-box {
@@ -699,5 +702,5 @@ summary {
 
 :where(button, a, summary, [role="button"], [tabindex]):focus-visible {
   outline: 0.125rem solid var(--color-primary);
-  outline-offset: 0.125rem;
+  outline-offset: 0;
 }

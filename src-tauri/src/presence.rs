@@ -1,6 +1,9 @@
+use std::collections::HashMap;
 use std::fs::{self, TryLockError};
 use std::io::ErrorKind;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 
 use serde_json::Value;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
@@ -126,6 +129,66 @@ fn tail_lines(path: &Path) -> Vec<String> {
     lines[lines.len().saturating_sub(SUBAGENT_TAIL_LINES)..].to_vec()
 }
 
+#[derive(Default)]
+struct Usage {
+    offset: u64,
+    rows: Vec<Value>,
+}
+
+static USAGE: LazyLock<Mutex<HashMap<PathBuf, Usage>>> = LazyLock::new(Default::default);
+
+fn usage_row(line: &str) -> Option<Value> {
+    let row: Value = serde_json::from_str(line).ok()?;
+    let message = row.get("message");
+
+    Some(serde_json::json!({
+        "type": row.get("type")?,
+        "timestamp": row.get("timestamp")?,
+        "id": message.and_then(|m| m.get("id")),
+        "tokens": message.and_then(|m| m.pointer("/usage/output_tokens")),
+    }))
+}
+
+fn usage_lines(path: &Path) -> Vec<Value> {
+    let Ok(mut cache) = USAGE.lock() else {
+        return Vec::new();
+    };
+    let usage = cache.entry(path.to_path_buf()).or_default();
+    let Ok(mut file) = fs::File::open(path) else {
+        return Vec::new();
+    };
+    let mut fresh = Vec::new();
+
+    if file.seek(SeekFrom::Start(usage.offset)).is_err() || file.read_to_end(&mut fresh).is_err() {
+        return usage.rows.clone();
+    }
+
+    let Some(end) = fresh.iter().rposition(|b| *b == b'\n') else {
+        return usage.rows.clone();
+    };
+    let text = String::from_utf8_lossy(&fresh[..=end]);
+
+    for line in text.lines() {
+        if usage.rows.is_empty()
+            && let Some(at) = serde_json::from_str::<Value>(line)
+                .ok()
+                .and_then(|row| row.get("timestamp").cloned())
+        {
+            usage
+                .rows
+                .push(serde_json::json!({ "type": "start", "timestamp": at }));
+        }
+
+        if line.contains("\"api-request\"") || line.contains("\"output_tokens\"") {
+            usage.rows.extend(usage_row(line));
+        }
+    }
+
+    usage.offset += end as u64 + 1;
+
+    usage.rows.clone()
+}
+
 #[tauri::command(async)]
 pub fn claude_subagents(transcript: String) -> Vec<Value> {
     let folder = Path::new(&transcript).with_extension("").join("subagents");
@@ -139,9 +202,16 @@ pub fn claude_subagents(transcript: String) -> Vec<Value> {
             let path = entry.path();
             let id = path.file_name()?.to_str()?.strip_suffix(".meta.json")?;
             let meta: Value = serde_json::from_slice(&fs::read(&path).ok()?).ok()?;
-            let tail = tail_lines(&folder.join(format!("{id}.jsonl")));
 
-            Some(serde_json::json!({ "id": id, "meta": meta, "tail": tail }))
+            if meta.get("finished").and_then(Value::as_bool) == Some(true) {
+                return None;
+            }
+
+            let log = folder.join(format!("{id}.jsonl"));
+            let tail = tail_lines(&log);
+            let usage = usage_lines(&log);
+
+            Some(serde_json::json!({ "id": id, "meta": meta, "tail": tail, "usage": usage }))
         })
         .collect()
 }

@@ -12,6 +12,8 @@ export const messageOf = (raw: unknown) => {
       return m.error_command_not_found({ command: detail })
     case "agent_closed":
       return m.error_agent_closed()
+    case "subagent_selected":
+      return m.error_subagent_selected()
     case "path_not_allowed":
       return m.error_path_not_allowed({ path: detail })
     case "root_protected":

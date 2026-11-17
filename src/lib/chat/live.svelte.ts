@@ -1,12 +1,15 @@
 import { Chat } from "@ai-sdk/svelte"
 import {
+  type ChatStatus,
   type ChatTransport,
   DirectChatTransport,
+  type FileUIPart,
   type InferUITools,
   ToolLoopAgent,
   tool,
   type UIMessage,
 } from "ai"
+import { z } from "zod"
 import { m } from "#lib/paraglide/messages.js"
 import {
   findGateway,
@@ -30,6 +33,27 @@ const TOOLS = { [SHOW_UI]: showUi }
 
 export type ChatMessage = UIMessage<unknown, never, InferUITools<typeof TOOLS>>
 
+export type ChatLike = {
+  messages: ChatMessage[]
+  status: ChatStatus
+  error: Error | undefined
+  sendMessage: (message: {
+    text: string
+    files?: FileUIPart[]
+  }) => Promise<void>
+  stop: () => Promise<void>
+}
+
+const paced = z.object({
+  pace: z.object({ tokens: z.number(), ms: z.number() }),
+})
+
+export const paceOf = (message: UIMessage) => {
+  const parsed = paced.safeParse(message.metadata)
+
+  return parsed.success ? parsed.data.pace : undefined
+}
+
 export const gatewayOf = (stored: StoredChat) =>
   findGateway(stored.gateway ?? OPENROUTER_ID)
 
@@ -50,8 +74,29 @@ const agentFor = (stored: StoredChat) => {
 }
 
 const transportFor = (stored: StoredChat): ChatTransport<ChatMessage> => ({
-  sendMessages: options =>
-    new DirectChatTransport({ agent: agentFor(stored) }).sendMessages(options),
+  sendMessages: options => {
+    let start = Date.now()
+
+    return new DirectChatTransport({
+      agent: agentFor(stored),
+      messageMetadata: ({ part }) => {
+        if (part.type === "start") {
+          start = Date.now()
+        }
+
+        if (part.type === "finish" && part.totalUsage.outputTokens) {
+          return {
+            pace: {
+              tokens: part.totalUsage.outputTokens,
+              ms: Date.now() - start,
+            },
+          }
+        }
+
+        return undefined
+      },
+    }).sendMessages(options)
+  },
   reconnectToStream: async () => null,
 })
 

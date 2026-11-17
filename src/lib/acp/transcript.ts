@@ -8,6 +8,7 @@ import {
   type Log,
   type Shell,
   settleTool,
+  splitQueued,
   visible,
 } from "./items.ts"
 
@@ -50,7 +51,7 @@ const thinkingBlock = z.object({
 })
 
 const toolUse = z.object({
-  type: z.literal("tool_use"),
+  type: z.enum(["tool_use", "server_tool_use"]),
   id: z.string(),
   name: z.string(),
   input: z.record(z.string(), z.unknown()).catch({}),
@@ -63,6 +64,24 @@ const toolResult = z.object({
   content: z
     .union([z.string(), z.array(z.object({ text: z.string().optional() }))])
     .optional(),
+})
+
+const askedInput = z.object({
+  questions: z.array(
+    z.object({
+      question: z.string(),
+      header: z.string().catch(""),
+      multiSelect: z.boolean().catch(false),
+      options: z.array(
+        z.object({ label: z.string(), description: z.string().catch("") }),
+      ),
+    }),
+  ),
+})
+
+const serverResult = z.object({
+  type: z.string().endsWith("_tool_result"),
+  tool_use_id: z.string(),
 })
 
 const promptBody = z.union([z.string(), z.array(z.unknown())])
@@ -257,7 +276,9 @@ const mainRecord = (line: string) => {
 }
 
 const unqueue = (queue: string[], text: string) => {
-  const at = queue.indexOf(text)
+  const exact = queue.indexOf(text)
+  const at =
+    exact !== -1 ? exact : queue.indexOf(splitQueued(text, n => n).text)
 
   if (at !== -1) {
     queue.splice(at, 1)
@@ -271,6 +292,7 @@ const applyQueue = (
 ) => {
   if (operation === "enqueue" && visible(content) && !content.startsWith("/")) {
     if (!queue.includes(content)) {
+      unqueue(queue, content)
       queue.push(content)
     }
   } else if (operation === "remove" && queue.includes(content)) {
@@ -282,12 +304,79 @@ const applyQueue = (
   }
 }
 
+const usageRow = z.object({
+  type: z.string(),
+  timestamp: z.string(),
+  id: z.string().nullish(),
+  tokens: z.number().nullish(),
+})
+
+export const usagePace = (rows: unknown[]) => {
+  const log: Log = {
+    items: [],
+    queue: [],
+    sent: [],
+    running: false,
+    shells: [],
+  }
+  let started: number | undefined
+
+  for (const raw of rows) {
+    const row = usageRow.safeParse(raw)
+
+    if (!row.success) {
+      continue
+    }
+
+    const at = Date.parse(row.data.timestamp)
+
+    if (row.data.type === "start") {
+      started = at
+    } else if (row.data.type === "api-request") {
+      log.lastAt = at
+    } else if (row.data.id && row.data.tokens) {
+      log.usage ??= new Map()
+      log.started ??= new Map()
+      log.ended ??= new Map()
+      log.usage.set(row.data.id, row.data.tokens)
+
+      if (!log.started.has(row.data.id)) {
+        log.started.set(row.data.id, log.lastAt ?? started ?? at)
+      }
+
+      log.ended.set(row.data.id, at)
+    }
+  }
+
+  return { started, pace: turnPace(log) }
+}
+
+export const turnPace = (log: Log) => {
+  let tokens = 0
+  let ms = 0
+
+  for (const [id, end] of log.ended ?? []) {
+    const start = log.started?.get(id)
+    const used = log.usage?.get(id)
+
+    if (start !== undefined && used) {
+      tokens += used
+      ms += Math.max(0, end - start)
+    }
+  }
+
+  return ms > 0 ? { tokens, ms } : undefined
+}
+
 export const turnTokens = (log: Log) =>
   [...(log.usage?.values() ?? [])].reduce((a, b) => a + b, 0)
 
 const startTurn = (log: Log, at: string | undefined) => {
+  log.asked = null
   log.since = at ? Date.parse(at) : Date.now()
   log.usage = new Map()
+  log.started = new Map()
+  log.ended = new Map()
 }
 
 const appendUser = ({ items, queue, sent }: Log, text: string) => {
@@ -387,6 +476,13 @@ const applyRecord = (log: Log, data: Row) => {
     return
   }
 
+  if (data.type === "api-request" && data.timestamp) {
+    log.lastAt = Date.parse(data.timestamp)
+    log.requests = true
+
+    return
+  }
+
   const queued = queuedPrompt.safeParse(data.attachment)
   const queuedText = queued.success ? promptText(queued.data.prompt) : ""
 
@@ -402,6 +498,19 @@ const applyRecord = (log: Log, data: Row) => {
 
   const { type, isMeta, message, timestamp } = data
   const command = isMeta ? "" : commandOf(data)
+  const at = timestamp ? Date.parse(timestamp) : undefined
+
+  if (type === "assistant" && message?.id && at !== undefined) {
+    log.started ??= new Map()
+
+    if (!log.started.has(message.id)) {
+      log.started.set(message.id, log.lastAt ?? at)
+    }
+  }
+
+  if (type === "user" && at !== undefined && !log.requests) {
+    log.lastAt = at
+  }
 
   if (command) {
     startTurn(log, timestamp)
@@ -445,12 +554,14 @@ const applyRecord = (log: Log, data: Row) => {
     const thinking = thinkingBlock.safeParse(b)
     const use = toolUse.safeParse(b)
     const result = toolResult.safeParse(b)
+    const served = serverResult.safeParse(b)
     const image = imageBlock.safeParse(b)
 
     if (text.success && type === "user" && visible(text.data.text)) {
       startTurn(log, timestamp)
       appendUser(log, text.data.text)
     } else if (text.success && type === "assistant") {
+      log.asked = null
       appendText(items, "agent", text.data.text, message.id)
     } else if (thinking.success && thinking.data.thinking.trim()) {
       appendText(items, "thought", thinking.data.thinking, message.id)
@@ -464,20 +575,81 @@ const applyRecord = (log: Log, data: Row) => {
         kind: KINDS[use.data.name] ?? "other",
         status: "in_progress",
         detail: JSON.stringify(use.data.input, null, 2).slice(0, DETAIL_LIMIT),
+        at,
+        timeout: timeoutOf(use.data.input),
       })
       attachUi(items, use.data.id, use.data.name, use.data.input)
+
+      const sent = sentFiles.safeParse(use.data.input)
+
+      if (use.data.name === "SendUserFile" && sent.success) {
+        items.push({
+          type: "ui",
+          id: `${use.data.id}:ui`,
+          blocks: sent.data.files.map(path => ({
+            type: "file",
+            path,
+            title: sent.data.caption?.slice(0, 80) || undefined,
+          })),
+        })
+      }
+
+      const asked = askedInput.safeParse(use.data.input)
+
+      if (use.data.name === "AskUserQuestion" && asked.success) {
+        log.asked = { id: use.data.id, ...asked.data }
+      }
     } else if (result.success) {
+      if (log.asked?.id === result.data.tool_use_id) {
+        log.asked = null
+      }
+
       settleTool(
         items,
         result.data.tool_use_id,
         !!result.data.is_error,
         resultText(result.data.content),
+        at,
       )
+    } else if (served.success) {
+      settleTool(items, served.data.tool_use_id, false, "", at)
     } else if (image.success && type === "user") {
       attachFile(items, imageOf(image.data.source))
     }
   }
+
+  const tokens = message.id ? log.usage?.get(message.id) : undefined
+  const start = message.id ? log.started?.get(message.id) : undefined
+
+  if (message.id && start !== undefined && at !== undefined) {
+    log.ended ??= new Map()
+    log.ended.set(message.id, at)
+  }
+
+  const reply = items.findLast(
+    i => i.type === "agent" && !!message.id && i.message === message.id,
+  )
+
+  if (
+    reply?.type === "agent" &&
+    tokens &&
+    start !== undefined &&
+    at !== undefined
+  ) {
+    reply.pace = { tokens, ms: at - start }
+  }
 }
+
+const timeoutOf = (input: unknown) => {
+  const parsed = z.object({ timeout: z.number().positive() }).safeParse(input)
+
+  return parsed.success ? parsed.data.timeout : undefined
+}
+
+const sentFiles = z.object({
+  files: z.array(z.string().min(1)).min(1),
+  caption: z.string().optional(),
+})
 
 export const SHELL_NEEDLES = [
   "run_in_background",

@@ -4,6 +4,7 @@ import CalendarView from "#lib/components/calendar/CalendarView.svelte"
 import TableView from "#lib/components/datasource/TableView.svelte"
 import DevicesView from "#lib/components/devices/DevicesView.svelte"
 import AgentEditor from "#lib/components/harness/AgentEditor.svelte"
+import PromptEditor from "#lib/components/harness/PromptEditor.svelte"
 import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
 import SettingsView from "#lib/components/settings/SettingsView.svelte"
 import FindBar from "#lib/components/shell/FindBar.svelte"
@@ -44,7 +45,9 @@ const local = $derived(hostById(LOCAL))
   {:else if nav.page === "settings"}
     <SettingsView />
   {:else if nav.page === "agent"}
-    {#if nav.agent}
+    {#if nav.agent?.startsWith("prompt:")}
+      <PromptEditor />
+    {:else if nav.agent}
       <AgentEditor />
     {:else}
       <EmptyState

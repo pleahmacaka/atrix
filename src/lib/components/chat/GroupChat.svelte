@@ -1,12 +1,18 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { agentInstructions, agents, providerOf } from "#lib/agents/agents.svelte.ts"
+import { agents, providerOf } from "#lib/agents/agents.svelte.ts"
 import { toAttachment } from "#lib/chat/attachments.ts"
 import { chats } from "#lib/chat/chats.svelte.ts"
-import { groups } from "#lib/chat/groups.svelte.ts"
-import { mentionsIn, promptFor, repliesFor } from "#lib/chat/groupTimeline.ts"
+import {
+  agentOf,
+  deliver,
+  groups,
+  isChat,
+  nameOf,
+  viewOf,
+} from "#lib/chat/groups.svelte.ts"
+import { mentionsIn, promptFor, relayOf, repliesFor } from "#lib/chat/groupTimeline.ts"
 import { chatFor } from "#lib/chat/live.svelte.ts"
-import { enqueue } from "#lib/chat/queue.svelte.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
 import { segmentsOf } from "#lib/chat/session.ts"
 import FolderPicker from "#lib/components/shell/FolderPicker.svelte"
@@ -21,12 +27,12 @@ import { hostById, hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { GroupMember } from "#lib/store/local.svelte.ts"
 import { describe } from "#lib/store/recent.ts"
-import { CHAT_HOST, chatViewOf } from "#lib/voice/chatCall.ts"
 import AgentReply from "./AgentReply.svelte"
 import Composer from "./Composer.svelte"
 import { BUBBLE } from "./labels.ts"
 import PlanCard from "./PlanCard.svelte"
 import RunningStatus from "./RunningStatus.svelte"
+import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
@@ -38,11 +44,6 @@ const group = $derived(groups.find(id))
 
 let picking = $state(false)
 
-const isChat = (member: GroupMember) => member.host === CHAT_HOST
-
-const viewOf = (member: GroupMember) =>
-  isChat(member) ? chatViewOf(member.id) : hostById(member.host)?.views[member.id]
-
 const infoOf = (member: GroupMember) =>
   describe(
     isChat(member)
@@ -50,8 +51,13 @@ const infoOf = (member: GroupMember) =>
       : { kind: "session", host: member.host, id: member.id },
   )
 
-const nameOf = (member: GroupMember) =>
-  member.label ?? infoOf(member)?.title ?? member.id
+groups.watch()
+
+const nameById = (id: string) => {
+  const member = group?.members.find(p => p.id === id)
+
+  return member ? nameOf(member) : id
+}
 
 $effect(() => {
   for (const member of group?.members ?? []) {
@@ -62,12 +68,6 @@ $effect(() => {
     }
   }
 })
-
-const agentOf = (member: GroupMember) => {
-  const agent = member.agent ? agents.find(member.agent) : undefined
-
-  return agent ? agentInstructions(agent, viewOf(member)?.cwd ?? "") : ""
-}
 
 const invitable = $derived(
   agents.list.map(agent => ({ agent, provider: providerOf(agent) })),
@@ -100,25 +100,18 @@ const send = (text: string, files: File[]) =>
     await groups.post(group.id, text, targets)
 
     await Promise.all(
-      prompts.map(({ member, text: prompt }) => {
-        const stored = isChat(member) ? chats.find(member.id) : undefined
-
-        if (stored) {
-          return chatFor(stored).sendMessage({ text: prompt })
-        }
-
-        const host = hostById(member.host)
-
-        if (attachments.length > 0 && host) {
-          return host.prompt(member.id, prompt, attachments)
-        }
-
-        enqueue(member.id, prompt)
-
-        return null
-      }),
+      prompts.map(({ member, text: prompt }) => deliver(member, prompt, attachments)),
     )
   })
+
+$effect(() => {
+  const first = group && groups.opening.get(group.id)
+
+  if (group && first) {
+    groups.opening.delete(group.id)
+    send(first.text, first.files)
+  }
+})
 
 const running = $derived(group?.members.some(p => viewOf(p)?.running) ?? false)
 
@@ -137,6 +130,10 @@ const sharedFolder = $derived.by(() => {
 })
 
 const stop = () => {
+  if (group) {
+    groups.halt(group)
+  }
+
   for (const member of group?.members ?? []) {
     const stored = isChat(member) ? chats.find(member.id) : undefined
 
@@ -246,9 +243,22 @@ const stop = () => {
         {@attach pinToggles}
         {@attach stickBottom}
       >
-        <div class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-8 py-6 text-sm">
+        <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
           {#each group.messages as message, index (message.id)}
-            <div class={[BUBBLE, "self-end"]}>{message.text}</div>
+            {@const relay = relayOf(message)}
+            {#if relay}
+              <p class="flex min-w-0 items-center gap-1.5 self-center text-xs text-base-content/55">
+                <Icon icon="lucide:forward" class="size-3.5 shrink-0 text-primary" />
+                <span class="min-w-0 truncate">
+                  {m.relay_marker({
+                    from: nameById(relay.from),
+                    to: (message.targets ?? []).map(nameById).join(", "),
+                  })}
+                </span>
+              </p>
+            {:else}
+              <div class={[BUBBLE, "self-end"]}>{message.text}</div>
+            {/if}
             {#each repliesFor(group, index, viewOf) as reply (reply.member.id)}
               {@const view = viewOf(reply.member)}
               {@const info = infoOf(reply.member)}
@@ -265,7 +275,9 @@ const stop = () => {
                     {#if segment.kind === "activity"}
                       <ToolGroup items={segment.items} latest={last && i === segmentsOf(reply.items).length - 1} />
                     {:else if segment.item.type === "agent"}
-                      <AgentReply text={segment.item.text} onAction={text => send(text, [])} onSave={async () => {}} />
+                      <AgentReply text={segment.item.text} pace={segment.item.pace} onAction={text => send(text, [])} onSave={async () => {}} />
+                    {:else if segment.item.type === "thought"}
+                      <ThoughtNote text={segment.item.text} />
                     {:else if segment.item.type === "plan"}
                       <PlanCard entries={segment.item.entries} />
                     {:else if segment.item.type === "ui"}

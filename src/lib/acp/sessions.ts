@@ -1,6 +1,10 @@
 import * as acp from "@agentclientprotocol/sdk"
 import { homeDir } from "@tauri-apps/api/path"
-import { channels, sendToChannel } from "#lib/channels/store.svelte.ts"
+import {
+  channels,
+  connected,
+  sendToChannel,
+} from "#lib/channels/store.svelte.ts"
 import type { Block } from "#lib/chat/blocks.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
 import { logFailure } from "#lib/logging.ts"
@@ -28,7 +32,7 @@ import {
   promptBlocks,
 } from "./agent.ts"
 import type { Bridge } from "./bridge.ts"
-import { applyUpdate, shownInTurn } from "./items.ts"
+import { applyUpdate, type Picked, shownInTurn } from "./items.ts"
 import type { ExternalSessions } from "./mirror.ts"
 import { type Harnesses, mirrorKind } from "./registry.ts"
 import {
@@ -287,9 +291,11 @@ export class Sessions {
       this.#apply(session, { sessionUpdate: "user_message_chunk", content })
     }
 
+    const since = Date.now()
+
     this.#patch(session, {
       running: true,
-      since: Date.now(),
+      since,
       ...(!session.title && { title: text.slice(0, TITLE_LIMIT) }),
     })
 
@@ -322,7 +328,16 @@ export class Sessions {
     this.#session(sessionId).answer?.(optionId)
   }
 
+  answer = (sessionId: string, toolId: string, answers: Picked[]) =>
+    this.#external.answer(sessionId, toolId, answers)
+
   cancel = async (sessionId: string) => {
+    if (!this.#live.has(sessionId) && this.#external.live(sessionId)) {
+      await this.#external.interrupt(sessionId)
+
+      return null
+    }
+
     const session = this.#session(sessionId)
 
     session.answer?.(null)
@@ -805,19 +820,16 @@ export class Sessions {
   }
 
   #announce = (session: Live, ask: Ask) => {
-    if (channels.status !== "on") {
-      return
-    }
-
-    const own = channels.bindings.filter(b => b.sessionId === session.id)
-    const targets = own.length > 0 ? own : channels.bindings
+    const open = channels.bindings.filter(b => connected(b.provider))
+    const own = open.filter(b => b.sessionId === session.id)
+    const targets = own.length > 0 ? own : open
     const text = m.channel_ask_notice({
       session: session.title || session.id,
       ask: ask.title,
     })
 
     for (const b of targets) {
-      sendToChannel(b.discordChannelId, text).catch((e: unknown) =>
+      sendToChannel(b.channel, text).catch((e: unknown) =>
         logFailure("channel ask notice", e),
       )
     }

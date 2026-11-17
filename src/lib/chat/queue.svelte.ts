@@ -7,6 +7,7 @@ import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import { isBusyError } from "#lib/p2p/protocol.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
 import { toAttachment } from "./attachments.ts"
+import { expand } from "./mentions.ts"
 
 export const queues = new Stored("queue:", [], z.array(z.string()))
 
@@ -129,8 +130,13 @@ const drain = (host: HostView, draft: string, busy: boolean) => {
 
   inFlight.add(draft)
 
-  Promise.all(next.files.map(toAttachment))
-    .then(attachments => host.prompt(draft, next.text, attachments))
+  expand(draft, next.text)
+    .then(async sending => {
+      const files = [...next.files, ...sending.files]
+      const attachments = await Promise.all(files.map(toAttachment))
+
+      return host.prompt(draft, sending.text, attachments)
+    })
     .catch((e: unknown) => {
       unshiftQueue(draft, next)
 

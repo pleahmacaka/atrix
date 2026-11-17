@@ -7,6 +7,8 @@ export type WindowEffect = "none" | "glass"
 
 export type PanelShape = "rounded" | "square"
 
+export type SidebarCollapse = "compact" | "hidden"
+
 export type Texture = "none" | "soft" | "strong"
 
 export const ACCENTS = [
@@ -25,6 +27,8 @@ export type Accent = (typeof ACCENTS)[number]["id"]
 const read = <T extends string>(key: string, fallback: T) =>
   (localStorage.getItem(key) as T | null) ?? fallback
 
+export const SCALES = [90, 100, 110, 125]
+
 class Settings {
   deviceName = $state<string>(
     read(
@@ -32,6 +36,8 @@ class Settings {
       desktop ? m.device_default_desktop() : m.device_default_browser(),
     ),
   )
+
+  userName = $state<string>(read("user-name", ""))
 
   theme = $state<Theme>(read("theme", "system"))
 
@@ -44,6 +50,12 @@ class Settings {
   shape = $state<PanelShape>(read("panel-shape", "rounded"))
 
   texture = $state<Texture>(read("window-texture", "none"))
+
+  sidebarCollapse = $state<SidebarCollapse>(
+    read<string>("sidebar-collapse", "compact") === "hidden"
+      ? "hidden"
+      : "compact",
+  )
 
   transparency = $state<number>(
     Number(read("window-transparency", this.effect === "none" ? "0" : "60")),
@@ -68,6 +80,11 @@ class Settings {
     localStorage.setItem("device-name", this.deviceName)
   }
 
+  setUserName = (name: string) => {
+    this.userName = name.trim()
+    localStorage.setItem("user-name", this.userName)
+  }
+
   setTheme = (theme: Theme) => {
     this.theme = theme
     localStorage.setItem("theme", theme)
@@ -86,6 +103,22 @@ class Settings {
   setShape = (shape: PanelShape) => {
     this.shape = shape
     localStorage.setItem("panel-shape", shape)
+  }
+
+  scale = $state<number>(
+    SCALES.includes(Number(read("ui-scale", "100")))
+      ? Number(read("ui-scale", "100"))
+      : 100,
+  )
+
+  setScale = (scale: number) => {
+    this.scale = scale
+    localStorage.setItem("ui-scale", String(scale))
+  }
+
+  setSidebarCollapse = (mode: SidebarCollapse) => {
+    this.sidebarCollapse = mode
+    localStorage.setItem("sidebar-collapse", mode)
   }
 
   setTexture = (texture: Texture) => {

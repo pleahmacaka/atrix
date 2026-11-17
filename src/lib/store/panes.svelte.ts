@@ -1,5 +1,11 @@
 import { getContext, setContext } from "svelte"
+import { SvelteSet } from "svelte/reactivity"
+import { z } from "zod"
+import { keyOf } from "./keys.ts"
 import type { Current } from "./nav.svelte.ts"
+import { persisted } from "./stored.svelte.ts"
+
+const SIDES = "panes:sides"
 
 export type Side = "left" | "right" | "top" | "bottom"
 
@@ -134,6 +140,24 @@ const fits = (node: Node, width: number, height: number): boolean => {
     : fits(node.a, width, a) && fits(node.b, width, b)
 }
 
+const holding = (node: Node, current: NonNullable<Current>) =>
+  leavesOf(node).find(l => l.current && keyOf(l.current) === keyOf(current))
+
+const prune = (node: Node, key: string): Node | null => {
+  if (node.kind === "leaf") {
+    return node.current && keyOf(node.current) === key ? null : node
+  }
+
+  const a = prune(node.a, key)
+  const b = prune(node.b, key)
+
+  if (a && b) {
+    return { ...node, a, b }
+  }
+
+  return a ?? b
+}
+
 const PANE = Symbol("pane")
 
 export const providePane = (id: () => string) => setContext(PANE, id)
@@ -151,6 +175,10 @@ class Panes {
 
   height = $state(0)
 
+  sides = new SvelteSet<string>(persisted(SIDES, [], z.array(z.string())))
+
+  stashed = $state<Node[]>([])
+
   constructor() {
     this.focused = this.root.id
   }
@@ -163,9 +191,79 @@ class Panes {
     return this.leaves.find(l => l.id === this.focused) ?? this.leaves[0]
   }
 
+  get clusters() {
+    return [this.root, ...this.stashed]
+      .filter(n => n.kind === "split")
+      .map(n => leavesOf(n).flatMap(l => (l.current ? [keyOf(l.current)] : [])))
+  }
+
+  #sideKey = (id: string) => {
+    const current = this.leaves.find(l => l.id === id)?.current
+
+    return current ? keyOf(current) : id
+  }
+
+  hasSide = (id = this.active.id) => this.sides.has(this.#sideKey(id))
+
+  toggleSide = (id = this.active.id) => {
+    const key = this.#sideKey(id)
+
+    if (!this.sides.delete(key)) {
+      this.sides.add(key)
+    }
+
+    localStorage.setItem(
+      SIDES,
+      JSON.stringify(
+        [...this.sides].filter(k => !this.leaves.some(l => l.id === k)),
+      ),
+    )
+  }
+
   focus = (id: string) => {
     this.focused = id
     this.typing = null
+  }
+
+  step = (side: Side) => {
+    const rects = new Map(
+      [...document.querySelectorAll<HTMLElement>("[data-pane]")].map(e => [
+        e.dataset.pane ?? "",
+        e.getBoundingClientRect(),
+      ]),
+    )
+    const from = rects.get(this.focused)
+
+    if (!from) {
+      return
+    }
+
+    const center = (r: DOMRect) => ({
+      x: r.left + r.width / 2,
+      y: r.top + r.height / 2,
+    })
+    const origin = center(from)
+    const ahead = (r: DOMRect) =>
+      side === "left"
+        ? r.right <= from.left + 1
+        : side === "right"
+          ? r.left >= from.right - 1
+          : side === "top"
+            ? r.bottom <= from.top + 1
+            : r.top >= from.bottom - 1
+    const next = [...rects]
+      .filter(([id, r]) => id !== this.focused && ahead(r))
+      .map(([id, r]) => {
+        const c = center(r)
+
+        return { id, distance: Math.hypot(c.x - origin.x, c.y - origin.y) }
+      })
+      .toSorted((a, b) => a.distance - b.distance)[0]
+
+    if (next) {
+      this.focused = next.id
+      this.typing = next.id
+    }
   }
 
   #type = (id: string) => {
@@ -178,6 +276,40 @@ class Panes {
     )
     this.focused = id
     this.#type(id)
+  }
+
+  show = (current: Current) => {
+    const shown = current && holding(this.root, current)
+
+    if (shown) {
+      this.focus(shown.id)
+
+      return
+    }
+
+    if (this.active.current === null && this.root.kind === "split") {
+      this.open(current)
+
+      return
+    }
+
+    const at = current ? this.stashed.findIndex(n => holding(n, current)) : -1
+    const restored = at === -1 ? null : this.stashed.splice(at, 1)[0]
+
+    if (this.root.kind === "split") {
+      this.stashed.push(this.root)
+    }
+
+    if (restored && current) {
+      this.root = restored
+      this.focus(holding(restored, current)?.id ?? leavesOf(restored)[0].id)
+    } else if (this.root.kind === "split") {
+      this.root = leaf(current)
+      this.focused = this.root.id
+      this.#type(this.root.id)
+    } else {
+      this.open(current)
+    }
   }
 
   canSplit = (id: string, side: Side) => {
@@ -225,6 +357,24 @@ class Panes {
 
       return { ...found, ratio: Math.min(high, Math.max(low, ratio)) }
     })
+  }
+
+  forget = (current: NonNullable<Current>) => {
+    for (const leaf of this.leaves) {
+      if (leaf.current && keyOf(leaf.current) === keyOf(current)) {
+        this.close(leaf.id)
+      }
+    }
+
+    this.stashed = this.stashed.flatMap(node => {
+      const kept = prune(node, keyOf(current))
+
+      return kept && kept.kind === "split" ? [kept] : []
+    })
+  }
+
+  reset = (id: string) => {
+    this.root = replace(this.root, id, balance)
   }
 
   close = (id: string) => {

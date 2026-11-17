@@ -7,9 +7,11 @@ import {
   channels,
   connectChannels,
   type Incoming,
+  optionsOf,
+  PROVIDERS,
+  type Provider,
+  providerOf,
   saveChannels,
-  sendToChannel,
-  tokenPresent,
 } from "./store.svelte.ts"
 
 const queues = new Map<string, Promise<void>>()
@@ -83,24 +85,24 @@ const relay = async (binding: Binding, message: Incoming) => {
     .join("\n\n")
 
   if (reply) {
-    await sendToChannel(binding.discordChannelId, reply)
+    await providerOf(binding.provider).send(binding.channel, reply)
   }
 }
 
-const receive = (message: Incoming) => {
+const receive = (provider: Provider) => (message: Incoming) => {
   const binding = channels.bindings.find(
-    b => b.discordChannelId === message.channelId,
+    b => b.provider === provider.id && b.channel === message.channelId,
   )
 
   if (!binding || !message.content.trim()) {
     return
   }
 
-  if (channels.mentionOnly && !message.mentioned) {
+  if (optionsOf(provider.id).mentionOnly && !message.mentioned) {
     return
   }
 
-  const key = binding.discordChannelId
+  const key = `${provider.id}:${binding.channel}`
   const next = (queues.get(key) ?? Promise.resolve())
     .then(() => relay(binding, message))
     .catch((e: unknown) => logFailure("channel relay", e))
@@ -108,10 +110,15 @@ const receive = (message: Incoming) => {
   queues.set(key, next)
 }
 
-export const connect = () => connectChannels(receive)
+export const connect = (provider: Provider) =>
+  connectChannels(provider, receive(provider))
 
 export const startChannels = async () => {
-  if (channels.autostart && (await tokenPresent())) {
-    await connect()
+  for (const provider of PROVIDERS) {
+    if (optionsOf(provider.id).autostart && (await provider.tokenPresent())) {
+      await connect(provider).catch((e: unknown) =>
+        logFailure(`${provider.id} channel start`, e),
+      )
+    }
   }
 }

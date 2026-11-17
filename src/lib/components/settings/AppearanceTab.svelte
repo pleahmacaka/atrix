@@ -8,6 +8,8 @@ import { chooseLanguage, LANGUAGES, languageChoice } from "#lib/store/locale.ts"
 import {
   ACCENTS,
   type PanelShape,
+  SCALES,
+  type SidebarCollapse,
   settings,
   type Texture,
   type Theme,
@@ -28,6 +30,13 @@ const EFFECTS: { id: WindowEffect; label: string; icon: string }[] = [
 const SHAPES: { id: PanelShape; label: string; icon: string }[] = [
   { id: "rounded", label: m.appearance_shape_rounded(), icon: "lucide:squircle" },
   { id: "square", label: m.appearance_shape_square(), icon: "lucide:square" },
+]
+
+const SCALE_ITEMS = SCALES.map(s => ({ id: String(s), label: `${s}%`, icon: "lucide:type" }))
+
+const SIDEBAR_MODES: { id: SidebarCollapse; label: string; icon: string }[] = [
+  { id: "compact", label: m.appearance_sidebar_compact(), icon: "lucide:panel-left" },
+  { id: "hidden", label: m.appearance_sidebar_hidden(), icon: "lucide:panel-left-dashed" },
 ]
 
 const TEXTURES: { id: Texture; label: string; icon: string }[] = [
@@ -75,6 +84,18 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
 
 <SettingRow icon="lucide:layout-panel-left" title={m.appearance_shape()}>
   <Segmented items={SHAPES} value={settings.shape} onpick={settings.setShape} />
+</SettingRow>
+
+<SettingRow icon="lucide:zoom-in" title={m.appearance_scale()}>
+  <Segmented items={SCALE_ITEMS} value={String(settings.scale)} onpick={v => settings.setScale(Number(v))} />
+</SettingRow>
+
+<SettingRow icon="lucide:panel-left-close" title={m.appearance_sidebar()}>
+  <Segmented
+    items={SIDEBAR_MODES}
+    value={settings.sidebarCollapse}
+    onpick={settings.setSidebarCollapse}
+  />
 </SettingRow>
 
 <SettingRow icon="lucide:grip" title={m.appearance_texture()}>

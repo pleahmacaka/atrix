@@ -7,7 +7,7 @@ mod imp {
     use std::borrow::Cow;
     use std::sync::Mutex;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use arboard::{Clipboard, ImageData};
     use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
@@ -15,14 +15,22 @@ mod imp {
         CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
     use windows::Win32::System::Console::{
-        AttachConsole, FreeConsole, INPUT_RECORD, INPUT_RECORD_0, KEY_EVENT, KEY_EVENT_RECORD,
-        KEY_EVENT_RECORD_0, WriteConsoleInputW,
+        AttachConsole, CONSOLE_SCREEN_BUFFER_INFO, COORD, FreeConsole, GetConsoleScreenBufferInfo,
+        INPUT_RECORD, INPUT_RECORD_0, KEY_EVENT, KEY_EVENT_RECORD, KEY_EVENT_RECORD_0,
+        ReadConsoleOutputCharacterW, WriteConsoleInputW,
     };
     use windows::core::w;
 
     use crate::error::{Error, Result};
 
     const VK_RETURN: u16 = 0x0D;
+
+    const VK_ESCAPE: u16 = 0x1B;
+
+    const VK_TAB: u16 = 0x09;
+
+    // the CLI shows this placeholder while a subagent is selected, and prompts typed then go to it
+    const SUBAGENT_PROMPT: &str = "❯ Message @";
 
     const VK_J: u16 = 0x4A;
 
@@ -35,8 +43,15 @@ mod imp {
     // a burst of keys reads as a paste, which turns Enter into a newline, so submit after a pause
     const SUBMIT_DELAY: Duration = Duration::from_millis(150);
 
+    // the question dialog re-renders between keys and drops ones that arrive mid-render
+    const STEP_DELAY: Duration = Duration::from_millis(300);
+
     // Claude Code reads the clipboard through a PowerShell child and reports no completion
     const CLIPBOARD_READ: Duration = Duration::from_millis(1500);
+
+    const CLIPBOARD_POLL: Duration = Duration::from_millis(40);
+
+    const IMAGE_MARKER: &str = "[Image #";
 
     // another process holding the clipboard makes SetClipboardData fail with 1418 for a moment
     const CLIPBOARD_RETRY: Duration = Duration::from_millis(50);
@@ -101,6 +116,60 @@ mod imp {
         }
     }
 
+    fn open_output() -> windows::core::Result<HANDLE> {
+        unsafe {
+            CreateFileW(
+                w!("CONOUT$"),
+                (GENERIC_READ | GENERIC_WRITE).0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                None,
+                OPEN_EXISTING,
+                FILE_FLAGS_AND_ATTRIBUTES(0),
+                None,
+            )
+        }
+    }
+
+    fn screen_lines() -> Vec<String> {
+        let Ok(output) = open_output() else {
+            return Vec::new();
+        };
+        let mut info = CONSOLE_SCREEN_BUFFER_INFO::default();
+        let mut lines = Vec::new();
+
+        if unsafe { GetConsoleScreenBufferInfo(output, &mut info) }.is_ok() {
+            for y in info.srWindow.Top..=info.srWindow.Bottom {
+                let mut line = vec![0u16; info.dwSize.X.max(0) as usize];
+                let mut read = 0;
+
+                if unsafe {
+                    ReadConsoleOutputCharacterW(output, &mut line, COORD { X: 0, Y: y }, &mut read)
+                }
+                .is_ok()
+                {
+                    lines.push(String::from_utf16_lossy(&line[..read as usize]));
+                }
+            }
+        }
+
+        let _ = unsafe { CloseHandle(output) };
+
+        lines
+    }
+
+    fn subagent_selected() -> bool {
+        screen_lines()
+            .iter()
+            .any(|line| line.trim_start().starts_with(SUBAGENT_PROMPT))
+    }
+
+    fn image_markers() -> usize {
+        screen_lines()
+            .iter()
+            .map(|line| line.matches(IMAGE_MARKER).count())
+            .sum()
+    }
+
     fn with_input(pid: u32, work: impl FnOnce(HANDLE) -> windows::core::Result<()>) -> Result<()> {
         let _guard = ATTACH.lock()?;
 
@@ -121,14 +190,66 @@ mod imp {
     pub fn type_into(pid: u32, text: &str) -> Result<()> {
         let records = records_of(text);
         let mut submit = Vec::new();
+        let mut blocked = false;
 
         press(&mut submit, u16::from(b'\r'), VK_RETURN, 0);
 
         with_input(pid, |input| {
+            if subagent_selected() {
+                blocked = true;
+
+                return Ok(());
+            }
+
             write(input, &records)?;
             thread::sleep(SUBMIT_DELAY);
             write(input, &submit)
+        })?;
+
+        if blocked {
+            return Err(Error::code("subagent_selected", pid));
+        }
+
+        Ok(())
+    }
+
+    pub fn strokes(pid: u32, strokes: &[super::Stroke]) -> Result<()> {
+        let batches: Vec<Vec<INPUT_RECORD>> = strokes
+            .iter()
+            .map(|stroke| {
+                let mut records = Vec::new();
+
+                match stroke {
+                    super::Stroke::Digit { digit } => {
+                        let code = u16::from(b'0' + digit % 10);
+
+                        press(&mut records, code, code, 0);
+                    }
+                    super::Stroke::Text { text } => records = records_of(text),
+                    super::Stroke::Tab => press(&mut records, 0x09, VK_TAB, 0),
+                    super::Stroke::Enter => press(&mut records, 0x0D, VK_RETURN, 0),
+                }
+
+                records
+            })
+            .collect();
+
+        with_input(pid, |input| {
+            for batch in &batches {
+                write(input, batch)?;
+                thread::sleep(STEP_DELAY);
+            }
+
+            Ok(())
         })
+    }
+
+    pub fn interrupt(pid: u32) -> Result<()> {
+        let mut escape = Vec::new();
+
+        press(&mut escape, VK_ESCAPE, VK_ESCAPE, 0);
+
+        with_input(pid, |input| write(input, &escape))
     }
 
     pub fn paste_image(pid: u32, bytes: &[u8]) -> Result<()> {
@@ -159,9 +280,18 @@ mod imp {
 
         press(&mut paste, u16::from(b'v'), VK_V, LEFT_ALT_PRESSED);
 
-        let pasted = with_input(pid, |input| write(input, &paste));
+        let pasted = with_input(pid, |input| {
+            let before = image_markers();
+            let deadline = Instant::now() + CLIPBOARD_READ;
 
-        thread::sleep(CLIPBOARD_READ);
+            write(input, &paste)?;
+
+            while Instant::now() < deadline && image_markers() <= before {
+                thread::sleep(CLIPBOARD_POLL);
+            }
+
+            Ok(())
+        });
 
         if let Some(text) = previous {
             let _ = clipboard.set_text(text);
@@ -197,6 +327,14 @@ mod imp {
         Err("unsupported".into())
     }
 
+    pub fn interrupt(_: u32) -> Result<()> {
+        Err("unsupported".into())
+    }
+
+    pub fn strokes(_: u32, _: &[super::Stroke]) -> Result<()> {
+        Err("unsupported".into())
+    }
+
     pub fn paste_image(_: u32, _: &[u8]) -> Result<()> {
         Err("unsupported".into())
     }
@@ -214,6 +352,25 @@ pub fn clipboard_image() -> Result<tauri::ipc::Response> {
 #[tauri::command]
 pub async fn terminal_type(pid: u32, text: String) -> Result<()> {
     tauri::async_runtime::spawn_blocking(move || imp::type_into(pid, &text)).await?
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Stroke {
+    Digit { digit: u8 },
+    Text { text: String },
+    Tab,
+    Enter,
+}
+
+#[tauri::command]
+pub async fn terminal_keys(pid: u32, strokes: Vec<Stroke>) -> Result<()> {
+    tauri::async_runtime::spawn_blocking(move || imp::strokes(pid, &strokes)).await?
+}
+
+#[tauri::command]
+pub async fn terminal_interrupt(pid: u32) -> Result<()> {
+    tauri::async_runtime::spawn_blocking(move || imp::interrupt(pid)).await?
 }
 
 #[tauri::command(async)]

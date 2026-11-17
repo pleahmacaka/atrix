@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai"
 import type { ChatItem } from "#lib/acp/items.ts"
 import { chats } from "#lib/chat/chats.svelte.ts"
-import { chatFor } from "#lib/chat/live.svelte.ts"
+import { chatFor, paceOf } from "#lib/chat/live.svelte.ts"
 import type { SessionView } from "#lib/p2p/protocol.ts"
 import type { StoredChat } from "#lib/store/local.svelte.ts"
 
@@ -24,6 +24,7 @@ export const chatView = (stored: StoredChat): SessionView => {
         type: message.role === "user" ? "user" : "agent",
         id: message.id,
         text: textOf(message),
+        pace: paceOf(message),
       }),
     ),
     ask: null,

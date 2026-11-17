@@ -7,6 +7,8 @@ mod datasource;
 mod error;
 mod fetch;
 mod files;
+mod float;
+mod git;
 mod install;
 mod kg;
 mod net;
@@ -15,8 +17,12 @@ mod pcb;
 mod platform;
 mod presence;
 mod process;
+#[cfg(desktop)]
+mod pty;
 mod secret;
 mod stdio;
+#[cfg(desktop)]
+mod tray;
 
 pub use stdio::{FLAG as MCP_STDIO_FLAG, run as mcp_stdio};
 use tauri::webview::PageLoadEvent;
@@ -32,10 +38,13 @@ fn logger(app: &tauri::App) -> tauri::Result<()> {
     #[cfg(mobile)]
     let folder = app.path().app_log_dir()?;
 
+    let builder = tauri_plugin_log::Builder::new().clear_targets();
+    // stdout follows AttachConsole in console.rs and would print into the user's terminal
+    #[cfg(debug_assertions)]
+    let builder = builder.target(Target::new(TargetKind::Stdout));
+
     app.handle().plugin(
-        tauri_plugin_log::Builder::new()
-            .clear_targets()
-            .target(Target::new(TargetKind::Stdout))
+        builder
             .target(Target::new(TargetKind::Folder {
                 path: folder,
                 file_name: Some("atrix".into()),
@@ -55,16 +64,57 @@ fn logger(app: &tauri::App) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(all(desktop, not(debug_assertions)))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
+        tray::show(app);
+
+        if let Some(code) = net::pair_code_in(&args) {
+            let _ = tauri::Emitter::emit(app, "pair-code", code);
+        }
+    }));
+
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .manage(pty::Ptys::default());
+
+    let builder = builder
         .setup(|app| {
             logger(app)?;
             backdrop::install(app);
 
+            #[cfg(desktop)]
+            {
+                app.manage(tray::Tray::<tauri::Wry>::default());
+                tray::install(app.handle())?;
+            }
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+
+            match event {
+                #[cfg(desktop)]
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                tauri::WindowEvent::Destroyed => window.app_handle().exit(0),
+                _ => {}
+            }
         })
         .on_page_load(|webview, payload| {
             if payload.event() == PageLoadEvent::Started && webview.label() == "main" {
                 webview.state::<agents::Agents>().kill_all();
+
+                #[cfg(desktop)]
+                webview.state::<pty::Ptys>().kill_all();
             }
         })
         .plugin(tauri_plugin_http::init())
@@ -95,6 +145,8 @@ pub fn run() {
             channels::channel_token_clear,
             channels::channel_token_present,
             console::terminal_type,
+            console::terminal_interrupt,
+            console::terminal_keys,
             backdrop::window_backdrop,
             console::terminal_paste_image,
             console::clipboard_image,
@@ -113,12 +165,15 @@ pub fn run() {
             files::write_text,
             files::append_text,
             files::read_image,
+            files::read_view,
             files::list_dirs,
             files::copy_path,
             files::remove_path,
             files::read_lines,
             files::grep_head,
             files::browse_dirs,
+            files::git_remote,
+            git::git_run,
             install::tool_install,
             install::tool_uninstall,
             install::tool_find,
@@ -135,6 +190,17 @@ pub fn run() {
             net::net_join,
             net::net_unpair,
             overlay::overlay_open,
+            float::float_open,
+            #[cfg(desktop)]
+            tray::tray_labels,
+            #[cfg(desktop)]
+            pty::pty_open,
+            #[cfg(desktop)]
+            pty::pty_write,
+            #[cfg(desktop)]
+            pty::pty_resize,
+            #[cfg(desktop)]
+            pty::pty_close,
             pcb::pcb_project,
             pcb::pcb_read,
             pcb::pcb_files,
@@ -150,6 +216,9 @@ pub fn run() {
             if let RunEvent::Exit = event {
                 app.state::<agents::Agents>().kill_all();
                 app.state::<kg::Store>().kill();
+
+                #[cfg(desktop)]
+                app.state::<pty::Ptys>().kill_all();
             }
         });
 }

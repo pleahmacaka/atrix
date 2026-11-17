@@ -7,16 +7,22 @@ const NAME = /^[a-zA-Z_][\w]*$/
 
 const PATTERN = /^\{\{([a-zA-Z_][\w]*)\}\}/
 
-export const BUILTIN_VARIABLES = ["date", "time", "agent_name", "cwd"]
+export const BUILTIN_VARIABLES = ["date", "time", "agent_name", "cwd", "user"]
+
+const USE = /\{\{([a-zA-Z_]\w*)(?:\s*\|\|\s*'([^']*)')?\}\}/g
 
 export const variablesIn = (text: string) => [
-  ...new Set([...text.matchAll(/\{\{([a-zA-Z_][\w]*)\}\}/g)].map(m => m[1])),
+  ...new Set([...text.matchAll(USE)].map(m => m[1])),
 ]
 
 export const fillVariables = (text: string, values: Record<string, string>) =>
-  text.replaceAll(/\{\{([a-zA-Z_][\w]*)\}\}/g, (whole, name: string) =>
-    name in values ? values[name] : whole,
-  )
+  text.replaceAll(USE, (whole, name: string, fallback?: string) => {
+    if (name in values) {
+      return values[name]
+    }
+
+    return fallback ?? whole
+  })
 
 type Options = { items: () => string[] }
 

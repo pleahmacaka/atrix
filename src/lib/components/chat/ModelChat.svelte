@@ -4,7 +4,7 @@ import { appTitleOf } from "#lib/apps/app.ts"
 import { apps } from "#lib/apps/apps.svelte.ts"
 import { toFilePart } from "#lib/chat/attachments.ts"
 import { blocksOf } from "#lib/chat/blocks.ts"
-import { chatFor, gatewayOf } from "#lib/chat/live.svelte.ts"
+import { type ChatLike, type ChatMessage, chatFor, gatewayOf, paceOf } from "#lib/chat/live.svelte.ts"
 import { queues, shiftQueue } from "#lib/chat/queue.svelte.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
@@ -13,7 +13,7 @@ import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { OPENROUTER_ID } from "#lib/store/gateways.svelte.ts"
 import { local, type StoredChat } from "#lib/store/local.svelte.ts"
-import { shell } from "#lib/store/shell.svelte.ts"
+import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { CHAT_HOST, chatView } from "#lib/voice/chatCall.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import Composer from "./Composer.svelte"
@@ -22,11 +22,21 @@ import ModelMessage from "./ModelMessage.svelte"
 import SidePanel from "./SidePanel.svelte"
 import VoiceConversation from "./VoiceConversation.svelte"
 
-let { stored }: { stored: StoredChat } = $props()
+let { stored, remote }: { stored: StoredChat; remote?: ChatLike } = $props()
+
+const pane = usePane()
 
 const attempt = new Attempt()
 
-const chat = $derived(chatFor(stored))
+const chat = $derived(remote ?? chatFor(stored))
+
+const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
+
+const rateOf = (message: ChatMessage) => {
+  const pace = paceOf(message)
+
+  return pace && pace.ms > 0 ? decimal.format(pace.tokens / (pace.ms / 1000)) : null
+}
 
 const busy = $derived(chat.status === "submitted" || chat.status === "streaming")
 
@@ -71,7 +81,7 @@ $effect(() => {
 })
 </script>
 
-<div class="flex min-h-0 flex-1">
+<div class="relative flex min-h-0 flex-1">
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   {#if talking && conversation.full}
     <VoiceConversation view={chatView(stored)} onPermit={() => {}} />
@@ -88,9 +98,13 @@ $effect(() => {
       {@attach pinToggles}
       {@attach stickBottom}
     >
-      <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-8 py-6 text-sm">
+      <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
         {#each chat.messages as message (message.id)}
+          {@const rate = rateOf(message)}
           <ModelMessage {message} onAction={text => send(text, [])} />
+          {#if rate}
+            <span class="-mt-5 text-xs text-base-content/45 tabular-nums">{m.chat_pace({ rate })}</span>
+          {/if}
         {/each}
         {#if chat.status === "submitted"}
           <span class="loading loading-dots loading-sm opacity-60"></span>
@@ -102,22 +116,24 @@ $effect(() => {
   <Composer
     {busy}
     draft={stored.id}
-    converse={{ host: CHAT_HOST }}
+    converse={remote ? undefined : { host: CHAT_HOST }}
     disabled={!connected}
     placeholder={connected ? m.chat_placeholder() : m.chat_connect_gateway()}
     onSend={send}
     onStop={() => chat.stop()}
   >
     {#snippet tools()}
-      <ModelInput
-        gateway={stored.gateway ?? OPENROUTER_ID}
-        bind:value={stored.model}
-        onchange={() => local.save()}
-      />
+      {#if !remote}
+        <ModelInput
+          gateway={stored.gateway ?? OPENROUTER_ID}
+          bind:value={stored.model}
+          onchange={() => local.save()}
+        />
+      {/if}
     {/snippet}
   </Composer>
 </div>
-{#if shell.side}
+{#if panes.hasSide(pane?.())}
   <SidePanel
     entries={chat.messages.flatMap(message =>
       message.parts.flatMap((part, i) => {

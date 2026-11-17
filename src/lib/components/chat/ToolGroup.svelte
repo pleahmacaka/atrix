@@ -1,9 +1,10 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { SvelteSet } from "svelte/reactivity"
 import type { ThoughtItem, ToolItem } from "#lib/acp/items.ts"
 import { plainText } from "#lib/chat/plain.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { KIND_ICONS } from "./labels.ts"
+import { toolIcon } from "./labels.ts"
 
 let { items, latest = false }: { items: (ToolItem | ThoughtItem)[]; latest?: boolean } =
   $props()
@@ -11,6 +12,44 @@ let { items, latest = false }: { items: (ToolItem | ThoughtItem)[]; latest?: boo
 const tools = $derived(items.filter(i => i.type === "tool"))
 
 const RECENT = 5
+
+const wide = new SvelteSet<string>()
+
+let now = $state(Date.now())
+
+$effect(() => {
+  if (!latest || !items.some(i => i.type === "tool" && i.at && !i.done && i.status !== "failed")) {
+    return
+  }
+
+  const timer = setInterval(() => {
+    now = Date.now()
+  }, 1000)
+
+  return () => clearInterval(timer)
+})
+
+const span = (ms: number) => {
+  const seconds = Math.max(0, Math.round(ms / 1000))
+
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
+const timing = (tool: ToolItem) => {
+  if (!tool.at) {
+    return ""
+  }
+
+  if (tool.done) {
+    return span(tool.done - tool.at)
+  }
+
+  if (!latest || tool.status === "completed" || tool.status === "failed") {
+    return ""
+  }
+
+  return tool.timeout ? `${span(now - tool.at)}/${span(tool.timeout)}` : span(now - tool.at)
+}
 
 let all = $state(false)
 
@@ -51,6 +90,49 @@ const unfence = (text: string) => {
     : text
 }
 
+const HIDDEN_KEYS = new Set(["description"])
+
+const linesOf = (value: unknown, depth: number): string[] => {
+  const pad = "  ".repeat(depth)
+
+  if (Array.isArray(value)) {
+    return value.flatMap(v =>
+      v && typeof v === "object"
+        ? [`${pad}-`, ...linesOf(v, depth + 1)]
+        : [`${pad}- ${String(v)}`],
+    )
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([key]) => depth > 0 || !HIDDEN_KEYS.has(key))
+      .flatMap(([key, v]) =>
+        v && typeof v === "object"
+          ? [`${pad}.${key}:`, ...linesOf(v, depth + 1)]
+          : [`${pad}.${key}: ${String(v).replaceAll("\n", `\n${pad}  `)}`],
+      )
+  }
+
+  return [`${pad}${String(value)}`]
+}
+
+const readable = (detail: string) => {
+  const end = detail.startsWith("{") ? detail.indexOf("\n}") : -1
+
+  if (end === -1) {
+    return detail
+  }
+
+  try {
+    const input = JSON.parse(detail.slice(0, end + 2))
+    const rest = detail.slice(end + 2).trim()
+
+    return [linesOf(input, 0).join("\n"), rest].filter(Boolean).join("\n\n")
+  } catch {
+    return detail
+  }
+}
+
 const summary = $derived.by(() => {
   const verbs = new Set(tools.map(verbOf))
   const [only] = verbs
@@ -67,7 +149,7 @@ const summary = $derived.by(() => {
   {:else if state === "completed"}
     <Icon icon="lucide:check" class="size-3.5 shrink-0" />
   {:else}
-    <span class="loading loading-spinner loading-xs"></span>
+    <span class="loading loading-spinner size-3.5 shrink-0"></span>
   {/if}
 {/snippet}
 
@@ -81,12 +163,15 @@ const summary = $derived.by(() => {
     >
       {@render status(item.status)}
       <Icon
-        icon={KIND_ICONS[item.kind] ?? "lucide:wrench"}
+        icon={toolIcon(item.title, item.kind)}
         class="size-3.5 shrink-0 opacity-60"
       />
       <span class="min-w-0 truncate" title={item.title || item.kind}>
         {item.title || item.kind}
       </span>
+      {#if timing(item)}
+        <span class="shrink-0 text-base-content/45 tabular-nums">{timing(item)}</span>
+      {/if}
       {#if item.detail}
         <Icon
           icon="lucide:chevron-right"
@@ -95,11 +180,25 @@ const summary = $derived.by(() => {
       {/if}
     </summary>
     {#if item.detail}
+      {@const big = wide.has(item.id)}
       <pre
         class={[
-          "mt-1.5 max-h-64 overflow-auto rounded-field bg-inset p-3",
+          "mt-1.5 overflow-auto rounded-field bg-inset p-3",
           "text-xs break-all whitespace-pre-wrap",
-        ]}>{unfence(item.detail)}</pre>
+          big ? "max-h-160" : "max-h-32",
+        ]}>{readable(unfence(item.detail))}</pre>
+      <button
+        type="button"
+        class="btn btn-ghost btn-xs mt-0.5 font-normal text-base-content/55"
+        onclick={() => {
+          if (!wide.delete(item.id)) {
+            wide.add(item.id)
+          }
+        }}
+      >
+        <Icon icon={big ? "lucide:minimize-2" : "lucide:maximize-2"} class="size-3" />
+        {big ? m.tool_detail_collapse() : m.tool_detail_expand()}
+      </button>
     {/if}
   </details>
 {/snippet}

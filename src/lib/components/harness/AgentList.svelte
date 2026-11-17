@@ -1,14 +1,21 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { agents, openAgent, providerOf } from "#lib/agents/agents.svelte.ts"
+import { agents, openAgent, prompts, providerOf } from "#lib/agents/agents.svelte.ts"
+import { PART_ICONS } from "#lib/agents/compose.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import SearchField from "#lib/components/ui/SearchField.svelte"
 import { m } from "#lib/paraglide/messages.js"
-import type { StoredAgent } from "#lib/store/local.svelte.ts"
+import type { PartKind, StoredAgent } from "#lib/store/local.svelte.ts"
 import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
+
+const SECTIONS: { kind: PartKind; title: () => string; add: () => string; empty: () => string }[] = [
+  { kind: "instruction", title: m.instructions_title, add: m.instruction_new, empty: m.instructions_empty },
+  { kind: "prompt", title: m.prompts_title, add: m.prompt_new, empty: m.prompts_empty },
+  { kind: "variable", title: m.variables_title, add: m.variable_new, empty: m.variables_empty },
+]
 
 const attempt = new Attempt()
 
@@ -69,6 +76,41 @@ const message = (agent: StoredAgent) =>
     </div>
   {:else}
     <EmptyState icon="lucide:contact-round" text={m.agents_empty()} class="py-6" />
+  {/each}
+  {#each SECTIONS as section (section.kind)}
+    <div class="mt-3 flex items-center gap-1 px-2">
+      <h3 class="min-w-0 flex-1 text-xs font-medium text-base-content/60">{section.title()}</h3>
+      <IconButton
+        icon="lucide:plus"
+        label={section.add()}
+        class="shrink-0"
+        onclick={() => {
+          nav.agent = `prompt:new:${section.kind}`
+        }}
+      />
+    </div>
+    {#each prompts.of(section.kind) as prompt (prompt.id)}
+      {@const id = `prompt:${prompt.id}`}
+      <button
+        type="button"
+        class={[
+          "flex min-w-0 cursor-pointer items-center gap-2 rounded-field px-2 py-1.5 text-start text-sm",
+          "transition-colors duration-140",
+          nav.agent === id ? "bg-primary/8 text-primary" : "hover:bg-base-content/5",
+        ]}
+        aria-current={nav.agent === id ? "page" : undefined}
+        onclick={() => {
+          nav.agent = id
+        }}
+      >
+        <Icon icon={PART_ICONS[section.kind]} class="size-4 shrink-0 opacity-70" />
+        <span class="min-w-0 flex-1 truncate">
+          {prompt.name}<span class="text-base-content/45">.{section.kind}</span>
+        </span>
+      </button>
+    {:else}
+      <p class="px-2 py-1 text-xs text-base-content/50">{section.empty()}</p>
+    {/each}
   {/each}
   <ErrorAlert message={attempt.failure} />
 </div>

@@ -1,6 +1,8 @@
 <script lang="ts">
+import Icon from "@iconify/svelte"
 import { tick } from "svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
+import { groups } from "#lib/chat/groups.svelte.ts"
 import Composer from "#lib/components/chat/Composer.svelte"
 import ModelEffort from "#lib/components/chat/ModelEffort.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
@@ -14,12 +16,16 @@ import {
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
+import { menuKeys } from "#lib/components/ui/menu.ts"
+import Popover from "#lib/components/ui/Popover.svelte"
 import Wheel from "#lib/components/ui/Wheel.svelte"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { ConfigChoice } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { findGateway } from "#lib/store/gateways.svelte.ts"
 import { type Current, nav, openConversation, type Target } from "#lib/store/nav.svelte.ts"
+import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { CHAT_HOST } from "#lib/voice/chatCall.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import FolderPicker from "./FolderPicker.svelte"
@@ -69,6 +75,20 @@ $effect(() => {
 
 const chosen = $derived(options.find(o => o.key === targetKey))
 
+let extras = $state<string[]>([])
+
+let adding = $state(false)
+
+const members = $derived(
+  extras.flatMap(key => options.filter(o => o.key === key && key !== targetKey)),
+)
+
+const addable = $derived(
+  options.filter(o => o.key !== targetKey && !extras.includes(o.key)),
+)
+
+const room = $derived(members.length > 0)
+
 const presets = $derived.by(() => {
   const target = nav.target
 
@@ -114,9 +134,16 @@ const presetKey = (option: ConfigChoice) => `${targetKey}:${option.id}`
 const pickOf = (option: ConfigChoice) =>
   picks[presetKey(option)] ?? option.current
 
+const pane = usePane()
+
 const glide = (current: Current) => {
   const go = async () => {
-    openConversation(current)
+    if (pane) {
+      panes.open(current, pane())
+    } else {
+      openConversation(current)
+    }
+
     await tick()
   }
 
@@ -164,8 +191,69 @@ const startSession = async (target: Extract<Target, { kind: "harness" }>) => {
   return { view, id }
 }
 
+const addMember = async (groupId: string, key: string) => {
+  const option = options.find(o => o.key === key)
+  const [first, second] = key.split("\n")
+
+  if (!option) {
+    return
+  }
+
+  if (first !== GATEWAY) {
+    await groups.invite(
+      groupId,
+      first,
+      { id: second, name: option.label },
+      key === targetKey
+        ? {
+            options: Object.fromEntries(
+              presets.filter(o => pickOf(o) !== o.current).map(o => [o.id, pickOf(o)]),
+            ),
+            model: modelOption ? undefined : alias,
+            effort: effortOption ? undefined : level,
+          }
+        : {},
+    )
+
+    return
+  }
+
+  const model =
+    nav.target.kind === "model" && key === targetKey
+      ? nav.target.model
+      : (findGateway(second)?.model ?? "")
+
+  await groups.join(groupId, CHAT_HOST, chats.create(second, model), option.label)
+}
+
+const startRoom = async (text: string, files: File[]) => {
+  const id = await groups.create()
+  const cwd = nav.target.kind === "harness" ? nav.target.cwd.trim() : ""
+
+  if (cwd) {
+    await groups.setFolder(id, cwd)
+  }
+
+  for (const key of [targetKey, ...members.map(o => o.key)]) {
+    await addMember(id, key)
+  }
+
+  if (text || files.length) {
+    groups.opening.set(id, { text, files })
+  }
+
+  extras = []
+  glide({ kind: "group", id })
+}
+
 const call = () =>
   attempt.run(async () => {
+    if (room) {
+      await startRoom("", [])
+
+      return
+    }
+
     const target = nav.target
 
     if (target.kind === "model") {
@@ -184,6 +272,12 @@ const call = () =>
 
 const send = (text: string, files: File[]) =>
   attempt.run(async () => {
+    if (room) {
+      await startRoom(text, files)
+
+      return
+    }
+
     const target = nav.target
 
     if (target.kind === "model") {
@@ -223,7 +317,11 @@ const ready = $derived(
       busy={attempt.busy}
       draft="start"
       disabled={!ready}
-      placeholder={ready ? m.chat_placeholder() : m.chat_connect_gateway()}
+      placeholder={!ready
+        ? m.chat_connect_gateway()
+        : room
+          ? m.group_placeholder()
+          : m.chat_placeholder()}
       onSend={send}
       onStop={() => {}}
       onCall={call}
@@ -245,7 +343,63 @@ const ready = $derived(
             {/if}
           </span>
         {/if}
-        {#if nav.target.kind === "model"}
+        {#each members as option (option.key)}
+          <span class="badge badge-soft badge-primary shrink-0 gap-1 pe-0.5">
+            <Icon icon={option.icon} class="size-3" />
+            {option.label}
+            <button
+              type="button"
+              class="btn btn-ghost btn-circle btn-xs size-4"
+              aria-label={m.room_remove({ name: option.label })}
+              title={m.room_remove({ name: option.label })}
+              onclick={() => {
+                extras = extras.filter(k => k !== option.key)
+              }}
+            >
+              <Icon icon="lucide:x" class="size-3" />
+            </button>
+          </span>
+        {/each}
+        {#if addable.length}
+          <Popover label={m.room_add()} placement="top-start" width="w-64" bind:open={adding}>
+            {#snippet trigger(p)}
+              <button
+                {...p}
+                type="button"
+                class="btn btn-ghost btn-xs btn-square shrink-0"
+                aria-label={m.room_add()}
+                title={m.room_add()}
+              >
+                <Icon icon="lucide:user-plus" class="size-3.5" />
+              </button>
+            {/snippet}
+            <div
+              role="menu"
+              tabindex="-1"
+              class="flex max-h-80 flex-col overflow-y-auto"
+              {@attach menuKeys}
+            >
+              {#each addable as option (option.key)}
+                <MenuItem
+                  icon={option.icon}
+                  label={option.label}
+                  onclick={() => {
+                    adding = false
+                    extras = [...extras, option.key]
+                  }}
+                />
+              {/each}
+            </div>
+          </Popover>
+        {/if}
+        {#if room}
+          {#if nav.target.kind === "harness"}
+            <FolderPicker
+              host={hostById(nav.target.host)}
+              bind:value={nav.target.cwd}
+            />
+          {/if}
+        {:else if nav.target.kind === "model"}
           <ModelInput
             gateway={nav.target.gateway}
             bind:value={nav.target.model}

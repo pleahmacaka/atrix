@@ -1,7 +1,8 @@
 import type { SessionUpdate } from "@agentclientprotocol/sdk"
 import { z } from "zod"
-import type { ChatItem, Shell } from "#lib/acp/items.ts"
+import type { Asked, ChatItem, Shell } from "#lib/acp/items.ts"
 import type { Reachable } from "#lib/acp/tools.ts"
+import { gitAction } from "#lib/git/action.ts"
 import { canvas } from "#lib/knowledge/canvas.ts"
 import { editable, editablePatch } from "#lib/knowledge/document.ts"
 import type {
@@ -119,6 +120,7 @@ export type ContextUse = { used: number; size: number }
 export type SessionView = OpenSession & {
   items: ChatItem[]
   ask: Ask | null
+  asked?: Asked | null
   config: ConfigChoice[]
   external?: boolean
   queued?: string[]
@@ -132,13 +134,22 @@ export type SessionView = OpenSession & {
   model?: string
   since?: number
   tokens?: number
+  pace?: Pace
   agents?: Subagent[]
   commands?: Command[]
 }
 
 export type Command = { name: string; description: string; hint?: string }
 
-export type Subagent = { id: string; description: string; step: string }
+export type Pace = { tokens: number; ms: number }
+
+export type Subagent = {
+  id: string
+  description: string
+  step: string
+  started?: number
+  pace?: Pace
+}
 
 export type Patch = Partial<
   Pick<
@@ -255,7 +266,7 @@ const session = { sessionId: z.string() }
 
 const harness = { harness: z.string() }
 
-const device = { device: z.string() }
+const device = { device: z.string(), user: z.string().optional() }
 
 export const hostRequest = z.discriminatedUnion("op", [
   ...datasourceRequest.options,
@@ -269,6 +280,8 @@ export const hostRequest = z.discriminatedUnion("op", [
   }),
   request("mail.close", { caller: z.string(), session: z.string() }),
   request("fs.browse", { path: z.string() }),
+  request("fs.git", { path: z.string() }),
+  request("git.run", { path: z.string(), action: gitAction }),
   request("list", harness),
   request("new", { ...harness, cwd: z.string() }),
   request("load", {
@@ -288,6 +301,16 @@ export const hostRequest = z.discriminatedUnion("op", [
   request("speech.tts", { text: z.string() }),
   request("rename", { ...session, title: z.string() }),
   request("permit", { ...session, optionId: z.string().nullable() }),
+  request("answer", {
+    ...session,
+    toolId: z.string(),
+    answers: z.array(
+      z.object({
+        picks: z.array(z.number().int().min(0)),
+        text: z.string().optional(),
+      }),
+    ),
+  }),
   request("option", { ...session, configId: z.string(), value: z.string() }),
   request("harness.toggle", { ...harness, enabled: z.boolean() }),
   request("harness.detect", {}),
@@ -382,6 +405,8 @@ export type Answers = {
   "mail.open": { id: string; title: string; reopened: boolean }
   "mail.close": { closed: string; title: string }
   "fs.browse": Browse
+  "fs.git": { remote: string | null } | null
+  "git.run": string
   list: Listed[]
   new: SessionView
   load: SessionView
@@ -392,6 +417,7 @@ export type Answers = {
   "speech.tts": { audio: string; mime: string }
   rename: null
   permit: null
+  answer: null
   option: null
   "harness.toggle": null
   "harness.detect": null

@@ -1,8 +1,15 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { useComposer } from "#lib/chat/composer.svelte.ts"
+import {
+  conversations,
+  documents,
+  people,
+  type Suggestion,
+  tokenAt,
+} from "#lib/chat/mentions.ts"
 import ImageViewer, { type Viewed } from "#lib/components/ui/ImageViewer.svelte"
-import Listbox from "#lib/components/ui/Listbox.svelte"
+import Listbox, { type ListGroup } from "#lib/components/ui/Listbox.svelte"
 import type { Command } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
@@ -23,35 +30,50 @@ $effect(() => {
   }
 })
 
-let list = $state<ReturnType<typeof Listbox<Command>>>()
+type Option = Suggestion | { command: Command }
+
+let list = $state<ReturnType<typeof Listbox<Option>>>()
 
 let active = $state(0)
 
+let caret = $state(0)
+
 let dismissed = $state<string | null>(null)
 
-const query = $derived.by(() => {
-  const text = composer.text
+const token = $derived(tokenAt(composer.text, caret))
 
-  return text.startsWith("/") && !/\s/.test(text)
-    ? text.slice(1).toLowerCase()
-    : null
-})
+const commandsFor = (query: string) =>
+  (composer.props.commands ?? [])
+    .filter(c => c.name.toLowerCase().includes(query))
+    .toSorted(
+      (a, b) =>
+        Number(!a.name.toLowerCase().startsWith(query)) -
+        Number(!b.name.toLowerCase().startsWith(query)),
+    )
+    .map(command => ({ command }))
 
-const matches = $derived.by(() => {
-  if (query === null) {
+const groups = $derived.by((): ListGroup<Option>[] => {
+  if (!token) {
     return []
   }
 
-  const found = (composer.props.commands ?? []).filter(c =>
-    c.name.toLowerCase().includes(query),
-  )
+  const { trigger, query } = token
 
-  return found.toSorted(
-    (a, b) =>
-      Number(!a.name.toLowerCase().startsWith(query)) -
-      Number(!b.name.toLowerCase().startsWith(query)),
-  )
+  if (trigger === "/") {
+    return [{ name: "", items: commandsFor(query) }]
+  }
+
+  if (trigger === "@") {
+    return [{ name: "", items: people(query) }]
+  }
+
+  return [
+    { name: m.mention_conversations(), items: conversations(query, composer.props.draft) },
+    { name: m.mention_knowledge(), items: documents(query) },
+  ].filter(g => g.items.length > 0)
 })
+
+const matches = $derived(groups.flatMap(g => g.items))
 
 const suggesting = $derived(matches.length > 0 && dismissed !== composer.text)
 
@@ -61,12 +83,38 @@ $effect(() => {
   }
 })
 
-const pick = (c: Command) => {
-  composer.text = `/${c.name} `
+const track = () => {
+  if (field) {
+    caret = field.selectionStart
+  }
+}
+
+const pick = (o: Option) => {
+  if (!token) {
+    return
+  }
+
+  const insert = "command" in o ? `/${o.command.name}` : o.token
+  const text = composer.text
+  const rest = text.slice(token.end)
+  const spaced = `${insert}${/^\s/.test(rest) ? "" : " "}`
+
+  if (!("command" in o)) {
+    composer.mention(o)
+  }
+
+  composer.text = text.slice(0, token.start) + spaced + rest
+  caret = token.start + spaced.length
+
+  requestAnimationFrame(() => field?.setSelectionRange(caret, caret))
 }
 
 const keydown = (e: KeyboardEvent) => {
-  if (suggesting && !e.isComposing) {
+  if (e.isComposing) {
+    return
+  }
+
+  if (suggesting) {
     if (e.key === "Escape") {
       e.preventDefault()
       e.stopPropagation()
@@ -87,7 +135,22 @@ const keydown = (e: KeyboardEvent) => {
     }
   }
 
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+  const working = composer.props.busy || composer.props.running
+
+  if (e.key === "Escape" && working && !e.repeat && !composer.stopped) {
+    e.preventDefault()
+    composer.stop()
+
+    return
+  }
+
+  if (e.key === "ArrowUp" && composer.recall()) {
+    e.preventDefault()
+
+    return
+  }
+
+  if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault()
     composer.submit()
   }
@@ -156,7 +219,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
   }}
 >
   {#if composer.files.length}
-    <ul class="flex flex-wrap gap-2 px-2 pt-2" aria-label={m.attach_list()}>
+    <ul class="flex flex-wrap gap-2 px-1 pt-1" aria-label={m.attach_list()}>
       {#each composer.files as file, index (index)}
         {@const preview = composer.previews.get(file)}
         <li
@@ -190,14 +253,14 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
           <button
             type="button"
             class={[
-              "btn btn-circle btn-xs absolute top-1 right-1 border-0",
+              "btn btn-circle btn-xs absolute top-0.5 right-0.5 size-5 border-0",
               "bg-base-100/80 backdrop-blur",
             ]}
             aria-label={m.chat_remove_attachment({ name: file.name })}
             title={m.chat_remove_attachment({ name: file.name })}
             onclick={() => composer.remove(file)}
           >
-            <Icon icon="lucide:x" class="size-3.5" />
+            <Icon icon="lucide:x" class="size-3" />
           </button>
         </li>
       {/each}
@@ -221,37 +284,50 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
     aria-activedescendant={suggesting && active >= 0 ? `${uid}-${active}` : undefined}
     bind:value={composer.text}
     onkeydown={keydown}
+    oninput={track}
+    onkeyup={track}
+    onclick={track}
     onpaste={e => {
-      if (e.clipboardData?.files.length) {
+      const data = e.clipboardData
+
+      if (data?.files.length) {
         e.preventDefault()
-        composer.add(e.clipboardData.files)
+        composer.add(data.files)
+      } else if (data && composer.paste(data.getData("text/plain"))) {
+        e.preventDefault()
       }
     }}
   ></textarea>
 </fieldset>
 {#if composer.dropping}
   <span
-    class="pointer-events-none absolute inset-0 rounded-box border border-primary bg-primary/5"
+    class="pointer-events-none absolute inset-0 rounded-3xl border border-primary bg-primary/5"
   ></span>
 {/if}
 <Listbox
   bind:this={list}
   bind:active
   id={uid}
-  label={m.chat_commands()}
+  label={token?.trigger === "/" ? m.chat_commands() : m.mention_label()}
   anchor={`--${uid}`}
-  groups={[{ name: "", items: matches }]}
+  {groups}
   open={suggesting}
   up
-  title={c => c.description}
+  title={o => ("command" in o ? o.command.description : o.detail)}
   onpick={pick}
 >
-  {#snippet option(c)}
-    <span class="shrink-0 font-medium">/{c.name}</span>
-    {#if c.hint}
-      <span class="shrink-0 text-base-content/50">{c.hint}</span>
+  {#snippet option(o)}
+    {#if "command" in o}
+      <span class="shrink-0 font-medium">/{o.command.name}</span>
+      {#if o.command.hint}
+        <span class="shrink-0 text-base-content/50">{o.command.hint}</span>
+      {/if}
+      <span class="min-w-0 flex-1 truncate text-base-content/60">{o.command.description}</span>
+    {:else}
+      <Icon icon={o.icon} class="size-4 shrink-0 opacity-70" />
+      <span class="min-w-0 flex-1 truncate">{o.label}</span>
+      <span class="max-w-1/2 min-w-0 truncate text-xs text-base-content/50">{o.detail}</span>
     {/if}
-    <span class="min-w-0 flex-1 truncate text-base-content/60">{c.description}</span>
   {/snippet}
 </Listbox>
 <ImageViewer bind:image={zoomed} />

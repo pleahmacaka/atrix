@@ -3,15 +3,6 @@ import { z } from "zod"
 import { native } from "#lib/native.ts"
 import { persisted } from "#lib/store/stored.svelte.ts"
 
-const bindingSchema = z.object({
-  discordChannelId: z.string(),
-  harness: z.string(),
-  cwd: z.string(),
-  sessionId: z.string().nullable(),
-})
-
-export type Binding = z.infer<typeof bindingSchema>
-
 export type Incoming = {
   guild: string | null
   channelId: string
@@ -28,80 +19,162 @@ type Frame =
   | ({ type: "message" } & Incoming)
   | { type: "closed"; error: string | null }
 
-const KEY = "channels"
+export type Provider = {
+  id: string
+  name: string
+  icon: string
+  channelIcon: string
+  numericChannel: boolean
+  start: (sink: Channel<Frame>) => Promise<unknown>
+  stop: () => Promise<unknown>
+  send: (channel: string, text: string) => Promise<unknown>
+  tokenPresent: () => Promise<boolean>
+  setToken: (token: string) => Promise<unknown>
+  clearToken: () => Promise<unknown>
+}
 
-const savedSchema = z.object({
-  bindings: z.array(bindingSchema).catch([]),
+const discord: Provider = {
+  id: "discord",
+  name: "Discord",
+  icon: "simple-icons:discord",
+  channelIcon: "lucide:hash",
+  numericChannel: true,
+  start: sink => native("channel_start", { channel: sink }),
+  stop: () => native("channel_stop"),
+  send: (channelId, text) => native("channel_send", { channelId, text }),
+  tokenPresent: () => native<boolean>("channel_token_present"),
+  setToken: token => native("channel_token_set", { token }),
+  clearToken: () => native("channel_token_clear"),
+}
+
+export const PROVIDERS: Provider[] = [discord]
+
+export const providerOf = (id: string) =>
+  PROVIDERS.find(p => p.id === id) ?? discord
+
+const bindingSchema = z.preprocess(
+  raw =>
+    raw && typeof raw === "object" && "discordChannelId" in raw
+      ? { provider: discord.id, channel: raw.discordChannelId, ...raw }
+      : raw,
+  z.object({
+    provider: z.string(),
+    channel: z.string(),
+    harness: z.string(),
+    cwd: z.string(),
+    sessionId: z.string().nullable(),
+  }),
+)
+
+export type Binding = z.infer<typeof bindingSchema>
+
+const optionsSchema = z.object({
   mentionOnly: z.boolean().catch(false),
   autostart: z.boolean().catch(false),
 })
 
+export type ProviderOptions = z.infer<typeof optionsSchema>
+
+const KEY = "channels"
+
+const savedSchema = z.preprocess(
+  raw =>
+    raw && typeof raw === "object" && !("providers" in raw)
+      ? { ...raw, providers: { [discord.id]: raw } }
+      : raw,
+  z.object({
+    bindings: z.array(bindingSchema).catch([]),
+    providers: z.record(z.string(), optionsSchema).catch({}),
+  }),
+)
+
 type Saved = z.infer<typeof savedSchema>
 
-const load = () => persisted(KEY, savedSchema.parse({}), savedSchema)
-
-export const channels = $state<
-  Saved & {
-    status: "off" | "connecting" | "on"
-    user: string | null
-    error: string | null
-  }
->({ ...load(), status: "off", user: null, error: null })
-
-export const saveChannels = () => {
-  const { bindings, mentionOnly, autostart } = $state.snapshot(channels)
-
-  localStorage.setItem(
-    KEY,
-    JSON.stringify({ bindings, mentionOnly, autostart }),
-  )
+export type Live = {
+  status: "off" | "connecting" | "on"
+  user: string | null
+  error: string | null
 }
 
-export const isBound = (id: string) =>
-  channels.bindings.some(b => b.discordChannelId === id)
+const OFF: Live = { status: "off", user: null, error: null }
 
-export const sendToChannel = (channelId: string, text: string) =>
-  native("channel_send", { channelId, text })
+const load = (): Saved =>
+  persisted(KEY, { bindings: [], providers: {} }, savedSchema)
 
-export const tokenPresent = () => native<boolean>("channel_token_present")
+export const channels = $state<Saved & { live: Record<string, Live> }>({
+  ...load(),
+  live: {},
+})
 
-export const setToken = (token: string) =>
-  native("channel_token_set", { token })
+export const liveOf = (provider: string) => channels.live[provider] ?? OFF
 
-export const clearToken = () => native("channel_token_clear")
+export const connected = (provider: string) => liveOf(provider).status === "on"
 
-export const connectChannels = async (onMessage: (m: Incoming) => void) => {
+export const optionsOf = (provider: string): ProviderOptions =>
+  channels.providers[provider] ?? { mentionOnly: false, autostart: false }
+
+export const saveChannels = () => {
+  const { bindings, providers } = $state.snapshot(channels)
+
+  localStorage.setItem(KEY, JSON.stringify({ bindings, providers }))
+}
+
+export const setOptions = (
+  provider: string,
+  patch: Partial<ProviderOptions>,
+) => {
+  channels.providers[provider] = { ...optionsOf(provider), ...patch }
+  saveChannels()
+}
+
+export const isBound = (channel: string) =>
+  channels.bindings.some(b => b.channel === channel)
+
+export const sendToChannel = (channel: string, text: string) => {
+  const binding = channels.bindings.find(b => b.channel === channel)
+
+  return providerOf(binding?.provider ?? discord.id).send(channel, text)
+}
+
+export const connectChannels = async (
+  provider: Provider,
+  onMessage: (m: Incoming) => void,
+) => {
   const sink = new Channel<Frame>(frame => {
     if (frame.type === "ready") {
-      channels.status = "on"
-      channels.user = frame.user
+      channels.live[provider.id] = {
+        status: "on",
+        user: frame.user,
+        error: null,
+      }
     } else if (frame.type === "closed") {
-      channels.status = "off"
-      channels.user = null
-      channels.error = frame.error
+      channels.live[provider.id] = {
+        status: "off",
+        user: null,
+        error: frame.error,
+      }
     } else {
       onMessage(frame)
     }
   })
 
-  channels.status = "connecting"
-  channels.error = null
+  channels.live[provider.id] = { status: "connecting", user: null, error: null }
 
   try {
-    await native("channel_start", { channel: sink })
+    await provider.start(sink)
   } catch (e) {
-    channels.status = "off"
+    channels.live[provider.id] = {
+      ...OFF,
+      error: e instanceof Error ? e.message : String(e),
+    }
     throw e
   }
 
-  channels.autostart = true
-  saveChannels()
+  setOptions(provider.id, { autostart: true })
 }
 
-export const disconnectChannels = async () => {
-  await native("channel_stop")
-  channels.status = "off"
-  channels.user = null
-  channels.autostart = false
-  saveChannels()
+export const disconnectChannels = async (provider: Provider) => {
+  await provider.stop()
+  channels.live[provider.id] = OFF
+  setOptions(provider.id, { autostart: false })
 }

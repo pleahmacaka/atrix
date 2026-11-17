@@ -2,7 +2,7 @@ import { z } from "zod"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { groups } from "#lib/chat/groups.svelte.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
-import { hostList } from "#lib/p2p/hosts.svelte.ts"
+import { hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { keyOf } from "./keys.ts"
 import type { Current } from "./nav.svelte.ts"
@@ -17,6 +17,7 @@ export type Recent = {
   running: boolean
   live: boolean
   harness: string | null
+  device: string | null
   at: number
 }
 
@@ -30,6 +31,7 @@ const sessions = (): Recent[] =>
       const found = harnesses.find(h => h.id === harness)
 
       return {
+        device: host.id === LOCAL ? null : host.name,
         source: m.shell_source({
           host: host.name,
           harness: found?.name ?? harness,
@@ -72,6 +74,7 @@ export const recents = (): Recent[] =>
       key: c.id,
       current: { kind: "chat" as const, id: c.id },
       harness: null,
+      device: null,
       title: c.title,
       source: c.model,
       icon: "lucide:message-square",
@@ -83,6 +86,7 @@ export const recents = (): Recent[] =>
       key: `group:${g.id}`,
       current: { kind: "group" as const, id: g.id },
       harness: null,
+      device: null,
       title: g.title,
       source: m.group_source({ count: g.members.length }),
       icon: "lucide:users",

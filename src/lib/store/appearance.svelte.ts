@@ -48,6 +48,7 @@ export const startAppearance = () => {
       const root = document.documentElement
 
       root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
+      root.style.fontSize = `${settings.scale}%`
 
       if (desktop) {
         applyTheme(

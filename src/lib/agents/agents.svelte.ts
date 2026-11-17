@@ -1,14 +1,31 @@
 import { z } from "zod"
+import { BRIDGE_NAME } from "#lib/acp/toolNames.ts"
+import {
+  blockNamed,
+  dependenciesOf,
+  expand,
+  kindOf,
+  mcpNamesOf,
+  PART_NAME,
+  resolve,
+} from "#lib/agents/compose.ts"
+
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { matchChoice } from "#lib/components/chat/models.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
-import { fillVariables } from "#lib/knowledge/variable.ts"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
+import type { Skill } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { activeGateways, gatewayIcon } from "#lib/store/gateways.svelte.ts"
-import { local, type StoredAgent } from "#lib/store/local.svelte.ts"
+import {
+  local,
+  type PartKind,
+  type StoredAgent,
+  type StoredPrompt,
+} from "#lib/store/local.svelte.ts"
+import { settings } from "#lib/store/settings.svelte.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
 
 export type Provider =
@@ -130,6 +147,7 @@ export const fromTemplate = (
     effort: template.effort,
     instructions: template.instructions,
     variables: template.variables(),
+    requires: {},
     cwd: "",
   }
 }
@@ -163,6 +181,43 @@ class Agents {
 
 export const agents = new Agents()
 
+export const PROMPT_NAME = PART_NAME
+
+class Prompts {
+  get list() {
+    return local.data.prompts.toSorted((a, b) => a.name.localeCompare(b.name))
+  }
+
+  of = (kind: PartKind) => this.list.filter(p => kindOf(p) === kind)
+
+  find = (id: string) => local.data.prompts.find(p => p.id === id)
+
+  named = (name: string) => blockNamed(local.data.prompts, name)
+
+  save = async (
+    prompt: Omit<StoredPrompt, "at" | "id"> & { id: string | null },
+  ) => {
+    const id = prompt.id ?? crypto.randomUUID()
+
+    local.data.prompts = [
+      ...local.data.prompts.filter(p => p.id !== id),
+      { ...prompt, id, at: Date.now() },
+    ]
+    await local.save()
+
+    return id
+  }
+
+  remove = async (id: string) => {
+    local.data.prompts = local.data.prompts.filter(p => p.id !== id)
+    await local.save()
+  }
+
+  expand = (text: string) => expand(local.data.prompts, text)
+}
+
+export const prompts = new Prompts()
+
 export const primers = new Stored("primer:", "", z.string())
 
 const configure = async (view: HostView, id: string, agent: StoredAgent) => {
@@ -188,13 +243,34 @@ export type Opened =
   | { kind: "chat"; id: string }
 
 export const agentInstructions = (agent: StoredAgent, cwd: string) =>
-  fillVariables(agent.instructions, {
+  resolve(local.data.prompts, agent.instructions, {
     date: new Date().toLocaleDateString(getLocale()),
     time: new Date().toLocaleTimeString(getLocale()),
     agent_name: agent.name,
     cwd,
+    ...(settings.userName && { user: settings.userName }),
     ...agent.variables,
-  }).trim()
+  })
+
+export const dependencies = (
+  agent: Pick<StoredAgent, "instructions" | "requires">,
+) => dependenciesOf(local.data.prompts, agent)
+
+export type Inventory = { skills: Skill[]; mcp: string[] }
+
+export const inventoryOf = async (
+  view: HostView,
+  harness: string,
+): Promise<Inventory> => {
+  const config = await view.readHarness(harness)
+  const mcp = config.docs.flatMap(doc =>
+    doc.id === "mcp" || (doc.format === "toml" && doc.id === "settings")
+      ? mcpNamesOf(doc)
+      : [],
+  )
+
+  return { skills: config.skills, mcp: [BRIDGE_NAME, ...mcp] }
+}
 
 export const openAgent = async (
   agent: StoredAgent,

@@ -1,13 +1,15 @@
 import { get, set } from "idb-keyval"
 import { getContext, type Snippet, setContext } from "svelte"
-import { SvelteMap } from "svelte/reactivity"
+import { SvelteMap, SvelteSet } from "svelte/reactivity"
 import { z } from "zod"
 import type { Command } from "#lib/p2p/protocol.ts"
+import { m } from "#lib/paraglide/messages.js"
 import { openSettings } from "#lib/store/nav.svelte.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import { voice } from "#lib/voice/voice.svelte.ts"
 import { isImage } from "./attachments.ts"
+import { expand, remember, type Suggestion } from "./mentions.ts"
 import {
   clearQueue,
   drainFailures,
@@ -18,6 +20,7 @@ import {
 
 export type ComposerProps = {
   busy: boolean
+  running?: boolean
   draft: string
   queue?: boolean
   disabled?: boolean
@@ -42,7 +45,13 @@ const thumbnails = new SvelteMap<File, string>()
 
 const restoring = new Set<string>()
 
+const halted = new SvelteSet<string>()
+
 const ATTACHED = "attached:"
+
+const PASTE_CHARS = 1000
+
+const PASTE_LINES = 10
 
 const restore = (draft: string) => {
   if (restoring.has(draft)) {
@@ -144,7 +153,11 @@ export class Composer {
   }
 
   get stoppable() {
-    return this.props.busy && (this.empty || !this.queueable)
+    const { busy, running } = this.props
+
+    return (
+      (busy && (this.empty || !this.queueable)) || (!!running && this.empty)
+    )
   }
 
   add = (list: Iterable<File>) => {
@@ -159,6 +172,21 @@ export class Composer {
     this.files = [...this.files, ...added]
   }
 
+  paste = (text: string) => {
+    const lines = text.split("\n").length
+
+    if (text.length <= PASTE_CHARS && lines <= PASTE_LINES) {
+      return false
+    }
+
+    const number = this.files.filter(f => !isImage(f)).length + 1
+    const name = m.chat_pasted_text({ number, lines })
+
+    this.add([new File([text], name, { type: "text/plain" })])
+
+    return true
+  }
+
   remove = (file: File) => {
     const url = this.previews.get(file)
 
@@ -170,53 +198,88 @@ export class Composer {
     this.files = this.files.filter(f => f !== file)
   }
 
-  stop = () => {
-    const { draft, onStop } = this.props
+  mention = (suggestion: Suggestion) => remember(this.props.draft, suggestion)
+
+  get stopped() {
+    return halted.has(this.props.draft)
+  }
+
+  set stopped(value: boolean) {
+    if (value) {
+      halted.add(this.props.draft)
+    } else {
+      halted.delete(this.props.draft)
+    }
+  }
+
+  #pullQueue = () => {
+    const { draft } = this.props
     const queued = this.queued
 
     delete drainFailures[draft]
 
-    if (queued.length > 0) {
-      clearQueue(draft)
-      this.text = [...queued.map(q => q.text), this.text.trim()]
-        .filter(Boolean)
-        .join("\n\n")
-      this.files = [...queued.flatMap(q => q.files), ...this.files]
+    if (queued.length === 0) {
+      return false
     }
 
-    onStop()
+    clearQueue(draft)
+    this.text = [...queued.map(q => q.text), this.text.trim()]
+      .filter(Boolean)
+      .join("\n\n")
+    this.files = [...queued.flatMap(q => q.files), ...this.files]
+
+    return true
   }
 
-  submit = () => {
+  recall = () => this.empty && this.#pullQueue()
+
+  stop = () => {
+    this.#pullQueue()
+    this.stopped = true
+    this.props.onStop()
+  }
+
+  submit = async () => {
     const { busy, disabled, draft, onSend } = this.props
     const value = this.text.trim()
+    const files = this.files
 
     if (this.empty || disabled) {
       return
     }
 
-    const behind = !!this.props.queue && pending(draft)
+    this.stopped = false
 
-    if (busy || behind) {
-      if (this.props.queue) {
-        enqueue(draft, value, this.files)
-        this.files = []
-        this.text = ""
-        delete drainFailures[draft]
-      }
+    const behind = !!this.props.queue && pending(draft)
+    const queueing = busy || behind
+
+    if (queueing && !this.props.queue) {
+      return
+    }
+
+    this.text = ""
+    this.files = []
+
+    if (queueing) {
+      enqueue(draft, value, files)
+      delete drainFailures[draft]
 
       return
     }
 
     delete drainFailures[draft]
 
-    const sent = onSend(value, this.files)
+    const sending = await expand(draft, value)
+    const sent = onSend(sending.text, [...files, ...sending.files])
 
-    for (const file of this.files) {
-      this.remove(file)
+    for (const file of files) {
+      const url = this.previews.get(file)
+
+      if (url) {
+        URL.revokeObjectURL(url)
+        this.previews.delete(file)
+      }
     }
-
-    this.text = ""
 
     Promise.resolve(sent).then(ok => {
       if (ok === false && !this.text) {

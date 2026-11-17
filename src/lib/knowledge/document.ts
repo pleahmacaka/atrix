@@ -20,6 +20,7 @@ export const actor = z.object({
   kind: z.enum(["agent", "human"]),
   agent: known.optional(),
   session: known.optional(),
+  user: known.optional(),
   device: known,
   harness: z.object({ name: known, version: known }).optional(),
   model: z.object({ id: known, vendor: known }).optional(),
