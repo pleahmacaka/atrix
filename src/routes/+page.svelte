@@ -70,7 +70,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 
 <div class="window-frame flex h-dvh flex-col bg-base-200" data-frame>
 <AppBar />
-<div class="flex min-h-0 flex-1 gap-2 px-2 pb-2">
+<div class="flex min-h-0 flex-1 gap-2 px-2 pb-2" data-shell>
   {#if !shell.collapsed || shell.compact}
     <div
       class="flex min-h-0 shrink-0 transition-width duration-140"
@@ -86,6 +86,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
           "transition-colors duration-140 hover:bg-primary/60 active:bg-primary",
         ]}
         aria-label={m.shell_resize_pane()}
+        data-resize
         onpointerdown={resize}
         ondblclick={shell.reset}
       >

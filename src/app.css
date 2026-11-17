@@ -161,6 +161,33 @@ svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([f
   box-shadow: var(--island-shadow);
 }
 
+:root[data-layout="flat"] [data-shell] {
+  gap: 0;
+  padding: 0;
+  border-top: var(--border) solid var(--island-edge);
+}
+
+:root[data-layout="flat"] [data-shell] > [data-resize] {
+  z-index: 10;
+  margin: 0 -0.125rem;
+}
+
+:root[data-layout="flat"] [data-frame] [data-sidebar] {
+  gap: 0;
+  border-inline-end: var(--border) solid var(--island-edge);
+}
+
+:root[data-layout="flat"] [data-frame] [data-sidebar] > nav {
+  border-top: var(--border) solid var(--island-edge);
+}
+
+:root[data-layout="flat"] [data-frame] .island {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-image: none;
+}
+
 [data-sidebar-drawer] .island {
   backdrop-filter: blur(1.5rem);
 }

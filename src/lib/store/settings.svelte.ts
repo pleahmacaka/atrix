@@ -7,6 +7,8 @@ export type WindowEffect = "none" | "glass"
 
 export type PanelShape = "rounded" | "square"
 
+export type Layout = "flat" | "island"
+
 export type SidebarCollapse = "compact" | "hidden"
 
 export type Texture = "none" | "soft" | "strong"
@@ -48,6 +50,10 @@ class Settings {
   )
 
   shape = $state<PanelShape>(read("panel-shape", "rounded"))
+
+  layout = $state<Layout>(
+    read<string>("layout", "flat") === "island" ? "island" : "flat",
+  )
 
   texture = $state<Texture>(read("window-texture", "none"))
 
@@ -98,6 +104,11 @@ class Settings {
   setEffect = (effect: WindowEffect) => {
     this.effect = effect
     localStorage.setItem("window-effect", effect)
+  }
+
+  setLayout = (layout: Layout) => {
+    this.layout = layout
+    localStorage.setItem("layout", layout)
   }
 
   setShape = (shape: PanelShape) => {

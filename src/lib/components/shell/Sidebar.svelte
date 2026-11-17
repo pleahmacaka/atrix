@@ -162,7 +162,7 @@ const hintOf = (action: Action) =>
   </button>
 {/snippet}
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 select-none">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 select-none" data-sidebar>
   <section class="island flex min-h-0 flex-1 flex-col overflow-hidden">
     <nav
       class={["flex shrink-0 flex-col gap-0.5", rail ? "items-center p-1.5" : "p-2"]}

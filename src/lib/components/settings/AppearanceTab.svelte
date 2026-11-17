@@ -7,6 +7,7 @@ import { desktop } from "#lib/platform.ts"
 import { chooseLanguage, LANGUAGES, languageChoice } from "#lib/store/locale.ts"
 import {
   ACCENTS,
+  type Layout,
   type PanelShape,
   SCALES,
   type SidebarCollapse,
@@ -25,6 +26,11 @@ const THEMES: { id: Theme; label: string; icon: string }[] = [
 const EFFECTS: { id: WindowEffect; label: string; icon: string }[] = [
   { id: "none", label: m.appearance_effect_none(), icon: "lucide:square" },
   { id: "glass", label: m.appearance_effect_glass(), icon: "lucide:droplet" },
+]
+
+const LAYOUTS: { id: Layout; label: string; icon: string }[] = [
+  { id: "flat", label: m.appearance_layout_flat(), icon: "lucide:panels-top-left" },
+  { id: "island", label: m.appearance_layout_island(), icon: "lucide:layout-dashboard" },
 ]
 
 const SHAPES: { id: PanelShape; label: string; icon: string }[] = [
@@ -80,6 +86,10 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
       </button>
     {/each}
   </div>
+</SettingRow>
+
+<SettingRow icon="lucide:layout-template" title={m.appearance_layout()}>
+  <Segmented items={LAYOUTS} value={settings.layout} onpick={settings.setLayout} />
 </SettingRow>
 
 <SettingRow icon="lucide:layout-panel-left" title={m.appearance_shape()}>

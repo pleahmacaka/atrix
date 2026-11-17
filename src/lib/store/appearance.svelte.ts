@@ -72,6 +72,7 @@ export const startAppearance = () => {
       root.dataset.effect = effect === "none" ? "off" : "on"
       root.dataset.texture = settings.texture
       root.dataset.shape = settings.shape
+      root.dataset.layout = settings.layout
       root.style.setProperty("--surface", String(1 - transparency / 100))
 
       if (desktop) {
