@@ -1,4 +1,5 @@
 <script lang="ts">
+import { uniqBy } from "es-toolkit"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import MenuItem from "#lib/components/ui/MenuItem.svelte"
@@ -14,10 +15,13 @@ import {
 } from "#lib/store/sessionFilter.svelte.ts"
 
 const harnesses = $derived(
-  hostList().flatMap(h =>
-    (h.view.state?.harnesses ?? [])
-      .filter(x => x.enabled)
-      .map(x => ({ id: x.id, name: x.name, base: x.base })),
+  uniqBy(
+    hostList().flatMap(h =>
+      (h.view.state?.harnesses ?? [])
+        .filter(x => x.enabled)
+        .map(x => ({ id: x.id, name: x.name, base: x.base })),
+    ),
+    x => x.id,
   ),
 )
 
