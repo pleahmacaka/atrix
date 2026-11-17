@@ -4,7 +4,10 @@ import type { Asked, Picked } from "#lib/acp/items.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { CARD } from "./labels.ts"
 
-let { asked, onAnswer }: { asked: Asked; onAnswer: (answers: Picked[]) => void } =
+let {
+  asked,
+  onAnswer,
+}: { asked: Asked; onAnswer: (answers: Picked[]) => Promise<boolean> } =
   $props()
 
 const blank = () => asked.questions.map((): Picked => ({ picks: [], text: "" }))
@@ -13,10 +16,10 @@ let answers = $state(blank())
 
 let sent = $state(false)
 
-const send = () => {
+const send = async () => {
   if (!sent) {
     sent = true
-    onAnswer($state.snapshot(answers))
+    sent = await onAnswer($state.snapshot(answers))
   }
 }
 

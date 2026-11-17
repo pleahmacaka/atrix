@@ -11,8 +11,15 @@ import {
   nameOf,
   viewOf,
 } from "#lib/chat/groups.svelte.ts"
-import { mentionsIn, promptFor, relayOf, repliesFor } from "#lib/chat/groupTimeline.ts"
+import {
+  handleOf,
+  mentionsIn,
+  promptFor,
+  relayOf,
+  repliesFor,
+} from "#lib/chat/groupTimeline.ts"
 import { chatFor } from "#lib/chat/live.svelte.ts"
+import type { Suggestion } from "#lib/chat/mentions.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
 import { segmentsOf } from "#lib/chat/session.ts"
 import FolderPicker from "#lib/components/shell/FolderPicker.svelte"
@@ -68,6 +75,21 @@ $effect(() => {
     }
   }
 })
+
+const members = (query: string): Suggestion[] =>
+  (group?.members ?? [])
+    .map(member => {
+      const name = nameOf(member)
+
+      return {
+        token: `@${handleOf(name)}`,
+        label: name,
+        detail: infoOf(member)?.source ?? "",
+        icon: infoOf(member)?.icon ?? "lucide:bot",
+        mention: { kind: "member" as const, id: member.id, title: name },
+      }
+    })
+    .filter(s => s.label.toLowerCase().includes(query))
 
 const invitable = $derived(
   agents.list.map(agent => ({ agent, provider: providerOf(agent) })),
@@ -298,6 +320,7 @@ const stop = () => {
     <Composer
       busy={false}
       draft={`group:${group.id}`}
+      people={members}
       disabled={group.members.length === 0}
       placeholder={group.members.length ? m.group_placeholder_mention() : m.group_empty_members()}
       onSend={send}

@@ -177,12 +177,10 @@ $effect(() => {
                 {#key view.asked.id}
                   <QuestionCard
                     asked={view.asked}
-                    onAnswer={answers => {
+                    onAnswer={async answers => {
                       const id = view?.asked?.id
 
-                      if (id) {
-                        attempt(() => host.answer(sessionId, id, answers))
-                      }
+                      return !!id && (await attempt(() => host.answer(sessionId, id, answers)))
                     }}
                   />
                 {/key}
@@ -213,6 +211,8 @@ $effect(() => {
     {#if panes.hasSide(pane?.())}
       <SidePanel
         entries={view.items.flatMap(i => (i.type === "ui" ? [{ id: i.id, blocks: i.blocks }] : []))}
+        {host}
+        cwd={view.cwd}
         onAction={reply}
         onSave={saveApp}
       />

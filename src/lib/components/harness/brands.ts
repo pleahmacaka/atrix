@@ -18,6 +18,7 @@ const BRANDS: Record<string, string> = {
   bob: "simple-icons:ibm",
   "codebuddy-code": "simple-icons:codebuddy",
   deepagents: "simple-icons:langchain",
+  "deepseek-acp": "simple-icons:deepseek",
   devin: "logos:devin",
   "glm-acp-agent": "thesvg:zhipu",
   goose: "thesvg:goose-codename",

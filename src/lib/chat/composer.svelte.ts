@@ -27,6 +27,7 @@ export type ComposerProps = {
   converse?: { host: string }
   placeholder: string
   commands?: Command[]
+  people?: (query: string) => Suggestion[]
   datasources?: string[]
   tools?: Snippet
   side?: Snippet

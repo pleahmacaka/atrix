@@ -3,6 +3,7 @@ import {
   appendText,
   attachFile,
   attachUi,
+  type ChatItem,
   DETAIL_LIMIT,
   type FileRef,
   type Log,
@@ -197,6 +198,7 @@ const record = z.object({
   content: z.string().optional(),
   isMeta: z.boolean().optional(),
   isSidechain: z.boolean().optional(),
+  toolUseResult: z.unknown().optional(),
   subtype: z.string().optional(),
   message: z
     .object({
@@ -611,6 +613,7 @@ const applyRecord = (log: Log, data: Row) => {
         resultText(result.data.content),
         at,
       )
+      attachAnswers(items, result.data.tool_use_id, data.toolUseResult)
     } else if (served.success) {
       settleTool(items, served.data.tool_use_id, false, "", at)
     } else if (image.success && type === "user") {
@@ -644,6 +647,30 @@ const timeoutOf = (input: unknown) => {
   const parsed = z.object({ timeout: z.number().positive() }).safeParse(input)
 
   return parsed.success ? parsed.data.timeout : undefined
+}
+
+const answeredResult = z.object({
+  answers: z.record(z.string(), z.string()),
+})
+
+const attachAnswers = (items: ChatItem[], toolId: string, raw: unknown) => {
+  const answered = answeredResult.safeParse(raw)
+  const pairs = answered.success ? Object.entries(answered.data.answers) : []
+  const entries = pairs
+    .map(([question, answer]) => ({
+      key: question.trim().slice(0, 80),
+      value: answer.trim().slice(0, 600),
+    }))
+    .filter(e => e.key && e.value)
+    .slice(0, 20)
+
+  if (entries.length > 0) {
+    items.push({
+      type: "ui",
+      id: `${toolId}:answers`,
+      blocks: [{ type: "keyvalue", items: entries }],
+    })
+  }
 }
 
 const sentFiles = z.object({

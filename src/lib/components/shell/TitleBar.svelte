@@ -147,7 +147,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
       onclick={() => floatChat(target.id, info?.title ?? "")}
     />
   {/if}
-  {#if nav.page === "chat"}
+  {#if nav.page === "chat" && !split}
     <IconButton
       icon={panes.hasSide() ? "lucide:panel-right-close" : "lucide:panel-right-open"}
       label={m.shell_side_panel()}

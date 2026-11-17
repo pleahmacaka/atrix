@@ -14,6 +14,7 @@ export type Mention =
   | { kind: "chat"; id: string; title: string }
   | { kind: "doc"; key: string; title: string }
   | { kind: "agent"; id: string; title: string }
+  | { kind: "member"; id: string; title: string }
 
 export type Suggestion = {
   token: string
@@ -295,7 +296,7 @@ export const expand = async (draft: string, text: string) => {
 
   const files = await Promise.all(
     used
-      .filter(s => s.mention.kind !== "agent")
+      .filter(s => s.mention.kind !== "agent" && s.mention.kind !== "member")
       .map(s => fileOf(s.mention).catch(() => [])),
   )
   const block = agentBlock(

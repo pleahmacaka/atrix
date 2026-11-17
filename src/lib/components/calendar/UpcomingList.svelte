@@ -8,30 +8,28 @@ import {
   sameDay,
   TONES,
 } from "#lib/calendar/calendar.svelte.ts"
-import { CALENDAR, type CalendarEvent, listEvents } from "#lib/calendar/events.ts"
+import { listShared, type SharedEvent } from "#lib/calendar/shared.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 
-let { host }: { host: HostView } = $props()
+let { hosts }: { hosts: HostView[] } = $props()
 
-let events = $state<CalendarEvent[]>([])
+let events = $state<SharedEvent[]>([])
 
 $effect(() => {
-  const change = host.dsChange
-
-  if (change?.name && change.name !== CALENDAR) {
-    return
+  for (const host of hosts) {
+    void host.dsChange
   }
 
   untrack(async () => {
     const now = new Date()
 
-    events = await listEvents(host, now, addDays(now, 30)).catch(() => [])
+    events = await listShared(hosts, now, addDays(now, 30)).catch(() => [])
   })
 })
 
-const label = (e: CalendarEvent) => {
+const label = (e: SharedEvent) => {
   const start = new Date(e.start)
   const day = format(start, { month: "short", day: "numeric", weekday: "short" })
 

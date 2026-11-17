@@ -1,26 +1,58 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import type { Block } from "#lib/chat/blocks.ts"
+import GitPanel from "#lib/components/git/GitPanel.svelte"
+import TerminalPanel from "#lib/components/terminal/TerminalPanel.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import MenuItem from "#lib/components/ui/MenuItem.svelte"
 import { menuKeys } from "#lib/components/ui/menu.ts"
 import Popover from "#lib/components/ui/Popover.svelte"
+import { LOCAL } from "#lib/p2p/hosts.svelte.ts"
+import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { baseName } from "#lib/path.ts"
+import { desktop } from "#lib/platform.ts"
+import { panes, type SideTab, usePane } from "#lib/store/panes.svelte.ts"
 import UiBlocks from "./UiBlocks.svelte"
 
 export type Shown = { id: string; blocks: Block[] }
 
 let {
   entries,
+  host,
+  cwd,
   onAction,
   onSave,
 }: {
   entries: Shown[]
+  host?: HostView
+  cwd?: string
   onAction: (text: string) => void
   onSave: (blocks: Block[]) => Promise<unknown>
 } = $props()
+
+const pane = usePane()
+
+const tab = $derived(panes.sideOf(pane?.()) ?? "items")
+
+const TABS: { id: SideTab; icon: string; label: () => string }[] = [
+  { id: "items", icon: "lucide:layers", label: m.side_artifacts },
+  { id: "git", icon: "lucide:git-branch", label: m.git },
+  ...(desktop
+    ? [{ id: "terminal" as const, icon: "lucide:square-terminal", label: m.terminal }]
+    : []),
+]
+
+let shell = $state(false)
+
+$effect(() => {
+  if (tab === "terminal") {
+    shell = true
+  }
+})
+
+const shellCwd = $derived(host?.id === LOCAL ? (cwd ?? "") : "")
 
 let index = $state<number | null>(null)
 
@@ -59,6 +91,29 @@ const nameOf = (entry: Shown, i: number) => {
   aria-label={m.shell_side_panel()}
 >
   <header class="flex h-10 shrink-0 items-center gap-1 px-2">
+    <div role="tablist" class="flex shrink-0 items-center gap-0.5">
+      {#each TABS as t (t.id)}
+        <button
+          type="button"
+          role="tab"
+          class={[
+            "btn btn-ghost btn-sm btn-square",
+            tab === t.id && "bg-primary/8 text-primary",
+          ]}
+          aria-selected={tab === t.id}
+          aria-label={t.label()}
+          title={t.label()}
+          onclick={() => {
+            if (pane) {
+              panes.showSide(pane(), t.id)
+            }
+          }}
+        >
+          <Icon icon={t.icon} class="size-4" />
+        </button>
+      {/each}
+    </div>
+    {#if tab === "items"}
     <Popover label={m.side_list()} placement="bottom-start" width="w-72" bind:open={listing}>
       {#snippet trigger(p)}
         <button
@@ -104,7 +159,22 @@ const nameOf = (entry: Shown, i: number) => {
         index = at + 1 >= entries.length - 1 ? null : at + 1
       }}
     />
+    {/if}
   </header>
+  {#if shell && desktop}
+    <div class={["flex min-h-0 flex-1 flex-col", tab !== "terminal" && "hidden"]}>
+      <TerminalPanel cwd={shellCwd} />
+    </div>
+  {/if}
+  {#if tab === "git"}
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      {#if host && cwd}
+        <GitPanel {host} {cwd} />
+      {:else}
+        <EmptyState icon="lucide:git-branch" title={m.git_none_title()} text={m.git_none_text()} />
+      {/if}
+    </div>
+  {:else if tab === "items"}
   <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
     {#if current}
       {#key current.id}
@@ -114,4 +184,5 @@ const nameOf = (entry: Shown, i: number) => {
       <EmptyState icon="lucide:panel-right" text={m.side_empty()} class="py-10" />
     {/if}
   </div>
+  {/if}
 </aside>

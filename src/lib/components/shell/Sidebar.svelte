@@ -3,9 +3,7 @@ import Icon from "@iconify/svelte"
 import { z } from "zod"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
-import { type SideTool, side, toggleSide } from "#lib/git/side.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { desktop } from "#lib/platform.ts"
 import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
 import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
@@ -24,20 +22,6 @@ type Action = {
   run: () => void
 }
 
-const sideAction = (tool: SideTool, label: string, icon: string): Action => ({
-  label,
-  icon,
-  pressed: side.tool === tool,
-  run: () => {
-    goPage("chat")
-    toggleSide(tool)
-
-    if (rail && side.tool) {
-      shell.openDrawer()
-    }
-  },
-})
-
 const chatActions = (): Action[] => [
   {
     label: m.chat_new(),
@@ -48,8 +32,6 @@ const chatActions = (): Action[] => [
       openConversation(null)
     },
   },
-  sideAction("git", m.git(), "lucide:git-branch"),
-  ...(desktop ? [sideAction("terminal", m.terminal(), "lucide:square-terminal")] : []),
 ]
 
 const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {

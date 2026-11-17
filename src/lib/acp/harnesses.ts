@@ -53,6 +53,14 @@ const entry = z.object({
 
 type Entry = z.infer<typeof entry>
 
+const EXTRA: Entry[] = [
+  {
+    id: "deepseek-acp",
+    name: "DeepSeek",
+    distribution: { npx: { package: "deepseek-acp", args: [], env: {} } },
+  },
+]
+
 export type Launch = {
   command: string
   args: string[]
@@ -219,10 +227,13 @@ const pathLaunch = (
 
 export const detectHarnesses = async () => {
   const response = await fetch(REGISTRY)
-  const agents = z
+  const listed = z
     .object({ agents: z.array(entry) })
-    .parse(await response.json())
-    .agents.filter(supported)
+    .parse(await response.json()).agents
+  const agents = [
+    ...listed,
+    ...EXTRA.filter(e => !listed.some(l => l.id === e.id)),
+  ].filter(supported)
   const platform = await invoke<string>("tool_platform")
   const options = agents.map(e => optionsOf(e, platform))
   const found = await invoke<(Found | null)[]>("tool_find", {

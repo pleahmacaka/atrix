@@ -64,7 +64,7 @@ const groups = $derived.by((): ListGroup<Option>[] => {
   }
 
   if (trigger === "@") {
-    return [{ name: "", items: people(query) }]
+    return [{ name: "", items: (composer.props.people ?? people)(query) }]
   }
 
   return [

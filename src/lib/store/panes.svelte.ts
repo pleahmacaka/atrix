@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte"
-import { SvelteSet } from "svelte/reactivity"
+import { SvelteMap } from "svelte/reactivity"
 import { z } from "zod"
 import { keyOf } from "./keys.ts"
 import type { Current } from "./nav.svelte.ts"
@@ -8,6 +8,10 @@ import { persisted } from "./stored.svelte.ts"
 const SIDES = "panes:sides"
 
 export type Side = "left" | "right" | "top" | "bottom"
+
+export const SIDE_TABS = ["items", "git", "terminal"] as const
+
+export type SideTab = (typeof SIDE_TABS)[number]
 
 export type Leaf = { kind: "leaf"; id: string; current: Current }
 
@@ -175,7 +179,11 @@ class Panes {
 
   height = $state(0)
 
-  sides = new SvelteSet<string>(persisted(SIDES, [], z.array(z.string())))
+  sides = new SvelteMap<string, SideTab>(
+    Object.entries(
+      persisted(SIDES, {}, z.record(z.string(), z.enum(SIDE_TABS))),
+    ),
+  )
 
   stashed = $state<Node[]>([])
 
@@ -203,22 +211,31 @@ class Panes {
     return current ? keyOf(current) : id
   }
 
+  sideOf = (id = this.active.id) => this.sides.get(this.#sideKey(id)) ?? null
+
   hasSide = (id = this.active.id) => this.sides.has(this.#sideKey(id))
 
-  toggleSide = (id = this.active.id) => {
+  showSide = (id: string, tab: SideTab | null) => {
     const key = this.#sideKey(id)
 
-    if (!this.sides.delete(key)) {
-      this.sides.add(key)
+    if (tab) {
+      this.sides.set(key, tab)
+    } else {
+      this.sides.delete(key)
     }
 
     localStorage.setItem(
       SIDES,
       JSON.stringify(
-        [...this.sides].filter(k => !this.leaves.some(l => l.id === k)),
+        Object.fromEntries(
+          [...this.sides].filter(([k]) => !this.leaves.some(l => l.id === k)),
+        ),
       ),
     )
   }
+
+  toggleSide = (id = this.active.id) =>
+    this.showSide(id, this.hasSide(id) ? null : "items")
 
   focus = (id: string) => {
     this.focused = id

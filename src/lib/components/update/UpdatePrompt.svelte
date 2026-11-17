@@ -1,51 +1,32 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { isTauri } from "@tauri-apps/api/core"
-import { relaunch } from "@tauri-apps/plugin-process"
-import { check, type Update } from "@tauri-apps/plugin-updater"
 import { onMount } from "svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
+import { updater } from "#lib/update/updater.svelte.ts"
 import { updated } from "$app/state"
-
-let update = $state<Update | null>(null)
+import UpdateButton from "./UpdateButton.svelte"
 
 let dismissed = $state(false)
 
-let installing = $state(false)
-
 const web = !isTauri()
-
-const install = async () => {
-  if (!update) {
-    return
-  }
-
-  installing = true
-
-  try {
-    await update.downloadAndInstall()
-    await relaunch()
-  } catch {
-    installing = false
-    dismissed = true
-  }
-}
 
 onMount(() => {
   if (desktop && !import.meta.env.DEV) {
-    check()
-      .then(found => {
-        update = found
-      })
-      .catch(() => {})
+    updater.check()
   }
 })
 
-const version = $derived(update?.version ?? null)
+const pending = $derived(
+  updater.phase === "found" ||
+    updater.phase === "downloading" ||
+    updater.phase === "ready" ||
+    updater.phase === "installing",
+)
 
-const visible = $derived(!dismissed && (version !== null || (web && updated.current)))
+const visible = $derived(!dismissed && (pending || (web && updated.current)))
 </script>
 
 {#if visible}
@@ -53,15 +34,10 @@ const visible = $derived(!dismissed && (version !== null || (web && updated.curr
     <div role="status" class="alert text-sm">
       <Icon icon="lucide:circle-arrow-up" class="size-4 shrink-0 text-primary" />
       <span class="min-w-0 break-words">
-        {version ? m.update_desktop({ version }) : m.update_web()}
+        {pending ? m.update_desktop({ version: updater.version ?? "" }) : m.update_web()}
       </span>
-      {#if version}
-        <button type="button" class="btn btn-primary btn-xs" disabled={installing} onclick={install}>
-          {#if installing}
-            <span class="loading loading-spinner loading-xs"></span>
-          {/if}
-          {m.update_install()}
-        </button>
+      {#if pending}
+        <UpdateButton size="xs" />
       {:else}
         <button type="button" class="btn btn-primary btn-xs" onclick={() => location.reload()}>
           {m.update_reload()}
@@ -71,7 +47,7 @@ const visible = $derived(!dismissed && (version !== null || (web && updated.curr
         icon="lucide:x"
         label={m.update_later()}
         size="xs"
-        disabled={installing}
+        disabled={updater.phase === "installing"}
         onclick={() => {
           dismissed = true
         }}

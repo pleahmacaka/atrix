@@ -160,6 +160,14 @@ const HINTS: Record<Zone, string> = {
           onclick={popOut}
         />
       {/if}
+      {#if floatKey}
+        <IconButton
+          icon={panes.hasSide(leaf.id) ? "lucide:panel-right-close" : "lucide:panel-right-open"}
+          label={m.shell_side_panel()}
+          aria-pressed={panes.hasSide(leaf.id)}
+          onclick={() => panes.toggleSide(leaf.id)}
+        />
+      {/if}
       <IconButton
         icon="lucide:x"
         label={m.shell_close_pane()}

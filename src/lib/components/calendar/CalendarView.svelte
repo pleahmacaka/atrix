@@ -14,13 +14,11 @@ import {
 } from "#lib/calendar/calendar.svelte.ts"
 import {
   addEvent,
-  CALENDAR,
-  type CalendarEvent,
   deleteEvent,
   type EventInput,
-  listEvents,
   updateEvent,
 } from "#lib/calendar/events.ts"
+import { listShared, type SharedEvent } from "#lib/calendar/shared.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -32,13 +30,13 @@ import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import EventForm from "./EventForm.svelte"
 
-let { host }: { host: HostView } = $props()
+let { hosts }: { hosts: HostView[] } = $props()
 
 const attempt = new Attempt()
 
-let events = $state<CalendarEvent[]>([])
+let events = $state<SharedEvent[]>([])
 
-let editing = $state<CalendarEvent | "new" | null>(null)
+let editing = $state<SharedEvent | "new" | null>(null)
 
 let adder = $state<HTMLButtonElement>()
 
@@ -53,17 +51,16 @@ const weekdays = weeksFrom(addDays(today, -today.getDay()))
 const selected = $derived(events.filter(e => onDay(e, calendar.selected)))
 
 $effect(() => {
-  const change = host.dsChange
   const from = days[0]
   const to = addDays(days[days.length - 1], 1)
 
-  if (change?.name && change.name !== CALENDAR) {
-    return
+  for (const host of hosts) {
+    void host.dsChange
   }
 
   untrack(() =>
     attempt.run(async () => {
-      events = await listEvents(host, from, to)
+      events = await listShared(hosts, from, to)
     }),
   )
 })
@@ -84,22 +81,22 @@ const choose = (day: Date) => {
 const save = (input: EventInput) =>
   attempt.run(async () => {
     if (editing === "new") {
-      await addEvent(host, input, settings.deviceName)
+      await addEvent(hosts[0], input, settings.deviceName)
     } else if (editing) {
-      await updateEvent(host, editing.id, input)
+      await updateEvent(editing.host, editing.id, input)
     }
 
     editing = null
   })
 
-const remove = (event: CalendarEvent) =>
+const remove = (event: SharedEvent) =>
   attempt.run(async () => {
-    await deleteEvent(host, event.id)
+    await deleteEvent(event.host, event.id)
 
     editing = null
   })
 
-const menu = (e: MouseEvent, event: CalendarEvent) =>
+const menu = (e: MouseEvent, event: SharedEvent) =>
   contextMenu.show(e, [
     {
       label: m.calendar_edit(),

@@ -72,6 +72,10 @@ const TITLE_LIMIT = 60
 
 const CANCELLED = { outcome: { outcome: "cancelled" as const } }
 
+const CLAUDE_META = {
+  claudeCode: { options: { extraArgs: { chrome: null } } },
+}
+
 const VENDORS: Record<HarnessKind, string> = {
   claude: "anthropic",
   codex: "openai",
@@ -172,6 +176,7 @@ export class Sessions {
     const created = await conn.agent.request(acp.methods.agent.session.new, {
       cwd,
       mcpServers: servers,
+      _meta: CLAUDE_META,
     })
     const session = this.#register(conn, harness, created.sessionId, cwd)
 
@@ -619,6 +624,7 @@ export class Sessions {
       sessionId: id,
       cwd,
       mcpServers: servers,
+      _meta: CLAUDE_META,
     })
 
     session.config = choicesOf(attached.configOptions ?? [])

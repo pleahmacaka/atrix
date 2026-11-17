@@ -11,12 +11,14 @@ import FindBar from "#lib/components/shell/FindBar.svelte"
 import PaneNode from "#lib/components/shell/PaneNode.svelte"
 import TitleBar from "#lib/components/shell/TitleBar.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
-import { hostById, LOCAL } from "#lib/p2p/hosts.svelte.ts"
+import { hostById, hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { nav } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 
 const local = $derived(hostById(LOCAL))
+
+const hosts = $derived(hostList().map(h => h.view))
 </script>
 
 {#snippet noHost()}
@@ -62,8 +64,8 @@ const local = $derived(hostById(LOCAL))
   {:else if nav.page === "apps"}
     <AppsHome />
   {:else if nav.page === "calendar"}
-    {#if local}
-      <CalendarView host={local} />
+    {#if hosts.length > 0}
+      <CalendarView {hosts} />
     {:else}
       {@render noHost()}
     {/if}
