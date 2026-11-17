@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atrix",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "identifier": "com.arixlab.atrix",
   "build": {
     "frontendDist": "../build",
@@ -73,8 +73,13 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
-      "endpoints": []
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxQ0Q0NjY1QTQ0MzhBRUUKUldUdWlrT2taVWJOOFNJaW12d2FqVmlmSjU4Y1ZDc2FYdUV5UVBqcnlqb01vR1A4bzlkT1NPVUoK",
+      "endpoints": [
+        "https://github.com/pleahmacaka/atrix/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "quiet"
+      }
     }
   },
   "bundle": {
