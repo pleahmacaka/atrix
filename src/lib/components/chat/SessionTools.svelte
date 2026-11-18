@@ -1,13 +1,18 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { handoff } from "#lib/chat/handoff.ts"
+import { brandIcon } from "#lib/components/harness/brands.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
+import { menuKeys } from "#lib/components/ui/menu.ts"
 import Popover from "#lib/components/ui/Popover.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { ConfigChoice, SessionView } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import ContextRing from "./ContextRing.svelte"
 import ModelEffort from "./ModelEffort.svelte"
+import ModelLabel from "./ModelLabel.svelte"
 import {
   efforts,
   OPTION_ICONS,
@@ -61,6 +66,12 @@ const choicesOf = (option: ConfigChoice) => {
   }))
 }
 
+const others = $derived(
+  host.state?.harnesses.filter(h => h.enabled && h.id !== view.harness) ?? [],
+)
+
+let switching = $state(false)
+
 const knownModels = $derived(
   Object.values(host.views).flatMap(
     v => v?.config.filter(o => o.category === "model").flatMap(o => o.values) ?? [],
@@ -70,27 +81,24 @@ const knownModels = $derived(
 </script>
 
 {#snippet picker(option: ConfigChoice, ghost: boolean)}
-  {@const older = option.category === "model" ? olderModels(option.values) : null}
   <IconSelect
     icon={OPTION_ICONS[option.category ?? ""] ?? "lucide:settings-2"}
     label={option.name}
     {ghost}
     value={option.current}
-    choices={option.values.map(v => ({
-      value: v.value,
-      name: v.name,
-      older: older?.has(v.name),
-    }))}
+    choices={choicesOf(option)}
     onchange={value => attempt(() => host.configure(view.id, option.id, value))}
   />
 {/snippet}
 
-{#if !configured && elsewhere}
+{#if !configured && claude && (elsewhere || view.model)}
   <ModelEffort
     models={terminalChoices(view.model, knownModels)}
     model={terminalModel(view.model)}
-    efforts={claude ? EFFORTS : []}
+    efforts={EFFORTS}
     {effort}
+    readonly={!elsewhere}
+    title={view.model}
     onmodel={alias => send(`/model ${alias}`)}
     oneffort={level => {
       effort = level
@@ -100,6 +108,10 @@ const knownModels = $derived(
       }
     }}
   />
+{:else if !configured && view.model}
+  <span class="inline-flex h-6 max-w-72 min-w-0 items-center gap-1 px-2 text-xs" title={view.model}>
+    <ModelLabel name={view.model} />
+  </span>
 {:else if modelOption}
   <ModelEffort
     models={choicesOf(modelOption)}
@@ -110,14 +122,25 @@ const knownModels = $derived(
     oneffort={value =>
       effortOption && attempt(() => host.configure(view.id, effortOption.id, value))}
   />
-{:else if !configured && view.model}
-  <span
-    class="inline-flex h-8 max-w-48 min-w-0 items-center gap-1.5 rounded-field px-2 text-sm"
-    title={view.model}
-  >
-    <Icon icon="lucide:cpu" class="size-4 shrink-0 opacity-60" />
-    <span class="min-w-0 truncate">{view.model}</span>
-  </span>
+{/if}
+{#if others.length > 0 && !elsewhere}
+  <Popover label={m.chat_switch_harness()} placement="top-start" width="w-64" bind:open={switching}>
+    {#snippet trigger(p)}
+      <IconButton icon="lucide:arrow-left-right" label={m.chat_switch_harness()} {...p} />
+    {/snippet}
+    <div role="menu" tabindex="-1" class="flex max-h-80 flex-col overflow-y-auto" {@attach menuKeys}>
+      {#each others as harness (harness.id)}
+        <MenuItem
+          icon={brandIcon(harness.base)}
+          label={harness.name}
+          onclick={() => {
+            switching = false
+            attempt(() => handoff(host, view, harness.id))
+          }}
+        />
+      {/each}
+    </div>
+  </Popover>
 {/if}
 {#if view.shells?.length}
   {@const shells = view.shells}

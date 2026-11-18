@@ -59,5 +59,6 @@ export const BUBBLE = [
 
 export const REVEAL = [
   "text-base-content/50 transition-opacity",
-  "lg:pointer-fine:opacity-0 lg:pointer-fine:group-hover:opacity-100",
+  "pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100",
+  "pointer-fine:focus-within:opacity-100",
 ]

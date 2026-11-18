@@ -5,23 +5,59 @@ import type { Subagent } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { STATUS_ICONS } from "./labels.ts"
 
-let { plan, agents }: { plan: PlanEntry[]; agents: Subagent[] } = $props()
+let {
+  plan,
+  agents,
+  timeline = true,
+}: { plan: PlanEntry[]; agents: Subagent[]; timeline?: boolean } = $props()
 
 let open = $state(false)
+
+let root = $state<HTMLElement>()
+
+let toggle = $state<HTMLButtonElement>()
 
 const done = $derived(plan.filter(e => e.status === "completed").length)
 
 const visible = $derived(plan.length > 0 || agents.length > 0)
 </script>
 
+<svelte:window
+  onkeydowncapture={e => {
+    if (
+      open &&
+      e.key === "Escape" &&
+      toggle?.checkVisibility() &&
+      !document.querySelector("dialog[open], :popover-open:not([data-tooltip])")
+    ) {
+      e.preventDefault()
+      e.stopPropagation()
+      open = false
+    }
+  }}
+  onpointerdown={e => {
+    if (open && !(e.target instanceof Node && root?.contains(e.target))) {
+      open = false
+    }
+  }}
+/>
+
 {#if visible}
-  <div class="pointer-events-none absolute end-3 top-2 z-10 flex flex-col items-end gap-1">
+  <div
+    bind:this={root}
+    class={[
+      "pointer-events-none absolute top-2 z-10 flex flex-col items-end gap-1",
+      "end-3",
+      timeline && "pointer-fine:@4xl:end-12",
+    ]}
+  >
     <button
+      bind:this={toggle}
       type="button"
       class={[
         "pointer-events-auto flex cursor-pointer items-center gap-2 rounded-full px-2.5 py-1",
         "bg-base-100/80 text-xs text-base-content/70 backdrop-blur-sm",
-        "transition-colors duration-140 hover:bg-base-content/8 @6xl:hidden",
+        "transition-colors duration-140 hover:bg-base-content/8 @7xl:hidden",
       ]}
       aria-expanded={open}
       onclick={() => {
@@ -43,10 +79,10 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
     </button>
     <div
       class={[
-        "pointer-events-auto w-64 flex-col gap-3 rounded-box p-3",
+        "pointer-events-auto w-56 flex-col gap-3 rounded-box p-3",
         "bg-base-100/85 text-xs backdrop-blur-sm",
         open ? "flex" : "hidden",
-        "@6xl:flex @6xl:bg-transparent @6xl:backdrop-blur-none",
+        "@7xl:flex @7xl:bg-transparent @7xl:backdrop-blur-none",
       ]}
     >
       {#if plan.length}

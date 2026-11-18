@@ -1,9 +1,11 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { untrack } from "svelte"
-import { primers, prompts, providers } from "#lib/agents/agents.svelte.ts"
+import { prompts, providers } from "#lib/agents/agents.svelte.ts"
 import { blueprintIn, builderBrief, nameTaken, PART_ICONS } from "#lib/agents/compose.ts"
 import { chatFor } from "#lib/chat/live.svelte.ts"
+import { prime } from "#lib/chat/primer.ts"
+import { TAGS } from "#lib/chat/tags.ts"
 import ModelChat from "#lib/components/chat/ModelChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
@@ -81,7 +83,7 @@ const start = () =>
 
     const id = await view.create(chosen.harness, view.state?.home ?? "")
 
-    primers.set(id, brief)
+    prime(id, TAGS.agent, brief)
     talk = { kind: "session", view, id }
   })
 

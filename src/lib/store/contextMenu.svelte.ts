@@ -1,3 +1,4 @@
+import { quoteInto, quoteTarget } from "#lib/chat/quote.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 export type MenuAction = {
@@ -140,15 +141,27 @@ export const handleContextMenu = (e: MouseEvent) => {
     return
   }
 
-  const text = getSelection()?.toString() ?? ""
+  const selection = getSelection()
+  const text = selection?.toString() ?? ""
 
   if (text) {
+    const draft = quoteTarget(selection?.anchorNode ?? null)
+
     contextMenu.show(e, [
       {
         label: m.menu_copy(),
         icon: "lucide:copy",
         run: () => navigator.clipboard.writeText(text),
       },
+      ...(draft
+        ? [
+            {
+              label: m.menu_quote(),
+              icon: "lucide:quote",
+              run: () => quoteInto(draft, text),
+            },
+          ]
+        : []),
     ])
 
     return

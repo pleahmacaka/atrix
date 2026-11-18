@@ -97,7 +97,7 @@ const titleOf = (block: Block) =>
           <span class="h-2 min-w-0 flex-1 rounded-full bg-inset">
             <span
               class={[
-                "block h-full rounded-full bg-accent transition-width duration-200",
+                "block h-full rounded-full bg-accent transition-width duration-140",
                 "motion-reduce:transition-none",
               ]}
               style:width="{widthOf(bar.value, block.bars)}%"

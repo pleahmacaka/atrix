@@ -1,4 +1,3 @@
-import { z } from "zod"
 import { BRIDGE_NAME } from "#lib/acp/toolNames.ts"
 import {
   blockNamed,
@@ -11,6 +10,8 @@ import {
 } from "#lib/agents/compose.ts"
 
 import { chats } from "#lib/chat/chats.svelte.ts"
+import { prime } from "#lib/chat/primer.ts"
+import { TAGS } from "#lib/chat/tags.ts"
 import { matchChoice } from "#lib/components/chat/models.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
@@ -18,7 +19,8 @@ import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { Skill } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
-import { activeGateways, gatewayIcon } from "#lib/store/gateways.svelte.ts"
+import { activeGateways } from "#lib/store/gatewayCatalog.ts"
+import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
 import {
   local,
   type PartKind,
@@ -26,7 +28,6 @@ import {
   type StoredPrompt,
 } from "#lib/store/local.svelte.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
-import { Stored } from "#lib/store/stored.svelte.ts"
 
 export type Provider =
   | {
@@ -218,8 +219,6 @@ class Prompts {
 
 export const prompts = new Prompts()
 
-export const primers = new Stored("primer:", "", z.string())
-
 const configure = async (view: HostView, id: string, agent: StoredAgent) => {
   const config = view.views[id]?.config ?? []
   const wants: [string, string][] = [
@@ -275,6 +274,7 @@ export const inventoryOf = async (
 export const openAgent = async (
   agent: StoredAgent,
   cwd = agent.cwd,
+  { primed = true } = {},
 ): Promise<Opened> => {
   const provider = providerOf(agent)
 
@@ -301,27 +301,19 @@ export const openAgent = async (
     throw new Error(m.chat_no_device())
   }
 
-  const id = await view.create(provider.harness, cwd || view.state?.home || "")
+  const folder = cwd || view.state?.home || ""
+  const id = await view.create(provider.harness, folder)
 
-  await configure(view, id, agent)
+  try {
+    await configure(view, id, agent)
+  } catch (e) {
+    await view.close(id)
+    throw e
+  }
 
-  const instructions = agentInstructions(agent, cwd || view.state?.home || "")
-
-  if (instructions) {
-    primers.set(id, instructions)
+  if (primed) {
+    prime(id, TAGS.agent, agentInstructions(agent, folder))
   }
 
   return { kind: "session", host: provider.host, id }
-}
-
-export const withPrimer = (sessionId: string, text: string) => {
-  const primer = primers.get(sessionId)
-
-  if (!primer) {
-    return text
-  }
-
-  primers.set(sessionId, "")
-
-  return `<agent-instructions>\n${primer}\n</agent-instructions>\n\n${text}`
 }

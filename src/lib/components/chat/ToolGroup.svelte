@@ -16,6 +16,22 @@ const RECENT = 5
 
 const wide = new SvelteSet<string>()
 
+const opened = new SvelteSet<string>()
+
+const intent = (id: string) => (summary: HTMLElement) => {
+  const click = () => {
+    if (summary.parentElement?.hasAttribute("open")) {
+      opened.delete(id)
+    } else {
+      opened.add(id)
+    }
+  }
+
+  summary.addEventListener("click", click)
+
+  return () => summary.removeEventListener("click", click)
+}
+
 let now = $state(Date.now())
 
 $effect(() => {
@@ -187,8 +203,12 @@ const summary = $derived.by(() => {
 
 {#snippet tool(item: ToolItem, open = false)}
   {@const going = live(item)}
-  <details class="group/tool" open={open || going}>
+  <details
+    class="group/tool"
+    open={open || going || opened.has(item.id)}
+  >
     <summary
+      {@attach intent(item.id)}
       class={[
         "flex cursor-pointer list-none items-center gap-1.5 text-xs",
         item.status === "failed" ? "text-error" : "text-base-content/70",
@@ -219,12 +239,12 @@ const summary = $derived.by(() => {
 {#snippet detail(item: ToolItem, going: boolean)}
     {#if item.detail}
       {@const big = wide.has(item.id)}
-      {@const { json, rest } = splitJson(unfence(item.detail))}
+      {@const { json, rest } = splitJson(unfence(item.detail), going)}
       <pre
         class={[
           "mt-1.5 overflow-auto rounded-field bg-inset p-3",
           "text-xs break-all whitespace-pre-wrap",
-          going && "border-l-2 border-primary/60",
+          going && "border-s-2 border-primary/60",
           big ? "max-h-160" : "max-h-32",
         ]}
         {@attach follow(() => live(item), () => item.detail)}>{#each jsonTokens(json) as t, i (i)}<span class={TONES[t.kind]}>{t.text}</span>{/each}{json && rest ? GAP : ""}{rest}{#if going}<span class="caret"></span>{/if}</pre>

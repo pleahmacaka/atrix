@@ -1,13 +1,11 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { type Block, splitUi } from "#lib/chat/blocks.ts"
-import CopyButton from "#lib/components/ui/CopyButton.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { copyMenu } from "./copy.ts"
-import { REVEAL } from "./labels.ts"
 import Markdown from "./Markdown.svelte"
-import SpeakButton from "./SpeakButton.svelte"
+import ReplyActions from "./ReplyActions.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
 let {
@@ -17,6 +15,7 @@ let {
   threads = 0,
   onThread,
   onOpenThread,
+  onReply,
   pace,
 }: {
   text: string
@@ -26,13 +25,8 @@ let {
   threads?: number
   onThread?: () => void
   onOpenThread?: () => void
+  onReply?: (text: string) => void
 } = $props()
-
-const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
-
-const rate = $derived(
-  pace && pace.ms > 0 && pace.tokens > 0 ? decimal.format(pace.tokens / (pace.ms / 1000)) : null,
-)
 </script>
 
 <article class="group flex min-w-0 flex-col gap-1" oncontextmenu={e => copyMenu(e, text)}>
@@ -53,21 +47,16 @@ const rate = $derived(
       {m.thread_count({ count: threads })}
     </button>
   {/if}
-  <div class="flex items-center gap-1">
-  <div class={["flex items-center", REVEAL]}>
-    <CopyButton {text} />
-    <SpeakButton {text} />
-    {#if onThread}
-      <IconButton
-        icon="lucide:message-square-reply"
-        label={m.thread_start()}
-        size="xs"
-        onclick={onThread}
-      />
-    {/if}
-  </div>
-  {#if rate}
-    <span class="text-xs text-base-content/45 tabular-nums">{m.chat_pace({ rate })}</span>
-  {/if}
-  </div>
+  <ReplyActions {text} {pace} {onReply}>
+    {#snippet extra()}
+      {#if onThread}
+        <IconButton
+          icon="lucide:message-square-reply"
+          label={m.thread_start()}
+          size="xs"
+          onclick={onThread}
+        />
+      {/if}
+    {/snippet}
+  </ReplyActions>
 </article>

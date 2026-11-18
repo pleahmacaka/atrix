@@ -30,6 +30,7 @@ $effect(() => {
 </script>
 
 <form
+  data-draft={props.draft}
   style:view-transition-name={morph}
   class="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2"
   onsubmit={e => {

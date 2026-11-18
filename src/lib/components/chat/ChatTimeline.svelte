@@ -1,6 +1,6 @@
 <script lang="ts">
 
-import type { Turn } from "#lib/chat/session.ts"
+import { hasTimeline, type Turn } from "#lib/chat/session.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 let { scroller, turns }: { scroller?: HTMLElement; turns: Turn[] } = $props()
@@ -57,7 +57,7 @@ const jump = (id: string) =>
   elementOf(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
 </script>
 
-{#if turns.length > 1}
+{#if hasTimeline(turns)}
   <nav
     class={[
       "absolute inset-y-6 right-4 z-10 hidden w-8 content-center",

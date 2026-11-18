@@ -8,6 +8,7 @@ import { isBusyError } from "#lib/p2p/protocol.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
 import { toAttachment } from "./attachments.ts"
 import { expand } from "./mentions.ts"
+import { sendPrimed } from "./primer.ts"
 
 export const queues = new Stored("queue:", [], z.array(z.string()))
 
@@ -135,7 +136,9 @@ const drain = (host: HostView, draft: string, busy: boolean) => {
       const files = [...next.files, ...sending.files]
       const attachments = await Promise.all(files.map(toAttachment))
 
-      return host.prompt(draft, sending.text, attachments)
+      return sendPrimed(draft, sending.text, text =>
+        host.prompt(draft, text, attachments),
+      )
     })
     .catch((e: unknown) => {
       unshiftQueue(draft, next)

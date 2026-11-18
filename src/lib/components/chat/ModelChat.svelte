@@ -4,14 +4,20 @@ import { appTitleOf } from "#lib/apps/app.ts"
 import { apps } from "#lib/apps/apps.svelte.ts"
 import { toFilePart } from "#lib/chat/attachments.ts"
 import { blocksOf } from "#lib/chat/blocks.ts"
-import { type ChatLike, type ChatMessage, chatFor, gatewayOf, paceOf } from "#lib/chat/live.svelte.ts"
+import {
+  type ChatLike,
+  chatFor,
+  gatewayOf,
+  paceOf,
+} from "#lib/chat/live.svelte.ts"
 import { queues, shiftQueue } from "#lib/chat/queue.svelte.ts"
+import { quoteInto } from "#lib/chat/quote.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
-import { OPENROUTER_ID } from "#lib/store/gateways.svelte.ts"
+import { OPENROUTER_ID } from "#lib/store/gatewayCatalog.ts"
 import { local, type StoredChat } from "#lib/store/local.svelte.ts"
 import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { CHAT_HOST, chatView } from "#lib/voice/chatCall.ts"
@@ -29,14 +35,6 @@ const pane = usePane()
 const attempt = new Attempt()
 
 const chat = $derived(remote ?? chatFor(stored))
-
-const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
-
-const rateOf = (message: ChatMessage) => {
-  const pace = paceOf(message)
-
-  return pace && pace.ms > 0 ? decimal.format(pace.tokens / (pace.ms / 1000)) : null
-}
 
 const busy = $derived(chat.status === "submitted" || chat.status === "streaming")
 
@@ -98,13 +96,17 @@ $effect(() => {
       {@attach pinToggles}
       {@attach stickBottom}
     >
-      <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
+      <div
+        class="content-zoom chat-column mx-auto flex w-full flex-col gap-6 px-4 pt-6 pb-2"
+        data-quote={stored.id}
+      >
         {#each chat.messages as message (message.id)}
-          {@const rate = rateOf(message)}
-          <ModelMessage {message} onAction={text => send(text, [])} />
-          {#if rate}
-            <span class="-mt-5 text-xs text-base-content/45 tabular-nums">{m.chat_pace({ rate })}</span>
-          {/if}
+          <ModelMessage
+            {message}
+            pace={paceOf(message)}
+            onAction={text => send(text, [])}
+            onReply={message.role === "assistant" ? text => quoteInto(stored.id, text) : undefined}
+          />
         {/each}
         {#if chat.status === "submitted"}
           <span class="loading loading-dots loading-sm opacity-60"></span>

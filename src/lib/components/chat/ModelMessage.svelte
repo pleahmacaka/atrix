@@ -4,20 +4,26 @@ import type { UIMessage } from "ai"
 import { appTitleOf } from "#lib/apps/app.ts"
 import { apps } from "#lib/apps/apps.svelte.ts"
 import { blocksOf } from "#lib/chat/blocks.ts"
-import CopyButton from "#lib/components/ui/CopyButton.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import Attachments from "./Attachments.svelte"
 import { copyMenu } from "./copy.ts"
-import { BUBBLE, REVEAL } from "./labels.ts"
+import { BUBBLE } from "./labels.ts"
 import Markdown from "./Markdown.svelte"
-import SpeakButton from "./SpeakButton.svelte"
+import ReplyActions from "./ReplyActions.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
 let {
   message,
+  pace,
+  onReply,
   onAction,
-}: { message: UIMessage; onAction?: (text: string) => void } = $props()
+}: {
+  message: UIMessage
+  onAction?: (text: string) => void
+  pace?: { tokens: number; ms: number }
+  onReply?: (text: string) => void
+} = $props()
 
 const mine = $derived(message.role === "user")
 
@@ -81,11 +87,6 @@ const text = $derived(
     {/if}
   {/each}
   {#if !mine && text}
-    <div class={REVEAL}>
-      <CopyButton {text} />
-      {#if !mine}
-        <SpeakButton {text} />
-      {/if}
-    </div>
+    <ReplyActions {text} {pace} {onReply} />
   {/if}
 </article>

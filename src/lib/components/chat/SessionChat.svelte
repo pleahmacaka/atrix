@@ -1,13 +1,14 @@
 <script lang="ts">
 import { untrack } from "svelte"
-import { withPrimer } from "#lib/agents/agents.svelte.ts"
 import { appTitleOf } from "#lib/apps/app.ts"
 import { apps } from "#lib/apps/apps.svelte.ts"
 import { toAttachment } from "#lib/chat/attachments.ts"
 import type { Block } from "#lib/chat/blocks.ts"
+import { sendPrimed } from "#lib/chat/primer.ts"
 import { drainFailures } from "#lib/chat/queue.svelte.ts"
+import { quoteInto } from "#lib/chat/quote.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
-import { segmentsOf, turnsOf } from "#lib/chat/session.ts"
+import { hasTimeline, segmentsOf, turnsOf } from "#lib/chat/session.ts"
 import { openThread, startThread, threadsOf } from "#lib/chat/threads.svelte.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -75,6 +76,8 @@ const plan = $derived(
   view?.items.findLast(i => i.type === "plan")?.entries ?? [],
 )
 
+const cornered = $derived(plan.length > 0 || (view?.agents?.length ?? 0) > 0)
+
 let scroller = $state<HTMLElement>()
 
 const send = (text: string, files: File[] = []) =>
@@ -82,7 +85,9 @@ const send = (text: string, files: File[] = []) =>
     const attachments = await Promise.all(files.map(toAttachment))
 
     try {
-      await host.prompt(sessionId, withPrimer(sessionId, text), attachments)
+      await sendPrimed(sessionId, text, primed =>
+        host.prompt(sessionId, primed, attachments),
+      )
     } catch (e) {
       if (!isGoneError(e) || !view) {
         throw e
@@ -98,11 +103,16 @@ const send = (text: string, files: File[] = []) =>
         openConversation(next)
       }
 
-      await host.prompt(id, text, attachments)
+      await sendPrimed(sessionId, text, primed =>
+        host.prompt(id, primed, attachments),
+      )
     }
   })
 
-const reply = (text: string) => attempt(() => host.prompt(sessionId, text))
+const reply = (text: string) =>
+  attempt(() =>
+    sendPrimed(sessionId, text, primed => host.prompt(sessionId, primed)),
+  )
 
 const permit = (optionId: string) => attempt(() => host.permit(sessionId, optionId))
 
@@ -127,7 +137,11 @@ $effect(() => {
             {@attach pinToggles}
             {@attach stickBottom}
           >
-            <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pt-6 pb-2">
+            <div
+              class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-4 pt-6 pb-2"
+              data-cornered={cornered || undefined}
+              data-quote={sessionId}
+            >
               {#each segments as segment, i (segment.key)}
                 {#if segment.kind === "activity"}
                   <ToolGroup items={segment.items} latest={i === segments.length - 1} />
@@ -138,6 +152,7 @@ $effect(() => {
                     text={segment.item.text}
                     pace={segment.item.pace}
                     onAction={reply}
+                    onReply={text => quoteInto(sessionId, text)}
                     onSave={saveApp}
                     threads={threadsOf(sessionId, segment.item.id).length}
                     onThread={() => {
@@ -190,7 +205,7 @@ $effect(() => {
             </div>
           </div>
           <ChatTimeline {scroller} {turns} />
-          <ChatCorner plan={plan} agents={view.agents ?? []} />
+          <ChatCorner {plan} agents={view.agents ?? []} timeline={hasTimeline(turns)} />
         </div>
       {/if}
       <Composer

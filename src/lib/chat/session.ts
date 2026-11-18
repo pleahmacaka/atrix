@@ -7,6 +7,7 @@ import {
   type ToolItem,
 } from "#lib/acp/items.ts"
 import { plainText } from "./plain.ts"
+import { withoutInjected } from "./tags.ts"
 
 const INTERRUPTED = "[Request interrupted by user"
 
@@ -22,10 +23,8 @@ export type Prompt = { text: string; files: FileRef[]; interrupted: boolean }
 
 const isActivity = (item: ChatItem): item is Activity => item.type === "tool"
 
-const INJECTED = /<(agent-instructions|atrix-agents)>[\s\S]*?<\/\1>\s*/g
-
 export const promptOf = (item: TextItem): Prompt => {
-  const split = splitContext(item.text.replaceAll(INJECTED, ""))
+  const split = splitContext(withoutInjected(item.text))
   const own = item.files ?? []
 
   return {
@@ -52,6 +51,8 @@ export const segmentsOf = (items: ChatItem[]) =>
 
     return all
   }, [])
+
+export const hasTimeline = (turns: Turn[]) => turns.length > 1
 
 export const turnsOf = (items: ChatItem[]) =>
   items.reduce<Turn[]>((all, item) => {

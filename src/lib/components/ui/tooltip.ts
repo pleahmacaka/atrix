@@ -19,6 +19,7 @@ const tipOf = () => {
   if (!tip) {
     tip = document.createElement("div")
     tip.popover = "manual"
+    tip.dataset.tooltip = ""
     tip.className = [
       "pointer-events-none fixed inset-auto m-0 max-w-72 flex-col gap-0.5 open:flex",
       "rounded-box border border-base-300 bg-raised px-3 py-2 text-xs shadow-md",
