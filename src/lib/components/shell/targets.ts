@@ -1,7 +1,8 @@
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import type { HostEntry } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { activeGateways, gatewayIcon } from "#lib/store/gateways.svelte.ts"
+import { activeGateways } from "#lib/store/gatewayCatalog.ts"
+import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
 
 export const GATEWAY = "gateway"
 

@@ -1,5 +1,15 @@
 import type { z } from "zod"
 
+export const persist = <T>(key: string, value: T, empty: T) => {
+  const raw = JSON.stringify(value)
+
+  if (raw === JSON.stringify(empty)) {
+    localStorage.removeItem(key)
+  } else {
+    localStorage.setItem(key, raw)
+  }
+}
+
 export const persisted = <T>(
   key: string,
   fallback: T,
@@ -38,11 +48,7 @@ export class Stored<T> {
     this.#values[id] = value
 
     try {
-      if (JSON.stringify(value) === JSON.stringify(this.empty)) {
-        localStorage.removeItem(this.prefix + id)
-      } else {
-        localStorage.setItem(this.prefix + id, JSON.stringify(value))
-      }
+      persist(this.prefix + id, value, this.empty)
     } catch {
       return
     }

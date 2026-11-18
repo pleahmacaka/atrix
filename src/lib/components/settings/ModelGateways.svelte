@@ -1,27 +1,31 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { slide } from "svelte/transition"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
+import { motion } from "#lib/components/ui/motion.ts"
 import Section from "#lib/components/ui/Section.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import {
   activeGateways,
   CUSTOM_TEMPLATE,
-  gatewayIcon,
-  modelIcon,
-  modelIdsOf,
   OPENROUTER_URL,
-  probeGateway,
-  removeGateway,
-  saveGateway,
   TEMPLATES,
   type Template,
   templateOf,
+} from "#lib/store/gatewayCatalog.ts"
+import {
+  gatewayIcon,
+  modelIcon,
+  modelIdsOf,
+  probeGateway,
+  removeGateway,
+  saveGateway,
 } from "#lib/store/gateways.svelte.ts"
 import type { Gateway } from "#lib/store/local.svelte.ts"
 import { login } from "#lib/store/openrouter.ts"
@@ -180,75 +184,14 @@ const remove = (id: string) =>
   })
 </script>
 
-<div class="flex flex-col gap-6">
-  <div class="flex flex-col">
-    {#each gateways as gateway (gateway.id)}
-      <div
-        class={[
-          "-mx-2 rounded-field px-2 transition-colors duration-140",
-          draft?.id === gateway.id && "bg-primary/8 text-primary",
-        ]}
-      >
-        <SettingRow icon={gatewayIcon(gateway)} title={gateway.name}>
-          <div class="flex min-w-0 items-center justify-end gap-1">
-            <span
-              class="min-w-0 truncate text-sm text-base-content/60"
-              title={gateway.baseURL}
-            >
-              {gateway.baseURL}
-            </span>
-            <IconButton
-              icon="lucide:list"
-              label={m.gateway_models()}
-              aria-pressed={browsing === gateway.id}
-              onclick={() => {
-                browsing = browsing === gateway.id ? null : gateway.id
-              }}
-            />
-            <IconButton
-              icon="lucide:pencil"
-              label={m.gateway_edit()}
-              aria-pressed={draft?.id === gateway.id}
-              onclick={() => edit(gateway)}
-            />
-            <ConfirmButton
-              label={m.common_delete()}
-              disabled={attempt.busy}
-              onconfirm={() => remove(gateway.id)}
-            />
-          </div>
-        </SettingRow>
-        {#if browsing === gateway.id}
-          {#await modelIdsOf(gateway)}
-            <span class="loading loading-spinner loading-sm my-2 opacity-60"></span>
-          {:then ids}
-            <GatewayModels
-              {ids}
-              enabled={gateway.models}
-              class="mb-3"
-              ontoggle={models =>
-                attempt.run(() => saveGateway({ ...gateway, models }))}
-            />
-          {/await}
-        {/if}
-      </div>
-    {/each}
-    {#if !draft}
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm mt-2 self-start"
-        onclick={() => open(blank())}
-      >
-        <Icon icon="lucide:plus" class="size-4" />
-        {m.gateway_add()}
-      </button>
-    {/if}
-  </div>
-
-  {#if draft}
+{#snippet editor(d: NonNullable<typeof draft>)}
+  <div
+    transition:slide={{ duration: motion(140) }}
+    class="mt-1 mb-3 rounded-box border border-base-300 p-4"
+  >
     <Section
-      icon={draft.id ? "lucide:pencil" : "lucide:plus"}
-      title={draft.id ? m.gateway_editing({ name: draft.name }) : m.gateway_add()}
+      icon={d.id ? "lucide:pencil" : "lucide:plus"}
+      title={d.id ? m.gateway_editing({ name: d.name }) : m.gateway_add()}
     >
       {#snippet actions()}
         <IconButton
@@ -272,7 +215,7 @@ const remove = (id: string) =>
             label={m.gateway_provider()}
             ghost={false}
             class="w-full"
-            value={draft.template}
+            value={d.template}
             choices={CHOICES.map(t => ({ value: t.id, name: t.name }))}
             onchange={choose}
           />
@@ -281,7 +224,7 @@ const remove = (id: string) =>
             label={m.gateway_name()}
             placeholder={m.gateway_name()}
             ghost={false}
-            bind:value={draft.name}
+            bind:value={d.name}
           />
         </div>
         {#if editableURL}
@@ -290,12 +233,12 @@ const remove = (id: string) =>
             label={m.gateway_url()}
             placeholder={m.gateway_url()}
             ghost={false}
-            bind:value={draft.baseURL}
+            bind:value={d.baseURL}
             onblur={verify}
           />
         {:else}
-          <p class="truncate px-1 text-xs text-base-content/55" title={draft.baseURL}>
-            {draft.baseURL}
+          <p class="truncate px-1 text-xs text-base-content/55" title={d.baseURL}>
+            {d.baseURL}
           </p>
         {/if}
         <div class="flex min-w-0 items-center gap-2">
@@ -307,7 +250,7 @@ const remove = (id: string) =>
             autocomplete="off"
             ghost={false}
             class="w-full min-w-0 flex-1"
-            bind:value={draft.key}
+            bind:value={d.key}
             onblur={verify}
           />
           <IconButton
@@ -336,12 +279,10 @@ const remove = (id: string) =>
             icon="lucide:cpu"
             label={m.gateway_model()}
             ghost={false}
-            value={draft.model}
+            value={d.model}
             choices={current.models.map(id => ({ value: id, name: id, icon: modelIcon(id) }))}
             onchange={id => {
-              if (draft) {
-                draft.model = id
-              }
+              d.model = id
             }}
           />
         {:else}
@@ -350,7 +291,7 @@ const remove = (id: string) =>
             label={m.gateway_model()}
             placeholder={m.gateway_model()}
             ghost={false}
-            bind:value={draft.model}
+            bind:value={d.model}
           />
         {/if}
         <div class="flex min-h-8 items-center gap-2 px-1 text-sm" aria-live="polite">
@@ -373,7 +314,7 @@ const remove = (id: string) =>
           <button
             type="button"
             class="btn btn-sm"
-            disabled={current.state === "busy" || !draft.baseURL.trim()}
+            disabled={current.state === "busy" || !d.baseURL.trim()}
             onclick={verify}
           >
             <Icon icon="lucide:plug-zap" class="size-4" />
@@ -383,17 +324,89 @@ const remove = (id: string) =>
             type="submit"
             class={["btn btn-sm", warned ? "btn-warning" : "btn-primary"]}
             title={warned ? m.gateway_unverified() : undefined}
-            disabled={attempt.busy || !draft.name.trim() || !draft.baseURL.trim()}
+            disabled={attempt.busy || !d.name.trim() || !d.baseURL.trim()}
           >
             <Icon
               icon={warned ? "lucide:triangle-alert" : "lucide:check"}
               class="size-4"
             />
-            {warned ? m.gateway_save_anyway() : draft.id ? m.gateway_save() : m.gateway_add()}
+            {warned ? m.gateway_save_anyway() : d.id ? m.gateway_save() : m.gateway_add()}
           </button>
         </div>
       </form>
     </Section>
+  </div>
+{/snippet}
+
+<div class="flex flex-col">
+  {#each gateways as gateway (gateway.id)}
+    <div
+      class={[
+        "-mx-2 rounded-field px-2 transition-colors duration-140",
+        draft?.id === gateway.id && "bg-primary/8 text-primary",
+      ]}
+    >
+      <SettingRow icon={gatewayIcon(gateway)} title={gateway.name}>
+        <div class="flex min-w-0 items-center justify-end gap-1">
+          <span
+            class="min-w-0 truncate text-sm text-base-content/60"
+            title={gateway.baseURL}
+          >
+            {gateway.baseURL}
+          </span>
+          <IconButton
+            icon="lucide:list"
+            label={m.gateway_models()}
+            aria-pressed={browsing === gateway.id}
+            onclick={() => {
+              browsing = browsing === gateway.id ? null : gateway.id
+            }}
+          />
+          <IconButton
+            icon="lucide:pencil"
+            label={m.gateway_edit()}
+            aria-pressed={draft?.id === gateway.id}
+            onclick={() => edit(gateway)}
+          />
+          <ConfirmButton
+            label={m.common_delete()}
+            disabled={attempt.busy}
+            onconfirm={() => remove(gateway.id)}
+          />
+        </div>
+      </SettingRow>
+      {#if browsing === gateway.id}
+        <div transition:slide={{ duration: motion(140) }}>
+          {#await modelIdsOf(gateway)}
+            <span class="loading loading-spinner loading-sm my-2 opacity-60"></span>
+          {:then ids}
+            <GatewayModels
+              {ids}
+              enabled={gateway.models}
+              class="mb-3"
+              ontoggle={models =>
+                attempt.run(() => saveGateway({ ...gateway, models }))}
+            />
+          {/await}
+        </div>
+      {/if}
+    </div>
+    {#if draft?.id === gateway.id}
+      {@render editor(draft)}
+    {/if}
+  {/each}
+  {#if draft && !draft.id}
+    {@render editor(draft)}
+  {/if}
+  {#if !draft}
+    <button
+      type="button"
+      class="btn btn-ghost btn-sm mt-2 self-start"
+      onclick={() => open(blank())}
+    >
+      <Icon icon="lucide:plus" class="size-4" />
+      {m.gateway_add()}
+    </button>
   {/if}
 </div>
 <ErrorAlert message={attempt.failure} />

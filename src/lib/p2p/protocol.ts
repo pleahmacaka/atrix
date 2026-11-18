@@ -38,6 +38,13 @@ export type {
 
 export type HarnessKind = "claude" | "codex"
 
+export const providerChoice = z.object({
+  gateway: z.string(),
+  model: z.string(),
+})
+
+export type ProviderChoice = z.infer<typeof providerChoice>
+
 export type HarnessInfo = {
   id: string
   name: string
@@ -47,6 +54,8 @@ export type HarnessInfo = {
   enabled: boolean
   local: boolean
   login: string | null
+  provider: ProviderChoice | null
+  providerActive: boolean
 }
 
 const installScope = z.enum(["atrix", "global"])
@@ -63,6 +72,7 @@ export type Available = {
   repository: string
   install: string
   run: string
+  powershell?: boolean
 }
 
 export type Installed = { pathHint: string | null }
@@ -319,7 +329,11 @@ export const hostRequest = z.discriminatedUnion("op", [
   }),
   request("option", { ...session, configId: z.string(), value: z.string() }),
   request("harness.toggle", { ...harness, enabled: z.boolean() }),
-  request("harness.detect", {}),
+  request("harness.provider", {
+    ...harness,
+    provider: providerChoice.nullable(),
+  }),
+  request("harness.detect", { force: z.boolean().optional() }),
   request("harness.install", { ...harness, scope: installScope }),
   request("harness.uninstall", harness),
   request("harness.read", harness),
@@ -426,6 +440,7 @@ export type Answers = {
   answer: null
   option: null
   "harness.toggle": null
+  "harness.provider": null
   "harness.detect": null
   "harness.install": Installed
   "harness.uninstall": null

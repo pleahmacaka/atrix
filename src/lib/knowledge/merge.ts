@@ -1,6 +1,7 @@
 import { generateText } from "ai"
 import { m } from "#lib/paraglide/messages.js"
-import { activeGateways, providerFor } from "#lib/store/gateways.svelte.ts"
+import { activeGateways } from "#lib/store/gatewayCatalog.ts"
+import { providerFor } from "#lib/store/gateways.svelte.ts"
 
 const INSTRUCTIONS = [
   "You merge two concurrent edits of one markdown document.",

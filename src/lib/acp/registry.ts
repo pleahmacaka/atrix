@@ -6,8 +6,10 @@ import type {
   HarnessKind,
   Installed,
   InstallScope,
+  ProviderChoice,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { findGateway } from "#lib/store/gatewayCatalog.ts"
 import {
   createProfileDir,
   envFor,
@@ -25,9 +27,18 @@ import {
   type Launch,
   type Source,
 } from "./harnesses.ts"
-import { disabledHarnesses, saveDisabled } from "./saved.ts"
+import { servesKind, withProvider } from "./provider.ts"
+import {
+  disabledHarnesses,
+  providerChoices,
+  saveDisabled,
+  saveProvider,
+} from "./saved.ts"
 
-export type Entry = Omit<HarnessInfo, "enabled"> & {
+export type Entry = Omit<
+  HarnessInfo,
+  "enabled" | "provider" | "providerActive"
+> & {
   launch: Launch
   dir: string | null
   source: Source | null
@@ -59,6 +70,8 @@ export class Harnesses {
 
   #disabled = disabledHarnesses()
 
+  #providers = providerChoices()
+
   constructor(private readonly on: RegistryEvents) {}
 
   start = async (home: string) => {
@@ -89,6 +102,8 @@ export class Harnesses {
       ({ launch: _launch, dir: _dir, source: _source, ...h }) => ({
         ...h,
         enabled: !this.#disabled.has(h.id),
+        provider: this.#providers[h.id] ?? null,
+        providerActive: this.#provided(h.id) !== null,
       }),
     )
 
@@ -105,8 +120,8 @@ export class Harnesses {
     return { kind, home: this.#home, dir }
   }
 
-  redetect = async () => {
-    await this.#detect()
+  redetect = async (force = false) => {
+    await this.#detect(force)
     await this.#build()
     this.on.changed()
   }
@@ -138,9 +153,60 @@ export class Harnesses {
 
     await this.on.release(id)
     await native("tool_uninstall", { source, channel: this.#log(id) })
+    this.#forgetProvider(id)
     await this.redetect()
 
     return null
+  }
+
+  usingGateway = (gateway: string) =>
+    Object.entries(this.#providers)
+      .filter(([, picked]) => picked.gateway === gateway)
+      .map(([id]) => id)
+
+  #forgetProvider = (id: string) => {
+    this.#providers = saveProvider(id, null)
+  }
+
+  #resolve = (id: string, picked: ProviderChoice | undefined) => {
+    const kind = this.find(id)?.kind
+    const gateway = picked && findGateway(picked.gateway)
+
+    return kind && picked?.model && gateway && servesKind(kind, gateway)
+      ? { kind, gateway, model: picked.model }
+      : null
+  }
+
+  #provided = (id: string) => this.#resolve(id, this.#providers[id])
+
+  launchOf = (id: string) => {
+    const { launch } = this.entry(id)
+    const provided = this.#provided(id)
+
+    return provided
+      ? withProvider(provided.kind, launch, provided.gateway, provided.model)
+      : launch
+  }
+
+  setProvider = (id: string, picked: ProviderChoice | null) => {
+    this.entry(id)
+
+    if (picked && !this.#resolve(id, picked)) {
+      throw new Error(m.error_provider_invalid())
+    }
+
+    const before = this.#providers[id]
+    const same =
+      before?.gateway === picked?.gateway && before?.model === picked?.model
+
+    if (same) {
+      return false
+    }
+
+    this.#providers = saveProvider(id, picked)
+    this.on.changed()
+
+    return true
   }
 
   toggle = async (id: string, enabled: boolean) => {
@@ -207,6 +273,7 @@ export class Harnesses {
     await this.#saveProfiles(
       this.#profiles.filter(p => profileId(p) !== harness),
     )
+    this.#forgetProvider(harness)
 
     return null
   }
@@ -221,8 +288,8 @@ export class Harnesses {
   #log = (harness: string) =>
     new Channel<string>(line => this.on.log(harness, line))
 
-  #detect = async () => {
-    const { harnesses, available } = await detectHarnesses()
+  #detect = async (force = false) => {
+    const { harnesses, available } = await detectHarnesses(force)
 
     this.#base = harnesses
     this.#available = available

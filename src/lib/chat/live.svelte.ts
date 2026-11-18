@@ -11,12 +11,8 @@ import {
 } from "ai"
 import { z } from "zod"
 import { m } from "#lib/paraglide/messages.js"
-import {
-  findGateway,
-  modelIdsOf,
-  OPENROUTER_ID,
-  providerFor,
-} from "#lib/store/gateways.svelte.ts"
+import { findGateway, OPENROUTER_ID } from "#lib/store/gatewayCatalog.ts"
+import { modelIdsOf, providerFor } from "#lib/store/gateways.svelte.ts"
 import { local, type StoredChat } from "#lib/store/local.svelte.ts"
 import { markUnread } from "#lib/store/unread.svelte.ts"
 import { SHOW_UI, showUiInput, UI_INSTRUCTIONS } from "./blocks.ts"

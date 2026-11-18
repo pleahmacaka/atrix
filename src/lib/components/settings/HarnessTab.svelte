@@ -11,12 +11,13 @@ import Section from "#lib/components/ui/Section.svelte"
 import Segmented from "#lib/components/ui/Segmented.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { autoDetect } from "#lib/harness/autoDetect.ts"
-import { type HostEntry, hostList } from "#lib/p2p/hosts.svelte.ts"
+import { type HostEntry, hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import type { HarnessInfo } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { desktop } from "#lib/platform.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
+import ProviderPicker from "./ProviderPicker.svelte"
 
 const compact = new Intl.NumberFormat(getLocale(), { notation: "compact" })
 
@@ -62,7 +63,7 @@ const toggle = (host: HostEntry, harness: HarnessInfo) =>
     type="button"
     class={[
       "flex cursor-pointer items-center gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3",
-      "text-start transition-colors duration-150 hover:bg-base-200",
+      "text-start transition-colors duration-140 hover:bg-base-200",
     ]}
     onclick={() => (browsing = true)}
   >
@@ -77,11 +78,14 @@ const toggle = (host: HostEntry, harness: HarnessInfo) =>
           icon="lucide:refresh-cw"
           label={m.harness_detect()}
           disabled={attempt.busy}
-          onclick={() => attempt.run(host.view.detect)}
+          onclick={() => attempt.run(() => host.view.detect(true))}
         />
       {/snippet}
       {#each host.view.state?.harnesses ?? [] as h (h.id)}
         <SettingRow icon={brandIcon(h.base)} title={h.name}>
+          {#if h.kind && host.id === LOCAL}
+            <ProviderPicker host={host.view} harness={h} kind={h.kind} run={work => working(h.id, work)} />
+          {/if}
           {#if h.local}
             <ConfirmButton
               label={m.harness_uninstall()}

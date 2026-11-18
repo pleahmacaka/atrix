@@ -19,7 +19,7 @@ let {
 }: Omit<HTMLButtonAttributes, "class" | "aria-label"> & {
   icon: string
   label: string
-  tone?: "ghost" | "primary" | "error" | "plain"
+  tone?: "ghost" | "primary" | "error" | "warning" | "plain"
   size?: "xs" | "sm" | "md"
   shape?: "square" | "circle" | "wide"
   iconClass?: ClassValue
@@ -41,6 +41,7 @@ let {
     tone === "ghost" && "btn-ghost",
     tone === "primary" && "btn-primary",
     tone === "error" && "btn-error",
+    tone === "warning" && "btn-ghost text-warning",
     extra,
   ]}
   aria-label={label}

@@ -106,6 +106,10 @@ class Sync {
     transport.info(this.#me()).catch(() => {})
   }
 
+  gatewayChanged = async (gateway: string) => {
+    await this.#host?.gatewayChanged(gateway)
+  }
+
   shareAuth = (target: string | null = null) => {
     this.#post(target, {
       kind: "gateways",
@@ -199,10 +203,16 @@ class Sync {
       return
     }
 
-    const { changed, stale } = mergeGateways(message.gateways)
+    const { changed, reached, stale } = mergeGateways(message.gateways)
 
     if (changed) {
       await local.save()
+    }
+
+    for (const gateway of reached) {
+      await this.gatewayChanged(gateway).catch(e =>
+        logFailure("gateway changed", e),
+      )
     }
 
     if (stale) {

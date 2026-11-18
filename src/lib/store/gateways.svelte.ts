@@ -2,74 +2,17 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { isTauri } from "@tauri-apps/api/core"
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http"
 import { z } from "zod"
+import { logFailure } from "#lib/logging.ts"
 import { sync } from "#lib/p2p/sync.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import {
+  findGateway,
+  OPENROUTER_ID,
+  OPENROUTER_MODEL,
+  OPENROUTER_URL,
+  templateOf,
+} from "./gatewayCatalog.ts"
 import { type Gateway, local } from "./local.svelte.ts"
-
-export const OPENROUTER_ID = "openrouter"
-
-export const OPENROUTER_URL = "https://openrouter.ai/api/v1"
-
-export const OPENROUTER_MODEL = "openrouter/auto"
-
-export type Template = {
-  id: string
-  name: string
-  icon: string
-  baseURL: string
-  oauth?: boolean
-}
-
-export const CUSTOM_TEMPLATE = "custom"
-
-export const TEMPLATES: Template[] = [
-  {
-    id: "openrouter",
-    name: "OpenRouter",
-    icon: "simple-icons:openrouter",
-    baseURL: OPENROUTER_URL,
-    oauth: true,
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    icon: "simple-icons:openai",
-    baseURL: "https://api.openai.com/v1",
-  },
-  {
-    id: "mistral",
-    name: "Mistral",
-    icon: "simple-icons:mistralai",
-    baseURL: "https://api.mistral.ai/v1",
-  },
-  {
-    id: "gemini",
-    name: "Google Gemini",
-    icon: "simple-icons:googlegemini",
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-  },
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    icon: "simple-icons:deepseek",
-    baseURL: "https://api.deepseek.com/v1",
-  },
-  {
-    id: "ollama",
-    name: "Ollama",
-    icon: "simple-icons:ollama",
-    baseURL: "http://localhost:11434/v1",
-  },
-  {
-    id: "lmstudio",
-    name: "LM Studio",
-    icon: "simple-icons:lmstudio",
-    baseURL: "http://localhost:1234/v1",
-  },
-]
-
-export const templateOf = (baseURL: string) =>
-  TEMPLATES.find(t => t.baseURL === baseURL)
 
 const HOST_ICONS: [string, string][] = [
   ["openrouter.ai", "simple-icons:openrouter"],
@@ -164,18 +107,27 @@ export const probeGateway = async (baseURL: string, key: string | null) => {
   return parsed.data.data.map(m => m.id).toSorted()
 }
 
-export const activeGateways = () => local.data.gateways.filter(g => !g.removed)
-
-export const findGateway = (id: string) =>
-  activeGateways().find(g => g.id === id)
+const reaches = (before: Gateway | undefined, after: Gateway) =>
+  !before ||
+  before.key !== after.key ||
+  before.baseURL !== after.baseURL ||
+  !!before.removed !== !!after.removed
 
 const store = async (gateway: Gateway) => {
+  const before = local.data.gateways.find(g => g.id === gateway.id)
+
   local.data.gateways = [
     ...local.data.gateways.filter(g => g.id !== gateway.id),
     gateway,
   ]
   await local.save()
   sync.shareAuth()
+
+  if (reaches(before, gateway)) {
+    await sync
+      .gatewayChanged(gateway.id)
+      .catch(e => logFailure("gateway changed", e))
+  }
 }
 
 export const saveGateway = (gateway: Omit<Gateway, "at" | "removed">) =>
@@ -202,6 +154,7 @@ export const connectOpenRouter = (key: string) =>
 export const mergeGateways = (incoming: Gateway[]) => {
   const merged = new Map(local.data.gateways.map(g => [g.id, g]))
   let changed = false
+  const reached: string[] = []
   let stale = false
 
   for (const theirs of incoming) {
@@ -210,6 +163,10 @@ export const mergeGateways = (incoming: Gateway[]) => {
     if (!mine || theirs.at > mine.at) {
       merged.set(theirs.id, theirs)
       changed = true
+
+      if (reaches(mine, theirs)) {
+        reached.push(theirs.id)
+      }
     }
   }
 
@@ -225,7 +182,7 @@ export const mergeGateways = (incoming: Gateway[]) => {
     local.data.gateways = [...merged.values()]
   }
 
-  return { changed, stale }
+  return { changed, reached, stale }
 }
 
 export const providerFor = (gateway: Gateway) =>

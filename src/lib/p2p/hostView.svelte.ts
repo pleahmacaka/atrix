@@ -1,5 +1,6 @@
 import { get, set } from "idb-keyval"
 import { applyUpdate, type Picked } from "#lib/acp/items.ts"
+import { forgetPrimer } from "#lib/chat/primer.ts"
 import type { Canvas } from "#lib/knowledge/canvas.ts"
 import type { Editable } from "#lib/knowledge/document.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -16,11 +17,14 @@ import type {
   InstallScope,
   KgPatch,
   Listed,
+  ProviderChoice,
   SessionView,
   SyncConfig,
 } from "./protocol.ts"
 
 export class HostView {
+  readonly instance = crypto.randomUUID()
+
   state = $state<HostState | null>(null)
 
   views = $state<Record<string, SessionView>>({})
@@ -266,6 +270,7 @@ export class HostView {
   close = async (sessionId: string) => {
     await this.call({ op: "close", sessionId })
     delete this.views[sessionId]
+    forgetPrimer(sessionId)
   }
 
   rename = (sessionId: string, title: string) =>
@@ -292,7 +297,10 @@ export class HostView {
   toggle = (harness: string, enabled: boolean) =>
     this.call({ op: "harness.toggle", harness, enabled })
 
-  detect = () => this.call({ op: "harness.detect" })
+  setProvider = (harness: string, provider: ProviderChoice | null) =>
+    this.call({ op: "harness.provider", harness, provider })
+
+  detect = (force = false) => this.call({ op: "harness.detect", force })
 
   install = (harness: string, scope: InstallScope) =>
     this.call({ op: "harness.install", harness, scope })

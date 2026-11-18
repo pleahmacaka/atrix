@@ -6,6 +6,7 @@ import {
   sendToChannel,
 } from "#lib/channels/store.svelte.ts"
 import type { Block } from "#lib/chat/blocks.ts"
+import { withoutInjected } from "#lib/chat/tags.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
 import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
@@ -99,6 +100,10 @@ const summaryOf = (s: SessionView): OpenSession => ({
 export class Sessions {
   #conns = new Map<string, Spawned>()
 
+  #retired = new Map<string, Conn>()
+
+  #opening: string[] = []
+
   #spawned = 0
 
   #listed = new Map<string, Listed[]>()
@@ -146,14 +151,80 @@ export class Sessions {
 
     this.#conns.delete(harness)
 
+    for (const key of this.#retired.keys()) {
+      if (key.startsWith(`${harness}:`)) {
+        this.#retired.delete(key)
+        await native("agent_close", { key }).catch(e =>
+          logFailure("harness close", e),
+        )
+      }
+    }
+
     if (known) {
       await native("agent_close", { key: known.key })
     }
   }
 
-  list = async (harness: string): Promise<Listed[]> => {
-    const conn = await this.#connect(harness)
+  retire = (harness: string) => {
+    const known = this.#conns.get(harness)
 
+    this.#conns.delete(harness)
+
+    known?.conn
+      .then(conn => {
+        this.#retired.set(known.key, conn)
+        this.#reap()
+      })
+      .catch(() => null)
+  }
+
+  #reap = () => {
+    const used = new Set([...this.#live.values()].map(s => s.conn))
+
+    for (const [key, conn] of this.#retired) {
+      if (!used.has(conn) && !this.#opening.includes(key)) {
+        this.#retired.delete(key)
+        native("agent_close", { key }).catch(e =>
+          logFailure("harness close", e),
+        )
+      }
+    }
+  }
+
+  list = async (harness: string): Promise<Listed[]> => {
+    const { conn, done } = await this.#acquire(harness)
+
+    try {
+      return await this.#listOn(conn, harness)
+    } finally {
+      done()
+    }
+  }
+
+  #acquire = async (harness: string) => {
+    const spawned = this.#connect(harness)
+
+    this.#opening.push(spawned.key)
+
+    let held = true
+
+    const done = () => {
+      if (held) {
+        held = false
+        this.#opening.splice(this.#opening.indexOf(spawned.key), 1)
+        this.#reap()
+      }
+    }
+
+    try {
+      return { conn: await spawned.conn, done }
+    } catch (e) {
+      done()
+      throw e
+    }
+  }
+
+  #listOn = async (conn: Conn, harness: string): Promise<Listed[]> => {
     if (!conn.list) {
       return []
     }
@@ -171,13 +242,29 @@ export class Sessions {
   }
 
   create = async (harness: string, cwd: string) => {
-    const conn = await this.#connect(harness)
-    const { token, servers } = this.deps.bridge.declare(conn.http)
-    const created = await conn.agent.request(acp.methods.agent.session.new, {
-      cwd,
-      mcpServers: servers,
-      _meta: CLAUDE_META,
-    })
+    const { conn, done } = await this.#acquire(harness)
+
+    try {
+      const { token, servers } = this.deps.bridge.declare(conn.http)
+      const created = await conn.agent.request(acp.methods.agent.session.new, {
+        cwd,
+        mcpServers: servers,
+        _meta: CLAUDE_META,
+      })
+
+      return await this.#opened(conn, harness, cwd, token, created)
+    } finally {
+      done()
+    }
+  }
+
+  #opened = async (
+    conn: Conn,
+    harness: string,
+    cwd: string,
+    token: string,
+    created: acp.NewSessionResponse,
+  ) => {
     const session = this.#register(conn, harness, created.sessionId, cwd)
 
     this.deps.bridge.bind(token, created.sessionId)
@@ -223,19 +310,26 @@ export class Sessions {
       return structuredClone(view)
     }
 
-    const conn = await this.#connect(harness)
+    const { conn, done } = await this.#acquire(harness)
 
-    if (!conn.load) {
-      throw new Error(m.error_no_load())
+    let session: Live
+
+    try {
+      if (!conn.load) {
+        throw new Error(m.error_no_load())
+      }
+
+      session = this.#register(conn, harness, sessionId, cwd, title())
+    } finally {
+      done()
     }
-
-    const session = this.#register(conn, harness, sessionId, cwd, title())
 
     try {
       await this.#attach(session, acp.methods.agent.session.load)
       await this.#restore(session)
     } catch (e) {
       this.#live.delete(sessionId)
+      this.#reap()
       throw folderError(e, cwd)
     }
 
@@ -301,7 +395,9 @@ export class Sessions {
     this.#patch(session, {
       running: true,
       since,
-      ...(!session.title && { title: text.slice(0, TITLE_LIMIT) }),
+      ...(!session.title && {
+        title: withoutInjected(text).trim().slice(0, TITLE_LIMIT),
+      }),
     })
 
     session.conn.agent
@@ -526,7 +622,7 @@ export class Sessions {
     const known = this.#conns.get(harness)
 
     if (known) {
-      return known.conn
+      return known
     }
 
     const key = `${harness}:${++this.#spawned}`
@@ -538,7 +634,7 @@ export class Sessions {
     this.#conns.set(harness, spawned)
     spawned.conn.catch(() => this.#closed(harness, spawned))
 
-    return spawned.conn
+    return spawned
   }
 
   #spawn = async (
@@ -546,13 +642,11 @@ export class Sessions {
     key: string,
     closed: () => void,
   ): Promise<Conn> => {
-    const harness = this.#harnesses.entry(id)
-
     if (this.#harnesses.disabled(id)) {
       throw new Error(m.error_harness_off())
     }
 
-    return connectAgent(key, harness.launch, {
+    return connectAgent(key, this.#harnesses.launchOf(id), {
       update: this.#update,
       permission: this.#permission,
       closed,
@@ -563,6 +657,8 @@ export class Sessions {
     if (this.#conns.get(harness) === spawned) {
       this.#conns.delete(harness)
     }
+
+    this.#retired.delete(spawned.key)
 
     native("agent_close", { key: spawned.key }).catch(() => {})
 
@@ -630,13 +726,17 @@ export class Sessions {
     session.config = choicesOf(attached.configOptions ?? [])
   }
 
-  #detach = (session: Live) => {
+  #detach = async (session: Live) => {
     session.answer?.(null)
     this.#live.delete(session.id)
 
-    return session.conn.agent
+    const closed = await session.conn.agent
       .request(acp.methods.agent.session.close, { sessionId: session.id })
       .catch(() => null)
+
+    this.#reap()
+
+    return closed
   }
 
   #writable = async (sessionId: string) => {
@@ -677,15 +777,19 @@ export class Sessions {
     let session: Live | null = null
 
     try {
-      const conn = await this.#connect(mirror.harness)
+      const { conn, done } = await this.#acquire(mirror.harness)
 
-      session = this.#register(
-        conn,
-        mirror.harness,
-        sessionId,
-        mirror.cwd,
-        mirror.title,
-      )
+      try {
+        session = this.#register(
+          conn,
+          mirror.harness,
+          sessionId,
+          mirror.cwd,
+          mirror.title,
+        )
+      } finally {
+        done()
+      }
       session.handback = true
 
       if (conn.resume) {
@@ -698,6 +802,7 @@ export class Sessions {
       }
     } catch (e) {
       this.#live.delete(sessionId)
+      this.#reap()
       await this.#external.adopt(sessionId, mirror.items)
       throw folderError(e, mirror.cwd)
     }

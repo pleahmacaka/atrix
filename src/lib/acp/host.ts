@@ -101,6 +101,16 @@ export class Host {
     () => this.network,
   )
 
+  gatewayChanged = async (gateway: string) => {
+    await this.start()
+
+    for (const harness of this.#harnesses.usingGateway(gateway)) {
+      this.#sessions.retire(harness)
+    }
+
+    this.#changed()
+  }
+
   start = () => {
     this.#ready ??= (async () => {
       this.#home = await homeDir()
@@ -171,8 +181,15 @@ export class Host {
     },
     option: r => this.#sessions.configure(r.sessionId, r.configId, r.value),
     "harness.toggle": r => this.#harnesses.toggle(r.harness, r.enabled),
-    "harness.detect": async () => {
-      await this.#harnesses.redetect()
+    "harness.provider": async r => {
+      if (this.#harnesses.setProvider(r.harness, r.provider)) {
+        this.#sessions.retire(r.harness)
+      }
+
+      return null
+    },
+    "harness.detect": async r => {
+      await this.#harnesses.redetect(r.force)
 
       return null
     },

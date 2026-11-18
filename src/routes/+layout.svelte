@@ -63,10 +63,17 @@ onMount(async () => {
   }
 
   captureCallback()
-  startLocalHost().then(startChannels).catch(report)
+
+  const loading = local.load()
+
+  loading
+    .catch(() => {})
+    .then(startLocalHost)
+    .then(startChannels)
+    .catch(report)
 
   try {
-    await local.load()
+    await loading
     await migrateVoiceURL()
 
     const key = await finishCallback()

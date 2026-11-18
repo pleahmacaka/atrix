@@ -1,11 +1,14 @@
 import { z } from "zod"
-import { persisted } from "#lib/store/stored.svelte.ts"
+import { type ProviderChoice, providerChoice } from "#lib/p2p/protocol.ts"
+import { persist, persisted } from "#lib/store/stored.svelte.ts"
 
 const OPTIONS = "harness-options"
 
 const SESSIONS = "kept-sessions"
 
 const DISABLED = "disabled-harnesses"
+
+const PROVIDERS = "harness-providers"
 
 const optionsSchema = z.record(z.string(), z.record(z.string(), z.string()))
 
@@ -52,24 +55,20 @@ export const remember = (
   configId: string,
   value: string,
 ) =>
-  localStorage.setItem(
-    OPTIONS,
-    JSON.stringify(withOption(remembered(), harness, cwd, configId, value)),
-  )
+  persist(OPTIONS, withOption(remembered(), harness, cwd, configId, value), {})
 
 export const disabledHarnesses = () =>
   new Set(persisted(DISABLED, [], z.array(z.string())))
 
 export const saveDisabled = (ids: Set<string>) =>
-  localStorage.setItem(DISABLED, JSON.stringify([...ids]))
+  persist(DISABLED, [...ids], [])
 
 export const kept = () => persisted(SESSIONS, [], z.array(keptSchema))
 
 export const isNamed = (sessionId: string) =>
   kept().some(k => k.sessionId === sessionId && k.named)
 
-const saveKept = (all: Kept[]) =>
-  localStorage.setItem(SESSIONS, JSON.stringify(all))
+const saveKept = (all: Kept[]) => persist(SESSIONS, all, [])
 
 export const keep = (session: Kept) => {
   const all = kept()
@@ -93,3 +92,19 @@ export const rename = (sessionId: string, title: string) => {
 
 export const forget = (sessionId: string) =>
   saveKept(kept().filter(k => k.sessionId !== sessionId))
+
+const providersSchema = z.record(z.string(), providerChoice)
+
+export const providerChoices = () => persisted(PROVIDERS, {}, providersSchema)
+
+export const saveProvider = (
+  harness: string,
+  picked: ProviderChoice | null,
+) => {
+  const { [harness]: _old, ...rest } = providerChoices()
+  const next = picked ? { ...rest, [harness]: picked } : rest
+
+  persist(PROVIDERS, next, {})
+
+  return next
+}
