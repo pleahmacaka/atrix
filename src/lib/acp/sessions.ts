@@ -97,6 +97,9 @@ const summaryOf = (s: SessionView): OpenSession => ({
   running: s.running,
 })
 
+const isModel = (session: Live, configId: string) =>
+  session.config.find(o => o.id === configId)?.category === "model"
+
 export class Sessions {
   #conns = new Map<string, Spawned>()
 
@@ -473,8 +476,14 @@ export class Sessions {
       { sessionId, configId, value },
     )
 
+    const pinnedModel =
+      isModel(session, configId) && this.#harnesses.providing(session.harness)
+
     this.#patch(session, { config: choicesOf(configOptions) })
-    remember(session.harness, session.cwd, configId, value)
+
+    if (!pinnedModel) {
+      remember(session.harness, session.cwd, configId, value)
+    }
 
     return null
   }
@@ -821,11 +830,11 @@ export class Sessions {
 
   #restore = async (session: Live) => {
     const wanted = optionsFor(remembered(), session.harness, session.cwd)
-    const order = (id: string) =>
-      session.config.find(o => o.id === id)?.category === "model" ? 0 : 1
-    const entries = Object.entries(wanted).toSorted(
-      ([a], [b]) => order(a) - order(b),
-    )
+    const pinned = this.#harnesses.providing(session.harness)
+    const order = (id: string) => (isModel(session, id) ? 0 : 1)
+    const entries = Object.entries(wanted)
+      .filter(([id]) => !(pinned && isModel(session, id)))
+      .toSorted(([a], [b]) => order(a) - order(b))
 
     let changed = false
 

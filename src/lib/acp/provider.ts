@@ -34,15 +34,21 @@ const claudeEnv = (gateway: Gateway, model: string) => ({
   ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
 })
 
-const codexArgs = (gateway: Gateway, model: string) =>
-  [
-    'model_provider="atrix"',
-    'model_providers.atrix.name="Atrix"',
-    `model_providers.atrix.base_url=${JSON.stringify(trimmed(gateway.baseURL))}`,
-    'model_providers.atrix.env_key="ATRIX_PROVIDER_KEY"',
-    'model_providers.atrix.wire_api="responses"',
-    `model=${JSON.stringify(model)}`,
-  ].flatMap(pair => ["-c", pair])
+const codexEnv = (gateway: Gateway, model: string) => ({
+  MODEL_PROVIDER: "atrix",
+  CODEX_CONFIG: JSON.stringify({
+    model,
+    model_providers: {
+      atrix: {
+        name: "Atrix",
+        base_url: trimmed(gateway.baseURL),
+        env_key: "ATRIX_PROVIDER_KEY",
+        wire_api: "responses",
+      },
+    },
+  }),
+  ATRIX_PROVIDER_KEY: gateway.key || "atrix",
+})
 
 export const withProvider = (
   kind: HarnessKind,
@@ -54,10 +60,6 @@ export const withProvider = (
     case "claude":
       return { ...launch, env: { ...launch.env, ...claudeEnv(gateway, model) } }
     case "codex":
-      return {
-        ...launch,
-        args: [...launch.args, ...codexArgs(gateway, model)],
-        env: { ...launch.env, ATRIX_PROVIDER_KEY: gateway.key || "atrix" },
-      }
+      return { ...launch, env: { ...launch.env, ...codexEnv(gateway, model) } }
   }
 }

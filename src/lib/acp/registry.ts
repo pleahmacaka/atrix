@@ -103,7 +103,7 @@ export class Harnesses {
         ...h,
         enabled: !this.#disabled.has(h.id),
         provider: this.#providers[h.id] ?? null,
-        providerActive: this.#provided(h.id) !== null,
+        providerActive: this.providing(h.id),
       }),
     )
 
@@ -178,6 +178,8 @@ export class Harnesses {
   }
 
   #provided = (id: string) => this.#resolve(id, this.#providers[id])
+
+  providing = (id: string) => this.#provided(id) !== null
 
   launchOf = (id: string) => {
     const { launch } = this.entry(id)
