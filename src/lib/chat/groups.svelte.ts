@@ -2,7 +2,6 @@ import {
   agentInstructions,
   agents,
   openAgent,
-  primers,
 } from "#lib/agents/agents.svelte.ts"
 import { matchChoice } from "#lib/components/chat/models.ts"
 import { logFailure } from "#lib/logging.ts"
@@ -21,13 +20,18 @@ import { CHAT_HOST, chatViewOf } from "#lib/voice/chatCall.ts"
 import { chats } from "./chats.svelte.ts"
 import {
   addressed,
+  keptText,
+  MAX_MEMBERS,
   mentionsIn,
+  RELAY_BUDGET,
   RELAY_HOPS,
   type Relay,
   relayOf,
   relayPromptFor,
+  relaysFrom,
   repliesFor,
   replyText,
+  rootOf,
 } from "./groupTimeline.ts"
 import { chatFor } from "./live.svelte.ts"
 import { enqueue } from "./queue.svelte.ts"
@@ -196,18 +200,23 @@ class Groups {
       return
     }
 
-    const opened = await openAgent(agent, group.cwd)
-    const same = group.members.filter(p => p.agent === agent.id).length
-    const label = same ? `${agent.name} ${same + 1}` : agent.name
-
-    if (opened.kind === "chat") {
-      await this.join(groupId, CHAT_HOST, opened.id, label, agent.id)
-
-      return
+    if (group.members.length >= MAX_MEMBERS) {
+      throw new Error(m.group_full({ count: MAX_MEMBERS }))
     }
 
-    primers.set(opened.id, "")
-    await this.join(groupId, opened.host, opened.id, label, agent.id)
+    const opened = await openAgent(agent, group.cwd, { primed: false })
+    const same = group.members.filter(p => p.agent === agent.id).length
+    const label = same ? `${agent.name} ${same + 1}` : agent.name
+    const host = opened.kind === "chat" ? CHAT_HOST : opened.host
+
+    try {
+      await this.join(groupId, host, opened.id, label, agent.id)
+    } catch (e) {
+      await (opened.kind === "chat"
+        ? chats.remove(opened.id)
+        : hostById(opened.host)?.close(opened.id))
+      throw e
+    }
   }
 
   invite = async (
@@ -259,6 +268,10 @@ class Groups {
       return
     }
 
+    if (group.members.length >= MAX_MEMBERS) {
+      throw new Error(m.group_full({ count: MAX_MEMBERS }))
+    }
+
     const view = host === CHAT_HOST ? undefined : hostById(host)
 
     if (view && !view.views[id]) {
@@ -278,8 +291,10 @@ class Groups {
 
   leave = async (groupId: string, id: string) => {
     const group = this.find(groupId)
+    const member = group?.members.find(p => p.id === id)
 
-    if (group) {
+    if (group && member) {
+      this.#keep(group, member)
       group.members = group.members.filter(p => p.id !== id)
       await local.save()
     }
@@ -380,6 +395,24 @@ class Groups {
     })
   }
 
+  #keep = (group: StoredGroup, member: GroupMember) => {
+    const name = nameOf(member)
+
+    group.messages.forEach((message, index) => {
+      const reply = repliesFor(group, index, viewOf).find(
+        r => r.member.id === member.id && !r.waiting,
+      )
+      const text = reply && keptText(reply.items)
+
+      if (text) {
+        message.replies = [
+          ...(message.replies ?? []).filter(r => r.member !== member.id),
+          { member: member.id, name, text },
+        ]
+      }
+    })
+  }
+
   #answered = (group: StoredGroup, member: GroupMember) => {
     for (let i = group.messages.length - 1; i >= member.from; i--) {
       if (!addressed(group.messages[i], member)) {
@@ -417,7 +450,8 @@ class Groups {
 
     if (
       !this.#pending.delete(`${source.id}:${member.id}`) ||
-      hop > RELAY_HOPS
+      hop > RELAY_HOPS ||
+      relaysFrom(group, rootOf(group, source)) >= RELAY_BUDGET
     ) {
       return
     }
@@ -451,7 +485,17 @@ class Groups {
       others
         .filter(p => targets.includes(p.id))
         .map(p =>
-          deliver(p, relayPromptFor(group, p, from, text, nameOf, agentOf(p))),
+          deliver(
+            p,
+            relayPromptFor(
+              group,
+              p,
+              from,
+              text,
+              { viewOf, nameOf },
+              agentOf(p),
+            ),
+          ),
         ),
     )
   }

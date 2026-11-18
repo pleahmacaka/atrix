@@ -8,6 +8,8 @@ import { hostById, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { recents } from "#lib/store/recent.ts"
 import { chats } from "./chats.svelte.ts"
+import { handleOf } from "./groupTimeline.ts"
+import { TAGS, tagged } from "./tags.ts"
 
 export type Mention =
   | { kind: "session"; host: string; id: string; title: string }
@@ -23,6 +25,19 @@ export type Suggestion = {
   icon: string
   mention: Mention
 }
+
+export type Person = { id: string; name: string; detail: string; icon: string }
+
+export const peopleMatching = (people: Person[], query: string): Suggestion[] =>
+  people
+    .filter(p => p.name.toLowerCase().includes(query))
+    .map(p => ({
+      token: `@${handleOf(p.name)}`,
+      label: p.name,
+      detail: p.detail,
+      icon: p.icon,
+      mention: { kind: "member", id: p.id, title: p.name },
+    }))
 
 export type Trigger = "/" | "#" | "@"
 
@@ -238,16 +253,17 @@ const agentBlock = (ids: string[]) => {
     return ""
   }
 
-  return [
-    "<atrix-agents>",
-    "The user mentioned these Atrix agents. Use each one as a subagent for this request, not as a chat room.",
-    ...lines,
-    "How to call one:",
-    "- With the atrix MCP tools: open_session with its harness (and host when a device is named), its folder and a title, then send its instructions and the task with send_message. The reply comes back as <atrix-message>.",
-    "- Without those tools, or for an API model: run it with your own subagent or task tool, passing its instructions and model.",
-    "You decide whether to keep the subagent alive and reuse it (same title, or resume the same subagent) or to call it fresh without context (close_session and a new title, or a new subagent).",
-    "</atrix-agents>",
-  ].join("\n")
+  return tagged(
+    TAGS.agents,
+    [
+      "The user mentioned these Atrix agents. Use each one as a subagent for this request, not as a chat room.",
+      ...lines,
+      "How to call one:",
+      "- With the atrix MCP tools: open_session with its harness (and host when a device is named), its folder and a title, then send its instructions and the task with send_message. The reply comes back as <atrix-message>.",
+      "- Without those tools, or for an API model: run it with your own subagent or task tool, passing its instructions and model.",
+      "You decide whether to keep the subagent alive and reuse it (same title, or resume the same subagent) or to call it fresh without context (close_session and a new title, or a new subagent).",
+    ].join("\n"),
+  )
 }
 
 const mentioned = new Map<string, Suggestion[]>()

@@ -3,6 +3,8 @@ import Icon from "@iconify/svelte"
 import { tick } from "svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { groups } from "#lib/chat/groups.svelte.ts"
+import { MAX_MEMBERS } from "#lib/chat/groupTimeline.ts"
+import { peopleMatching } from "#lib/chat/mentions.ts"
 import Composer from "#lib/components/chat/Composer.svelte"
 import ModelEffort from "#lib/components/chat/ModelEffort.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
@@ -23,7 +25,7 @@ import Wheel from "#lib/components/ui/Wheel.svelte"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { ConfigChoice } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { findGateway } from "#lib/store/gateways.svelte.ts"
+import { findGateway } from "#lib/store/gatewayCatalog.ts"
 import { type Current, nav, openConversation, type Target } from "#lib/store/nav.svelte.ts"
 import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { CHAT_HOST } from "#lib/voice/chatCall.ts"
@@ -84,10 +86,20 @@ const members = $derived(
 )
 
 const addable = $derived(
-  options.filter(o => o.key !== targetKey && !extras.includes(o.key)),
+  members.length + 1 >= MAX_MEMBERS
+    ? []
+    : options.filter(o => o.key !== targetKey && !extras.includes(o.key)),
 )
 
 const room = $derived(members.length > 0)
+
+const roomPeople = (query: string) =>
+  peopleMatching(
+    [chosen, ...members].flatMap(o =>
+      o ? [{ id: o.key, name: o.label, detail: o.badge ?? "", icon: o.icon }] : [],
+    ),
+    query,
+  )
 
 const presets = $derived.by(() => {
   const target = nav.target
@@ -322,6 +334,7 @@ const ready = $derived(
         : room
           ? m.group_placeholder()
           : m.chat_placeholder()}
+      people={room ? roomPeople : undefined}
       onSend={send}
       onStop={() => {}}
       onCall={call}

@@ -13,13 +13,16 @@ import {
 } from "#lib/chat/groups.svelte.ts"
 import {
   handleOf,
+  MAX_MEMBERS,
   mentionsIn,
+  pastReplies,
   promptFor,
   relayOf,
   repliesFor,
 } from "#lib/chat/groupTimeline.ts"
 import { chatFor } from "#lib/chat/live.svelte.ts"
-import type { Suggestion } from "#lib/chat/mentions.ts"
+import { peopleMatching } from "#lib/chat/mentions.ts"
+import { quoteInto } from "#lib/chat/quote.ts"
 import { pinToggles, stickBottom } from "#lib/chat/scroll.ts"
 import { segmentsOf } from "#lib/chat/session.ts"
 import FolderPicker from "#lib/components/shell/FolderPicker.svelte"
@@ -35,9 +38,9 @@ import { m } from "#lib/paraglide/messages.js"
 import type { GroupMember } from "#lib/store/local.svelte.ts"
 import { describe } from "#lib/store/recent.ts"
 import AgentReply from "./AgentReply.svelte"
+import ChatCorner from "./ChatCorner.svelte"
 import Composer from "./Composer.svelte"
 import { BUBBLE } from "./labels.ts"
-import PlanCard from "./PlanCard.svelte"
 import RunningStatus from "./RunningStatus.svelte"
 import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
@@ -76,20 +79,16 @@ $effect(() => {
   }
 })
 
-const members = (query: string): Suggestion[] =>
-  (group?.members ?? [])
-    .map(member => {
-      const name = nameOf(member)
-
-      return {
-        token: `@${handleOf(name)}`,
-        label: name,
-        detail: infoOf(member)?.source ?? "",
-        icon: infoOf(member)?.icon ?? "lucide:bot",
-        mention: { kind: "member" as const, id: member.id, title: name },
-      }
-    })
-    .filter(s => s.label.toLowerCase().includes(query))
+const members = (query: string) =>
+  peopleMatching(
+    (group?.members ?? []).map(member => ({
+      id: member.id,
+      name: nameOf(member),
+      detail: infoOf(member)?.source ?? "",
+      icon: infoOf(member)?.icon ?? "lucide:bot",
+    })),
+    query,
+  )
 
 const invitable = $derived(
   agents.list.map(agent => ({ agent, provider: providerOf(agent) })),
@@ -109,14 +108,7 @@ const send = (text: string, files: File[]) =>
       .filter(member => !targets.length || targets.includes(member.id))
       .map(member => ({
         member,
-        text: promptFor(
-          group,
-          member,
-          text,
-          viewOf,
-          nameOf,
-          agentOf(member),
-        ),
+        text: promptFor(group, member, text, { viewOf, nameOf }, agentOf(member)),
       }))
 
     await groups.post(group.id, text, targets)
@@ -136,6 +128,32 @@ $effect(() => {
 })
 
 const running = $derived(group?.members.some(p => viewOf(p)?.running) ?? false)
+
+const label = (member: GroupMember, text: string) =>
+  (group?.members.length ?? 0) > 1
+    ? m.group_member_entry({ name: nameOf(member), text })
+    : text
+
+const plan = $derived(
+  (group?.members ?? []).flatMap(p => {
+    const entries = viewOf(p)?.items.findLast(i => i.type === "plan")?.entries ?? []
+
+    return entries.map(e => ({ ...e, content: label(p, e.content) }))
+  }),
+)
+
+const working = $derived(
+  (group?.members ?? []).flatMap(p => {
+    const view = viewOf(p)
+    const agents = view?.agents ?? []
+
+    return agents.map(a => ({
+      ...a,
+      id: `${p.host}:${p.id}:${a.id}`,
+      description: label(p, a.description),
+    }))
+  }),
+)
 
 const sharedFolder = $derived.by(() => {
   const seen = new Map<string, number>()
@@ -221,30 +239,32 @@ const stop = () => {
           onpick={cwd => groups.setFolder(group.id, cwd)}
         />
       {/if}
-      <Popover label={m.group_add_member()} placement="bottom-start" width="w-72" bind:open={picking}>
-        {#snippet trigger(p)}
-          <button {...p} type="button" class="btn btn-ghost btn-sm font-normal">
-            <Icon icon="lucide:user-plus" class="size-4" />
-            {m.group_add_member()}
-          </button>
-        {/snippet}
-        <div role="menu" tabindex="-1" class="flex max-h-80 flex-col overflow-y-auto" {@attach menuKeys}>
-          {#each invitable as { agent, provider } (agent.id)}
-            <MenuItem
-              icon={provider?.icon ?? "lucide:bot"}
-              label={agent.name}
-              hint={provider?.label}
-              disabled={!provider}
-              onclick={() => {
-                picking = false
-                attempt.run(() => groups.inviteAgent(group.id, agent))
-              }}
-            />
-          {:else}
-            <MenuItem label={m.group_no_candidates()} disabled />
-          {/each}
-        </div>
-      </Popover>
+      {#if group.members.length < MAX_MEMBERS}
+        <Popover label={m.group_add_member()} placement="bottom-start" width="w-72" bind:open={picking}>
+          {#snippet trigger(p)}
+            <button {...p} type="button" class="btn btn-ghost btn-sm font-normal">
+              <Icon icon="lucide:user-plus" class="size-4" />
+              {m.group_add_member()}
+            </button>
+          {/snippet}
+          <div role="menu" tabindex="-1" class="flex max-h-80 flex-col overflow-y-auto" {@attach menuKeys}>
+            {#each invitable as { agent, provider } (agent.id)}
+              <MenuItem
+                icon={provider?.icon ?? "lucide:bot"}
+                label={agent.name}
+                hint={provider?.label}
+                disabled={!provider}
+                onclick={() => {
+                  picking = false
+                  attempt.run(() => groups.inviteAgent(group.id, agent))
+                }}
+              />
+            {:else}
+              <MenuItem label={m.group_no_candidates()} disabled />
+            {/each}
+          </div>
+        </Popover>
+      {/if}
     </section>
     {#if sharedFolder}
       <p class="mx-4 mb-1 flex items-center gap-2 text-xs text-warning">
@@ -260,60 +280,87 @@ const stop = () => {
         text={group.members.length ? m.group_empty_text() : m.group_empty_members()}
       />
     {:else}
-      <div
-        class="scroll-centered flex min-h-0 flex-1 flex-col-reverse overflow-y-auto"
-        {@attach pinToggles}
-        {@attach stickBottom}
-      >
-        <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
-          {#each group.messages as message, index (message.id)}
-            {@const relay = relayOf(message)}
-            {#if relay}
-              <p class="flex min-w-0 items-center gap-1.5 self-center text-xs text-base-content/55">
-                <Icon icon="lucide:forward" class="size-3.5 shrink-0 text-primary" />
-                <span class="min-w-0 truncate">
-                  {m.relay_marker({
-                    from: nameById(relay.from),
-                    to: (message.targets ?? []).map(nameById).join(", "),
-                  })}
-                </span>
-              </p>
-            {:else}
-              <div class={[BUBBLE, "self-end"]}>{message.text}</div>
-            {/if}
-            {#each repliesFor(group, index, viewOf) as reply (reply.member.id)}
-              {@const view = viewOf(reply.member)}
-              {@const info = infoOf(reply.member)}
-              {@const last = index === group.messages.length - 1}
-              <section class="flex min-w-0 flex-col gap-2" aria-label={nameOf(reply.member)}>
-                <p class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/60">
-                  <Icon icon={info?.icon ?? "lucide:bot"} class="size-3.5 shrink-0" />
-                  <span class="min-w-0 truncate">{nameOf(reply.member)}</span>
+      <div class="@container relative flex min-h-0 flex-1 flex-col">
+        <ChatCorner {plan} agents={working} timeline={false} />
+        <div
+          class="scroll-centered flex min-h-0 flex-1 flex-col-reverse overflow-y-auto"
+          {@attach pinToggles}
+          {@attach stickBottom}
+        >
+          <div
+            class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-4 pt-6 pb-2"
+            data-cornered={plan.length > 0 || working.length > 0 || undefined}
+            data-quote={`group:${group.id}`}
+          >
+            {#each group.messages as message, index (message.id)}
+              {@const relay = relayOf(message)}
+              {#if relay}
+                <p class="flex min-w-0 items-center gap-1.5 self-center text-xs text-base-content/55">
+                  <Icon icon="lucide:forward" class="size-3.5 shrink-0 text-primary" />
+                  <span class="min-w-0 truncate">
+                    {m.relay_marker({
+                      from: nameById(relay.from),
+                      to: (message.targets ?? []).map(nameById).join(", "),
+                    })}
+                  </span>
                 </p>
-                {#if reply.waiting}
-                  <p class="text-xs text-base-content/50">{m.group_waiting()}</p>
-                {:else}
-                  {#each segmentsOf(reply.items) as segment, i (segment.key)}
-                    {#if segment.kind === "activity"}
-                      <ToolGroup items={segment.items} latest={last && i === segmentsOf(reply.items).length - 1} />
-                    {:else if segment.item.type === "agent"}
-                      <AgentReply text={segment.item.text} pace={segment.item.pace} onAction={text => send(text, [])} onSave={async () => {}} />
-                    {:else if segment.item.type === "thought"}
-                      <ThoughtNote text={segment.item.text} />
-                    {:else if segment.item.type === "plan"}
-                      <PlanCard entries={segment.item.entries} />
-                    {:else if segment.item.type === "ui"}
-                      <UiBlocks blocks={segment.item.blocks} onAction={text => send(text, [])} onSave={async () => {}} />
-                    {/if}
-                  {/each}
-                {/if}
-                {#if last && view?.running}
-                  <RunningStatus since={view.since} tokens={view.tokens} agents={view.agents} />
-                {/if}
-              </section>
+              {:else}
+                <div class={[BUBBLE, "self-end"]}>{message.text}</div>
+              {/if}
+              {#each repliesFor(group, index, viewOf) as reply (reply.member.id)}
+                {@const view = viewOf(reply.member)}
+                {@const info = infoOf(reply.member)}
+                {@const last = index === group.messages.length - 1}
+                <section class="flex min-w-0 flex-col gap-2" aria-label={nameOf(reply.member)}>
+                  <p class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/60">
+                    <Icon icon={info?.icon ?? "lucide:bot"} class="size-3.5 shrink-0" />
+                    <span class="min-w-0 truncate">{nameOf(reply.member)}</span>
+                  </p>
+                  {#if reply.waiting}
+                    <p class="text-xs text-base-content/50">{m.group_waiting()}</p>
+                  {:else}
+                    {#each segmentsOf(reply.items) as segment, i (segment.key)}
+                      {#if segment.kind === "activity"}
+                        <ToolGroup items={segment.items} latest={last && i === segmentsOf(reply.items).length - 1} />
+                      {:else if segment.item.type === "agent"}
+                        <AgentReply
+                          text={segment.item.text}
+                          pace={segment.item.pace}
+                          onAction={text => send(text, [])}
+                          onSave={async () => {}}
+                          onReply={text =>
+                            quoteInto(`group:${group.id}`, text, `@${handleOf(nameOf(reply.member))}`)}
+                        />
+                      {:else if segment.item.type === "thought"}
+                        <ThoughtNote text={segment.item.text} />
+                      {:else if segment.item.type === "ui"}
+                        <UiBlocks blocks={segment.item.blocks} onAction={text => send(text, [])} onSave={async () => {}} />
+                      {/if}
+                    {/each}
+                  {/if}
+                  {#if last && view?.running}
+                    <RunningStatus since={view.since} tokens={view.tokens} />
+                  {/if}
+                </section>
+              {/each}
+              {#each pastReplies(group, index) as past (past.member)}
+                {@const present = group.members.find(p => p.id === past.member)}
+                <section class="flex min-w-0 flex-col gap-2" aria-label={past.name}>
+                  <p class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/60">
+                    <Icon icon={present ? (infoOf(present)?.icon ?? "lucide:bot") : "lucide:user-minus"} class="size-3.5 shrink-0" />
+                    <span class="min-w-0 truncate">{past.name}</span>
+                  </p>
+                  <AgentReply
+                    text={past.text}
+                    onAction={text => send(text, [])}
+                    onSave={async () => {}}
+                    onReply={text => quoteInto(`group:${group.id}`, text)}
+                  />
+                </section>
+              {/each}
             {/each}
-          {/each}
-          <ErrorAlert message={attempt.failure} />
+            <ErrorAlert message={attempt.failure} />
+          </div>
         </div>
       </div>
     {/if}

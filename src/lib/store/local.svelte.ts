@@ -56,11 +56,14 @@ export type GroupMember = {
   agent?: string
 }
 
+export type StoredReply = { member: string; name: string; text: string }
+
 export type GroupMessage = {
   id: string
   text: string
   at: number
   targets?: string[]
+  replies?: StoredReply[]
 }
 
 export type StoredGroup = {
