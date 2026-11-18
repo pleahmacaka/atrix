@@ -19,10 +19,10 @@ import { openConversation } from "#lib/store/nav.svelte.ts"
 import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import AgentReply from "./AgentReply.svelte"
+import ChatCorner from "./ChatCorner.svelte"
 import ChatTimeline from "./ChatTimeline.svelte"
 import Composer from "./Composer.svelte"
 import PermissionCard from "./PermissionCard.svelte"
-import PlanCard from "./PlanCard.svelte"
 import QuestionCard from "./QuestionCard.svelte"
 import QueuedPrompts from "./QueuedPrompts.svelte"
 import RunningStatus from "./RunningStatus.svelte"
@@ -70,6 +70,10 @@ const segments = $derived(segmentsOf(view?.items ?? []))
 const turns = $derived(turnsOf(view?.items ?? []))
 
 const queued = $derived(view?.queued ?? [])
+
+const plan = $derived(
+  view?.items.findLast(i => i.type === "plan")?.entries ?? [],
+)
 
 let scroller = $state<HTMLElement>()
 
@@ -123,7 +127,7 @@ $effect(() => {
             {@attach pinToggles}
             {@attach stickBottom}
           >
-            <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
+            <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pt-6 pb-2">
               {#each segments as segment, i (segment.key)}
                 {#if segment.kind === "activity"}
                   <ToolGroup items={segment.items} latest={i === segments.length - 1} />
@@ -155,8 +159,6 @@ $effect(() => {
                   />
                 {:else if segment.item.type === "thought"}
                   <ThoughtNote text={segment.item.text} />
-                {:else if segment.item.type === "plan"}
-                  <PlanCard entries={segment.item.entries} />
                 {:else if segment.item.type === "ui"}
                   <UiBlocks blocks={segment.item.blocks} onAction={reply} onSave={saveApp} />
                 {/if}
@@ -167,7 +169,6 @@ $effect(() => {
                   since={view.since}
                   tokens={view.tokens}
                   pace={view.pace}
-                  agents={view.agents}
                 />
               {/if}
               {#if view.ask}
@@ -189,6 +190,7 @@ $effect(() => {
             </div>
           </div>
           <ChatTimeline {scroller} {turns} />
+          <ChatCorner plan={plan} agents={view.agents ?? []} />
         </div>
       {/if}
       <Composer

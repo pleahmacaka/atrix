@@ -400,9 +400,14 @@ fn uv_bin(root: &Path, name: &str) -> Option<PathBuf> {
     let receipt = fs::read_to_string(root.join(folder).join("uv-receipt.toml")).ok()?;
     let receipt: toml::Value = toml::from_str(&receipt).ok()?;
     let points = receipt.get("tool")?.get("entrypoints")?.as_array()?;
-    let point = points
-        .iter()
-        .find(|p| p.get("name").and_then(toml::Value::as_str) == Some(name))
+    let named = |want: &str| {
+        points
+            .iter()
+            .find(|p| p.get("name").and_then(toml::Value::as_str) == Some(want))
+    };
+    let short = name.split('-').next().unwrap_or(name);
+    let point = named(name)
+        .or_else(|| named(short))
         .or_else(|| points.first())?;
     let path = PathBuf::from(point.get("install-path")?.as_str()?);
 

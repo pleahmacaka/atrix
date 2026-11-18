@@ -86,7 +86,7 @@ const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
       <li>
         <button
           type="button"
-          class={["flex h-6 w-full items-center gap-2 rounded-field px-2 hover:bg-base-300/40", showingFinal && "bg-base-300/60"]}
+          class={["flex h-6 w-full cursor-pointer items-center gap-2 rounded-field px-2 hover:bg-base-300/40", showingFinal && "bg-base-300/60"]}
           aria-pressed={showingFinal}
           onclick={() => (routing.selected = null)}
         >
@@ -99,7 +99,7 @@ const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
       <li>
         <button
           type="button"
-          class={["flex h-6 w-full items-center gap-2 rounded-field px-2 hover:bg-base-300/40", !showingFinal && seed?.seed === s.seed && "bg-base-300/60"]}
+          class={["flex h-6 w-full cursor-pointer items-center gap-2 rounded-field px-2 hover:bg-base-300/40", !showingFinal && seed?.seed === s.seed && "bg-base-300/60"]}
           onclick={() => (routing.selected = s.seed)}
           onmouseenter={() => routing.enter(s)}
           onmouseleave={() => (routing.hoveredSeed = null)}
@@ -134,7 +134,7 @@ const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
           <li>
             <button
               type="button"
-              class={["flex h-6 w-full items-center gap-2 rounded-field px-2 text-left hover:bg-base-300/40", routing.pinnedNet === net && "bg-base-300/60"]}
+              class={["flex h-6 w-full cursor-pointer items-center gap-2 rounded-field px-2 text-left hover:bg-base-300/40", routing.pinnedNet === net && "bg-base-300/60"]}
               aria-pressed={routing.pinnedNet === net}
               onclick={() => (routing.pinnedNet = routing.pinnedNet === net ? null : net)}
               onmouseenter={() => (routing.hoveredNet = net)}

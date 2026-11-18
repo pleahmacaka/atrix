@@ -7,21 +7,29 @@ import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
+import Modal from "#lib/components/ui/Modal.svelte"
 import Section from "#lib/components/ui/Section.svelte"
-import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { autoDetect } from "#lib/harness/autoDetect.ts"
 import { type HostEntry, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { Available, InstallScope } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import HarnessAdvisor from "./HarnessAdvisor.svelte"
 
 let { onback }: { onback: () => void } = $props()
 
 const attempt = new Attempt()
+
+$effect(autoDetect)
 
 const hosts = $derived(hostList())
 
 let query = $state("")
 
 let busy = $state<string | null>(null)
+
+let shown = $state<{ host: HostEntry; harness: Available } | null>(null)
+
+let open = $state(false)
 
 let done = $state<{
   host: string
@@ -40,7 +48,7 @@ const matching = (available: Available[]) => {
 
   return needle
     ? available.filter(a =>
-        [a.id, a.name].some(v => v.toLowerCase().includes(needle)),
+        [a.id, a.name, a.description].some(v => v.toLowerCase().includes(needle)),
       )
     : available
 }
@@ -50,6 +58,7 @@ const missing = (available: Available[], requires: Available["requires"]) =>
 
 const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
   done = null
+  open = false
 
   return attempt.run(async () => {
     busy = harness.id
@@ -65,9 +74,14 @@ const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
     }
   })
 }
+
+const show = (host: HostEntry, harness: Available) => {
+  shown = { host, harness }
+  open = true
+}
 </script>
 
-<div class="flex flex-col gap-6">
+<div class="@container flex flex-col gap-6">
   <div class="flex items-center gap-2">
     <IconButton icon="lucide:chevron-left" label={m.harness_back()} onclick={onback} />
     <IconInput
@@ -81,9 +95,10 @@ const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
     />
   </div>
 
+  <HarnessAdvisor />
+
   {#each hosts as host (host.id)}
     {@const available = host.view.state?.available ?? []}
-    {@const shown = matching(available)}
     {#if done?.host === host.id}
       <div role="status" class="alert alert-info alert-soft text-sm">
         <Icon icon="lucide:circle-check" class="size-4 self-start" />
@@ -107,39 +122,49 @@ const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
       {#if missing(available, "uv")}
         <p class="py-2 text-sm text-base-content/60">{m.harness_requires_uv_hint()}</p>
       {/if}
-      {#each shown as a (a.id)}
-        <SettingRow icon={brandIcon(a.id)} title={a.name}>
-          {#if busy === a.id}
-            <span class="loading loading-spinner loading-sm"></span>
-            <span
-              class="min-w-0 max-w-64 truncate text-xs text-base-content/60"
-              title={host.view.installLog[a.id]}
+      <ul class="grid grid-cols-1 gap-2 @lg:grid-cols-2">
+        {#each matching(available) as a (a.id)}
+          <li class="min-w-0">
+            <button
+              type="button"
+              class={[
+                "flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-box px-3 py-2.5",
+                "border border-base-300 bg-base-100 text-start",
+                "transition-colors duration-140 hover:bg-base-content/5",
+              ]}
+              onclick={() => show(host, a)}
             >
-              {host.view.installLog[a.id] ?? m.harness_installing()}
-            </span>
-          {:else if a.requires}
-            <span class="badge badge-ghost badge-sm">
-              {a.requires === "node" ? m.harness_requires_node() : m.harness_requires_uv()}
-            </span>
-          {:else}
-            <div class="flex items-center justify-end gap-1">
-              {#each SCOPES as scope (scope.id)}
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  disabled={busy !== null}
-                  onclick={() => install(host, a, scope.id)}
+              <span class="grid size-9 shrink-0 place-items-center rounded-field bg-base-200">
+                <Icon icon={brandIcon(a.id)} class="size-5" />
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span class="flex min-w-0 items-center gap-2">
+                  <span class="min-w-0 truncate text-sm font-semibold">{a.name}</span>
+                  {#if busy === a.id}
+                    <span class="loading loading-spinner loading-xs shrink-0"></span>
+                  {:else if a.requires}
+                    <span class="badge badge-ghost badge-xs shrink-0 whitespace-nowrap">
+                      {a.requires === "node" ? m.harness_requires_node() : m.harness_requires_uv()}
+                    </span>
+                  {/if}
+                </span>
+                <span
+                  class="min-w-0 truncate text-xs text-base-content/60"
+                  title={busy === a.id ? host.view.installLog[a.id] : a.description}
                 >
-                  <Icon icon={scope.icon} class="size-4" />
-                  {scope.label()}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </SettingRow>
-      {:else}
-        <EmptyState icon="lucide:search-x" text={m.harness_no_match()} />
-      {/each}
+                  {busy === a.id
+                    ? (host.view.installLog[a.id] ?? m.harness_installing())
+                    : a.description || a.run}
+                </span>
+              </span>
+            </button>
+          </li>
+        {:else}
+          <li class="@lg:col-span-2">
+            <EmptyState icon="lucide:search-x" text={m.harness_no_match()} />
+          </li>
+        {/each}
+      </ul>
     </Section>
   {:else}
     <EmptyState
@@ -151,9 +176,77 @@ const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
 </div>
 <ErrorAlert message={attempt.failure} />
 
+<Modal bind:open label={shown?.harness.name ?? ""} class="max-w-lg">
+  {#if shown}
+    {@const { host, harness } = shown}
+    <div class="flex items-start gap-3 p-5">
+      <span class="grid size-11 shrink-0 place-items-center rounded-field bg-base-200">
+        <Icon icon={brandIcon(harness.id)} class="size-6" />
+      </span>
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 class="flex min-w-0 items-baseline gap-2">
+          <span class="truncate text-base font-semibold">{harness.name}</span>
+          {#if harness.version}
+            <span class="text-xs text-base-content/50 tabular-nums">{harness.version}</span>
+          {/if}
+        </h2>
+        {#if harness.description}
+          <p class="text-sm text-base-content/70">{harness.description}</p>
+        {/if}
+      </div>
+    </div>
+    <div class="flex flex-col gap-3 px-5 pb-2">
+      <div class="flex flex-col gap-1">
+        <span class="text-xs font-medium text-base-content/60">{m.harness_install_command()}</span>
+        {@render command(harness.install)}
+      </div>
+      <div class="flex flex-col gap-1">
+        <span class="text-xs font-medium text-base-content/60">{m.harness_run_command()}</span>
+        {@render command(harness.run)}
+      </div>
+      {#if harness.website || harness.repository}
+        <div class="flex flex-wrap gap-2">
+          {#if harness.website}
+            {@render link(harness.website, "lucide:globe", m.harness_website())}
+          {/if}
+          {#if harness.repository}
+            {@render link(harness.repository, "lucide:github", m.harness_source())}
+          {/if}
+        </div>
+      {/if}
+    </div>
+    <div class="flex flex-wrap justify-end gap-2 p-5">
+      {#if harness.requires}
+        <span class="text-sm text-base-content/60">
+          {harness.requires === "node" ? m.harness_requires_node_hint() : m.harness_requires_uv_hint()}
+        </span>
+      {:else}
+        {#each SCOPES as scope, i (scope.id)}
+          <button
+            type="button"
+            class={["btn btn-sm", i === 0 && "btn-primary"]}
+            disabled={busy !== null}
+            onclick={() => install(host, harness, scope.id)}
+          >
+            <Icon icon={scope.icon} class="size-4" />
+            {scope.label()}
+          </button>
+        {/each}
+      {/if}
+    </div>
+  {/if}
+</Modal>
+
 {#snippet command(text: string)}
   <div class="flex min-w-0 items-center gap-1 rounded-field bg-base-200 px-2 py-1">
     <code class="min-w-0 flex-1 break-all text-xs">{text}</code>
     <CopyButton {text} />
   </div>
+{/snippet}
+
+{#snippet link(href: string, icon: string, label: string)}
+  <a class="btn btn-ghost btn-sm" {href} target="_blank" rel="noreferrer">
+    <Icon {icon} class="size-4" />
+    {label}
+  </a>
 {/snippet}

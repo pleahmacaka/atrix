@@ -6,7 +6,6 @@ import DevicesView from "#lib/components/devices/DevicesView.svelte"
 import AgentEditor from "#lib/components/harness/AgentEditor.svelte"
 import PromptEditor from "#lib/components/harness/PromptEditor.svelte"
 import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
-import SettingsView from "#lib/components/settings/SettingsView.svelte"
 import FindBar from "#lib/components/shell/FindBar.svelte"
 import PaneNode from "#lib/components/shell/PaneNode.svelte"
 import TitleBar from "#lib/components/shell/TitleBar.svelte"
@@ -44,8 +43,6 @@ const hosts = $derived(hostList().map(h => h.view))
     >
       <PaneNode node={panes.root} />
     </div>
-  {:else if nav.page === "settings"}
-    <SettingsView />
   {:else if nav.page === "agent"}
     {#if nav.agent?.startsWith("prompt:")}
       <PromptEditor />

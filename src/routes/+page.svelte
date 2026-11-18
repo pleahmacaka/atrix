@@ -2,12 +2,13 @@
 import { tick } from "svelte"
 import { fly } from "svelte/transition"
 import CallDock from "#lib/components/chat/CallDock.svelte"
-import AppBar from "#lib/components/shell/AppBar.svelte"
+import SettingsDialog from "#lib/components/settings/SettingsDialog.svelte"
 import Palette from "#lib/components/shell/Palette.svelte"
 import Sidebar from "#lib/components/shell/Sidebar.svelte"
 import Workspace from "#lib/components/shell/Workspace.svelte"
 import ContextMenu from "#lib/components/ui/ContextMenu.svelte"
 import { trackPointer } from "#lib/components/ui/pointer.ts"
+import { floating, SIDEBAR } from "#lib/p2p/float.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { handleContextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
@@ -54,6 +55,8 @@ const focusDrawer = (node: HTMLElement) => {
   }
 }
 
+const docked = $derived(!floating.has(SIDEBAR))
+
 const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
   const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
   const left = e.currentTarget.parentElement?.getBoundingClientRect().left ?? 0
@@ -69,9 +72,8 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 />
 
 <div class="window-frame flex h-dvh flex-col bg-base-200" data-frame>
-<AppBar />
-<div class="flex min-h-0 flex-1 gap-2 px-2 pb-2" data-shell>
-  {#if !shell.collapsed || shell.compact}
+<div class="flex min-h-0 flex-1 gap-2 p-2" data-shell data-tauri-drag-region>
+  {#if docked && (!shell.collapsed || shell.compact)}
     <div
       class="flex min-h-0 shrink-0 transition-width duration-140"
       style:width="{shell.collapsed ? RAIL_REM : shell.width}rem"
@@ -93,7 +95,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
         <span class="absolute inset-y-0 -inset-x-1.5"></span>
       </button>
     {/if}
-  {:else if !shell.drawer}
+  {:else if docked && !shell.drawer}
     <div
       class="fixed bottom-0 left-0 z-20 w-2"
       style:top="{225 / settings.scale}rem"
@@ -105,7 +107,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 </div>
 </div>
 
-{#if shell.overlay}
+{#if docked && shell.overlay}
   <div
     role="dialog"
     tabindex="-1"
@@ -123,5 +125,6 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 {/if}
 
 <Palette />
+<SettingsDialog />
 <ContextMenu />
 <CallDock />

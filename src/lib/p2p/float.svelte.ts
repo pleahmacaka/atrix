@@ -14,7 +14,16 @@ import {
 import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
 import { keyOf } from "#lib/store/keys.ts"
-import { hostById } from "./hosts.svelte.ts"
+import {
+  type Current,
+  nav,
+  openConversation,
+  openSettings,
+  type Page,
+  type SettingsTab,
+} from "#lib/store/nav.svelte.ts"
+import { panes } from "#lib/store/panes.svelte.ts"
+import { hostById, LOCAL } from "./hosts.svelte.ts"
 import { HostView } from "./hostView.svelte.ts"
 import {
   type Answers,
@@ -43,6 +52,14 @@ type ChatFrame = {
 }
 
 const MAIN = "main"
+
+export const SIDEBAR = "sidebar"
+
+export type NavFrame = {
+  page: Page
+  current: Current
+  settings: SettingsTab | null
+}
 
 const concerns = (event: HostEvent, id: string) => {
   switch (event.type) {
@@ -124,7 +141,61 @@ const serve = () => {
       runChat(payload).catch(e => logFailure("float chat", e))
     })
     .catch(e => logFailure("float serve", e))
+  win
+    .listen<NavFrame>("float:nav", ({ payload }) => applyNav(payload))
+    .catch(e => logFailure("float serve", e))
 }
+
+const applyNav = (frame: NavFrame) => {
+  if (frame.settings) {
+    openSettings(frame.settings)
+
+    return
+  }
+
+  const shown = panes.active.current
+
+  if (frame.current && (!shown || keyOf(frame.current) !== keyOf(shown))) {
+    openConversation(frame.current)
+  } else if (frame.page !== nav.page) {
+    nav.page = frame.page
+  }
+}
+
+export const navFrame = (): NavFrame => ({
+  page: nav.page,
+  current: $state.snapshot(panes.active.current) as Current,
+  settings: null,
+})
+
+export const floatSidebar = async (title: string) => {
+  const view = hostById(LOCAL)
+
+  if (!view) {
+    return
+  }
+
+  await openWindow(SIDEBAR, { sidebar: "1" }, title, label => {
+    const tap = (event: HostEvent) => {
+      emitTo(label, "float:event", event).catch(() => {})
+    }
+
+    view.taps.add(tap)
+
+    const stop = $effect.root(() => {
+      $effect(() => {
+        emitTo(label, "float:nav", navFrame()).catch(() => {})
+      })
+    })
+
+    return () => {
+      view.taps.delete(tap)
+      stop()
+    }
+  })
+}
+
+export const sendNav = (frame: NavFrame) => emitTo(MAIN, "float:nav", frame)
 
 const openWindow = async (
   key: string,

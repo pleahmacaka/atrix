@@ -3,8 +3,10 @@ import Icon from "@iconify/svelte"
 import { z } from "zod"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
+import { floatSidebar } from "#lib/p2p/float.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
+import { desktop } from "#lib/platform.ts"
+import { goPage, nav, openConversation, openSettings } from "#lib/store/nav.svelte.ts"
 import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
 import { type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
@@ -12,7 +14,7 @@ import { Stored } from "#lib/store/stored.svelte.ts"
 import ConversationFilter from "./ConversationFilter.svelte"
 import Navigator from "./Navigator.svelte"
 
-let { rail = false }: { rail?: boolean } = $props()
+let { rail = false, floated = false }: { rail?: boolean; floated?: boolean } = $props()
 
 type Action = {
   label: string
@@ -30,6 +32,14 @@ const chatActions = (): Action[] => [
     run: () => {
       goPage("chat")
       openConversation(null)
+    },
+  },
+  {
+    label: m.common_search(),
+    icon: "lucide:search",
+    shortcut: "palette",
+    run: () => {
+      nav.palette = true
     },
   },
 ]
@@ -117,8 +127,8 @@ const pages = $derived([
     id: "settings",
     label: SETTINGS_PAGE.label(),
     icon: SETTINGS_PAGE.icon,
-    active: nav.page === "settings",
-    run: () => goPage("settings"),
+    active: nav.settingsOpen,
+    run: () => openSettings(nav.settingsTab),
   },
 ].toSorted((a, b) => rank(a.id) - rank(b.id)))
 
@@ -131,6 +141,15 @@ const hintOf = (action: Action) =>
 </script>
 
 {#snippet toggle()}
+  {#if desktop && !floated && !rail}
+    <IconButton
+      icon="lucide:picture-in-picture-2"
+      label={m.float_out()}
+      class="shrink-0"
+      onclick={() => floatSidebar(m.shell_sidebar())}
+    />
+  {/if}
+  {#if !floated}
   <IconButton
     icon={rail ? "lucide:panel-left-open" : "lucide:panel-left"}
     label={toggleLabel}
@@ -139,6 +158,7 @@ const hintOf = (action: Action) =>
     {@attach tooltip(() => withKeys(toggleLabel, "sidebar"), () => rail)}
     onclick={shell.toggle}
   />
+  {/if}
 {/snippet}
 
 {#snippet actionButton(action: Action)}
@@ -167,6 +187,7 @@ const hintOf = (action: Action) =>
     <nav
       class={["flex shrink-0 flex-col gap-0.5", rail ? "items-center p-1.5" : "p-2"]}
       aria-label={m.shell_actions()}
+      data-tauri-drag-region
     >
       {#if rail}
         {@render toggle()}

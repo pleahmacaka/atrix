@@ -7,6 +7,7 @@ import { desktop } from "#lib/platform.ts"
 import { chooseLanguage, LANGUAGES, languageChoice } from "#lib/store/locale.ts"
 import {
   ACCENTS,
+  CONTENT_SCALES,
   type Layout,
   type PanelShape,
   SCALES,
@@ -39,6 +40,8 @@ const SHAPES: { id: PanelShape; label: string; icon: string }[] = [
 ]
 
 const SCALE_ITEMS = SCALES.map(s => ({ id: String(s), label: `${s}%`, icon: "lucide:type" }))
+
+const CONTENT_ITEMS = CONTENT_SCALES.map(s => ({ id: String(s), label: `${s}%`, icon: "lucide:text" }))
 
 const SIDEBAR_MODES: { id: SidebarCollapse; label: string; icon: string }[] = [
   { id: "compact", label: m.appearance_sidebar_compact(), icon: "lucide:panel-left" },
@@ -98,6 +101,14 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
 
 <SettingRow icon="lucide:zoom-in" title={m.appearance_scale()}>
   <Segmented items={SCALE_ITEMS} value={String(settings.scale)} onpick={v => settings.setScale(Number(v))} />
+</SettingRow>
+
+<SettingRow icon="lucide:text" title={m.appearance_content_scale()}>
+  <Segmented
+    items={CONTENT_ITEMS}
+    value={String(settings.contentScale)}
+    onpick={v => settings.setContentScale(Number(v))}
+  />
 </SettingRow>
 
 <SettingRow icon="lucide:panel-left-close" title={m.appearance_sidebar()}>

@@ -42,6 +42,11 @@ const build = z.object({
 const entry = z.object({
   id: z.string(),
   name: z.string(),
+  description: z.string().catch(""),
+  version: z.string().catch(""),
+  website: z.string().catch(""),
+  repository: z.string().catch(""),
+  bridge: z.object({ package: z.string(), env: z.string() }).optional(),
   distribution: z
     .object({
       npx: runner.optional(),
@@ -53,13 +58,100 @@ const entry = z.object({
 
 type Entry = z.infer<typeof entry>
 
+const npxOnly = (pkg: string, args: string[] = []) => ({
+  npx: { package: pkg, args, env: {} },
+})
+
 const EXTRA: Entry[] = [
   {
     id: "deepseek-acp",
-    name: "DeepSeek",
-    distribution: { npx: { package: "deepseek-acp", args: [], env: {} } },
+    name: "DeepSeek Harness",
+    description: "DeepSeek's official harness, bridged to ACP for editors.",
+    version: "",
+    website: "https://github.com/deepseek-ai/deepseek-harness",
+    repository: "https://github.com/xintaofei/deepseek-acp",
+    distribution: npxOnly("deepseek-acp"),
+  },
+  {
+    id: "hermes-agent",
+    name: "Hermes Agent",
+    description:
+      "Nous Research's self-improving agent that learns skills from use.",
+    version: "",
+    website: "https://hermes-agent.nousresearch.com",
+    repository: "https://github.com/NousResearch/hermes-agent",
+    distribution: {
+      uvx: { package: "hermes-agent[acp]", args: ["acp"], env: {} },
+    },
+  },
+  {
+    id: "oh-my-pi",
+    name: "Oh My Pi",
+    description: "Pi-based coding agent with subagents and LSP. Needs Bun.",
+    version: "",
+    website: "https://omp.sh",
+    repository: "https://github.com/can1357/oh-my-pi",
+    distribution: npxOnly("@oh-my-pi/pi-coding-agent", ["acp"]),
+  },
+  {
+    id: "omo",
+    name: "OmO",
+    description: "Oh My OpenAgent's native omo, run over ACP through pi-acp.",
+    version: "",
+    website: "https://omo.dev",
+    repository: "https://github.com/code-yeongyu/oh-my-openagent",
+    bridge: { package: "pi-acp", env: "PI_ACP_PI_COMMAND" },
+    distribution: npxOnly("omo-ai"),
+  },
+  {
+    id: "zcode-acp",
+    name: "ZCode",
+    description:
+      "Z.ai's GLM coding agent. Needs the ZCode app and its zcode CLI.",
+    version: "",
+    website: "",
+    repository: "https://github.com/william0wang/zcode-acp",
+    distribution: npxOnly("zcode-acp-server"),
   },
 ]
+
+const bridged = (e: Entry, launch: Launch): Launch =>
+  e.bridge
+    ? {
+        command: "npx",
+        args: ["-y", e.bridge.package],
+        env: { ...launch.env, [e.bridge.env]: launch.command },
+      }
+    : launch
+
+const previewOf = (e: Entry, option: Option) => {
+  const { source } = option
+
+  if (e.bridge && source.kind === "npm") {
+    return {
+      install: `npm install -g ${source.package}`,
+      run: `${e.bridge.env}=${cliNames(e)[0]} npx ${e.bridge.package}`,
+    }
+  }
+  const { args } = option.launch("")
+  const tail = args.length ? ` ${args.join(" ")}` : ""
+
+  if (source.kind === "npm") {
+    return {
+      install: `npm install -g ${source.package}`,
+      run: `npx ${source.package}${tail}`,
+    }
+  }
+
+  if (source.kind === "uv") {
+    return {
+      install: `uv tool install "${source.package}"`,
+      run: `uvx "${source.package}"${tail}`,
+    }
+  }
+
+  return { install: source.archive, run: `${commandOf(source.cmd)}${tail}` }
+}
 
 export type Launch = {
   command: string
@@ -199,6 +291,11 @@ const pathLaunch = (
   installed: Set<string>,
 ): Launch | null => {
   const binary = binaryOf(e, platform)
+  const own = cliNames(e).find(n => installed.has(n))
+
+  if (e.bridge && own) {
+    return bridged(e, { command: own, args: [], env: {} })
+  }
 
   if (binary && installed.has(commandOf(binary.cmd))) {
     return {
@@ -266,7 +363,7 @@ export const detectHarnesses = async () => {
       harnesses.push({
         id: e.id,
         name: e.name,
-        launch: hit.o.launch(hit.hit.path),
+        launch: bridged(e, hit.o.launch(hit.hit.path)),
         source: hit.o.source,
         local: hit.hit.local,
         login: loginOf(e.id, hit.hit.path),
@@ -307,7 +404,17 @@ export const detectHarnesses = async () => {
           ? "uv"
           : null
 
-    available.push({ id: e.id, name: e.name, requires, source: option.source })
+    available.push({
+      id: e.id,
+      name: e.name,
+      requires,
+      description: e.description,
+      version: e.version,
+      website: e.website,
+      repository: e.repository,
+      ...previewOf(e, option),
+      source: option.source,
+    })
   })
 
   return { harnesses, available }

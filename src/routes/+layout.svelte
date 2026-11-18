@@ -10,6 +10,7 @@ import { errorText } from "#lib/components/ui/attempt.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { startTitleTips } from "#lib/components/ui/tooltip.ts"
 import UpdatePrompt from "#lib/components/update/UpdatePrompt.svelte"
+import { startExternalLinks } from "#lib/links.ts"
 import { startLogging } from "#lib/logging.ts"
 import { startLocalHost } from "#lib/p2p/hosts.svelte.ts"
 import { sync } from "#lib/p2p/sync.svelte.ts"
@@ -43,6 +44,7 @@ if (!overlay) {
 
   startAppearance()
   startTitleTips()
+  startExternalLinks()
 }
 
 onMount(async () => {

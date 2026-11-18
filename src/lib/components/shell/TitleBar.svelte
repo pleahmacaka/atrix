@@ -8,11 +8,16 @@ import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { baseName } from "#lib/path.ts"
 import { desktop } from "#lib/platform.ts"
+import { frame } from "#lib/store/appearance.svelte.ts"
 import { keyOf } from "#lib/store/keys.ts"
 import { nav, openConversation } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import { describe, type Recent, titles } from "#lib/store/recent.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
+
+const win = () =>
+  import("@tauri-apps/api/window").then(w => w.getCurrentWindow())
+
 import { withKeys } from "#lib/store/shortcuts.ts"
 
 const info = $derived(describe(panes.active.current))
@@ -70,7 +75,6 @@ const rename = (current: Recent["current"], key: string, value: string) => {
 
 </script>
 
-{#if nav.page === "chat" || trigger || import.meta.env.DEV}
 <header
   class="flex h-10 min-w-0 shrink-0 items-center gap-1 px-1.5 select-none"
   data-tauri-drag-region
@@ -165,8 +169,27 @@ const rename = (current: Recent["current"], key: string, value: string) => {
       onclick={() => openConversation(null)}
     />
   {/if}
-  {#if import.meta.env.DEV}
-    <span class="badge badge-warning badge-sm shrink-0">{m.shell_dev_build()}</span>
+  {#if desktop}
+    <div class="-me-1.5 flex h-full shrink-0 items-center self-stretch">
+      <IconButton
+        icon="lucide:minus"
+        label={m.shell_minimize()}
+        class="h-full w-11 rounded-none"
+        onclick={() => win().then(w => w.minimize())}
+      />
+      <IconButton
+        icon={frame.maximized ? "lucide:copy" : "lucide:square"}
+        label={frame.maximized ? m.shell_restore() : m.shell_maximize()}
+        iconClass="size-3.5"
+        class="h-full w-11 rounded-none"
+        onclick={() => win().then(w => w.toggleMaximize())}
+      />
+      <IconButton
+        icon="lucide:x"
+        label={m.common_close()}
+        class="h-full w-11 rounded-none hover:bg-error hover:text-error-content"
+        onclick={() => win().then(w => w.close())}
+      />
+    </div>
   {/if}
 </header>
-{/if}

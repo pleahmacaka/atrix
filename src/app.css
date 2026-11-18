@@ -128,7 +128,7 @@
 
 ::-webkit-scrollbar-thumb {
   border: 0.1875rem solid transparent;
-  border-radius: 9999px;
+  border-radius: calc(infinity * 1rem);
   background-clip: padding-box;
   background-color: color-mix(in oklab, var(--color-base-content) 22%, transparent);
 }
@@ -164,7 +164,6 @@ svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([f
 :root[data-layout="flat"] [data-shell] {
   gap: 0;
   padding: 0;
-  border-top: var(--border) solid var(--island-edge);
 }
 
 :root[data-layout="flat"] [data-shell] > [data-resize] {
@@ -190,6 +189,11 @@ svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([f
 
 [data-sidebar-drawer] .island {
   backdrop-filter: blur(1.5rem);
+}
+
+:root {
+  --reading-tracking: 0.01em;
+  --reading-word-spacing: 0.05em;
 }
 
 @theme {
@@ -428,6 +432,9 @@ summary {
 }
 
 .markdown {
+  font-size: calc(1em * var(--content-scale, 1));
+  letter-spacing: var(--reading-tracking);
+  word-spacing: var(--reading-word-spacing);
   line-height: 1.7;
   overflow-wrap: anywhere;
   word-break: keep-all;
@@ -497,7 +504,7 @@ summary {
   border-radius: var(--radius-box);
   padding: 0.75rem 1rem;
   overflow-x: auto;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   line-height: 1.6;
 }
 
@@ -527,7 +534,9 @@ summary {
 
 .wiki {
   @apply text-base-content;
-  font-size: 1rem;
+  font-size: calc(1rem * var(--content-scale, 1));
+  letter-spacing: var(--reading-tracking);
+  word-spacing: var(--reading-word-spacing);
   line-height: 1.8;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -730,4 +739,52 @@ summary {
 :where(button, a, summary, [role="button"], [tabindex]):focus-visible {
   outline: 0.125rem solid var(--color-primary);
   outline-offset: 0;
+}
+
+.shimmer {
+  --dim: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+  background: linear-gradient(
+      90deg,
+      var(--dim) 35%,
+      var(--color-base-content) 50%,
+      var(--dim) 65%
+    )
+    0 0 / 250% 100%;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0% 0;
+  }
+}
+
+.caret {
+  display: inline-block;
+  width: 0.45em;
+  height: 1em;
+  margin-left: 0.1em;
+  vertical-align: text-bottom;
+  background: var(--color-primary);
+  animation: caret 1s steps(2, start) infinite;
+}
+
+@keyframes caret {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer,
+  .caret {
+    animation: none;
+  }
 }

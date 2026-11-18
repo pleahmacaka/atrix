@@ -10,6 +10,7 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import Section from "#lib/components/ui/Section.svelte"
 import Segmented from "#lib/components/ui/Segmented.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { autoDetect } from "#lib/harness/autoDetect.ts"
 import { type HostEntry, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { HarnessInfo } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -26,6 +27,8 @@ const CAPS = [0, 100_000, 300_000, 1_000_000].map(cap => ({
 }))
 
 const attempt = new Attempt()
+
+$effect(autoDetect)
 
 const hosts = $derived(hostList())
 
@@ -58,7 +61,7 @@ const toggle = (host: HostEntry, harness: HarnessInfo) =>
   <button
     type="button"
     class={[
-      "flex items-center gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3",
+      "flex cursor-pointer items-center gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3",
       "text-start transition-colors duration-150 hover:bg-base-200",
     ]}
     onclick={() => (browsing = true)}

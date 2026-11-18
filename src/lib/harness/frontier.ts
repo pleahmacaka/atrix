@@ -1,0 +1,234 @@
+export const FRONTIER_MODELS = [
+  "GLM-5.3",
+  "GLM Flash",
+  "DeepSeek",
+  "Muse",
+  "Kimi-K3",
+] as const
+
+export type FrontierModel = (typeof FRONTIER_MODELS)[number]
+
+export type FrontierRow = {
+  name: string
+  harness: string | null
+  pass: number
+  perTask: number
+  perPass: number
+  minutes: number
+  byModel: Record<FrontierModel, number>
+}
+
+const row = (
+  name: string,
+  harness: string | null,
+  pass: number,
+  perTask: number,
+  minutes: number,
+  costs: [number, number, number, number, number, number],
+): FrontierRow => ({
+  name,
+  harness,
+  pass,
+  perTask,
+  minutes,
+  perPass: costs[5],
+  byModel: Object.fromEntries(
+    FRONTIER_MODELS.map((m, i) => [m, costs[i]]),
+  ) as Record<FrontierModel, number>,
+})
+
+export const FRONTIER_SOURCE = "FrontierHarness Eval v1.1.0"
+
+export const FRONTIER: FrontierRow[] = [
+  row(
+    "Codex CLI",
+    "codex-acp",
+    61.1,
+    0.573,
+    43.8,
+    [0.803, 0.226, 0.237, 1.69, 1.78, 0.937],
+  ),
+  row(
+    "Pi",
+    "pi-acp",
+    57.7,
+    0.563,
+    54.0,
+    [1.55, 0.223, 0.21, 1.47, 1.54, 0.976],
+  ),
+  row(
+    "OpenCode v2",
+    "opencode-v2",
+    57.3,
+    0.561,
+    43.7,
+    [1.53, 0.254, 0.27, 1.35, 1.61, 0.978],
+  ),
+  row(
+    "Oh My Pi",
+    "oh-my-pi",
+    57.3,
+    0.564,
+    59.2,
+    [1.74, 0.273, 0.25, 1.21, 1.45, 0.983],
+  ),
+  row(
+    "ZCode",
+    "zcode-acp",
+    61.9,
+    0.659,
+    57.1,
+    [1.48, 0.264, 0.222, 1.79, 1.66, 1.06],
+  ),
+  row(
+    "KimiCode",
+    "kimi-code",
+    60.2,
+    0.653,
+    56.1,
+    [1.55, 0.379, 0.264, 1.49, 1.84, 1.09],
+  ),
+  row(
+    "OpenCode v1",
+    "opencode",
+    57.4,
+    0.646,
+    62,
+    [1.62, 0.287, 0.177, 1.79, 1.74, 1.12],
+  ),
+  row("Maka", null, 57.7, 0.654, 57.5, [1.48, 0.259, 0.193, 1.5, 2.22, 1.13]),
+  row(
+    "MiniMax Code",
+    "minimax-code",
+    56.8,
+    0.647,
+    60,
+    [1.76, 0.323, 0.256, 1.67, 1.7, 1.14],
+  ),
+  row(
+    "DSH Minimal",
+    "deepseek-acp",
+    57.4,
+    0.661,
+    63,
+    [1.88, 0.484, 0.256, 1.54, 1.7, 1.15],
+  ),
+  row(
+    "Hermes Agent",
+    "hermes-agent",
+    59.9,
+    0.692,
+    58.4,
+    [1.66, 0.328, 0.314, 1.69, 1.82, 1.16],
+  ),
+  row(
+    "Cline CLI",
+    "cline",
+    57.7,
+    0.689,
+    61,
+    [1.55, 0.261, 0.86, 1.59, 1.75, 1.19],
+  ),
+  row(
+    "Grok Build",
+    "grok-build",
+    60,
+    0.723,
+    60,
+    [1.81, 0.321, 0.284, 1.77, 1.81, 1.2],
+  ),
+  row("Alma", null, 59.7, 0.731, 57.1, [1.62, 0.295, 0.249, 2.4, 1.58, 1.22]),
+  row("DSH Standard", null, 55, 0.697, 65, [2, 0.449, 0.292, 1.77, 1.95, 1.27]),
+  row(
+    "DSH Creator",
+    null,
+    56.1,
+    0.713,
+    67,
+    [2.19, 0.466, 0.273, 1.34, 2.25, 1.27],
+  ),
+  row(
+    "mini-SWE-agent",
+    null,
+    58.6,
+    0.757,
+    59.5,
+    [2.03, 0.445, 0.219, 1.77, 2.02, 1.29],
+  ),
+  row("DSH Code", null, 55.2, 0.732, 66, [2.1, 0.372, 0.243, 2.08, 2.11, 1.32]),
+  row("Exo", null, 50.6, 0.691, 67, [2.72, 0.424, 0.336, 1.34, 2.24, 1.36]),
+  row(
+    "GitHub Copilot CLI",
+    "github-copilot-cli",
+    56.9,
+    0.787,
+    64,
+    [1.76, 0.302, 0.492, 2.96, 1.8, 1.38],
+  ),
+  row(
+    "Claude Code",
+    "claude-acp",
+    58.9,
+    0.915,
+    70,
+    [1.77, 0.367, 0.285, 3.75, 1.94, 1.55],
+  ),
+]
+
+export const SUBSCRIPTIONS = [
+  { id: "claude", label: "Claude Pro / Max", harness: "claude-acp" },
+  { id: "chatgpt", label: "ChatGPT Plus / Pro", harness: "codex-acp" },
+  { id: "copilot", label: "GitHub Copilot", harness: "github-copilot-cli" },
+  { id: "glm", label: "GLM Coding Plan", harness: "zcode-acp" },
+  { id: "kimi", label: "Kimi", harness: "kimi-code" },
+  { id: "grok", label: "SuperGrok", harness: "grok-build" },
+  { id: "minimax", label: "MiniMax", harness: "minimax-code" },
+] as const
+
+export type Pick =
+  | { kind: "model"; model: FrontierModel }
+  | { kind: "subscription"; id: string }
+  | { kind: "harness"; name: string }
+  | null
+
+export type Advice = {
+  row: FrontierRow
+  model: FrontierModel | null
+  cost: number
+}
+
+const cheapestModel = (r: FrontierRow) =>
+  FRONTIER_MODELS.toSorted((a, b) => r.byModel[a] - r.byModel[b])[0]
+
+const score = (r: FrontierRow) => r.pass / 100 / r.perPass
+
+export const advise = (pick: Pick, usable: (r: FrontierRow) => boolean) => {
+  const rows = FRONTIER.filter(usable)
+
+  if (pick?.kind === "model") {
+    return rows
+      .map(r => ({ row: r, model: pick.model, cost: r.byModel[pick.model] }))
+      .toSorted((a, b) => a.cost - b.cost)
+  }
+
+  const chosen =
+    pick?.kind === "subscription"
+      ? SUBSCRIPTIONS.find(s => s.id === pick.id)?.harness
+      : pick?.kind === "harness"
+        ? FRONTIER.find(r => r.name === pick.name)?.harness
+        : undefined
+  const pool =
+    pick?.kind === "harness"
+      ? rows.filter(r => r.name === pick.name)
+      : chosen
+        ? rows.filter(r => r.harness === chosen)
+        : rows
+
+  return pool
+    .map(r => {
+      const model = cheapestModel(r)
+
+      return { row: r, model, cost: r.byModel[model] }
+    })
+    .toSorted((a, b) => score(b.row) - score(a.row))
+}

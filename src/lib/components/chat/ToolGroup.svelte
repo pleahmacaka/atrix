@@ -2,6 +2,7 @@
 import Icon from "@iconify/svelte"
 import { SvelteSet } from "svelte/reactivity"
 import type { ThoughtItem, ToolItem } from "#lib/acp/items.ts"
+import { type JsonToken, jsonTokens, splitJson } from "#lib/chat/json.ts"
 import { plainText } from "#lib/chat/plain.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { toolIcon } from "./labels.ts"
@@ -90,48 +91,79 @@ const unfence = (text: string) => {
     : text
 }
 
-const HIDDEN_KEYS = new Set(["description"])
+const GAP = "\n\n"
 
-const linesOf = (value: unknown, depth: number): string[] => {
-  const pad = "  ".repeat(depth)
-
-  if (Array.isArray(value)) {
-    return value.flatMap(v =>
-      v && typeof v === "object"
-        ? [`${pad}-`, ...linesOf(v, depth + 1)]
-        : [`${pad}- ${String(v)}`],
-    )
-  }
-
-  if (value && typeof value === "object") {
-    return Object.entries(value)
-      .filter(([key]) => depth > 0 || !HIDDEN_KEYS.has(key))
-      .flatMap(([key, v]) =>
-        v && typeof v === "object"
-          ? [`${pad}.${key}:`, ...linesOf(v, depth + 1)]
-          : [`${pad}.${key}: ${String(v).replaceAll("\n", `\n${pad}  `)}`],
-      )
-  }
-
-  return [`${pad}${String(value)}`]
+const TONES: Record<JsonToken["kind"], string> = {
+  key: "text-primary",
+  string: "text-success",
+  number: "text-warning",
+  literal: "text-info",
+  plain: "text-base-content/60",
 }
 
-const readable = (detail: string) => {
-  const end = detail.startsWith("{") ? detail.indexOf("\n}") : -1
+const live = (tool: ToolItem) =>
+  latest && tool.status !== "completed" && tool.status !== "failed"
 
-  if (end === -1) {
-    return detail
-  }
+const follow = (live: () => boolean, text: () => string) => (pre: HTMLElement) => {
+  $effect(() => {
+    void text()
 
-  try {
-    const input = JSON.parse(detail.slice(0, end + 2))
-    const rest = detail.slice(end + 2).trim()
-
-    return [linesOf(input, 0).join("\n"), rest].filter(Boolean).join("\n\n")
-  } catch {
-    return detail
-  }
+    if (live()) {
+      pre.scrollTop = pre.scrollHeight
+    }
+  })
 }
+
+type Row =
+  | { kind: "thought"; item: ThoughtItem }
+  | { kind: "tools"; id: string; items: ToolItem[] }
+
+const verbWord = (tool: ToolItem) => {
+  const title = tool.title.trim()
+  const space = title.indexOf(" ")
+
+  return space > 0 ? title.slice(0, space) : verbOf(tool)
+}
+
+const targetOf = (tool: ToolItem) => {
+  const title = tool.title.trim()
+  const space = title.indexOf(" ")
+  const rest = space > 0 ? title.slice(space + 1).trim() : title || tool.kind
+  const name = rest.split(/[\\/]/).at(-1)
+
+  return name || rest
+}
+
+const keyOf = (tool: ToolItem) => `${tool.kind}:${verbWord(tool)}`
+
+const rows = $derived(
+  shown.reduce<Row[]>((out, item) => {
+    if (item.type === "thought") {
+      out.push({ kind: "thought", item })
+
+      return out
+    }
+
+    const last = out.at(-1)
+
+    if (last?.kind === "tools" && keyOf(last.items[0]) === keyOf(item)) {
+      last.items.push(item)
+    } else {
+      out.push({ kind: "tools", id: item.id, items: [item] })
+    }
+
+    return out
+  }, []),
+)
+
+const picked = new SvelteSet<string>()
+
+const groupState = (items: ToolItem[]) =>
+  items.some(t => t.status === "failed")
+    ? "failed"
+    : items.every(t => t.status === "completed")
+      ? "completed"
+      : "running"
 
 const summary = $derived.by(() => {
   const verbs = new Set(tools.map(verbOf))
@@ -154,7 +186,8 @@ const summary = $derived.by(() => {
 {/snippet}
 
 {#snippet tool(item: ToolItem, open = false)}
-  <details class="group/tool" {open}>
+  {@const going = live(item)}
+  <details class="group/tool" open={open || going}>
     <summary
       class={[
         "flex cursor-pointer list-none items-center gap-1.5 text-xs",
@@ -166,7 +199,7 @@ const summary = $derived.by(() => {
         icon={toolIcon(item.title, item.kind)}
         class="size-3.5 shrink-0 opacity-60"
       />
-      <span class="min-w-0 truncate" title={item.title || item.kind}>
+      <span class={["min-w-0 truncate", going && "shimmer"]} title={item.title || item.kind}>
         {item.title || item.kind}
       </span>
       {#if timing(item)}
@@ -179,14 +212,22 @@ const summary = $derived.by(() => {
         />
       {/if}
     </summary>
+    {@render detail(item, going)}
+  </details>
+{/snippet}
+
+{#snippet detail(item: ToolItem, going: boolean)}
     {#if item.detail}
       {@const big = wide.has(item.id)}
+      {@const { json, rest } = splitJson(unfence(item.detail))}
       <pre
         class={[
           "mt-1.5 overflow-auto rounded-field bg-inset p-3",
           "text-xs break-all whitespace-pre-wrap",
+          going && "border-l-2 border-primary/60",
           big ? "max-h-160" : "max-h-32",
-        ]}>{readable(unfence(item.detail))}</pre>
+        ]}
+        {@attach follow(() => live(item), () => item.detail)}>{#each jsonTokens(json) as t, i (i)}<span class={TONES[t.kind]}>{t.text}</span>{/each}{json && rest ? GAP : ""}{rest}{#if going}<span class="caret"></span>{/if}</pre>
       <button
         type="button"
         class="btn btn-ghost btn-xs mt-0.5 font-normal text-base-content/55"
@@ -200,7 +241,47 @@ const summary = $derived.by(() => {
         {big ? m.tool_detail_collapse() : m.tool_detail_expand()}
       </button>
     {/if}
-  </details>
+{/snippet}
+
+{#snippet chain(items: ToolItem[])}
+  {@const state = groupState(items)}
+  <div
+    class={[
+      "flex min-w-0 flex-wrap items-center gap-1 text-xs",
+      state === "failed" ? "text-error" : "text-base-content/70",
+    ]}
+  >
+    {@render status(state)}
+    <Icon icon={toolIcon(items[0].title, items[0].kind)} class="size-3.5 shrink-0 opacity-60" />
+    <span class="font-medium">{verbWord(items[0])}</span>
+    {#each items as item, i (item.id)}
+      {#if i > 0}
+        <Icon icon="lucide:chevron-right" class="size-3 shrink-0 opacity-40" />
+      {/if}
+      <button
+        type="button"
+        class={[
+          "max-w-48 min-w-0 cursor-pointer truncate rounded-field px-1.5 py-0.5",
+          "transition-colors duration-140",
+          picked.has(item.id) ? "bg-primary/8 text-primary" : "bg-base-content/5 hover:bg-base-content/10",
+          item.status === "failed" && "text-error",
+          live(item) && "shimmer",
+        ]}
+        title={item.title}
+        aria-pressed={picked.has(item.id)}
+        onclick={() => {
+          if (!picked.delete(item.id)) {
+            picked.add(item.id)
+          }
+        }}
+      >
+        {targetOf(item)}
+      </button>
+    {/each}
+  </div>
+  {#each items.filter(t => picked.has(t.id) || live(t)) as item (item.id)}
+    {@render detail(item, live(item))}
+  {/each}
 {/snippet}
 
 {#if tools.length === 1 && !notes}
@@ -239,8 +320,9 @@ const summary = $derived.by(() => {
           </button>
         </li>
       {/if}
-      {#each shown as item (item.id)}
-        {#if item.type === "thought"}
+      {#each rows as row (row.kind === "thought" ? row.item.id : row.id)}
+        {#if row.kind === "thought"}
+          {@const item = row.item}
           {#if item.text.trim()}
             <li
               class={[
@@ -252,8 +334,10 @@ const summary = $derived.by(() => {
               <span>{plainText(item.text)}</span>
             </li>
           {/if}
+        {:else if row.items.length === 1}
+          <li>{@render tool(row.items[0])}</li>
         {:else}
-          <li>{@render tool(item)}</li>
+          <li>{@render chain(row.items)}</li>
         {/if}
       {/each}
     </ul>

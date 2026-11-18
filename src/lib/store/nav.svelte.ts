@@ -40,6 +40,7 @@ export const nav = $state<{
   palette: boolean
   find: boolean
   settingsTab: SettingsTab
+  settingsOpen: boolean
 }>({
   page: "chat",
   harness: null,
@@ -50,6 +51,7 @@ export const nav = $state<{
   palette: false,
   find: false,
   settingsTab: "appearance",
+  settingsOpen: false,
 })
 
 export const goPage = (page: Page) => {
@@ -60,7 +62,7 @@ export const goPage = (page: Page) => {
 export const openSettings = (tab: SettingsTab) => {
   nav.settingsTab = tab
   nav.palette = false
-  goPage("settings")
+  nav.settingsOpen = true
 }
 
 export const openConversation = (current: Current) => {

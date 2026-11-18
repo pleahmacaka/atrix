@@ -65,7 +65,7 @@ const pick = (question: number, option: number) => {
           <button
             type="button"
             class={[
-              "flex min-w-0 items-start gap-2 rounded-field px-3 py-2 text-start transition-colors duration-140",
+              "flex min-w-0 cursor-pointer items-start gap-2 rounded-field px-3 py-2 text-start transition-colors duration-140 disabled:cursor-not-allowed",
               chosen ? "bg-primary/8 text-primary" : "hover:bg-base-content/5",
             ]}
             aria-pressed={chosen}

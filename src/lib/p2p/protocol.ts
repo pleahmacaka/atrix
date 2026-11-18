@@ -57,6 +57,12 @@ export type Available = {
   id: string
   name: string
   requires: "node" | "uv" | null
+  description: string
+  version: string
+  website: string
+  repository: string
+  install: string
+  run: string
 }
 
 export type Installed = { pathHint: string | null }

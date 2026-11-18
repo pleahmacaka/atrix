@@ -31,6 +31,10 @@ export const startLocalHost = async () => {
   registry.local = view
 }
 
+export const adoptLocal = (view: HostView) => {
+  registry.local = view
+}
+
 export const hostList = (): HostEntry[] => [
   ...(registry.local
     ? [

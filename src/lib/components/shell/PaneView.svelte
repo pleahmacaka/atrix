@@ -6,7 +6,7 @@ import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
-import { dock, floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
+import { floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
@@ -177,9 +177,7 @@ const HINTS: Record<Zone, string> = {
     </header>
   {/if}
 
-  {#if stored && floated && floatKey}
-    {@render docked(floatKey)}
-  {:else if stored}
+  {#if stored}
     {#await import("#lib/components/chat/ModelChat.svelte") then { default: ModelChat }}
       {#key stored.id}
         <ModelChat {stored} />
@@ -188,16 +186,6 @@ const HINTS: Record<Zone, string> = {
   {:else if opening.failure}
     <div class="grid flex-1 place-items-center p-6">
       <ErrorAlert message={opening.failure} />
-    </div>
-  {:else if host && current?.kind === "session" && floated && floatKey}
-    {@const key = floatKey}
-    <div class="relative flex min-h-0 flex-1 flex-col">
-      <div class="pointer-events-none flex min-h-0 flex-1 flex-col blur-sm" inert>
-        <SessionChat {host} sessionId={current.id} />
-      </div>
-      <div class="absolute inset-0 grid place-items-center">
-        {@render docked(key)}
-      </div>
     </div>
   {:else if host && current?.kind === "session"}
     <SessionChat {host} sessionId={current.id} />
@@ -218,13 +206,3 @@ const HINTS: Record<Zone, string> = {
   {/if}
 </section>
 
-{#snippet docked(key: string)}
-  <div class="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
-    <Icon icon="lucide:picture-in-picture-2" class="size-6 text-primary" />
-    <span class="font-medium">{m.float_active()}</span>
-    <button type="button" class="btn btn-primary btn-sm" onclick={() => dock(key)}>
-      <Icon icon="lucide:panel-bottom-close" class="size-4" />
-      {m.float_dock()}
-    </button>
-  </div>
-{/snippet}

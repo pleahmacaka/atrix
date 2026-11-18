@@ -60,7 +60,7 @@ const merged = $derived(mergeBoms(summary.data ?? []))
       <li>
         <button
           type="button"
-          class="flex w-full flex-col gap-1 rounded-box border border-base-300 p-2 text-left hover:bg-inset"
+          class="flex w-full cursor-pointer flex-col gap-1 rounded-box border border-base-300 p-2 text-left hover:bg-inset"
           onclick={() => onselect(board.key)}
         >
           {#if board.cover}

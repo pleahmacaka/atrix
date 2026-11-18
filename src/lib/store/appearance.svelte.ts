@@ -49,6 +49,10 @@ export const startAppearance = () => {
 
       root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
       root.style.fontSize = `${settings.scale}%`
+      root.style.setProperty(
+        "--content-scale",
+        String(settings.contentScale / 100),
+      )
 
       if (desktop) {
         applyTheme(

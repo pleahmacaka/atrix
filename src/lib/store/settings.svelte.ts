@@ -31,6 +31,8 @@ const read = <T extends string>(key: string, fallback: T) =>
 
 export const SCALES = [90, 100, 110, 125]
 
+export const CONTENT_SCALES = [90, 100, 110, 125, 140]
+
 class Settings {
   deviceName = $state<string>(
     read(
@@ -121,6 +123,17 @@ class Settings {
       ? Number(read("ui-scale", "100"))
       : 100,
   )
+
+  contentScale = $state<number>(
+    CONTENT_SCALES.includes(Number(read("content-scale", "100")))
+      ? Number(read("content-scale", "100"))
+      : 100,
+  )
+
+  setContentScale = (scale: number) => {
+    this.contentScale = scale
+    localStorage.setItem("content-scale", String(scale))
+  }
 
   setScale = (scale: number) => {
     this.scale = scale

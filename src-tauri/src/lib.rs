@@ -86,6 +86,11 @@ pub fn run() {
             logger(app)?;
             backdrop::install(app);
 
+            #[cfg(debug_assertions)]
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_icon(tauri::include_image!("icons/dev.png"))?;
+            }
+
             #[cfg(desktop)]
             {
                 app.manage(tray::Tray::<tauri::Wry>::default());
