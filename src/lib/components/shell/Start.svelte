@@ -117,12 +117,20 @@ const presets = $derived.by(() => {
 
 const picks = $state<Record<string, string>>({})
 
-const base = $derived(
+const targetHarness = $derived(
   nav.target.kind === "harness"
     ? hostById(nav.target.host)?.state?.harnesses.find(
         h => nav.target.kind === "harness" && h.id === nav.target.harness,
-      )?.base
+      )
     : undefined,
+)
+
+const base = $derived(targetHarness?.base)
+
+const pinned = $derived(targetHarness?.providerActive ?? false)
+
+const pinnedModel = $derived(
+  pinned ? targetHarness?.provider?.model : undefined,
 )
 
 const modelOption = $derived(presets.find(o => o.category === "model"))
@@ -425,7 +433,8 @@ const ready = $derived(
           {#if modelOption}
             <ModelEffort
               models={modelOption.values.map(v => ({ value: v.value, name: v.name }))}
-              model={pickOf(modelOption)}
+              model={pinnedModel ?? pickOf(modelOption)}
+              locked={pinned}
               efforts={effortOption
                 ? effortOption.values.map(v => ({ value: v.value, name: v.name }))
                 : []}
@@ -442,7 +451,8 @@ const ready = $derived(
           {:else if fallback}
             <ModelEffort
               models={claude ? terminalChoices(undefined, []) : []}
-              model={alias}
+              model={pinnedModel ?? alias}
+              locked={pinned}
               efforts={efforts()}
               effort={level}
               onmodel={value => {

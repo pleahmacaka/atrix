@@ -153,6 +153,7 @@ export type SessionView = OpenSession & {
   pace?: Pace
   agents?: Subagent[]
   commands?: Command[]
+  pinned?: string
 }
 
 export type Command = { name: string; description: string; hint?: string }

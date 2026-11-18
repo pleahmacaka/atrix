@@ -44,9 +44,9 @@ const primary = $derived(view.config.filter(isPrimary))
 
 const secondary = $derived(view.config.filter(o => !isPrimary(o)))
 
-const claude = $derived(
-  host.state?.harnesses.find(h => h.id === view.harness)?.base === "claude-acp",
-)
+const info = $derived(host.state?.harnesses.find(h => h.id === view.harness))
+
+const claude = $derived(info?.base === "claude-acp")
 
 const EFFORTS = efforts()
 
@@ -115,7 +115,8 @@ const knownModels = $derived(
 {:else if modelOption}
   <ModelEffort
     models={choicesOf(modelOption)}
-    model={modelOption.current}
+    model={view.pinned ?? modelOption.current}
+    locked={!!view.pinned}
     efforts={effortOption ? choicesOf(effortOption) : []}
     effort={effortOption?.current ?? ""}
     onmodel={value => attempt(() => host.configure(view.id, modelOption.id, value))}

@@ -107,6 +107,8 @@ export class Sessions {
 
   #opening: string[] = []
 
+  #pinned = new WeakMap<Conn, string>()
+
   #spawned = 0
 
   #listed = new Map<string, Listed[]>()
@@ -471,19 +473,18 @@ export class Sessions {
 
   configure = async (sessionId: string, configId: string, value: string) => {
     const session = this.#session(sessionId)
+
+    if (session.pinned && isModel(session, configId)) {
+      return null
+    }
+
     const { configOptions } = await session.conn.agent.request(
       acp.methods.agent.session.setConfigOption,
       { sessionId, configId, value },
     )
 
-    const pinnedModel =
-      isModel(session, configId) && this.#harnesses.providing(session.harness)
-
     this.#patch(session, { config: choicesOf(configOptions) })
-
-    if (!pinnedModel) {
-      remember(session.harness, session.cwd, configId, value)
-    }
+    remember(session.harness, session.cwd, configId, value)
 
     return null
   }
@@ -655,11 +656,18 @@ export class Sessions {
       throw new Error(m.error_harness_off())
     }
 
-    return connectAgent(key, this.#harnesses.launchOf(id), {
+    const pinned = this.#harnesses.providedModel(id)
+    const conn = await connectAgent(key, this.#harnesses.launchOf(id), {
       update: this.#update,
       permission: this.#permission,
       closed,
     })
+
+    if (pinned) {
+      this.#pinned.set(conn, pinned)
+    }
+
+    return conn
   }
 
   #closed = (harness: string, spawned: Spawned) => {
@@ -706,6 +714,7 @@ export class Sessions {
       conn,
       answer: null,
       handback: false,
+      pinned: this.#pinned.get(conn),
     }
 
     this.#early.delete(id)
@@ -830,10 +839,9 @@ export class Sessions {
 
   #restore = async (session: Live) => {
     const wanted = optionsFor(remembered(), session.harness, session.cwd)
-    const pinned = this.#harnesses.providing(session.harness)
     const order = (id: string) => (isModel(session, id) ? 0 : 1)
     const entries = Object.entries(wanted)
-      .filter(([id]) => !(pinned && isModel(session, id)))
+      .filter(([id]) => !(session.pinned && isModel(session, id)))
       .toSorted(([a], [b]) => order(a) - order(b))
 
     let changed = false

@@ -181,6 +181,8 @@ export class Harnesses {
 
   providing = (id: string) => this.#provided(id) !== null
 
+  providedModel = (id: string) => this.#provided(id)?.model ?? null
+
   launchOf = (id: string) => {
     const { launch } = this.entry(id)
     const provided = this.#provided(id)
