@@ -59,6 +59,8 @@ export const messageOf = (raw: unknown) => {
       return m.error_ds_read_only()
     case "ds_sync_unset":
       return m.error_ds_sync_unset({ name: detail })
+    case "channel_owner_invalid":
+      return m.error_channel_owner_invalid()
     case "channel_token_missing":
       return m.error_channel_token_missing()
     case "channel_token_invalid":

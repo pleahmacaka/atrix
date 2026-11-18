@@ -1,6 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import type { HTMLInputAttributes } from "svelte/elements"
+import type { ClassValue, HTMLInputAttributes } from "svelte/elements"
 
 let {
   icon,
@@ -14,7 +14,7 @@ let {
   label: string
   value: string
   ghost?: boolean
-  class?: string
+  class?: ClassValue
 } = $props()
 </script>
 

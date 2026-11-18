@@ -5,6 +5,7 @@ import { connect } from "#lib/channels/relay.svelte.ts"
 import {
   channels,
   disconnectChannels,
+  isOwnerId,
   liveOf,
   optionsOf,
   PROVIDERS,
@@ -43,6 +44,8 @@ const live = $derived(liveOf(provider.id))
 let present = $state(false)
 
 let token = $state("")
+
+const ownerId = $derived(optionsOf(provider.id).ownerId)
 
 let draft = $state({ channel: "", harness: "", cwd: "" })
 
@@ -182,7 +185,7 @@ const remove = (providerId: string, channel: string) => {
           <IconButton
             icon="lucide:plug"
             label={m.common_connect()}
-            disabled={attempt.busy || !present}
+            disabled={attempt.busy || !present || !isOwnerId(ownerId)}
             onclick={() => attempt.run(() => connect(provider))}
           />
         {:else}
@@ -196,13 +199,19 @@ const remove = (providerId: string, channel: string) => {
       </div>
     </SettingRow>
 
-    <SettingRow icon="lucide:at-sign" title={m.channels_mention_only()}>
-      <input
-        type="checkbox"
-        class="toggle toggle-sm toggle-primary"
-        aria-label={m.channels_mention_only()}
-        checked={optionsOf(provider.id).mentionOnly}
-        onchange={e => setOptions(provider.id, { mentionOnly: e.currentTarget.checked })}
+    <SettingRow icon="lucide:user-check" title={m.channels_owner()}>
+      <IconInput
+        icon="lucide:at-sign"
+        label={m.channels_owner()}
+        disabled={live.status !== "off"}
+        inputmode="numeric"
+        autocomplete="off"
+        ghost={false}
+        class={[
+          "w-56 tabular-nums max-sm:w-auto max-sm:flex-1",
+          (present || ownerId) && !isOwnerId(ownerId) && "input-error",
+        ]}
+        bind:value={() => ownerId, v => setOptions(provider.id, { ownerId: v.trim() })}
       />
     </SettingRow>
   </div>

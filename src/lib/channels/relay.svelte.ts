@@ -7,6 +7,7 @@ import {
   channels,
   connectChannels,
   type Incoming,
+  isOwnerId,
   optionsOf,
   PROVIDERS,
   type Provider,
@@ -98,10 +99,6 @@ const receive = (provider: Provider) => (message: Incoming) => {
     return
   }
 
-  if (optionsOf(provider.id).mentionOnly && !message.mentioned) {
-    return
-  }
-
   const key = `${provider.id}:${binding.channel}`
   const next = (queues.get(key) ?? Promise.resolve())
     .then(() => relay(binding, message))
@@ -115,7 +112,19 @@ export const connect = (provider: Provider) =>
 
 export const startChannels = async () => {
   for (const provider of PROVIDERS) {
-    if (optionsOf(provider.id).autostart && (await provider.tokenPresent())) {
+    const { autostart, ownerId } = optionsOf(provider.id)
+
+    if (!autostart || !(await provider.tokenPresent())) {
+      continue
+    }
+
+    if (!isOwnerId(ownerId)) {
+      channels.live[provider.id] = {
+        status: "off",
+        user: null,
+        error: "channel_owner_invalid",
+      }
+    } else {
       await connect(provider).catch((e: unknown) =>
         logFailure(`${provider.id} channel start`, e),
       )

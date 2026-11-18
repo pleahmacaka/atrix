@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -7,9 +7,11 @@ use tauri::async_runtime::{self, JoinHandle};
 use tauri::ipc::Channel;
 use twilight_gateway::{Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
 use twilight_http::Client;
+use twilight_model::channel::message::AllowedMentions;
 use twilight_model::gateway::CloseCode;
 use twilight_model::gateway::payload::incoming::GuildCreate;
 use twilight_model::id::Id;
+use twilight_model::id::marker::{RoleMarker, UserMarker};
 
 use crate::error::{Error, Result};
 use crate::secret;
@@ -38,12 +40,13 @@ pub enum Frame {
         author_id: String,
         content: String,
         message_id: String,
-        mentioned: bool,
     },
     Closed {
         error: Option<String>,
     },
 }
+
+type Owner = Id<UserMarker>;
 
 #[derive(Default)]
 pub struct Channels {
@@ -98,14 +101,47 @@ fn chunks(text: &str) -> Vec<String> {
     parts
 }
 
-type Slot = Arc<Mutex<Option<Arc<Client>>>>;
+type Slot = Arc<Mutex<Option<(Arc<Client>, Owner)>>>;
 
-async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Client>) {
+fn owner_of(raw: &str) -> Result<Owner> {
+    let raw = raw.trim();
+    let invalid = || Error::code("channel_owner_invalid", raw);
+
+    if !(17..=20).contains(&raw.len()) || !raw.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(invalid());
+    }
+
+    raw.parse()
+        .ok()
+        .and_then(Id::new_checked)
+        .ok_or_else(invalid)
+}
+
+fn without_mentions(content: &str, own: Owner, roles: &HashSet<Id<RoleMarker>>) -> String {
+    let tags = [format!("<@{own}>"), format!("<@!{own}>")]
+        .into_iter()
+        .chain(roles.iter().map(|r| format!("<@&{r}>")));
+
+    tags.fold(content.to_owned(), |text, tag| {
+        text.replace(&format!("{tag} "), "").replace(&tag, "")
+    })
+    .trim()
+    .to_owned()
+}
+
+async fn run(
+    mut shard: Shard,
+    sink: Channel<Frame>,
+    slot: Slot,
+    client: Arc<Client>,
+    owner: Owner,
+) {
     let wanted =
         EventTypeFlags::READY | EventTypeFlags::GUILD_CREATE | EventTypeFlags::MESSAGE_CREATE;
     let mut guilds = HashMap::new();
     let mut channels = HashMap::new();
     let mut own = None;
+    let mut own_roles = HashSet::new();
     let mut closed = None;
 
     while let Some(item) = shard.next_event(wanted).await {
@@ -123,6 +159,19 @@ async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Cli
             }
             Event::GuildCreate(created) => {
                 if let GuildCreate::Available(guild) = *created {
+                    own_roles.extend(
+                        guild
+                            .roles
+                            .iter()
+                            .filter(|r| {
+                                r.tags
+                                    .as_ref()
+                                    .and_then(|t| t.bot_id)
+                                    .is_some_and(|b| Some(b) == own)
+                            })
+                            .map(|r| r.id),
+                    );
+
                     for channel in guild.channels.into_iter().chain(guild.threads) {
                         channels.insert(channel.id, channel.name.unwrap_or_default());
                     }
@@ -131,7 +180,13 @@ async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Cli
                 }
             }
             Event::MessageCreate(message) => {
-                if message.author.bot || Some(message.author.id) == own {
+                let Some(me) = own else {
+                    continue;
+                };
+                let mentioned = message.mentions.iter().any(|u| u.id == me)
+                    || message.mention_roles.iter().any(|r| own_roles.contains(r));
+
+                if message.author.bot || message.author.id != owner || !mentioned {
                     continue;
                 }
 
@@ -146,8 +201,7 @@ async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Cli
                         .or_else(|| message.author.global_name.clone())
                         .unwrap_or_else(|| message.author.name.clone()),
                     author_id: message.author.id.to_string(),
-                    mentioned: message.mentions.iter().any(|u| Some(u.id) == own),
-                    content: message.content.clone(),
+                    content: without_mentions(&message.content, me, &own_roles),
                     message_id: message.id.to_string(),
                 });
             }
@@ -159,7 +213,10 @@ async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Cli
     {
         let mut current = slot.lock().unwrap();
 
-        if current.as_ref().is_some_and(|c| Arc::ptr_eq(c, &client)) {
+        if current
+            .as_ref()
+            .is_some_and(|(c, _)| Arc::ptr_eq(c, &client))
+        {
             *current = None;
         }
     }
@@ -170,7 +227,12 @@ async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Cli
 }
 
 #[tauri::command]
-pub async fn channel_start(channels: State<'_, Channels>, channel: Channel<Frame>) -> Result<()> {
+pub async fn channel_start(
+    channels: State<'_, Channels>,
+    channel: Channel<Frame>,
+    owner: String,
+) -> Result<()> {
+    let owner = owner_of(&owner)?;
     let token = stored_token()?.ok_or("channel_token_missing")?;
     // ring and aws-lc-rs are both linked, so rustls panics on ClientConfig::builder() without a default
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -184,12 +246,13 @@ pub async fn channel_start(channels: State<'_, Channels>, channel: Channel<Frame
 
     let client = Arc::new(Client::new(token));
 
-    *channels.http.lock().unwrap() = Some(client.clone());
+    *channels.http.lock().unwrap() = Some((client.clone(), owner));
     *channels.task.lock().unwrap() = Some(async_runtime::spawn(run(
         shard,
         channel,
         channels.http.clone(),
         client,
+        owner,
     )));
 
     Ok(())
@@ -207,12 +270,16 @@ pub async fn channel_send(
     channel_id: String,
     text: String,
 ) -> Result<()> {
-    let http = channels
+    let (http, owner) = channels
         .http
         .lock()
         .unwrap()
         .clone()
         .ok_or("channel_not_connected")?;
+    let mentions = AllowedMentions {
+        users: vec![owner],
+        ..AllowedMentions::default()
+    };
     let id = channel_id
         .trim()
         .parse()
@@ -220,9 +287,10 @@ pub async fn channel_send(
         .and_then(Id::new_checked)
         .ok_or_else(|| Error::code("channel_id_invalid", &channel_id))?;
 
-    for part in chunks(&text) {
+    for part in chunks(&format!("<@{owner}> {text}")) {
         http.create_message(id)
             .content(&part)
+            .allowed_mentions(Some(&mentions))
             .await
             .map_err(|e| Error::code("channel_send_failed", e))?;
     }

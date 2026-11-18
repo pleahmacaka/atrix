@@ -11,7 +11,6 @@ export type Incoming = {
   authorId: string
   content: string
   messageId: string
-  mentioned: boolean
 }
 
 type Frame =
@@ -25,7 +24,7 @@ export type Provider = {
   icon: string
   channelIcon: string
   numericChannel: boolean
-  start: (sink: Channel<Frame>) => Promise<unknown>
+  start: (sink: Channel<Frame>, owner: string) => Promise<unknown>
   stop: () => Promise<unknown>
   send: (channel: string, text: string) => Promise<unknown>
   tokenPresent: () => Promise<boolean>
@@ -39,7 +38,7 @@ const discord: Provider = {
   icon: "simple-icons:discord",
   channelIcon: "lucide:hash",
   numericChannel: true,
-  start: sink => native("channel_start", { channel: sink }),
+  start: (sink, owner) => native("channel_start", { channel: sink, owner }),
   stop: () => native("channel_stop"),
   send: (channelId, text) => native("channel_send", { channelId, text }),
   tokenPresent: () => native<boolean>("channel_token_present"),
@@ -69,7 +68,7 @@ const bindingSchema = z.preprocess(
 export type Binding = z.infer<typeof bindingSchema>
 
 const optionsSchema = z.object({
-  mentionOnly: z.boolean().catch(false),
+  ownerId: z.string().catch(""),
   autostart: z.boolean().catch(false),
 })
 
@@ -111,7 +110,7 @@ export const liveOf = (provider: string) => channels.live[provider] ?? OFF
 export const connected = (provider: string) => liveOf(provider).status === "on"
 
 export const optionsOf = (provider: string): ProviderOptions =>
-  channels.providers[provider] ?? { mentionOnly: false, autostart: false }
+  channels.providers[provider] ?? { ownerId: "", autostart: false }
 
 export const saveChannels = () => {
   const { bindings, providers } = $state.snapshot(channels)
@@ -126,6 +125,11 @@ export const setOptions = (
   channels.providers[provider] = { ...optionsOf(provider), ...patch }
   saveChannels()
 }
+
+export const isOwnerId = (value: string) =>
+  value.length >= 17 &&
+  value.length <= 20 &&
+  [...value].every(c => c >= "0" && c <= "9")
 
 export const isBound = (channel: string) =>
   channels.bindings.some(b => b.channel === channel)
@@ -161,7 +165,7 @@ export const connectChannels = async (
   channels.live[provider.id] = { status: "connecting", user: null, error: null }
 
   try {
-    await provider.start(sink)
+    await provider.start(sink, optionsOf(provider.id).ownerId)
   } catch (e) {
     channels.live[provider.id] = {
       ...OFF,
