@@ -26,7 +26,7 @@ let {
   type="button"
   class={[
     "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field px-2",
-    "text-start text-sm transition-colors duration-150",
+    "text-start text-sm transition-colors duration-140",
     selected
       ? "bg-primary/8 text-primary"
       : "text-base-content/80 hover:bg-base-content/8 hover:text-base-content",
@@ -51,7 +51,7 @@ let {
     <Icon
       icon="lucide:chevron-right"
       class={[
-        "size-4 shrink-0 text-base-content/40 transition-transform duration-150",
+        "size-4 shrink-0 text-base-content/40 transition-transform duration-140",
         expanded && "rotate-90",
       ]}
     />

@@ -1,3 +1,4 @@
+import { untrack } from "svelte"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"
 
 const QUIET_MS = 15_000
@@ -17,7 +18,7 @@ const detectAll = () => {
 }
 
 export const autoDetect = () => {
-  detectAll()
+  untrack(detectAll)
 
   const visible = () => {
     if (document.visibilityState === "visible") {

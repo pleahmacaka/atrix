@@ -382,7 +382,7 @@ const revert = (version: Version) =>
                       class={[
                         "flex w-full cursor-pointer items-center gap-2 rounded-field",
                         "px-2 py-1 text-start text-sm text-base-content/70",
-                        "transition-colors duration-150 hover:bg-base-content/8",
+                        "transition-colors duration-140 hover:bg-base-content/8",
                         "hover:text-base-content",
                       ]}
                       onclick={() => {

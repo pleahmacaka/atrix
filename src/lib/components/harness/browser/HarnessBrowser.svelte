@@ -13,6 +13,7 @@ import { autoDetect } from "#lib/harness/autoDetect.ts"
 import { type HostEntry, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { Available, InstallScope } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { describeHarness } from "./descriptions.ts"
 import HarnessAdvisor from "./HarnessAdvisor.svelte"
 
 let { onback }: { onback: () => void } = $props()
@@ -48,7 +49,7 @@ const matching = (available: Available[]) => {
 
   return needle
     ? available.filter(a =>
-        [a.id, a.name, a.description].some(v => v.toLowerCase().includes(needle)),
+        [a.id, a.name, describeHarness(a)].some(v => v.toLowerCase().includes(needle)),
       )
     : available
 }
@@ -150,11 +151,11 @@ const show = (host: HostEntry, harness: Available) => {
                 </span>
                 <span
                   class="min-w-0 truncate text-xs text-base-content/60"
-                  title={busy === a.id ? host.view.installLog[a.id] : a.description}
+                  title={busy === a.id ? host.view.installLog[a.id] : describeHarness(a)}
                 >
                   {busy === a.id
                     ? (host.view.installLog[a.id] ?? m.harness_installing())
-                    : a.description || a.run}
+                    : describeHarness(a) || a.run}
                 </span>
               </span>
             </button>
@@ -190,8 +191,8 @@ const show = (host: HostEntry, harness: Available) => {
             <span class="text-xs text-base-content/50 tabular-nums">{harness.version}</span>
           {/if}
         </h2>
-        {#if harness.description}
-          <p class="text-sm text-base-content/70">{harness.description}</p>
+        {#if describeHarness(harness)}
+          <p class="text-sm text-base-content/70">{describeHarness(harness)}</p>
         {/if}
       </div>
     </div>
@@ -201,7 +202,12 @@ const show = (host: HostEntry, harness: Available) => {
         {@render command(harness.install)}
       </div>
       <div class="flex flex-col gap-1">
-        <span class="text-xs font-medium text-base-content/60">{m.harness_run_command()}</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-base-content/60">
+          {m.harness_run_command()}
+          {#if harness.powershell}
+            <span class="badge badge-ghost badge-xs">{m.harness_powershell()}</span>
+          {/if}
+        </span>
         {@render command(harness.run)}
       </div>
       {#if harness.website || harness.repository}
@@ -238,14 +244,14 @@ const show = (host: HostEntry, harness: Available) => {
 </Modal>
 
 {#snippet command(text: string)}
-  <div class="flex min-w-0 items-center gap-1 rounded-field bg-base-200 px-2 py-1">
+  <div class="flex min-w-0 items-center gap-1 rounded-field border border-base-300 bg-base-300/50 px-2 py-1">
     <code class="min-w-0 flex-1 break-all text-xs">{text}</code>
     <CopyButton {text} />
   </div>
 {/snippet}
 
 {#snippet link(href: string, icon: string, label: string)}
-  <a class="btn btn-ghost btn-sm" {href} target="_blank" rel="noreferrer">
+  <a class="btn btn-sm" {href} target="_blank" rel="noreferrer">
     <Icon {icon} class="size-4" />
     {label}
   </a>

@@ -205,7 +205,7 @@ const keydown = (e: KeyboardEvent) => {
           aria-label={slot.item.label}
           class={[
             "absolute left-1/2 grid size-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer",
-            "place-items-center rounded-full transition-top-opacity duration-200",
+            "place-items-center rounded-full transition-top-opacity duration-140",
             "motion-reduce:transition-none",
             slot.offset === 0 ? "text-primary" : "opacity-45 hover:opacity-80",
           ]}

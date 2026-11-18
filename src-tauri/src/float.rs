@@ -19,7 +19,12 @@ pub async fn float_open(app: AppHandle, label: String, url: String, title: Strin
     config.url = WebviewUrl::App(url.into());
     config.title = title;
 
-    WebviewWindowBuilder::from_config(&app, &config)?.build()?;
+    let builder = WebviewWindowBuilder::from_config(&app, &config)?;
+
+    #[cfg(debug_assertions)]
+    let builder = builder.icon(crate::dev_icon())?;
+
+    builder.build()?;
 
     Ok(())
 }

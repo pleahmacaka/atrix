@@ -1,5 +1,5 @@
 import { m } from "#lib/paraglide/messages.js"
-import { goPage, nav, openConversation } from "./nav.svelte.ts"
+import { goPage, nav, openConversation, openSettings } from "./nav.svelte.ts"
 import { panes, type Side } from "./panes.svelte.ts"
 import { shell } from "./shell.svelte.ts"
 
@@ -66,7 +66,13 @@ export const SHORTCUTS: Shortcut[] = [
     label: m.common_settings(),
     icon: "lucide:settings",
     matches: e => mod(e) && e.key === ",",
-    run: () => goPage(nav.page === "settings" ? "chat" : "settings"),
+    run: () => {
+      if (nav.settingsOpen) {
+        nav.settingsOpen = false
+      } else {
+        openSettings(nav.settingsTab)
+      }
+    },
   },
   {
     id: "new",

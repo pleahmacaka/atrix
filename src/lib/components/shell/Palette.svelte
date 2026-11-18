@@ -139,7 +139,7 @@ const sections = $derived.by((): Section[] => {
       icon: "lucide:settings",
       label: m.common_settings(),
       keys: keysOf("settings"),
-      run: () => openSettings("appearance"),
+      run: () => openSettings(nav.settingsTab),
     },
   ]
 

@@ -1,3 +1,4 @@
+import { logFailure } from "#lib/logging.ts"
 import { desktop } from "#lib/platform.ts"
 
 const external = (href: string) => {
@@ -19,7 +20,9 @@ export const startExternalLinks = () => {
   }
 
   const open = (e: MouseEvent) => {
-    if (e.defaultPrevented || (e.type === "click" && e.button !== 0)) {
+    const wanted = e.type === "click" ? 0 : 1
+
+    if (e.defaultPrevented || e.button !== wanted) {
       return
     }
 
@@ -34,7 +37,7 @@ export const startExternalLinks = () => {
     e.preventDefault()
     import("@tauri-apps/plugin-opener")
       .then(({ openUrl }) => openUrl(new URL(href, location.href).href))
-      .catch(console.error)
+      .catch(failure => logFailure("open link", failure))
   }
 
   document.addEventListener("click", open)

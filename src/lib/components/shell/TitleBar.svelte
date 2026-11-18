@@ -14,11 +14,10 @@ import { nav, openConversation } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import { describe, type Recent, titles } from "#lib/store/recent.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
+import { withKeys } from "#lib/store/shortcuts.ts"
 
 const win = () =>
   import("@tauri-apps/api/window").then(w => w.getCurrentWindow())
-
-import { withKeys } from "#lib/store/shortcuts.ts"
 
 const info = $derived(describe(panes.active.current))
 
@@ -134,7 +133,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
       {/if}
     {/if}
   </div>
-  {#if desktop && nav.page === "chat" && !split && session && !floating.has(keyOf(session))}
+  {#if desktop && nav.page === "chat" && session && !floating.has(keyOf(session))}
     {@const target = session}
     <IconButton
       icon="lucide:picture-in-picture-2"
@@ -142,7 +141,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
       class="shrink-0"
       onclick={() => floatOut(target, info?.title ?? "")}
     />
-  {:else if desktop && nav.page === "chat" && !split && chat && !floating.has(chat.id)}
+  {:else if desktop && nav.page === "chat" && chat && !floating.has(chat.id)}
     {@const target = chat}
     <IconButton
       icon="lucide:picture-in-picture-2"
@@ -151,13 +150,22 @@ const rename = (current: Recent["current"], key: string, value: string) => {
       onclick={() => floatChat(target.id, info?.title ?? "")}
     />
   {/if}
-  {#if nav.page === "chat" && !split}
+  {#if nav.page === "chat" && (session || chat)}
     <IconButton
       icon={panes.hasSide() ? "lucide:panel-right-close" : "lucide:panel-right-open"}
       label={m.shell_side_panel()}
       aria-pressed={panes.hasSide()}
       class="shrink-0"
       onclick={() => panes.toggleSide()}
+    />
+  {/if}
+  {#if nav.page === "chat" && split}
+    <IconButton
+      icon="lucide:x"
+      label={m.shell_close_pane()}
+      title={withKeys(m.shell_close_pane(), "closePane")}
+      class="shrink-0"
+      onclick={() => panes.close(panes.active.id)}
     />
   {/if}
   {#if nav.page === "chat"}

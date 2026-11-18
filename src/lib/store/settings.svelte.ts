@@ -33,6 +33,9 @@ export const SCALES = [90, 100, 110, 125]
 
 export const CONTENT_SCALES = [90, 100, 110, 125, 140]
 
+const pickScale = (raw: string, allowed: number[]) =>
+  allowed.includes(Number(raw)) ? Number(raw) : 100
+
 class Settings {
   deviceName = $state<string>(
     read(
@@ -118,16 +121,10 @@ class Settings {
     localStorage.setItem("panel-shape", shape)
   }
 
-  scale = $state<number>(
-    SCALES.includes(Number(read("ui-scale", "100")))
-      ? Number(read("ui-scale", "100"))
-      : 100,
-  )
+  scale = $state<number>(pickScale(read("ui-scale", "100"), SCALES))
 
   contentScale = $state<number>(
-    CONTENT_SCALES.includes(Number(read("content-scale", "100")))
-      ? Number(read("content-scale", "100"))
-      : 100,
+    pickScale(read("content-scale", "100"), CONTENT_SCALES),
   )
 
   setContentScale = (scale: number) => {

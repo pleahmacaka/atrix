@@ -158,7 +158,7 @@ const toggle = (e: ToggleEvent) => {
   class={[
     (above || up) && "above",
     tall && "searchable",
-    "anchored popover-box nowheel fixed inset-auto mx-0 my-1 flex w-80 max-w-viewport",
+    "anchored popover-box nowheel fixed inset-auto mx-0 my-1 w-80 max-w-viewport open:flex",
     "flex-col overflow-hidden p-0 text-base-content",
     popoverMotion,
     sheet && ["sheet", popoverSheet],

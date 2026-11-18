@@ -50,6 +50,12 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
             }
         });
 
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.icon(crate::dev_icon());
+    }
+
+    #[cfg(not(debug_assertions))]
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }

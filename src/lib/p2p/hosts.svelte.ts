@@ -31,8 +31,14 @@ export const startLocalHost = async () => {
   registry.local = view
 }
 
-export const adoptLocal = (view: HostView) => {
+let adopted = $state.raw<HostEntry[]>([])
+
+export const adoptLocal = (view: HostView | null) => {
   registry.local = view
+}
+
+export const adoptRemotes = (entries: HostEntry[]) => {
+  adopted = entries
 }
 
 export const hostList = (): HostEntry[] => [
@@ -45,6 +51,7 @@ export const hostList = (): HostEntry[] => [
         },
       ]
     : []),
+  ...adopted,
   ...[...sync.hosts].map(([id, view]) => ({
     id,
     name: sync.peers.get(id)?.name ?? m.shell_device(),

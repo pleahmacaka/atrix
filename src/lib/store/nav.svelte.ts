@@ -9,7 +9,6 @@ export type Page =
   | "agent"
   | "devices"
   | "apps"
-  | "settings"
 
 export type SettingsTab =
   | "appearance"

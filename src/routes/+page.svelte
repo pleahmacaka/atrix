@@ -72,7 +72,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 />
 
 <div class="window-frame flex h-dvh flex-col bg-base-200" data-frame>
-<div class="flex min-h-0 flex-1 gap-2 p-2" data-shell data-tauri-drag-region>
+<div class="flex min-h-0 flex-1 gap-2 p-2" data-shell>
   {#if docked && (!shell.collapsed || shell.compact)}
     <div
       class="flex min-h-0 shrink-0 transition-width duration-140"

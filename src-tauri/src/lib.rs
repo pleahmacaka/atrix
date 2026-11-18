@@ -30,6 +30,11 @@ use tauri::{Manager, RunEvent};
 use tauri_plugin_log::log::LevelFilter;
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 
+#[cfg(debug_assertions)]
+pub(crate) fn dev_icon() -> tauri::image::Image<'static> {
+    tauri::include_image!("icons/dev.png")
+}
+
 const LOG_BYTES: u128 = 5_000_000;
 
 fn logger(app: &tauri::App) -> tauri::Result<()> {
@@ -88,7 +93,7 @@ pub fn run() {
 
             #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
-                window.set_icon(tauri::include_image!("icons/dev.png"))?;
+                window.set_icon(dev_icon())?;
             }
 
             #[cfg(desktop)]

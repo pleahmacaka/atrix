@@ -4,6 +4,7 @@ import {
   WebviewWindow,
 } from "@tauri-apps/api/webviewWindow"
 import type { ChatStatus, FileUIPart } from "ai"
+import { untrack } from "svelte"
 import { SvelteMap } from "svelte/reactivity"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import {
@@ -23,7 +24,7 @@ import {
   type SettingsTab,
 } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
-import { hostById, LOCAL } from "./hosts.svelte.ts"
+import { hostById, hostList } from "./hosts.svelte.ts"
 import { HostView } from "./hostView.svelte.ts"
 import {
   type Answers,
@@ -37,7 +38,13 @@ import {
 
 type Session = { kind: "session"; host: string; id: string }
 
-type Call = { label: string; seq: number; host: string; request: HostRequest }
+type Call = {
+  label: string
+  seq: number
+  host: string
+  token: string
+  request: HostRequest
+}
 
 type Outgoing = { text: string; files?: FileUIPart[] }
 
@@ -58,8 +65,18 @@ export const SIDEBAR = "sidebar"
 export type NavFrame = {
   page: Page
   current: Current
+  agent: string | null
+  doc: string | null
+  table: { name: string; table: string } | null
+  harness: { host: string; id: string } | null
   settings: SettingsTab | null
+  palette: boolean
+  seq: number
+  origin: string
+  hosts: { id: string; name: string; instance: string }[]
 }
+
+export const eventsOf = (host: string) => `float:event:${host}`
 
 const concerns = (event: HostEvent, id: string) => {
   switch (event.type) {
@@ -132,6 +149,7 @@ const serve = () => {
 
       await emitTo(payload.label, "float:reply", {
         seq: payload.seq,
+        token: payload.token,
         ...result,
       })
     })
@@ -146,56 +164,182 @@ const serve = () => {
     .catch(e => logFailure("float serve", e))
 }
 
+type NavKey = "page" | "current" | "agent" | "doc" | "table" | "harness"
+
+const NAV_KEYS: NavKey[] = [
+  "page",
+  "current",
+  "agent",
+  "doc",
+  "table",
+  "harness",
+]
+
+const navId = (frame: Omit<NavFrame, "hosts">, key: NavKey) => {
+  switch (key) {
+    case "current":
+      return frame.current ? keyOf(frame.current) : ""
+    case "table":
+      return frame.table ? `${frame.table.name}/${frame.table.table}` : ""
+    case "harness":
+      return frame.harness ? `${frame.harness.host}/${frame.harness.id}` : ""
+    default:
+      return frame[key] ?? ""
+  }
+}
+
+export const navSignature = (frame: Omit<NavFrame, "hosts">) =>
+  JSON.stringify(NAV_KEYS.map(key => navId(frame, key)))
+
+let floated: NavFrame | null = null
+
+let applied = 0
+
+const ORIGIN = crypto.randomUUID()
+
 const applyNav = (frame: NavFrame) => {
+  applied = Math.max(applied, frame.seq)
+
   if (frame.settings) {
     openSettings(frame.settings)
+    getCurrentWebviewWindow()
+      .setFocus()
+      .catch(e => logFailure("float focus", e))
 
     return
   }
 
+  if (frame.palette) {
+    nav.palette = true
+    getCurrentWebviewWindow()
+      .setFocus()
+      .catch(e => logFailure("float focus", e))
+
+    return
+  }
+
+  const changed = (key: NavKey) =>
+    !floated || navId(frame, key) !== navId(floated, key)
   const shown = panes.active.current
 
-  if (frame.current && (!shown || keyOf(frame.current) !== keyOf(shown))) {
+  if (
+    changed("current") &&
+    (frame.current ? !shown || keyOf(frame.current) !== keyOf(shown) : !!shown)
+  ) {
     openConversation(frame.current)
-  } else if (frame.page !== nav.page) {
+  } else if (changed("page")) {
     nav.page = frame.page
   }
+
+  if (changed("agent")) {
+    nav.agent = frame.agent
+  }
+
+  if (changed("doc")) {
+    nav.doc = frame.doc
+  }
+
+  if (changed("table")) {
+    nav.table = frame.table
+  }
+
+  if (changed("harness")) {
+    nav.harness = frame.harness
+  }
+
+  floated = frame
 }
 
-export const navFrame = (): NavFrame => ({
+export const navState = (): Omit<NavFrame, "hosts"> => ({
   page: nav.page,
-  current: $state.snapshot(panes.active.current) as Current,
+  current: $state.snapshot(panes.active.current),
+  agent: nav.agent,
+  doc: nav.doc,
+  table: $state.snapshot(nav.table),
+  harness: $state.snapshot(nav.harness),
   settings: null,
+  palette: false,
+  seq: applied,
+  origin: ORIGIN,
+})
+
+const navFrame = (): NavFrame => ({
+  ...navState(),
+  hosts: hostList().map(h => ({
+    id: h.id,
+    name: h.name,
+    instance: h.view.instance,
+  })),
 })
 
 export const floatSidebar = async (title: string) => {
-  const view = hostById(LOCAL)
-
-  if (!view) {
-    return
+  if (!floating.has(SIDEBAR)) {
+    floated = null
+    applied = 0
   }
 
-  await openWindow(SIDEBAR, { sidebar: "1" }, title, label => {
-    const tap = (event: HostEvent) => {
-      emitTo(label, "float:event", event).catch(() => {})
-    }
+  await openWindow(SIDEBAR, { sidebar: "1" }, title, label =>
+    $effect.root(() => {
+      const emit = () => {
+        const frame = navFrame()
 
-    view.taps.add(tap)
+        floated = frame
+        emitTo(label, "float:nav", frame).catch(e => logFailure("float nav", e))
+      }
 
-    const stop = $effect.root(() => {
+      $effect(emit)
+
+      const ready = getCurrentWebviewWindow().listen<string>(
+        "float:ready",
+        ({ payload }) => {
+          if (payload === label) {
+            emit()
+          }
+        },
+      )
+
+      const hostIds = $derived(
+        hostList()
+          .map(h => `${h.id}#${h.view.instance}`)
+          .join(" "),
+      )
+
       $effect(() => {
-        emitTo(label, "float:nav", navFrame()).catch(() => {})
-      })
-    })
+        void hostIds
 
-    return () => {
-      view.taps.delete(tap)
-      stop()
-    }
-  })
+        const taps = untrack(hostList).map(({ id, view }) => {
+          const tap = (event: HostEvent) => {
+            // the sidebar never renders chat items, and updates are per-token stream traffic
+            if (event.type !== "update") {
+              emitTo(label, eventsOf(id), event).catch(e =>
+                logFailure("float event", e),
+              )
+            }
+          }
+
+          view.taps.add(tap)
+
+          return () => view.taps.delete(tap)
+        })
+
+        return () => {
+          for (const untap of taps) {
+            untap()
+          }
+        }
+      })
+
+      return () => {
+        ready.then(f => f())
+      }
+    }),
+  )
 }
 
 export const sendNav = (frame: NavFrame) => emitTo(MAIN, "float:nav", frame)
+
+export const askNav = () =>
+  emitTo(MAIN, "float:ready", getCurrentWebviewWindow().label)
 
 const openWindow = async (
   key: string,
@@ -340,7 +484,8 @@ export const dock = async (key: string) => {
   }
 }
 
-export const remoteHost = (host: string) => {
+export const remoteHost = (host: string, events = "float:event") => {
+  const token = crypto.randomUUID()
   const win = getCurrentWebviewWindow()
   const waiting = new Map<number, (r: Reply) => void>()
   let seq = 0
@@ -357,6 +502,7 @@ export const remoteHost = (host: string) => {
         label: win.label,
         seq: n,
         host,
+        token,
         request,
       }).catch(e => resolve({ ok: false, error: String(e) }))
     })
@@ -370,11 +516,18 @@ export const remoteHost = (host: string) => {
 
   const view = new HostView(host, call)
   const stops = [
-    win.listen<Reply & { seq: number }>("float:reply", ({ payload }) => {
-      waiting.get(payload.seq)?.(reply.parse(payload))
-      waiting.delete(payload.seq)
-    }),
-    win.listen<HostEvent>("float:event", ({ payload }) => view.apply(payload)),
+    win.listen<Reply & { seq: number; token: string }>(
+      "float:reply",
+      ({ payload }) => {
+        if (payload.token !== token) {
+          return
+        }
+
+        waiting.get(payload.seq)?.(reply.parse(payload))
+        waiting.delete(payload.seq)
+      },
+    ),
+    win.listen<HostEvent>(events, ({ payload }) => view.apply(payload)),
   ]
 
   return {
@@ -384,6 +537,12 @@ export const remoteHost = (host: string) => {
       for (const stop of stops) {
         stop.then(f => f())
       }
+
+      for (const resolve of waiting.values()) {
+        resolve({ ok: false, error: `host_closed: ${host}` })
+      }
+
+      waiting.clear()
     },
   }
 }

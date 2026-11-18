@@ -191,7 +191,7 @@ const clip = (text: string) => {
           type="button"
           class={[
             "flex w-full cursor-pointer items-center gap-3 rounded-field px-2 py-1.5",
-            "text-start text-sm transition-colors duration-150 hover:bg-base-content/8",
+            "text-start text-sm transition-colors duration-140 hover:bg-base-content/8",
           ]}
           onclick={() => (selected = revision.number)}
         >

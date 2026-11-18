@@ -79,7 +79,7 @@
 
 @theme inline {
   --color-raised: var(--raised);
-  --color-inset: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+  --color-inset: color-mix(in oklab, var(--color-base-content) 8%, transparent);
   --spacing-hairline: var(--border);
 }
 
@@ -420,6 +420,29 @@ summary {
   color: var(--color-warning-content);
 }
 
+.btn:not(
+    :is(
+      .btn-active,
+      .btn-disabled,
+      .btn-ghost,
+      .btn-link,
+      .btn-outline,
+      .btn-dash,
+      .btn-soft,
+      .btn-primary,
+      .btn-secondary,
+      .btn-accent,
+      .btn-neutral,
+      .btn-info,
+      .btn-success,
+      .btn-warning,
+      .btn-error
+    )
+  ) {
+  --btn-color: var(--color-base-300);
+  outline-color: var(--color-base-content);
+}
+
 .btn-ghost {
   --btn-rest-fg: currentColor;
   --btn-fg: currentColor;
@@ -431,8 +454,26 @@ summary {
   }
 }
 
+.content-zoom,
 .markdown {
-  font-size: calc(1em * var(--content-scale, 1));
+  zoom: var(--content-scale, 1);
+}
+
+.chat-column {
+  max-width: calc(48rem / var(--content-scale, 1));
+}
+
+@container (width >= 80rem) {
+  .chat-column[data-cornered] {
+    max-width: calc(42rem / var(--content-scale, 1));
+  }
+}
+
+:is(.content-zoom, .markdown, .content-fixed) :is(.content-zoom, .markdown) {
+  zoom: 1;
+}
+
+.markdown {
   letter-spacing: var(--reading-tracking);
   word-spacing: var(--reading-word-spacing);
   line-height: 1.7;
@@ -532,6 +573,10 @@ summary {
   border-color: var(--color-base-300);
 }
 
+:is(.content-zoom, .markdown, .content-fixed) .wiki {
+  font-size: 1rem;
+}
+
 .wiki {
   @apply text-base-content;
   font-size: calc(1rem * var(--content-scale, 1));
@@ -555,23 +600,23 @@ summary {
   }
 
   & h1 {
-    font-size: 1.6rem;
+    font-size: 1.6em;
     margin-top: 2.2em;
   }
 
   & h2 {
     @apply border-b border-base-300 pb-2;
-    font-size: 1.35rem;
+    font-size: 1.35em;
     margin-top: 2.2em;
   }
 
   & h3 {
-    font-size: 1.12rem;
+    font-size: 1.12em;
     margin-top: 1.8em;
   }
 
   & h4 {
-    font-size: 1.05rem;
+    font-size: 1.05em;
     margin-top: 1.6em;
   }
 
@@ -770,7 +815,7 @@ summary {
   display: inline-block;
   width: 0.45em;
   height: 1em;
-  margin-left: 0.1em;
+  margin-inline-start: 0.1em;
   vertical-align: text-bottom;
   background: var(--color-primary);
   animation: caret 1s steps(2, start) infinite;

@@ -406,9 +406,8 @@ fn uv_bin(root: &Path, name: &str) -> Option<PathBuf> {
             .find(|p| p.get("name").and_then(toml::Value::as_str) == Some(want))
     };
     let short = name.split('-').next().unwrap_or(name);
-    let point = named(name)
-        .or_else(|| named(short))
-        .or_else(|| points.first())?;
+    let only = points.first().filter(|_| points.len() == 1);
+    let point = named(name).or_else(|| named(short)).or(only)?;
     let path = PathBuf::from(point.get("install-path")?.as_str()?);
 
     path.is_file().then_some(path)

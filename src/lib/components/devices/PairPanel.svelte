@@ -2,11 +2,13 @@
 import Icon from "@iconify/svelte"
 import encodeQR from "qr"
 import { onDestroy } from "svelte"
+import { slide } from "svelte/transition"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import CopyButton from "#lib/components/ui/CopyButton.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import { motion } from "#lib/components/ui/motion.ts"
 import Section from "#lib/components/ui/Section.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import type { Peer } from "#lib/p2p/net.ts"
@@ -92,7 +94,10 @@ const status = (peer: Peer) =>
       />
     </SettingRow>
     {#if sync.pairing && qr}
-      <div class="flex flex-col items-center gap-3 pb-3">
+      <div
+        transition:slide={{ duration: motion(140) }}
+        class="mb-3 flex flex-col items-center gap-3 rounded-box border border-base-300 p-4"
+      >
         <img
           src={qr}
           alt={m.pair_qr()}
@@ -100,7 +105,7 @@ const status = (peer: Peer) =>
         />
         <div class="flex w-full items-center gap-2">
           <code
-            class="min-w-0 flex-1 rounded-field bg-inset px-3 py-2 text-xs break-all select-all"
+            class="min-w-0 flex-1 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs break-all select-all"
           >
             {sync.pairing.code}
           </code>

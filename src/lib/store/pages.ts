@@ -15,11 +15,10 @@ export const CALENDAR_PAGE: PageInfo = {
   icon: "lucide:calendar",
 }
 
-export const SETTINGS_PAGE: PageInfo = {
-  id: "settings",
+export const SETTINGS_PAGE = {
   label: m.common_settings,
   icon: "lucide:settings",
-}
+} satisfies Omit<PageInfo, "id">
 
 export const PAGES: PageInfo[] = [
   { id: "chat", label: m.shell_page_chat, icon: "lucide:messages-square" },

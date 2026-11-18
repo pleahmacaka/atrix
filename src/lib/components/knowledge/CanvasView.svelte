@@ -325,7 +325,7 @@ const save = () =>
             data-node
             class={[
               "absolute flex flex-col overflow-hidden rounded-box border bg-base-100",
-              "text-sm transition-colors duration-150",
+              "text-sm transition-colors duration-140",
               selected === node.id || linking === node.id
                 ? "border-primary"
                 : "border-base-300",
@@ -361,7 +361,7 @@ const save = () =>
             </button>
             {#if node.type === "text"}
               {#if locked}
-                <div class="min-h-0 flex-1 overflow-y-auto p-3">
+                <div class="content-fixed min-h-0 flex-1 overflow-y-auto p-3">
                   <Markdown
                     text={node.text || m.knowledge_canvas_text_empty()}
                     look="wiki compact"
