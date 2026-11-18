@@ -14,6 +14,7 @@ export type Template = {
   oauth?: boolean
   anthropic?: string
   responses?: boolean
+  codexDefaults?: boolean
   keyless?: boolean
 }
 
@@ -35,12 +36,14 @@ export const TEMPLATES: Template[] = [
     icon: "simple-icons:openai",
     baseURL: "https://api.openai.com/v1",
     responses: true,
+    codexDefaults: true,
   },
   {
     id: "mistral",
     name: "Mistral",
     icon: "simple-icons:mistralai",
     baseURL: "https://api.mistral.ai/v1",
+    responses: true,
   },
   {
     id: "gemini",

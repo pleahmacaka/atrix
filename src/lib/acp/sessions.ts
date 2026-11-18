@@ -97,8 +97,16 @@ const summaryOf = (s: SessionView): OpenSession => ({
   running: s.running,
 })
 
+const categoryOf = (session: Live, configId: string) =>
+  session.config.find(o => o.id === configId)?.category
+
 const isModel = (session: Live, configId: string) =>
-  session.config.find(o => o.id === configId)?.category === "model"
+  categoryOf(session, configId) === "model"
+
+const PINNED = new Set(["model", "thought_level"])
+
+const isPinned = (session: Live, configId: string) =>
+  !!session.pinned && PINNED.has(categoryOf(session, configId) ?? "")
 
 export class Sessions {
   #conns = new Map<string, Spawned>()
@@ -484,7 +492,10 @@ export class Sessions {
     )
 
     this.#patch(session, { config: choicesOf(configOptions) })
-    remember(session.harness, session.cwd, configId, value)
+
+    if (!isPinned(session, configId)) {
+      remember(session.harness, session.cwd, configId, value)
+    }
 
     return null
   }
@@ -841,7 +852,7 @@ export class Sessions {
     const wanted = optionsFor(remembered(), session.harness, session.cwd)
     const order = (id: string) => (isModel(session, id) ? 0 : 1)
     const entries = Object.entries(wanted)
-      .filter(([id]) => !(session.pinned && isModel(session, id)))
+      .filter(([id]) => !isPinned(session, id))
       .toSorted(([a], [b]) => order(a) - order(b))
 
     let changed = false

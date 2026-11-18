@@ -38,6 +38,10 @@ const codexEnv = (gateway: Gateway, model: string) => ({
   MODEL_PROVIDER: "atrix",
   CODEX_CONFIG: JSON.stringify({
     model,
+    ...(!templateFor(gateway)?.codexDefaults && {
+      web_search: "disabled",
+      model_reasoning_effort: "low",
+    }),
     model_providers: {
       atrix: {
         name: "Atrix",
