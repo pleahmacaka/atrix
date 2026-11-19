@@ -30,8 +30,8 @@ const visible = $derived(!dismissed && (pending || (web && updated.current)))
 </script>
 
 {#if visible}
-  <div class="toast toast-end z-50">
-    <div role="status" class="alert text-sm">
+  <div class="toast toast-top toast-end top-10 z-50">
+    <div role="status" class="alert border border-base-300 bg-raised text-sm shadow-lg">
       <Icon icon="lucide:circle-arrow-up" class="size-4 shrink-0 text-primary" />
       <span class="min-w-0 break-words">
         {pending ? m.update_desktop({ version: updater.version ?? "" }) : m.update_web()}
