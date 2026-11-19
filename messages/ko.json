@@ -319,7 +319,7 @@
   "spaces_chats": "대화",
   "spaces_name": "스페이스 이름",
   "spaces_host": "기기",
-  "space_new_agent": "새 에이전트",
+  "space_new_agent": "새 세션",
   "space_target": "{name} 스페이스에 추가",
   "space_pin": "고정",
   "space_unpin": "고정 해제",
@@ -1120,7 +1120,12 @@
   "lock_pattern_short": "점 4개 이상을 이으세요.",
   "lock_delete_digit": "한 글자 지우기",
   "terminal_next": "다음",
-  "space_add_session": "세션 추가",
+  "space_add_session": "기존 세션 불러오기",
   "lock_wait": "시도 횟수를 초과했습니다. 30초 뒤에 다시 시도하세요.",
-  "lock_verify": "현재 잠금을 먼저 입력하세요."
+  "lock_verify": "현재 잠금을 먼저 입력하세요.",
+  "error_host_missing": "연결된 기기가 없습니다. 기기를 연결한 뒤 다시 시도하세요.",
+  "chat_agent_missing": "터미널에서 서브에이전트를 찾을 수 없습니다. 잠시 뒤 다시 시도하세요.",
+  "chat_agent_message": "서브에이전트에게 메시지",
+  "space_session_menu": "세션 추가",
+  "chat_loading_history": "기록을 불러오는 중입니다"
 }

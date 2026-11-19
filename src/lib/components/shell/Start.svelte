@@ -263,10 +263,11 @@ const addMember = async (groupId: string, key: string) => {
 
 const startRoom = async (text: string, files: File[]) => {
   const id = await groups.create()
-  const cwd = nav.target.kind === "harness" ? nav.target.cwd.trim() : ""
+  const target = nav.target
+  const cwd = target.kind === "harness" ? target.cwd.trim() : ""
 
-  if (cwd) {
-    await groups.setFolder(id, cwd)
+  if (cwd && target.kind === "harness") {
+    await groups.setFolder(id, cwd, target.host)
   }
 
   for (const key of [targetKey, ...members.map(o => o.key)]) {
@@ -361,6 +362,9 @@ const ready = $derived(
         <IconButton icon="lucide:x" label={m.common_cancel()} size="xs" onclick={() => (nav.space = null)} />
       </div>
     {/if}
+    <div class="mx-auto max-w-2xl px-4 sm:px-8">
+      <ErrorAlert message={attempt.failure} />
+    </div>
     <Composer
       busy={attempt.busy}
       draft="start"
@@ -505,7 +509,6 @@ const ready = $derived(
         {/if}
       {/snippet}
     </Composer>
-    <ErrorAlert message={attempt.failure} />
     <div class="absolute inset-x-0 top-full pt-14">
       <UsageGraph />
     </div>

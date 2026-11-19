@@ -51,7 +51,7 @@ import {
   remembered,
   rename,
 } from "./saved.ts"
-import { SOURCES } from "./sources.ts"
+import { rememberClaudeCommands, SOURCES } from "./sources.ts"
 import type { Reachable } from "./tools.ts"
 
 const RESOURCE_NOT_FOUND = -32002
@@ -1011,6 +1011,10 @@ export class Sessions {
       }))
 
       if (session) {
+        if (mirrorKind(this.#harnesses.entry(session.harness)) === "claude") {
+          rememberClaudeCommands(commands)
+        }
+
         this.#patch(session, { commands })
       } else {
         this.#early.set(sessionId, commands)

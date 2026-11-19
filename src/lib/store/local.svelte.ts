@@ -72,6 +72,7 @@ export type StoredGroup = {
   id: string
   title: string
   cwd?: string
+  cwdHost?: string
   members: GroupMember[]
   messages: GroupMessage[]
   at: number

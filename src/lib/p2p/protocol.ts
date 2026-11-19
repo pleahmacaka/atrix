@@ -115,6 +115,7 @@ export type Turn = { turn: number; seen: number }
 export const SPACE_HUES = [195, 45, 268, 150, 10, 300]
 
 export type HostState = {
+  boot?: string
   home: string
   harnesses: HarnessInfo[]
   available: Available[]
@@ -402,6 +403,13 @@ export const hostRequest = z.discriminatedUnion("op", [
   request("permit", { ...session, optionId: z.string().nullable() }),
   request("attach", session),
   request("press", { ...session, strokes: z.array(stroke).min(1).max(20) }),
+  request("agent.read", { ...session, agentId: z.string() }),
+  request("recall", session),
+  request("agent.send", {
+    ...session,
+    description: z.string().min(1),
+    text: z.string().min(1),
+  }),
   request("answer", {
     ...session,
     toolId: z.string(),
@@ -530,6 +538,9 @@ export type Answers = {
   rename: null
   permit: null
   press: null
+  "agent.read": ChatItem[]
+  recall: string[]
+  "agent.send": null
   attach: null
   answer: null
   option: null

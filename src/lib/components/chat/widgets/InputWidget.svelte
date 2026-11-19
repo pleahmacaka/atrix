@@ -8,6 +8,7 @@ import {
   type Suggestion,
   tokenAt,
 } from "#lib/chat/mentions.ts"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import ImageViewer, { type Viewed } from "#lib/components/ui/ImageViewer.svelte"
 import Listbox, { type ListGroup } from "#lib/components/ui/Listbox.svelte"
 import type { Command } from "#lib/p2p/protocol.ts"
@@ -137,6 +138,19 @@ const keydown = (e: KeyboardEvent) => {
 
   const working = composer.props.busy || composer.props.running
 
+  const { onRecall } = composer.props
+
+  if (e.key === "Escape" && onRecall && !e.repeat) {
+    e.preventDefault()
+    onRecall()
+      .then(texts => {
+        composer.text = [...texts, composer.text.trim()].filter(Boolean).join("\n\n")
+      })
+      .catch(() => {})
+
+    return
+  }
+
   if (e.key === "Escape" && working && !e.repeat && !composer.stopped) {
     e.preventDefault()
     composer.stop()
@@ -222,6 +236,18 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
     composer.dropping = false
   }}
 >
+  {#if composer.quote}
+    <div
+      class={[
+        "mx-1 mt-1 flex min-w-0 items-center gap-2 rounded-field px-3 py-1.5",
+        "bg-base-content/6 text-sm text-base-content/70",
+      ]}
+    >
+      <Icon icon="lucide:reply" class="size-4 shrink-0 opacity-70" />
+      <span class="min-w-0 flex-1 truncate" title={composer.quote}>“{composer.quote}”</span>
+      <IconButton icon="lucide:x" label={m.common_close()} size="xs" onclick={composer.clearQuote} />
+    </div>
+  {/if}
   {#if composer.files.length}
     <ul
       class={[

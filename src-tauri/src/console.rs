@@ -64,6 +64,9 @@ mod imp {
 
     static ATTACH: Mutex<()> = Mutex::new(());
 
+    // the clipboard is opened per process, so a read on another thread closes it under a pending write
+    static CLIPBOARD: Mutex<()> = Mutex::new(());
+
     fn key(unit: u16, virtual_key: u16, state: u32, down: bool) -> INPUT_RECORD {
         INPUT_RECORD {
             EventType: KEY_EVENT as u16,
@@ -277,6 +280,7 @@ mod imp {
         let image = image::load_from_memory(bytes)
             .map_err(|e| Error::code("image_invalid", e))?
             .to_rgba8();
+        let _guard = CLIPBOARD.lock()?;
         let mut clipboard = Clipboard::new().map_err(|e| Error::code("clipboard", e))?;
         let previous = clipboard.get_text().ok();
         let data = ImageData {
@@ -322,6 +326,7 @@ mod imp {
     }
 
     pub fn clipboard_png() -> Result<Vec<u8>> {
+        let _guard = CLIPBOARD.lock()?;
         let Ok(image) = Clipboard::new().and_then(|mut c| c.get_image()) else {
             return Ok(Vec::new());
         };

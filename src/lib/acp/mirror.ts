@@ -14,7 +14,13 @@ import { m } from "#lib/paraglide/messages.js"
 import { isCheckbox } from "./claudeScreen.ts"
 import type { Asked, ChatItem, Log, Picked } from "./items.ts"
 import { type Presence, SOURCES, type Source } from "./sources.ts"
-import { stepOf, turnPace, turnTokens, usagePace } from "./transcript.ts"
+import {
+  applySidechain,
+  stepOf,
+  turnPace,
+  turnTokens,
+  usagePace,
+} from "./transcript.ts"
 
 type RawAgent = {
   id: string
@@ -114,6 +120,11 @@ const pasteImage = (pid: number, data: string) =>
 
 const TAIL_BYTES = 4_000_000
 
+// the agent switcher re-renders after each selection and drops keys sent mid-render
+const AGENT_STEP_MS = 500
+
+const AGENT_STEPS = 12
+
 type Lines = { lines: string[]; offset: number }
 
 const entrypointLine = z.object({ entrypoint: z.string() })
@@ -150,6 +161,8 @@ export class ExternalSessions {
   listings = new Map<HarnessKind, Listed[]>()
 
   #shelling = new Set<string>()
+
+  #dismissed = new Set<string>()
 
   #owners = new Map<string, string>()
 
@@ -216,7 +229,13 @@ export class ExternalSessions {
 
   drop = (id: string) => {
     this.#watches.delete(id)
+
+    if (this.presence.has(id)) {
+      this.#dismissed.add(id)
+    }
   }
+
+  shown = () => [...this.presence].filter(([id]) => !this.#dismissed.has(id))
 
   pause = (id: string) => {
     const watch = this.#watches.get(id)
@@ -230,6 +249,117 @@ export class ExternalSessions {
     while (this.busy(id)) {
       await new Promise(done => setTimeout(done, POLL_MS))
     }
+  }
+
+  #agentLog = (id: string, agentId: string) => {
+    const watch = this.#watches.get(id)
+
+    if (!watch) {
+      throw new Error(m.error_session_not_found())
+    }
+
+    return `${watch.path.slice(0, -".jsonl".length)}/subagents/${agentId}.jsonl`
+  }
+
+  agentItems = async (id: string, agentId: string) => {
+    const path = this.#agentLog(id, agentId)
+    const { lines } = await native<Lines>("read_lines", {
+      path,
+      offset: 0,
+      tail: TAIL_BYTES,
+    })
+    const log: Log = {
+      items: [],
+      queue: [],
+      sent: [],
+      running: false,
+      shells: [],
+    }
+
+    for (const line of lines) {
+      applySidechain(log, line)
+    }
+
+    return log.items
+  }
+
+  messageAgent = async (id: string, description: string, text: string) => {
+    const pid = this.#pid(id)
+    const keys = (strokes: Stroke[]) =>
+      native("terminal_keys", { pid, strokes })
+    const pause = () => new Promise(done => setTimeout(done, AGENT_STEP_MS))
+    const screen = async () =>
+      (await native<string[]>("terminal_screen", { pid })).map(l => l.trim())
+    const list = async () => {
+      const rows = (await screen()).filter(l => /^(❯ )?[●◯] /.test(l))
+      const main = rows.findIndex(l => l.endsWith(" main"))
+
+      return main === -1 ? [] : rows.slice(main)
+    }
+    const select = async (target: number) => {
+      for (let step = 0; step < AGENT_STEPS; step++) {
+        const rows = await list()
+        const at = rows.findIndex(l => l.startsWith("❯ "))
+
+        if (rows.length <= target) {
+          return false
+        }
+
+        if (at === target) {
+          await keys([{ kind: "enter" }])
+          await pause()
+
+          return true
+        }
+
+        await keys([{ kind: at === -1 || at < target ? "down" : "up" }])
+        await pause()
+      }
+
+      return false
+    }
+    const home = async () => {
+      await select(0)
+      await keys([{ kind: "up" }])
+      await pause()
+    }
+    // the divider above the prompt carries the selected agent's description
+    const showing = async () =>
+      (await screen()).some(
+        l => l.startsWith("─") && l.includes(description.slice(0, 24)),
+      )
+    const count = (await list()).length - 1
+
+    for (let row = 1; row <= count; row++) {
+      if ((await select(row)) && (await showing())) {
+        await keys([{ kind: "text", text }, { kind: "enter" }])
+        await pause()
+        await home()
+
+        return
+      }
+    }
+
+    await home()
+
+    throw new Error(m.chat_agent_missing())
+  }
+
+  recall = async (id: string) => {
+    const pid = this.#pid(id)
+    const queued = [...(this.get(id)?.queued ?? [])]
+
+    if (queued.length === 0) {
+      return []
+    }
+
+    // up pulls every queued prompt into the input, and ctrl+u clears it before it can be sent
+    await native("terminal_keys", {
+      pid,
+      strokes: [{ kind: "up" }, { kind: "text", text: "\u0015" }],
+    })
+
+    return queued
   }
 
   #pid = (id: string) => {
@@ -514,6 +644,7 @@ export class ExternalSessions {
       turn: Promise.resolve(),
     }
 
+    this.#dismissed.delete(id)
     this.#watches.set(id, watch)
 
     await this.#serial(watch, async () => {
@@ -762,6 +893,12 @@ export class ExternalSessions {
     this.#waited = waiting
 
     this.presence = next
+
+    for (const id of this.#dismissed) {
+      if (!next.has(id)) {
+        this.#dismissed.delete(id)
+      }
+    }
 
     for (const [id, watch] of this.#watches) {
       if (!watch.view && !next.has(id)) {

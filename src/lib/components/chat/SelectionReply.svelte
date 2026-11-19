@@ -61,22 +61,42 @@ const reply = () => {
 }
 
 $effect(() => {
-  const later = () => requestAnimationFrame(read)
+  let moved = false
+
+  const later = () =>
+    requestAnimationFrame(() => {
+      if (moved) {
+        read()
+      }
+    })
 
   const changed = () => {
+    moved = true
+
     if (getSelection()?.isCollapsed) {
       hide()
     }
   }
 
+  const away = (e: PointerEvent) => {
+    if (e.target instanceof Node && button?.contains(e.target)) {
+      return
+    }
+
+    moved = false
+    hide()
+  }
+
+  window.addEventListener("pointerdown", away, true)
   window.addEventListener("pointerup", later)
-  window.addEventListener("keyup", later)
+  window.addEventListener("keyup", read)
   window.addEventListener("scroll", hide, true)
   document.addEventListener("selectionchange", changed)
 
   return () => {
+    window.removeEventListener("pointerdown", away, true)
     window.removeEventListener("pointerup", later)
-    window.removeEventListener("keyup", later)
+    window.removeEventListener("keyup", read)
     window.removeEventListener("scroll", hide, true)
     document.removeEventListener("selectionchange", changed)
   }

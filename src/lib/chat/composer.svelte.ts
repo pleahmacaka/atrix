@@ -30,6 +30,7 @@ export type ComposerProps = {
   people?: (query: string) => Suggestion[]
   datasources?: string[]
   tools?: Snippet
+  onRecall?: () => Promise<string[]>
   extras?: Snippet
   side?: Snippet
   onSend: (text: string, files: File[]) => unknown
@@ -40,6 +41,24 @@ export type ComposerProps = {
 const KEY = Symbol("composer")
 
 export const drafts = new Stored("draft:", "", z.string())
+
+export const quotes = new SvelteMap<string, string>()
+
+const QUOTE_LIMIT = 600
+
+export const quoted = (text: string) => {
+  const trimmed = text.trim()
+  const chars = [...trimmed]
+  const short =
+    chars.length > QUOTE_LIMIT
+      ? `${chars.slice(0, QUOTE_LIMIT).join("")}…`
+      : trimmed
+
+  return short
+    .split("\n")
+    .map(line => `> ${line}`)
+    .join("\n")
+}
 
 const attached = new SvelteMap<string, File[]>()
 
@@ -140,6 +159,14 @@ export class Composer {
 
   set text(value: string) {
     drafts.set(this.props.draft, value)
+  }
+
+  get quote() {
+    return quotes.get(this.props.draft) ?? null
+  }
+
+  clearQuote = () => {
+    quotes.delete(this.props.draft)
   }
 
   get queued() {
@@ -247,7 +274,9 @@ export class Composer {
 
   submit = async () => {
     const { busy, disabled, draft, onSend } = this.props
-    const value = this.text.trim()
+    const quote = this.quote
+    const typed = this.text.trim()
+    const value = quote ? `${quoted(quote)}\n\n${typed}` : typed
     const files = this.files
 
     if (this.empty || disabled) {
@@ -265,6 +294,7 @@ export class Composer {
 
     this.text = ""
     this.files = []
+    this.clearQuote()
 
     if (queueing) {
       enqueue(draft, value, files)
@@ -289,7 +319,11 @@ export class Composer {
 
     Promise.resolve(sent).then(ok => {
       if (ok === false && !this.text) {
-        this.text = value
+        this.text = typed
+
+        if (quote) {
+          quotes.set(draft, quote)
+        }
       }
     })
   }

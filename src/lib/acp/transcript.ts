@@ -696,6 +696,32 @@ export const applyShells = ({ shells }: Log, line: string) => {
   }
 }
 
+const MID_TURN = "The user sent a new message while you were working:\n"
+
+const midTurnText = (content: unknown) => {
+  if (typeof content !== "string" || !content.startsWith(MID_TURN)) {
+    return null
+  }
+
+  return content.slice(MID_TURN.length).split("\n\nThis is how Claude Code")[0]
+}
+
+export const applySidechain = (log: Log, line: string) => {
+  const parsed = parseLine(line)
+
+  if (!parsed?.success) {
+    return
+  }
+
+  const typed = midTurnText(parsed.data.message?.content)
+
+  if (typed) {
+    appendText(log.items, "user", typed, undefined)
+  } else {
+    applyRecord(log, parsed.data)
+  }
+}
+
 export const applyTranscript = (log: Log, line: string) => {
   const data = mainRecord(line)
 

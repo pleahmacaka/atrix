@@ -1,4 +1,5 @@
 import { get, set } from "idb-keyval"
+import { SvelteSet } from "svelte/reactivity"
 import { applyUpdate, type Picked } from "#lib/acp/items.ts"
 import { forgetPrimer } from "#lib/chat/primer.ts"
 import type { Canvas } from "#lib/knowledge/canvas.ts"
@@ -22,12 +23,17 @@ import type {
   SyncConfig,
 } from "./protocol.ts"
 
+// history replays can outrun the load reply over P2P, so a second snapshot catches late items
+const RESYNC_MS = 1500
+
 export class HostView {
   readonly instance = crypto.randomUUID()
 
   state = $state<HostState | null>(null)
 
   views = $state<Record<string, SessionView>>({})
+
+  loading = new SvelteSet<string>()
 
   lists = $state<Record<string, Listed[]>>({})
 
@@ -120,6 +126,8 @@ export class HostView {
 
   #adopt = (state: HostState) => {
     const fresh = this.state === null
+    const restarted =
+      !!this.state?.boot && !!state.boot && this.state.boot !== state.boot
     const ready = state.knowledge.ready && !this.state?.knowledge.ready
 
     this.state = state
@@ -141,12 +149,23 @@ export class HostView {
       }
     }
 
+    if (restarted) {
+      this.#reopen()
+    }
+
     if (fresh) {
       for (const e of state.external) {
         this.#sought.add(e.id)
       }
     } else {
       this.#relist(state)
+    }
+  }
+
+  #reopen = () => {
+    for (const [id, view] of Object.entries(this.views)) {
+      delete this.views[id]
+      this.load(view.harness, id, view.cwd).catch(() => {})
     }
   }
 
@@ -245,9 +264,33 @@ export class HostView {
     const title = this.lists[harness]?.find(
       s => s.sessionId === sessionId,
     )?.title
-    const view = await this.call({ op: "load", harness, sessionId, cwd, title })
+    this.loading.add(sessionId)
 
-    this.views[view.id] = view
+    try {
+      const view = await this.call({
+        op: "load",
+        harness,
+        sessionId,
+        cwd,
+        title,
+      })
+
+      this.views[view.id] = view
+    } finally {
+      this.loading.delete(sessionId)
+    }
+
+    setTimeout(() => {
+      this.call({ op: "load", harness, sessionId, cwd, title })
+        .then(view => {
+          const known = this.views[view.id]
+
+          if (known && view.items.length > known.items.length) {
+            this.views[view.id] = view
+          }
+        })
+        .catch(() => {})
+    }, RESYNC_MS)
   }
 
   elsewhere = (sessionId: string) =>
@@ -280,6 +323,14 @@ export class HostView {
 
   press = (sessionId: string, strokes: Stroke[]) =>
     this.call({ op: "press", sessionId, strokes })
+
+  recall = (sessionId: string) => this.call({ op: "recall", sessionId })
+
+  readAgent = (sessionId: string, agentId: string) =>
+    this.call({ op: "agent.read", sessionId, agentId })
+
+  messageAgent = (sessionId: string, description: string, text: string) =>
+    this.call({ op: "agent.send", sessionId, description, text })
 
   answer = (sessionId: string, toolId: string, answers: Picked[]) =>
     this.call({ op: "answer", sessionId, toolId, answers })

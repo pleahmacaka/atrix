@@ -236,7 +236,7 @@ const stop = () => {
         <FolderPicker
           host={folderHost}
           value={group.cwd ?? folderHost.state?.home ?? ""}
-          onpick={cwd => groups.setFolder(group.id, cwd)}
+          onpick={cwd => groups.setFolder(group.id, cwd, folderHost.id)}
         />
       {/if}
       {#if group.members.length < MAX_MEMBERS}

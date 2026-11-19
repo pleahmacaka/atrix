@@ -21,6 +21,8 @@ const savedSchema = z.object({
 class Shell {
   #wide = new MediaQuery("(min-width: 64rem)")
 
+  #narrow = new MediaQuery("(max-width: 40rem)")
+
   #saved = persisted(KEY, savedSchema.parse({}), savedSchema)
 
   width = $state(this.#saved.width)
@@ -39,8 +41,14 @@ class Shell {
     return !this.docked || this.rail
   }
 
+  get narrow() {
+    return this.#narrow.current
+  }
+
   get compact() {
-    return this.collapsed && settings.sidebarCollapse === "compact"
+    return (
+      this.collapsed && !this.narrow && settings.sidebarCollapse === "compact"
+    )
   }
 
   get overlay() {

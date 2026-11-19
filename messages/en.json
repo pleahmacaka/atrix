@@ -319,7 +319,7 @@
   "spaces_chats": "Chats",
   "spaces_name": "Space name",
   "spaces_host": "Device",
-  "space_new_agent": "New agent",
+  "space_new_agent": "New session",
   "space_target": "Adding to the {name} space",
   "space_pin": "Pin",
   "space_unpin": "Unpin",
@@ -1120,7 +1120,12 @@
   "lock_pattern_short": "Connect at least 4 dots.",
   "lock_delete_digit": "Delete digit",
   "terminal_next": "Next",
-  "space_add_session": "Add session",
+  "space_add_session": "Open existing session",
   "lock_wait": "Too many attempts. Try again in 30 seconds.",
-  "lock_verify": "Enter your current lock first."
+  "lock_verify": "Enter your current lock first.",
+  "error_host_missing": "No device is connected. Connect a device and try again.",
+  "chat_agent_missing": "The subagent is not in the terminal list. Try again in a moment.",
+  "chat_agent_message": "Message the subagent",
+  "space_session_menu": "Add session",
+  "chat_loading_history": "Loading history"
 }

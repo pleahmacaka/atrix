@@ -34,6 +34,10 @@ export class Host {
 
   #ready: Promise<void> | null = null
 
+  #boot = crypto.randomUUID()
+
+  #core: Promise<void> | null = null
+
   #listeners = new Set<(event: HostEvent) => void>()
 
   #external = new ExternalSessions(
@@ -115,17 +119,26 @@ export class Host {
     this.#changed()
   }
 
-  start = () => {
-    this.#ready ??= (async () => {
+  #startCore = () => {
+    this.#core ??= (async () => {
       this.#home = await homeDir()
       await this.#spaces
         .load(this.#home)
         .catch((e: unknown) => logFailure("spaces load", e))
       this.#external.start(this.#home)
+    })()
+
+    return this.#core
+  }
+
+  start = () => {
+    this.#ready ??= (async () => {
+      await this.#startCore()
       await this.#bridge.start().catch(() => {})
       this.#knowledge.start()
       await this.#harnesses.start(this.#home)
       this.#sessions.revive().catch(() => {})
+      this.#changed()
     })()
 
     return this.#ready
@@ -187,6 +200,13 @@ export class Host {
 
       return null
     },
+    "agent.read": r => this.#external.agentItems(r.sessionId, r.agentId),
+    recall: r => this.#external.recall(r.sessionId),
+    "agent.send": async r => {
+      await this.#external.messageAgent(r.sessionId, r.description, r.text)
+
+      return null
+    },
     answer: async r => {
       await this.#sessions.answer(r.sessionId, r.toolId, r.answers)
 
@@ -245,7 +265,12 @@ export class Host {
   }
 
   handle: HostCall = async request => {
-    await this.start()
+    if (request.op === "state") {
+      this.start().catch((e: unknown) => logFailure("host start", e))
+      await this.#startCore()
+    } else {
+      await this.start()
+    }
 
     return this.#handlers[request.op](request)
   }
@@ -282,12 +307,13 @@ export class Host {
   }
 
   #state = (): HostState => ({
+    boot: this.#boot,
     home: this.#home,
     harnesses: this.#harnesses.infos(),
     available: this.#harnesses.installable(),
     open: this.#sessions.open(),
     knowledge: this.#knowledge.status,
-    external: [...this.#external.presence].map(([id, busy]) => ({
+    external: this.#external.shown().map(([id, busy]) => ({
       id,
       busy,
       waiting: this.#external.waiting(id),

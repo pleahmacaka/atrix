@@ -54,6 +54,40 @@ const claudeRecords = z.array(
 
 const MIRRORED = new Set(["cli", "claude-desktop"])
 
+const CLAUDE_COMMANDS = "claude-commands"
+
+const commandList = z
+  .array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      hint: z.string().optional(),
+    }),
+  )
+  .catch([])
+
+export const rememberClaudeCommands = (commands: Command[]) => {
+  try {
+    localStorage.setItem(CLAUDE_COMMANDS, JSON.stringify(commands))
+  } catch {}
+}
+
+const rememberedClaudeCommands = () => {
+  try {
+    return commandList.parse(
+      JSON.parse(localStorage.getItem(CLAUDE_COMMANDS) ?? "[]"),
+    )
+  } catch {
+    return []
+  }
+}
+
+const unique = (commands: Command[]) => {
+  const seen = new Set<string>()
+
+  return commands.filter(c => !seen.has(c.name) && seen.add(c.name))
+}
+
 const claudeBuiltins = (): Command[] => [
   {
     name: "compact",
@@ -148,10 +182,12 @@ const claude: Source = {
     join(home, ".claude", "projects", folderOf(cwd), `${id}.jsonl`),
   apply: applyTranscript,
   head: { needles: SHELL_NEEDLES, apply: applyShells },
-  commands: async home => [
-    ...claudeBuiltins(),
-    ...(await claudeSkills(home).catch(() => [])),
-  ],
+  commands: async home =>
+    unique([
+      ...claudeBuiltins(),
+      ...rememberedClaudeCommands(),
+      ...(await claudeSkills(home).catch(() => [])),
+    ]),
 }
 
 const codex: Source = {

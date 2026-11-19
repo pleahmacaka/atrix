@@ -199,6 +199,27 @@ const placeIn = async (host: string, node: SpaceNode, sessionId: string, before:
   }
 }
 
+const spaceIdOf = async (host: string, node: SpaceNode) => {
+  if (!node.auto) {
+    return node.space.id
+  }
+
+  const view = hostById(host)
+  const created = await view?.createSpace(node.space.name, node.space.folder)
+
+  return created?.id ?? null
+}
+
+const draggedNode = (e: DragEvent) => {
+  try {
+    return z
+      .object({ host: z.string(), key: z.string() })
+      .parse(JSON.parse(e.dataTransfer?.getData(SPACE_MIME) ?? ""))
+  } catch {
+    return null
+  }
+}
+
 const dropOnSpace = async (e: DragEvent, host: string, node: SpaceNode, nodes: SpaceNode[]) => {
   e.preventDefault()
 
@@ -207,27 +228,30 @@ const dropOnSpace = async (e: DragEvent, host: string, node: SpaceNode, nodes: S
   clear()
 
   const view = hostById(host)
-  const [from, moving] = (e.dataTransfer?.getData(SPACE_MIME) ?? "").split("|")
+  const dragged = draggedNode(e)
 
-  if (moving && from !== host) {
-    return
-  }
+  if (dragged) {
+    const moving = nodes.find(n => n.key === dragged.key)
 
-  if (moving) {
-    const spaces = nodes.flatMap(n => (!n.auto && n.space.id !== moving ? [n.space.id] : []))
-    const target = node.space.id
-
-    if (target === moving) {
+    if (dragged.host !== host || !moving || moving.key === node.key) {
       return
     }
 
-    if (node.auto) {
-      return view?.moveSpace(moving, null)
+    const target = await spaceIdOf(host, node)
+    const id = await spaceIdOf(host, moving)
+
+    if (!target || !id) {
+      return
     }
 
-    const at = spaces.indexOf(target)
+    if (node.auto || moving.auto) {
+      await view?.refresh()
+    }
 
-    return view?.moveSpace(moving, after ? (spaces[at + 1] ?? null) : target)
+    const order = (view?.state?.spaces ?? []).map(s => s.id).filter(s => s !== id)
+    const at = order.indexOf(target)
+
+    return view?.moveSpace(id, after ? (order[at + 1] ?? null) : target)
   }
 
   const dropped = droppedConversation(e)
@@ -544,12 +568,10 @@ const railRows = $derived(
       aria-expanded={open}
       aria-label={m.space_toggle({ name: node.space.name })}
       title={node.space.folder}
-      draggable={!node.auto}
+      draggable="true"
       ondragstart={e => {
-        if (!node.auto) {
-          e.dataTransfer?.setData(SPACE_MIME, `${host}|${node.space.id}`)
-          e.dataTransfer?.setData("text/plain", "")
-        }
+        e.dataTransfer?.setData(SPACE_MIME, JSON.stringify({ host, key: node.key }))
+        e.dataTransfer?.setData("text/plain", "")
       }}
       ondragover={e => (draggedSpace(e) || isConversationDrag(e)) && hintAt(e, node.key)}
       ondragleave={clear}
@@ -565,19 +587,13 @@ const railRows = $derived(
       </span>
       <span class="min-w-0 flex-1 truncate text-start font-medium">{node.space.name}</span>
       {@render status(open ? "idle" : node.status, false)}
-      {#if !node.auto}
-        <Icon
-          icon="lucide:grip-vertical"
-          class="size-3.5 shrink-0 cursor-grab opacity-0 transition-opacity duration-140 group-hover/space:opacity-70"
-        />
-      {/if}
     </button>
     <IconButton
       icon="lucide:plus"
-      label={m.space_add_session()}
+      label={m.space_session_menu()}
       size="xs"
       class="absolute inset-y-0 end-1.5 my-auto opacity-60 hover:opacity-100"
-      onclick={() => (adding = { host, node })}
+      onclick={e => contextMenu.show(e, spaceMenu(host, node).slice(0, 2).reverse())}
     />
   </div>
 {/snippet}

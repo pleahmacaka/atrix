@@ -1,6 +1,6 @@
 <script lang="ts">
 import { tick } from "svelte"
-import { fly } from "svelte/transition"
+import { fade, fly } from "svelte/transition"
 import CallDock from "#lib/components/chat/CallDock.svelte"
 import SelectionReply from "#lib/components/chat/SelectionReply.svelte"
 import SettingsDialog from "#lib/components/settings/SettingsDialog.svelte"
@@ -82,7 +82,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 />
 
 <div class="window-frame flex h-dvh flex-col bg-base-200" data-frame>
-<div class="flex min-h-0 flex-1 gap-2 p-2" data-shell>
+<div class="flex min-h-0 flex-1 gap-2 p-2 max-sm:gap-0 max-sm:p-0" data-shell>
   {#if docked && (!shell.collapsed || shell.compact)}
     <div
       class="flex min-h-0 shrink-0 transition-width duration-140"
@@ -117,13 +117,20 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 </div>
 </div>
 
+{#if docked && shell.overlay && shell.narrow}
+  <div
+    class="fixed inset-0 z-30 bg-base-100/50 backdrop-blur-sm"
+    aria-hidden="true"
+    transition:fade={{ duration: 140 }}
+  ></div>
+{/if}
 {#if docked && shell.overlay}
   <div
     role="dialog"
     tabindex="-1"
     aria-label={m.shell_sidebar()}
-    class="fixed bottom-0 z-30 flex max-w-viewport px-2 pb-2"
-    style:top="{225 / settings.scale}rem"
+    class="fixed bottom-0 z-30 flex max-w-viewport px-2 pb-2 max-sm:max-w-5/6 max-sm:px-0 max-sm:pb-0"
+    style:top={shell.narrow ? "0" : `${225 / settings.scale}rem`}
     style:left="{shell.compact ? RAIL_REM + 0.5 : 0}rem"
     style:width="{shell.width + 1}rem"
     data-sidebar-drawer

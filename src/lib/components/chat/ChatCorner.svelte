@@ -9,7 +9,13 @@ let {
   plan,
   agents,
   timeline = true,
-}: { plan: PlanEntry[]; agents: Subagent[]; timeline?: boolean } = $props()
+  onAgent,
+}: {
+  plan: PlanEntry[]
+  agents: Subagent[]
+  timeline?: boolean
+  onAgent?: (agent: Subagent) => void
+} = $props()
 
 const STACK = 4
 
@@ -145,12 +151,20 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
           <ul class="flex flex-col gap-1.5">
             {#each agents as agent (agent.id)}
               <li class="flex min-w-0 flex-col">
-                <span class="flex min-w-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  class="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-field text-start hover:text-primary disabled:cursor-default"
+                  disabled={!onAgent}
+                  onclick={() => {
+                    open = false
+                    onAgent?.(agent)
+                  }}
+                >
                   <span class="loading loading-spinner size-3 shrink-0 text-primary"></span>
                   <span class="min-w-0 truncate font-medium" title={agent.description}>
                     {agent.description}
                   </span>
-                </span>
+                </button>
                 {#if agent.step}
                   <span class="shimmer min-w-0 truncate ps-4.5" title={agent.step}>{agent.step}</span>
                 {/if}

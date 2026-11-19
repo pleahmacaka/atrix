@@ -1,27 +1,11 @@
-import { drafts } from "./composer.svelte.ts"
-
-const QUOTE_LIMIT = 600
-
-const quoted = (text: string) => {
-  const trimmed = text.trim()
-  const chars = [...trimmed]
-  const short =
-    chars.length > QUOTE_LIMIT
-      ? `${chars.slice(0, QUOTE_LIMIT).join("")}…`
-      : trimmed
-
-  return short
-    .split("\n")
-    .map(line => `> ${line}`)
-    .join("\n")
-}
+import { drafts, quotes } from "./composer.svelte.ts"
 
 export const quoteInto = (draft: string, text: string, mention = "") => {
-  const head = mention ? `${mention}\n` : ""
-  const rest = drafts.get(draft)
-  const block = `${head}${quoted(text)}\n\n`
+  quotes.set(draft, text.trim())
 
-  drafts.set(draft, `${block}${rest}`)
+  if (mention && !drafts.get(draft).startsWith(mention)) {
+    drafts.set(draft, `${mention} ${drafts.get(draft)}`)
+  }
 
   requestAnimationFrame(() => {
     const field = document.querySelector<HTMLTextAreaElement>(
@@ -29,7 +13,6 @@ export const quoteInto = (draft: string, text: string, mention = "") => {
     )
 
     field?.focus()
-    field?.setSelectionRange(block.length, block.length)
   })
 }
 

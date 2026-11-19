@@ -73,7 +73,7 @@ $effect(() => {
   data-draft={props.draft}
   style:view-transition-name={morph}
   class={[
-    "mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2",
+    "group/composer mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2",
     sharing && !docked && "hidden",
   ]}
   {@attach dock(() => (docked ? panes.inputSlot : null))}
@@ -136,7 +136,12 @@ $effect(() => {
       {/if}
     </div>
   </div>
-  <div class="flex min-w-0 items-center gap-1">
+  <div
+    class={[
+      "flex min-w-0 items-center gap-1",
+      "max-sm:hidden max-sm:group-focus-within/composer:flex",
+    ]}
+  >
     {#if props.side}
       <div class="w-10 shrink-0"></div>
     {/if}

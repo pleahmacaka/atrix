@@ -184,11 +184,12 @@ class Groups {
     return group.id
   }
 
-  setFolder = async (groupId: string, cwd: string) => {
+  setFolder = async (groupId: string, cwd: string, host?: string) => {
     const group = this.find(groupId)
 
     if (group) {
       group.cwd = cwd
+      group.cwdHost = host
       await local.save()
     }
   }
@@ -236,9 +237,10 @@ class Groups {
       return
     }
 
+    const ownFolder = group.cwd && (!group.cwdHost || group.cwdHost === host)
     const id = await view.create(
       harness.id,
-      group.cwd ?? view.state?.home ?? "",
+      (ownFolder ? group.cwd : view.state?.home) ?? "",
     )
 
     if (!view.views[id]) {

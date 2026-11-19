@@ -13,7 +13,7 @@ import { openThread, startThread, threadsOf } from "#lib/chat/threads.svelte.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import { isGoneError } from "#lib/p2p/protocol.ts"
+import { isGoneError, type Subagent } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import PcbSide from "#lib/pcb/PcbSide.svelte"
 import { openConversation } from "#lib/store/nav.svelte.ts"
@@ -30,6 +30,7 @@ import RunningStatus from "./RunningStatus.svelte"
 import SessionExtras from "./SessionExtras.svelte"
 import SessionTools from "./SessionTools.svelte"
 import SidePanel from "./SidePanel.svelte"
+import SubagentChat from "./SubagentChat.svelte"
 import TerminalDialog from "./TerminalDialog.svelte"
 import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
@@ -85,6 +86,8 @@ const agents = $derived(
 const plan = $derived(
   view?.items.findLast(i => i.type === "plan")?.entries ?? [],
 )
+
+let viewing = $state<Subagent | null>(null)
 
 const cornered = $derived(plan.length > 0 || (view?.agents?.length ?? 0) > 0)
 
@@ -152,6 +155,12 @@ $effect(() => {
               data-cornered={cornered || undefined}
               data-quote={sessionId}
             >
+              {#if host.loading.has(sessionId)}
+                <p class="flex items-center justify-center gap-2 text-sm text-base-content/60" role="status">
+                  <span class="loading loading-spinner loading-xs"></span>
+                  {m.chat_loading_history()}
+                </p>
+              {/if}
               {#each segments as segment, i (segment.key)}
                 {#if segment.kind === "activity"}
                   <ToolGroup items={segment.items} latest={i === segments.length - 1} />
@@ -221,7 +230,12 @@ $effect(() => {
             </div>
           </div>
           <ChatTimeline {scroller} {turns} />
-          <ChatCorner {plan} agents={agents} timeline={hasTimeline(turns)} />
+          <ChatCorner
+            {plan}
+            {agents}
+            timeline={hasTimeline(turns)}
+            onAgent={view?.external ? a => (viewing = a) : undefined}
+          />
         </div>
       {/if}
       <Composer
@@ -235,6 +249,7 @@ $effect(() => {
         commands={view.commands}
         onSend={send}
         onStop={() => attempt(() => host.cancel(sessionId))}
+        onRecall={queued.length > 0 && view.external ? () => host.recall(sessionId) : undefined}
       >
         {#snippet tools()}
           <SessionTools {host} {view} {elsewhere} {attempt} {send} />
@@ -255,6 +270,7 @@ $effect(() => {
     {/if}
     <PcbSide cwd={view.cwd} />
   </div>
+  <SubagentChat {host} {sessionId} agent={viewing} onclose={() => (viewing = null)} />
 {:else}
   <div class="grid flex-1 place-items-center">
     <span class="loading loading-spinner opacity-60"></span>

@@ -46,8 +46,7 @@ $effect(() => {
   })
 })
 
-const cssVar = (name: string) =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+const cssVar = (el: HTMLElement, name: string) => getComputedStyle(el).getPropertyValue(name).trim()
 
 const rgbOf = (color: string) => {
   const ctx = document.createElement("canvas").getContext("2d", {
@@ -89,14 +88,20 @@ const mount = (el: HTMLElement) => {
       return
     }
 
+    const surface = rgbOf(cssVar(el, "--color-base-100"))
+
+    if (el.parentElement) {
+      el.parentElement.style.backgroundColor = surface
+    }
+
     const next = new Terminal({
       fontSize: size,
       fontFamily: family,
       cursorBlink: true,
       theme: {
-        background: rgbOf(cssVar("--color-base-100")),
-        foreground: rgbOf(cssVar("--color-base-content")),
-        cursor: rgbOf(cssVar("--color-primary")),
+        background: surface,
+        foreground: rgbOf(cssVar(el, "--color-base-content")),
+        cursor: rgbOf(cssVar(el, "--color-primary")),
       },
     })
 
@@ -168,7 +173,9 @@ const mount = (el: HTMLElement) => {
 
 <div class="flex min-h-0 flex-1 flex-col gap-2 p-2">
   {#key generation}
-    <div class="min-h-0 flex-1 overflow-hidden rounded-field" {@attach mount}></div>
+    <div class="min-h-0 flex-1 overflow-hidden rounded-box border border-base-300 p-3">
+      <div class="size-full" {@attach mount}></div>
+    </div>
   {/key}
   {#if exited}
     <EmptyState icon="lucide:square-terminal" text={m.terminal_exited()}>
