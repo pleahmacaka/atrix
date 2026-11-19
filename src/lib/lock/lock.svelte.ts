@@ -140,7 +140,7 @@ class Screen {
   }
 
   watch = () => {
-    const timer = setInterval(() => {
+    const check = () => {
       const idle = settings.lockIdle * 60_000
 
       if (
@@ -151,9 +151,16 @@ class Screen {
       ) {
         this.lock()
       }
-    }, CHECK_MS)
+    }
 
-    return () => clearInterval(timer)
+    const timer = setInterval(check, CHECK_MS)
+
+    document.addEventListener("visibilitychange", check)
+
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener("visibilitychange", check)
+    }
   }
 }
 

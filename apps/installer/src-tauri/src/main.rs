@@ -96,7 +96,7 @@ fn stop(handle: &AppHandle) -> Result<bool, String> {
 fn apply_blocking(handle: &AppHandle, chosen: Components) -> Result<(), String> {
     let chosen = chosen.for_platform();
     let fresh = !platform::installed();
-    let restart = !fresh && stop(handle)?;
+    let start = fresh || stop(handle)?;
 
     if fresh || platform::outdated() {
         let payload = PAYLOAD.ok_or("setup package missing")?;
@@ -109,7 +109,7 @@ fn apply_blocking(handle: &AppHandle, chosen: Components) -> Result<(), String> 
         platform::default_app(chosen.files)
     })?;
 
-    if restart {
+    if start {
         step(handle, "start", platform::launch)?;
     }
 

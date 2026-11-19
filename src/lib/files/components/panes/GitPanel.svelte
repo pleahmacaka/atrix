@@ -272,7 +272,7 @@ const split = (path: string) => {
             class={[
               "btn btn-ghost btn-xs ms-auto shrink-0 opacity-0",
               "transition-opacity duration-140",
-              "group-hover/head:opacity-100 focus-visible:opacity-100",
+              "group-hover/head:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
             ]}
             disabled={busy !== null}
             onclick={() =>
@@ -309,7 +309,7 @@ const split = (path: string) => {
                 iconClass="size-3.5"
                 class={[
                   "shrink-0 opacity-0 transition-opacity duration-140",
-                  "group-hover/row:opacity-100 focus-visible:opacity-100",
+                  "group-hover/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
                 ]}
                 disabled={busy !== null}
                 onclick={() =>

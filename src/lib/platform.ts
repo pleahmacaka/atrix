@@ -2,7 +2,7 @@ import { isTauri } from "@tauri-apps/api/core"
 
 const agent = navigator.userAgent
 
-const mobile = /Android|iPhone|iPad/.test(agent)
+export const mobile = /Android|iPhone|iPad/.test(agent)
 
 export const desktop = isTauri() && !mobile
 

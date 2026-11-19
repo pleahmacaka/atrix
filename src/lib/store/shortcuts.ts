@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { lockKind, screen } from "#lib/lock/lock.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { mobile } from "#lib/platform.ts"
 import { goPage, nav, openConversation, openSettings } from "./nav.svelte.ts"
 import { panes, type Side } from "./panes.svelte.ts"
 import { shell } from "./shell.svelte.ts"
@@ -68,7 +69,7 @@ export const SHORTCUTS: Shortcut[] = [
       if (nav.settingsOpen) {
         nav.settingsOpen = false
       } else {
-        openSettings(nav.settingsTab)
+        openSettings()
       }
     },
   },
@@ -214,7 +215,7 @@ export const keysOf = (id: ShortcutId) => {
 }
 
 export const withKeys = (label: string, id: ShortcutId) =>
-  `${label} (${keysOf(id)})`
+  mobile ? label : `${label} (${keysOf(id)})`
 
 const fires = (shortcut: Shortcut, e: KeyboardEvent, chord: string | null) => {
   if (!chord || !chordsOf(shortcut).includes(chord)) {

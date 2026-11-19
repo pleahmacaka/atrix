@@ -13,6 +13,12 @@ const EDGE_REM = 0.5
 
 const DELAY_MS = 400
 
+const HOLD_MS = 450
+
+const LINGER_MS = 1500
+
+const PRESSABLE = "a, button, input, label, select, textarea"
+
 let tip: HTMLDivElement | null = null
 
 const tipOf = () => {
@@ -147,6 +153,28 @@ export const hoverTip =
       }
     }
 
+    const press = (e: PointerEvent) => {
+      hide()
+
+      const pressable =
+        e.target instanceof Element && e.target.closest(PRESSABLE) !== null
+
+      if (e.pointerType !== "mouse" && !pressable) {
+        show(HOLD_MS)
+      }
+    }
+
+    const leave = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") {
+        hide()
+
+        return
+      }
+
+      clearTimeout(timer)
+      timer = setTimeout(close, LINGER_MS)
+    }
+
     const focusin = (e: FocusEvent) => {
       if (e.target instanceof Element && e.target.matches(":focus-visible")) {
         show(0)
@@ -162,8 +190,9 @@ export const hoverTip =
     }
 
     node.addEventListener("pointerenter", enter)
-    node.addEventListener("pointerleave", hide)
-    node.addEventListener("pointerdown", hide)
+    node.addEventListener("pointerleave", leave)
+    node.addEventListener("pointerdown", press)
+    node.addEventListener("pointercancel", hide)
     node.addEventListener("wheel", hide, { passive: true })
     node.addEventListener("focusin", focusin)
     node.addEventListener("focusout", focusout)
@@ -171,8 +200,9 @@ export const hoverTip =
     return () => {
       hide()
       node.removeEventListener("pointerenter", enter)
-      node.removeEventListener("pointerleave", hide)
-      node.removeEventListener("pointerdown", hide)
+      node.removeEventListener("pointerleave", leave)
+      node.removeEventListener("pointerdown", press)
+      node.removeEventListener("pointercancel", hide)
       node.removeEventListener("wheel", hide)
       node.removeEventListener("focusin", focusin)
       node.removeEventListener("focusout", focusout)

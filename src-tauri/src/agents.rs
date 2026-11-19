@@ -69,11 +69,22 @@ impl Agents {
         command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
 
         let mut child = platform::tree(command).spawn()?;
         let stdin = child.stdin().take().ok_or("stdin unavailable")?;
         let stdout = child.stdout().take().ok_or("stdout unavailable")?;
+        let stderr = child.stderr().take().ok_or("stderr unavailable")?;
+        let label = key.clone();
+
+        thread::spawn(move || {
+            for line in BufReader::new(stderr)
+                .lines()
+                .map_while(std::io::Result::ok)
+            {
+                log::info!(target: "harness", "{label} {line}");
+            }
+        });
 
         self.0.lock().unwrap().insert(
             key,

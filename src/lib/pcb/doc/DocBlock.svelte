@@ -29,7 +29,7 @@ let copied = $state(false)
       icon="lucide:link"
       bind:copied
       class={[
-        "self-center cursor-pointer opacity-0 transition-opacity group-hover:opacity-100",
+        "self-center cursor-pointer opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100",
         copied && "opacity-100",
       ]}
     />

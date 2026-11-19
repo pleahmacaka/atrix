@@ -334,14 +334,16 @@ const deliver = async (text: string, files: File[]) => {
       throw new Error(m.chat_no_device())
     }
 
-    glide(opened)
+    try {
+      const { toAttachment } = await import("#lib/chat/attachments.ts")
+      const attachments = await Promise.all(files.map(toAttachment))
 
-    const { toAttachment } = await import("#lib/chat/attachments.ts")
-    const attachments = await Promise.all(files.map(toAttachment))
-
-    await sendPrimed(opened.id, text, primed =>
-      view.prompt(opened.id, primed, attachments),
-    )
+      await sendPrimed(opened.id, text, primed =>
+        view.prompt(opened.id, primed, attachments),
+      )
+    } finally {
+      glide(opened)
+    }
 }
 
 const spaceName = $derived.by(() => {

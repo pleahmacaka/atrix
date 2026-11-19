@@ -69,7 +69,7 @@ const message = (agent: StoredAgent) =>
       <IconButton
         icon="lucide:message-square-plus"
         label={m.agents_message({ name: agent.name })}
-        class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+        class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
         disabled={!provider}
         onclick={() => message(agent)}
       />

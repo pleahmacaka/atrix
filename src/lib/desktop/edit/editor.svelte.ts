@@ -42,7 +42,6 @@ const FIELDS: (keyof DeviceSettings)[] = [
   "dockHeight",
   "dockIconSize",
   "dockWidth",
-  "dockIslands",
   ...Object.values(FLAGS),
 ]
 

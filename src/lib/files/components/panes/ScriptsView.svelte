@@ -85,7 +85,7 @@ $effect(() => {
               icon="lucide:play"
               class={[
                 "size-3.5 shrink-0 text-success opacity-60",
-                "transition-opacity duration-140 group-hover:opacity-100",
+                "transition-opacity duration-140 group-hover:opacity-100 pointer-coarse:opacity-100",
               ]}
             />
             <span class="flex min-w-0 grow flex-col">

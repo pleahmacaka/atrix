@@ -1,7 +1,7 @@
 import type { Component } from "svelte"
 import PairPanel from "#lib/components/devices/PairPanel.svelte"
 import { m } from "#lib/paraglide/messages.js"
-import { desktop } from "#lib/platform.ts"
+import { desktop, mobile } from "#lib/platform.ts"
 import type { SettingsTab } from "#lib/store/nav.svelte.ts"
 import AppearanceTab from "./AppearanceTab.svelte"
 import CalendarTab from "./CalendarTab.svelte"
@@ -65,12 +65,16 @@ export const SETTINGS_TABS: {
     icon: "lucide:calendar",
     body: CalendarTab,
   },
-  {
-    id: "shortcuts",
-    label: m.settings_shortcuts(),
-    icon: "lucide:keyboard",
-    body: ShortcutsTab,
-  },
+  ...(mobile
+    ? []
+    : [
+        {
+          id: "shortcuts" as const,
+          label: m.settings_shortcuts(),
+          icon: "lucide:keyboard",
+          body: ShortcutsTab,
+        },
+      ]),
   {
     id: "security",
     label: m.settings_security(),

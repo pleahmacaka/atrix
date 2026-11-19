@@ -1,7 +1,25 @@
+import { m } from "#lib/paraglide/messages.js"
 import type { AppEntry } from "../native/apps"
 import type { WindowEntry } from "../native/windows"
 
 const normalized = (path: string) => path.replaceAll("/", "\\").toLowerCase()
+
+const atrixApp = (path: string, appId: string, name: string): AppEntry => ({
+  id: path,
+  name,
+  path,
+  kind: "shortcut",
+  subtitle: "",
+  app_id: appId,
+  executable: null,
+  icon_executable: null,
+  argument_executables: [],
+})
+
+export const atrixApps = () => [
+  atrixApp("atrix:files", "Atrix.Files", m.dock_app_files()),
+  atrixApp("atrix:terminal", "Atrix.Terminal", m.dock_app_terminal()),
+]
 
 export const fallbackPin = (path: string, name: string): AppEntry => {
   const executable = path.toLowerCase().endsWith(".exe") ? path : null

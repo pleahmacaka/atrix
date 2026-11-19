@@ -254,7 +254,7 @@ const focusInput = (e: PointerEvent) => {
       <div
         class={[
           "-me-2 flex shrink-0 items-center opacity-0 transition-opacity duration-140",
-          "group-hover/pane:opacity-100 focus-within:opacity-100",
+          "group-hover/pane:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
         ]}
       >
         {@render floatButton()}

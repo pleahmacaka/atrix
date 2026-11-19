@@ -1,5 +1,5 @@
 import { m } from "#lib/paraglide/messages.js"
-import { platform } from "#lib/platform.ts"
+import { desktop, platform } from "#lib/platform.ts"
 import type { Page } from "./nav.svelte.ts"
 
 type PageInfo = { id: Page; label: () => string; icon: string }
@@ -30,5 +30,13 @@ export const PAGES: PageInfo[] = [
   { id: "chat", label: m.shell_page_chat, icon: "lucide:messages-square" },
   { id: "agent", label: m.shell_page_agent, icon: "lucide:contact-round" },
   { id: "knowledge", label: m.shell_page_knowledge, icon: "lucide:library" },
-  { id: "data", label: m.shell_page_data, icon: "lucide:database" },
+  ...(desktop
+    ? [
+        {
+          id: "data" as const,
+          label: m.shell_page_data,
+          icon: "lucide:database",
+        },
+      ]
+    : []),
 ]

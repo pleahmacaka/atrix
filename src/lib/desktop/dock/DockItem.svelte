@@ -209,15 +209,15 @@
     ondragstart={dragStart}
     {ondragend}
     class={[
-      "btn btn-ghost btn-square relative origin-bottom p-0",
-      "will-change-transform",
-      "transition-transform active:scale-90",
-      active && "bg-primary/8",
+      "relative origin-bottom p-0 will-change-transform",
+      mac
+        ? "flex cursor-pointer items-center justify-center"
+        : ["btn btn-ghost btn-square transition-transform active:scale-90", active && "bg-primary/8"],
     ]}
     style:width={rem(size + 16)}
     style:height={rem(size + 16)}
     style:transform={magnify === 1 ? undefined : `scale(${magnify})`}
-    title={running ? undefined : group.name}
+    title={running || mac ? undefined : group.name}
     aria-label={group.name}
     aria-haspopup="menu"
     onclick={activate}

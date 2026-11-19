@@ -1,7 +1,7 @@
 <script lang="ts">
-import { desktop } from "#lib/platform.ts"
+import { isTauri } from "@tauri-apps/api/core"
 
-const version = desktop ? import("@tauri-apps/api/app").then(app => app.getVersion()) : null
+const version = isTauri() ? import("@tauri-apps/api/app").then(app => app.getVersion()) : null
 </script>
 
 {#if version}

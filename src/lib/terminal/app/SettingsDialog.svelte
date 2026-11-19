@@ -53,6 +53,17 @@ const shells = $derived(
           class="w-56"
         />
       </SettingRow>
+      <SettingRow
+        title={m.terminal_settings_side_tabs()}
+        tip={m.terminal_settings_side_tabs_tip()}
+      >
+        <input
+          type="checkbox"
+          class="toggle toggle-sm toggle-primary"
+          aria-label={m.terminal_settings_side_tabs()}
+          bind:checked={prefs.sideTabs}
+        />
+      </SettingRow>
     </Section>
 
     <Section title={m.terminal_settings_font()}>

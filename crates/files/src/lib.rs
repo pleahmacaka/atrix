@@ -52,6 +52,10 @@ mod usage;
 
 pub use diagnostics::log_panics;
 pub use share::mount as mount_share;
+
+pub const APP_ID: &str = "Atrix.Files";
+
+pub const ICON: &[u8] = include_bytes!("../icons/128x128.png");
 #[cfg(desktop)]
 mod tensors;
 #[cfg(desktop)]

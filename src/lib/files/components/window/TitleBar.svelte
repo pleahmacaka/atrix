@@ -51,7 +51,7 @@ let { explorer }: { explorer: Explorer } = $props()
           class={[
             "shrink-0 transition-opacity duration-140",
             !active &&
-              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
           ]}
           onclick={e => {
             e.stopPropagation()

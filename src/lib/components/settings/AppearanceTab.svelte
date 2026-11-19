@@ -132,7 +132,7 @@ const TEXTURES: { id: Texture; label: string }[] = [
     {/if}
     <SettingRow title={m.appearance_interface_font()} tip={m.appearance_interface_font_tip()}>
       <input
-        class="input input-sm w-56"
+        class="input input-sm w-56 max-sm:w-full"
         aria-label={m.appearance_interface_font()}
         placeholder="Pretendard"
         autocomplete="off"
@@ -144,7 +144,7 @@ const TEXTURES: { id: Texture; label: string }[] = [
     {#if desktop}
       <SettingRow title={m.appearance_terminal_font()} tip={m.appearance_terminal_font_tip()}>
         <input
-          class="input input-sm w-56"
+          class="input input-sm w-56 max-sm:w-full"
           aria-label={m.appearance_terminal_font()}
           placeholder={TERMINAL_FONT}
           autocomplete="off"

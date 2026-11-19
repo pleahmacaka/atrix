@@ -26,7 +26,7 @@
   let graced: typeof contextMenu.current = null
   let graceTimer: ReturnType<typeof setTimeout> | undefined
 
-  const island = $derived(layout.device.dockIslands)
+  const island = $derived(layout.islands)
 
   const menu = (e: MouseEvent) => {
     const owner =

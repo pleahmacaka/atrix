@@ -171,7 +171,6 @@
   "dock_edit_height": "Height",
   "dock_edit_icon_size": "Icon size",
   "dock_edit_width": "Width",
-  "dock_edit_islands": "Separate groups",
   "dock_zone_start": "Left",
   "dock_zone_center": "Center",
   "dock_zone_end": "Right",
@@ -206,5 +205,7 @@
   "dock_item_bell": "Notifications",
   "dock_item_settings": "Settings button",
   "dock_item_desktop": "Show desktop",
-  "dock_item_separator": "Separator"
+  "dock_item_separator": "Separator",
+  "dock_app_files": "Atrix Files",
+  "dock_app_terminal": "Atrix Terminal"
 }

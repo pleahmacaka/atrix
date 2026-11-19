@@ -26,7 +26,7 @@ let {
 
 const look = $derived([
   "flex min-h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field px-2",
-  "text-left text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-40",
+  "text-left text-sm outline-none! disabled:cursor-not-allowed disabled:opacity-40",
   selected
     ? "bg-primary/8 text-primary"
     : "hover:bg-base-content/8 focus-visible:bg-base-content/8",

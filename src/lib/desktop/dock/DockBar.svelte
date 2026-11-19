@@ -19,13 +19,17 @@
   const top = $derived(layout.edge === "top")
 
   const band = $derived.by(() => {
-    const fill = layout.device.dockIslands ? "bg-base-200" : "bg-base-100"
-
     if (layout.mac) {
-      return [fill, "rounded-box border border-base-300 shadow-lg"]
+      return layout.islands
+        ? "justify-center"
+        : "justify-center rounded-box border border-base-300 bg-base-100"
     }
 
-    return [fill, "border-base-300", top ? "border-b" : "border-t"]
+    return [
+      layout.islands ? "bg-base-200" : "bg-base-100",
+      "border-base-300",
+      top ? "border-b" : "border-t",
+    ]
   })
 </script>
 

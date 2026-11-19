@@ -13,7 +13,10 @@ let {
 
 <div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 max-sm:flex-col max-sm:items-stretch">
   <div
-    class="flex min-h-8 min-w-0 flex-1 basis-40 items-center gap-3 max-sm:basis-auto"
+    class={[
+      "flex min-h-8 min-w-0 flex-1 basis-40 items-center gap-3",
+      "max-sm:basis-auto pointer-coarse:select-none",
+    ]}
     {@attach hoverTip(() => tip, "bottom-start")}
   >
     {#if icon}

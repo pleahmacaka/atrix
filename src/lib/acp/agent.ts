@@ -237,3 +237,13 @@ export const storeAttachment = async (
 }
 
 export const RESOURCE_NOT_FOUND = -32002
+
+export const failureText = (e: unknown) => {
+  if (!(e instanceof Error)) {
+    return String(e)
+  }
+
+  const data = e instanceof acp.RequestError ? e.data : undefined
+
+  return data === undefined ? e.message : `${e.message} ${JSON.stringify(data)}`
+}

@@ -7,14 +7,11 @@ import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import UpdateButton from "#lib/components/update/UpdateButton.svelte"
 import { sync } from "#lib/p2p/sync.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { desktop } from "#lib/platform.ts"
+import { desktop, mobileApp } from "#lib/platform.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { updater } from "#lib/update/updater.svelte.ts"
+import AppVersion from "./AppVersion.svelte"
 import TokscaleSettings from "./TokscaleSettings.svelte"
-
-const version = desktop
-  ? import("@tauri-apps/api/app").then(app => app.getVersion())
-  : Promise.resolve("")
 
 const openDataFolder = async () => {
   const [{ homeDir, join }, { openPath }] = await Promise.all([
@@ -47,22 +44,15 @@ const openDataFolder = async () => {
         }}
       />
     </SettingRow>
-    <SettingRow title={m.device_runs_harness()} tip={m.device_runs_harness_tip()}>
-      <span
-        class={[
-          "badge whitespace-nowrap",
-          desktop ? "badge-success badge-soft" : "badge-ghost",
-        ]}
-      >
-        <Icon icon={desktop ? "lucide:check" : "lucide:minus"} class="size-3" />
-        {desktop ? m.common_enabled() : m.common_unsupported()}
-      </span>
-    </SettingRow>
     {#if desktop}
+      <SettingRow title={m.device_runs_harness()} tip={m.device_runs_harness_tip()}>
+        <span class="badge badge-success badge-soft whitespace-nowrap">
+          <Icon icon="lucide:check" class="size-3" />
+          {m.common_enabled()}
+        </span>
+      </SettingRow>
       <SettingRow title={m.update_title()} tip={m.update_title_tip()}>
-        {#await version then current}
-          <span class="text-sm text-base-content/60 tabular-nums">{current}</span>
-        {/await}
+        <AppVersion />
         <UpdateButton />
       </SettingRow>
       <SettingRow title={m.device_data_folder()} tip={m.device_data_folder_tip()}>
@@ -72,6 +62,10 @@ const openDataFolder = async () => {
           tone="plain"
           onclick={openDataFolder}
         />
+      </SettingRow>
+    {:else if mobileApp}
+      <SettingRow title={m.app_version()} tip={m.app_version_tip()}>
+        <AppVersion />
       </SettingRow>
     {/if}
   </Section>

@@ -104,7 +104,7 @@ $effect(() => {
           icon={fromIndex ? "lucide:minus" : "lucide:plus"}
           label={fromIndex ? m.git_unstage() : m.git_stage()}
           size="xs"
-          class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
           disabled={busy !== null}
           onclick={() =>
             run(change.path, {

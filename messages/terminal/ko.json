@@ -24,5 +24,7 @@
   "terminal_serial_refresh": "포트 새로 고침",
   "terminal_settings_title": "터미널 설정",
   "terminal_settings_shell": "기본 셸",
-  "terminal_settings_font": "글꼴"
+  "terminal_settings_font": "글꼴",
+  "terminal_settings_side_tabs": "탭 사이드바",
+  "terminal_settings_side_tabs_tip": "탭을 창 위쪽 대신 왼쪽 사이드바에 표시합니다."
 }

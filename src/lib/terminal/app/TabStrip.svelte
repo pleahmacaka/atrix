@@ -33,6 +33,8 @@ import {
 
 type Renaming = { kind: "tab" | "pane"; id: number }
 
+let { vertical = false }: { vertical?: boolean } = $props()
+
 let renaming = $state<Renaming | null>(null)
 
 let picking = $state(false)
@@ -99,7 +101,9 @@ const slotAt = (x: number, y: number) => {
   const index = slots().findIndex(item => {
     const edge = item.getBoundingClientRect()
 
-    return x < edge.left + edge.width / 2
+    return vertical
+      ? y < edge.top + edge.height / 2
+      : x < edge.left + edge.width / 2
   })
 
   return index < 0 ? session.tabs.length : index
@@ -113,12 +117,16 @@ const lineAt = (slot: number | null) => {
     return null
   }
 
-  const edge =
-    slot < items.length
-      ? items[slot].getBoundingClientRect().left
-      : items[items.length - 1].getBoundingClientRect().right
+  const before = slot < items.length
+  const edge = items[before ? slot : items.length - 1].getBoundingClientRect()
 
-  return (edge - box.left) / rem()
+  if (vertical) {
+    const y = before ? edge.top : edge.bottom
+
+    return (y - box.top + (strip?.scrollTop ?? 0)) / rem()
+  }
+
+  return ((before ? edge.left : edge.right) - box.left) / rem()
 }
 
 const tabSlot = $derived.by(() => {
@@ -297,7 +305,7 @@ const openShell = (shell: string) => {
     {label}
     size="xs"
     iconClass="size-3.5"
-    class={["shrink-0", !shown && "opacity-0 group-hover/tab:opacity-100"]}
+    class={["shrink-0", !shown && "opacity-0 group-hover/tab:opacity-100 pointer-coarse:opacity-100"]}
     onclick={e => {
       e.stopPropagation()
       close()
@@ -309,7 +317,13 @@ const openShell = (shell: string) => {
   bind:this={strip}
   role="tablist"
   aria-label={m.terminal_tabs()}
-  class="relative flex h-full min-w-0 items-center gap-1 overflow-hidden"
+  aria-orientation={vertical ? "vertical" : "horizontal"}
+  class={[
+    "relative flex min-w-0 gap-1",
+    vertical
+      ? "min-h-0 flex-col overflow-y-auto"
+      : "h-full items-center overflow-hidden",
+  ]}
 >
   {#each session.tabs as tab, index (tab.id)}
     {@const active = index === session.active}
@@ -324,8 +338,8 @@ const openShell = (shell: string) => {
         aria-selected={active}
         title={paneLabel(pane)}
         class={[
-          "group/tab flex h-7 w-44 min-w-20 shrink cursor-pointer",
-          "items-center gap-2",
+          "group/tab flex cursor-pointer items-center gap-2",
+          vertical ? "h-8 w-full shrink-0" : "h-7 w-44 min-w-20 shrink",
           "rounded-field ps-2.5 pe-0.5 text-sm transition-colors duration-140",
           active
             ? "bg-primary/8 text-primary"
@@ -353,15 +367,22 @@ const openShell = (shell: string) => {
         data-group
         aria-label={m.terminal_group_label({ name: groupName(tab) })}
         class={[
-          "flex h-8 min-w-0 shrink items-center gap-0.5 rounded-field p-0.5",
-          "bg-base-content/5",
+          "flex min-w-0 gap-0.5 rounded-field bg-base-content/5 p-0.5",
+          vertical
+            ? "shrink-0 flex-col"
+            : "h-8 shrink items-center",
           drag.tab === tab.id && "opacity-50",
         ]}
         onpointerenter={() => springTo(tab.id, () => (session.active = index))}
         onpointerleave={unspring}
       >
         {#if isRenaming("tab", tab.id)}
-          <div class="flex h-7 w-36 shrink-0 items-center px-0.5">
+          <div
+            class={[
+              "flex h-7 shrink-0 items-center px-0.5",
+              vertical ? "w-full" : "w-36",
+            ]}
+          >
             {@render nameField(groupName(tab))}
           </div>
         {:else}
@@ -369,7 +390,8 @@ const openShell = (shell: string) => {
             type="button"
             title={groupName(tab)}
             class={[
-              "flex h-7 max-w-32 shrink-0 cursor-pointer items-center gap-1.5",
+              "flex h-7 shrink-0 cursor-pointer items-center gap-1.5",
+              vertical ? "w-full" : "max-w-32",
               "rounded-field px-2 text-xs font-medium",
               "transition-colors duration-140 hover:bg-base-content/8",
               active ? "text-primary" : "text-base-content/60",
@@ -396,8 +418,8 @@ const openShell = (shell: string) => {
             aria-selected={current}
             title={paneLabel(pane)}
             class={[
-              "group/tab flex h-7 w-36 min-w-16 shrink cursor-pointer",
-              "items-center gap-2",
+              "group/tab flex h-7 cursor-pointer items-center gap-2",
+              vertical ? "w-full shrink-0" : "w-36 min-w-16 shrink",
               "rounded-field ps-2 pe-0.5 text-sm transition-colors duration-140",
               current
                 ? "bg-primary/8 text-primary"
@@ -426,10 +448,14 @@ const openShell = (shell: string) => {
   {#if line !== null}
     <span
       class={[
-        "pointer-events-none absolute inset-y-1.5 z-10 w-0.5 -translate-x-1/2",
-        "rounded-full bg-primary transition-all duration-140",
+        "pointer-events-none absolute z-10 rounded-full bg-primary",
+        "transition-all duration-140",
+        vertical
+          ? "inset-x-1.5 h-0.5 -translate-y-1/2"
+          : "inset-y-1.5 w-0.5 -translate-x-1/2",
       ]}
-      style:left="{line}rem"
+      style:left={vertical ? undefined : `${line}rem`}
+      style:top={vertical ? `${line}rem` : undefined}
     ></span>
   {/if}
 </div>

@@ -69,8 +69,6 @@ export const messageOf = (raw: unknown) => {
       return m.error_usage_login()
     case "usage_submit_failed":
       return m.error_usage_submit_failed({ detail })
-    case "usage_interval_invalid":
-      return m.error_usage_interval()
     case "attachment_invalid":
       return m.error_attachment_invalid({ name: detail })
     case "usage_missing":

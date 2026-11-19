@@ -122,6 +122,10 @@ pub fn icon_url(handle: isize) -> Option<String> {
 
 #[tauri::command(async)]
 pub fn app_icon(app: AppHandle, path: String) -> Option<String> {
+    if let Some(png) = super::own::icon(&path) {
+        return Some(data_url(png.to_vec()));
+    }
+
     let (base, key) = cache_key(&path);
 
     if let Some(hit) = memory().lock().unwrap().get(&key) {

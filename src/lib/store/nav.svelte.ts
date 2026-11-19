@@ -48,6 +48,7 @@ export const nav = $state<{
   palette: boolean
   find: boolean
   settingsTab: SettingsTab
+  settingsHome: boolean
   settingsOpen: boolean
 }>({
   page: "chat",
@@ -60,6 +61,7 @@ export const nav = $state<{
   palette: false,
   find: false,
   settingsTab: "general",
+  settingsHome: true,
   settingsOpen: false,
 })
 
@@ -68,8 +70,12 @@ export const goPage = (page: Page) => {
   shell.closeDrawer()
 }
 
-export const openSettings = (tab: SettingsTab) => {
-  nav.settingsTab = tab
+export const openSettings = (tab?: SettingsTab) => {
+  if (tab) {
+    nav.settingsTab = tab
+  }
+
+  nav.settingsHome = !tab
   nav.palette = false
   nav.settingsOpen = true
 }

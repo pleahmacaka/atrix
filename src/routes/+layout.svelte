@@ -27,6 +27,7 @@ import { local } from "#lib/store/local.svelte.ts"
 import { currentLocale } from "#lib/store/locale.ts"
 import { captureCallback, finishCallback } from "#lib/store/openrouter.ts"
 import { migrateVoiceURL } from "#lib/store/speech.svelte.ts"
+import { startTokscaleSubmit } from "#lib/store/usageGraph.svelte.ts"
 
 let { children }: { children: Snippet } = $props()
 
@@ -50,6 +51,7 @@ if (!overlay && !shell) {
   if (!floating) {
     startLogging()
     screen.watch()
+    startTokscaleSubmit()
   }
 
   startAppearance()

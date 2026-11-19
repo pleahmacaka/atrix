@@ -17,9 +17,9 @@ const STATUS_LIMIT: Duration = Duration::from_secs(20);
 
 const SCHEDULE_LIMIT: Duration = Duration::from_secs(120);
 
-const POLL: Duration = Duration::from_millis(200);
+const SUBMIT_LIMIT: Duration = Duration::from_secs(300);
 
-const HOURS: [u32; 3] = [1, 6, 24];
+const POLL: Duration = Duration::from_millis(200);
 
 fn drain(pipe: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
     thread::spawn(move || {
@@ -118,30 +118,15 @@ pub async fn usage_graph(app: AppHandle) -> Result<String> {
 }
 
 #[tauri::command]
-pub async fn usage_autosubmit(hours: u32) -> Result<()> {
-    if hours != 0 && !HOURS.contains(&hours) {
-        return Err(Error::code("usage_interval_invalid", hours));
-    }
-
-    if hours == 0 && !installed() {
-        return Ok(());
-    }
-
-    tauri::async_runtime::spawn_blocking(move || {
-        let interval = format!("{hours}h");
-        let args: &[&str] = if hours == 0 {
-            &["autosubmit", "disable"]
-        } else {
-            &["autosubmit", "enable", "--interval", &interval]
-        };
-
-        tokscale(args, "usage_submit_failed", SCHEDULE_LIMIT).map(|_| ())
+pub async fn usage_submit() -> Result<()> {
+    tauri::async_runtime::spawn_blocking(|| {
+        tokscale(&["submit"], "usage_submit_failed", SUBMIT_LIMIT).map(|_| ())
     })
     .await?
 }
 
 #[tauri::command]
-pub async fn usage_autosubmit_status() -> Result<u32> {
+pub async fn usage_adopt_schedule() -> Result<u32> {
     if !installed() {
         return Ok(0);
     }
@@ -161,11 +146,18 @@ pub async fn usage_autosubmit_status() -> Result<u32> {
         )?;
         let schedule: Schedule = serde_json::from_str(&output)?;
 
-        Ok(if schedule.enabled {
-            schedule.interval_minutes
-        } else {
-            0
-        })
+        if !schedule.enabled {
+            return Ok(0);
+        }
+
+        // the OS scheduler entry runs a console exe, which flashes a terminal window on Windows
+        tokscale(
+            &["autosubmit", "disable"],
+            "usage_submit_failed",
+            SCHEDULE_LIMIT,
+        )?;
+
+        Ok(schedule.interval_minutes)
     })
     .await?
 }

@@ -88,16 +88,6 @@
       />
     {/snippet}
 
-    {#snippet islands()}
-      <input
-        type="checkbox"
-        class="toggle toggle-primary toggle-sm"
-        aria-label={m.dock_edit_islands()}
-        checked={device.dockIslands}
-        onchange={e => editor.commit({ dockIslands: e.currentTarget.checked })}
-      />
-    {/snippet}
-
     {@render row(m.dock_edit_edge(), edge)}
     {@render row(m.dock_edit_style(), style)}
     {@render row(m.dock_edit_height(), height)}
@@ -106,7 +96,5 @@
     {#if device.dockStyle === "mac"}
       {@render row(m.dock_edit_width(), width)}
     {/if}
-
-    {@render row(m.dock_edit_islands(), islands)}
   </div>
 </Popover>

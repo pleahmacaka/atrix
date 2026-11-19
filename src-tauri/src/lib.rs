@@ -64,6 +64,7 @@ fn logger(app: &tauri::App) -> tauri::Result<()> {
             .level_for("noq", LevelFilter::Warn)
             .level_for("noq_proto", LevelFilter::Warn)
             .level_for("portmapper", LevelFilter::Warn)
+            .level_for("tracing::span", LevelFilter::Warn)
             .timezone_strategy(TimezoneStrategy::UseLocal)
             .max_file_size(LOG_BYTES)
             .rotation_strategy(RotationStrategy::KeepSome(5))
@@ -117,6 +118,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
             if headless || !agent {
                 window.hide()?;
+            } else {
+                // a launcher without foreground rights (installer, relaunch) leaves the window behind the active app
+                #[cfg(windows)]
+                desktop::shell::desktop::force_foreground(&window);
             }
         }
 
@@ -230,8 +235,8 @@ pub fn run() {
             channels::channel_token_clear,
             channels::channel_token_present,
             usage::usage_graph,
-            usage::usage_autosubmit,
-            usage::usage_autosubmit_status,
+            usage::usage_submit,
+            usage::usage_adopt_schedule,
             backdrop::window_backdrop,
             datasource::ds_list,
             datasource::ds_create,

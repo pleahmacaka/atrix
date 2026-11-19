@@ -13,6 +13,7 @@ import {
   type PanelPosition,
 } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { settings } from "#lib/store/settings.svelte.ts"
 import CalendarTab from "./CalendarTab.svelte"
 import DesktopSection from "./DesktopSection.svelte"
 import DockIcon from "./DockIcon.svelte"
@@ -233,13 +234,7 @@ const dockLocked = $derived(isLastEntryPoint(device.features, "dock"))
     </DesktopSection>
 
     <DesktopSection title={m.desktop_group_dock_layout()}>
-      <ToggleRow
-        title={m.desktop_dock_islands()}
-        tip={m.desktop_dock_islands_tip()}
-        checked={device.dockIslands}
-        onchange={on => set("dockIslands", on)}
-      />
-      {#if device.dockIslands}
+      {#if settings.layout === "island"}
         <PresetSetting
           title={m.desktop_dock_island_gap()}
           tip={m.desktop_dock_island_gap_tip()}

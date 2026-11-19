@@ -13,7 +13,7 @@ import {
   type WindowEntry,
 } from "#lib/desktop/native/windows.js"
 import { updateDevice } from "#lib/desktop/settings/index.ts"
-import { fallbackPin, matchPin, windowIdentity } from "./identity"
+import { atrixApps, fallbackPin, matchPin, windowIdentity } from "./identity"
 
 export type DockPin = "windows" | "device" | null
 
@@ -50,7 +50,7 @@ const displayName = (file: string) => {
 }
 
 export const resolvePins = (paths: string[], apps: AppEntry[]): AppEntry[] => {
-  const byPath = new Map(apps.map(a => [a.path, a]))
+  const byPath = new Map([...apps, ...atrixApps()].map(a => [a.path, a]))
 
   return paths.map(
     (path): AppEntry =>
@@ -83,6 +83,7 @@ export const groupWindows = (
   const seen = new Set<string>()
   const byExe = new Map<string, DockGroup>()
   const pinGroups: { app: AppEntry; group: DockGroup }[] = []
+  const own = atrixApps()
 
   const pin = (app: AppEntry, source: DockPin) => {
     const path = app.path.toLowerCase()
@@ -112,10 +113,15 @@ export const groupWindows = (
   }
 
   for (const entry of windows) {
-    const exe = windowIdentity(entry)
+    const app = own.find(candidate => matchPin(candidate, entry) > 0)
+    const exe = app?.path ?? windowIdentity(entry)
     let score = 0
     let group: DockGroup | undefined
     for (const candidate of pinGroups) {
+      if (app && candidate.app.path !== app.path) {
+        continue
+      }
+
       const match = matchPin(candidate.app, entry)
       if (match > score) {
         score = match
@@ -127,8 +133,8 @@ export const groupWindows = (
     if (!group) {
       group = {
         key: exe,
-        name: displayName(baseName(entry.process)),
-        path: entry.process,
+        name: app?.name ?? displayName(baseName(entry.process)),
+        path: app?.path ?? entry.process,
         pinned: null,
         windows: [],
       }

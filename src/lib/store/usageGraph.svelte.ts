@@ -101,29 +101,64 @@ export const usageGraph = new UsageGraph()
 
 export const submission = $state({ failure: null as string | null })
 
-export const syncSubmit = async () => {
-  const minutes = await native<number>("usage_autosubmit_status").catch(
-    () => null,
-  )
-  const hours = minutes === null || minutes % 60 !== 0 ? null : minutes / 60
+const SUBMITTED = "tokscale-submitted"
 
-  if (hours === 0 || SUBMIT_HOURS.includes(hours ?? -1)) {
-    settings.setTokscaleSubmit(hours ?? 0)
+const CHECK_MS = 10 * 60_000
+
+const HOUR_MS = 60 * 60_000
+
+const submittedAt = () => Number(localStorage.getItem(SUBMITTED)) || 0
+
+const adoptSchedule = async () => {
+  const minutes = await native<number>("usage_adopt_schedule").catch(e => {
+    logFailure("tokscale adopt", e)
+
+    return 0
+  })
+  const hours = minutes / 60
+
+  if (SUBMIT_HOURS.includes(hours)) {
+    settings.setTokscaleSubmit(hours)
   }
 }
 
-export const scheduleSubmit = async (hours: number) => {
-  submission.failure = null
+const submitDue = async () => {
+  const hours = settings.tokscaleSubmit
+
+  if (!settings.tokscale || hours === 0) {
+    return
+  }
+
+  if (Date.now() - submittedAt() < hours * HOUR_MS) {
+    return
+  }
+
+  localStorage.setItem(SUBMITTED, String(Date.now()))
 
   try {
-    await native("usage_autosubmit", { hours })
-    settings.setTokscaleSubmit(hours)
-
-    return true
+    await native("usage_submit")
+    submission.failure = null
   } catch (e) {
     submission.failure = errorText(e)
-    logFailure("tokscale autosubmit", e)
-
-    return false
+    logFailure("tokscale submit", e)
   }
+}
+
+export const startTokscaleSubmit = () => {
+  if (!desktop) {
+    return
+  }
+
+  const ready = settings.tokscale ? adoptSchedule() : Promise.resolve()
+
+  ready.then(submitDue)
+
+  const timer = setInterval(submitDue, CHECK_MS)
+
+  return () => clearInterval(timer)
+}
+
+export const scheduleSubmit = (hours: number) => {
+  settings.setTokscaleSubmit(hours)
+  submitDue()
 }

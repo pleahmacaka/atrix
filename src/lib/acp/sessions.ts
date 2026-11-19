@@ -25,6 +25,7 @@ import {
   type Conn,
   choicesOf,
   connectAgent,
+  failureText,
   folderError,
   listSessions,
   promptBlocks,
@@ -445,8 +446,9 @@ export class Sessions {
     session.conn.agent
       .request(acp.methods.agent.session.prompt, { sessionId, prompt })
       .catch((e: unknown) => {
-        const message = e instanceof Error ? e.message : String(e)
+        const message = failureText(e)
 
+        logFailure(`prompt ${session.harness}`, message)
         this.#update(sessionId, {
           sessionUpdate: "agent_message_chunk",
           content: { type: "text", text: `\n\n${m.chat_error({ message })}` },

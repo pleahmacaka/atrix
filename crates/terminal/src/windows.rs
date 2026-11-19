@@ -101,7 +101,13 @@ fn open_intent<R: Runtime>(app: &AppHandle<R>, intent: Intent) -> tauri::Result<
         .icon(tauri::include_image!("icons/128x128.png"))?
         .disable_drag_drop_handler();
 
-    app.state::<Intents<Intent>>().open(&label, intent, builder)
+    let window = app
+        .state::<Intents<Intent>>()
+        .open(&label, intent, builder)?;
+
+    atrix_window_kit::set_app_id(&window, crate::APP_ID);
+
+    Ok(window)
 }
 
 #[tauri::command]

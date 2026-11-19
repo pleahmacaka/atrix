@@ -205,6 +205,13 @@
     native.setFeatures($state.snapshot(device.features)).catch(() => undefined)
   })
 
+  // appbar.rs reserves the startup height from the stored dockIslands before this page runs
+  $effect(() => {
+    if (ready && device.dockIslands !== layout.islands) {
+      layout.patch({ dockIslands: layout.islands })
+    }
+  })
+
   $effect(() => {
     if (!ready || !device.onboarded) {
       return

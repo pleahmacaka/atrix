@@ -6,7 +6,7 @@ import ContextMenu from "#lib/components/ui/ContextMenu.svelte"
 import { fadeShell } from "#lib/desktop/motion.ts"
 import { windowReady } from "#lib/desktop/native/windows.ts"
 import { followSettings } from "#lib/desktop/theme.ts"
-import { paintTheme } from "#lib/store/appearance.svelte.ts"
+import { paintSurface, paintTheme } from "#lib/store/appearance.svelte.ts"
 import { handleContextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { page } from "$app/state"
 
@@ -22,6 +22,12 @@ document.documentElement.dataset.overlay = ""
 
 $effect(() => {
   paintTheme()
+})
+
+$effect(() => {
+  if (!framed) {
+    paintSurface()
+  }
 })
 
 $effect(() => {

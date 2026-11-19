@@ -125,7 +125,7 @@ const items = $derived<Item[]>([
     label: SETTINGS_PAGE.label(),
     icon: SETTINGS_PAGE.icon,
     pressed: nav.settingsOpen,
-    run: () => openSettings(nav.settingsTab),
+    run: () => openSettings(),
   },
   {
     id: "lock",

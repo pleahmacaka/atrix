@@ -301,6 +301,10 @@ fn file_name(path: &str) -> String {
 #[tauri::command]
 pub async fn launch_app(app: AppHandle, path: String, admin: bool) -> Result<(), String> {
     crate::desktop::system::blocking(move || {
+        if let Some(launched) = super::own::launch(&app, &path) {
+            return launched;
+        }
+
         if !admin && opens_explorer(&path) && crate::desktop::files::open_instead(&app, None) {
             return Ok(());
         }
@@ -314,6 +318,7 @@ pub async fn launch_app(app: AppHandle, path: String, admin: bool) -> Result<(),
 
 #[tauri::command(async)]
 pub fn open_location(app: AppHandle, path: String) -> Result<(), String> {
+    let path = super::own::location(&path).unwrap_or(path);
     let target = shortcut_target(&path).unwrap_or(path);
 
     if crate::desktop::files::open_instead(&app, Some(target.clone())) {

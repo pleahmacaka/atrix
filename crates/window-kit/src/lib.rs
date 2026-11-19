@@ -169,6 +169,59 @@ fn running_browser_folder() -> Option<std::path::PathBuf> {
     None
 }
 
+// every Atrix window shares one process, so without its own id the taskbar folds a window into the agent app
+pub fn set_app_id<R: Runtime>(window: &WebviewWindow<R>, id: &str) {
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        app_id::set(hwnd.0 as isize, id);
+    }
+
+    #[cfg(not(windows))]
+    let _ = (window, id);
+}
+
+#[cfg(windows)]
+mod app_id {
+    use windows::core::{Result, HSTRING};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
+    use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
+    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
+    use windows::Win32::System::Variant::VT_LPWSTR;
+    use windows::Win32::UI::Shell::PropertiesSystem::{
+        IPropertyStore, SHGetPropertyStoreForWindow,
+    };
+    use windows::Win32::UI::Shell::SHStrDupW;
+
+    pub fn set(hwnd: isize, id: &str) {
+        let com = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_ok();
+        let _ = store(HWND(hwnd as _), id);
+
+        if com {
+            unsafe { CoUninitialize() };
+        }
+    }
+
+    fn store(hwnd: HWND, id: &str) -> Result<()> {
+        let store: IPropertyStore = unsafe { SHGetPropertyStoreForWindow(hwnd) }?;
+        let mut value = PROPVARIANT::default();
+
+        unsafe {
+            let text = SHStrDupW(&HSTRING::from(id))?;
+            let inner = &mut value.Anonymous.Anonymous;
+
+            inner.vt = VT_LPWSTR;
+            inner.Anonymous.pwszVal = text;
+        }
+
+        let result = unsafe { store.SetValue(&PKEY_AppUserModel_ID, &value) }
+            .and_then(|()| unsafe { store.Commit() });
+        let _ = unsafe { PropVariantClear(&mut value) };
+
+        result
+    }
+}
+
 pub fn label(prefix: &str) -> String {
     format!("{prefix}-{}", NEXT.fetch_add(1, Ordering::Relaxed))
 }

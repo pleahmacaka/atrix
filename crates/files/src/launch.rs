@@ -93,6 +93,7 @@ fn build(
         .state::<Intents<Intent>>()
         .open(&label, intent, builder)?;
 
+    atrix_window_kit::set_app_id(&window, crate::APP_ID);
     track(&window);
 
     #[cfg(windows)]

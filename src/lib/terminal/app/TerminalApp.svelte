@@ -2,7 +2,9 @@
 import { acceptTabs } from "./drag.svelte"
 import { sessionShortcut } from "./keys"
 import PaneArea from "./PaneArea.svelte"
+import { prefs } from "./prefs.svelte"
 import SettingsDialog from "./SettingsDialog.svelte"
+import TabStrip from "./TabStrip.svelte"
 import TitleBar from "./TitleBar.svelte"
 import { adoptTab, loadShells, openTab, session } from "./tabs.svelte"
 import { newWindow, takeIntent } from "./windows"
@@ -53,8 +55,15 @@ $effect(() => acceptTabs(adoptTab))
 
 <div class="window-frame flex h-dvh flex-col bg-base-200" data-frame>
   <TitleBar />
-  <div class="island mx-2 mb-2 flex min-h-0 flex-1 overflow-hidden">
-    <PaneArea />
+  <div class="flex min-h-0 flex-1">
+    {#if prefs.sideTabs}
+      <aside class="flex w-56 shrink-0 flex-col gap-1 ps-2 pb-2">
+        <TabStrip vertical />
+      </aside>
+    {/if}
+    <div class="island mx-2 mb-2 flex min-h-0 flex-1 overflow-hidden">
+      <PaneArea />
+    </div>
   </div>
 </div>
 

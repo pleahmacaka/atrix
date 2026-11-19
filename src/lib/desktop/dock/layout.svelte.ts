@@ -11,6 +11,7 @@ import {
   updateDevice,
 } from "#lib/desktop/settings/index.ts"
 import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
+import { settings } from "#lib/store/settings.svelte.ts"
 import { barHeightFor } from "./bar"
 import { MAGNIFY_BOOST } from "./DockItem.svelte"
 import { type DockGroup, dock, groupWindows, resolvePins } from "./dock.svelte"
@@ -98,21 +99,23 @@ export class DockLayout {
 
   slotWidth = $derived(this.device.dockIconSize + 20)
 
+  islands = $derived(settings.layout === "island")
+
   barHeight = $derived(
     this.surface === "topbar"
       ? TOPBAR_H
-      : barHeightFor(this.device.dockHeight, this.device.dockIslands),
+      : barHeightFor(this.device.dockHeight, this.islands),
   )
 
   contentHeight = $derived(
     this.surface === "topbar"
-      ? TOPBAR_H - (this.device.dockIslands ? 8 : 0)
+      ? TOPBAR_H - (this.islands ? 8 : 0)
       : this.device.dockHeight,
   )
 
   appsZone = $derived(locate(this.view, "apps")?.zone ?? "center")
 
-  centered = $derived(this.bar.center.align === "center")
+  centered = $derived(!this.mac && this.bar.center.align === "center")
 
   fixed = $derived.by(() => {
     const widths = { ...this.zoneWidth }

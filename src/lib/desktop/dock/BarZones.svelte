@@ -32,9 +32,10 @@
 
   const device = $derived(layout.device)
 
-  const gap = $derived(device.dockIslands ? device.dockIslandGap : 8)
+  const gap = $derived(layout.islands ? device.dockIslandGap : 8)
 
-  const grows = (id: ShellZoneId) => (layout.centered ? id !== "center" : id === "center")
+  const grows = (id: ShellZoneId) =>
+    !layout.mac && (layout.centered ? id !== "center" : id === "center")
 
   const compactOf = (zone: ShellZone) =>
     zone.size === "compact" ||

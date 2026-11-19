@@ -70,6 +70,19 @@ export const paintTheme = () => {
   return isDark
 }
 
+export const paintSurface = () => {
+  const effect = desktop ? settings.effect : "none"
+  const transparency = desktop ? settings.transparency : 0
+  const root = document.documentElement
+
+  root.dataset.effect = effect === "none" ? "off" : "on"
+  root.dataset.texture = settings.texture
+  root.dataset.layout = settings.layout
+  root.style.setProperty("--surface", String(1 - transparency / 100))
+
+  return effect
+}
+
 export const startAppearance = () => {
   if (desktop) {
     document.documentElement.dataset.desktop = ""
@@ -95,13 +108,7 @@ export const startAppearance = () => {
     })
 
     $effect(() => {
-      const effect = desktop ? settings.effect : "none"
-      const transparency = desktop ? settings.transparency : 0
-      const root = document.documentElement
-      root.dataset.effect = effect === "none" ? "off" : "on"
-      root.dataset.texture = settings.texture
-      root.dataset.layout = settings.layout
-      root.style.setProperty("--surface", String(1 - transparency / 100))
+      const effect = paintSurface()
 
       if (desktop) {
         applyBackdrop(effect).catch(console.error)

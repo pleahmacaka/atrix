@@ -102,7 +102,7 @@
   <nav
     class={[
       "flex items-center gap-2 border-b border-base-300 px-2 select-none",
-      layout.device.dockIslands ? "bg-base-200" : "bg-base-100",
+      layout.islands ? "bg-base-200" : "bg-base-100",
     ]}
     style:height={rem(layout.barHeight)}
     aria-label={m.dock_top_bar()}

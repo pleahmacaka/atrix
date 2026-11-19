@@ -2,6 +2,7 @@
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import WindowControls from "#lib/components/ui/WindowControls.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { prefs } from "./prefs.svelte"
 import TabStrip from "./TabStrip.svelte"
 import { session } from "./tabs.svelte"
 </script>
@@ -10,7 +11,9 @@ import { session } from "./tabs.svelte"
   class="flex h-10 shrink-0 items-center gap-1 ps-2 pe-1.5 select-none"
   data-tauri-drag-region
 >
-  <TabStrip />
+  {#if !prefs.sideTabs}
+    <TabStrip />
+  {/if}
   <div class="h-full min-w-4 flex-1" data-tauri-drag-region></div>
   <IconButton
     icon="lucide:settings"

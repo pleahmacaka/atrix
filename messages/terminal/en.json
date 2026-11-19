@@ -24,5 +24,7 @@
   "terminal_serial_refresh": "Refresh ports",
   "terminal_settings_title": "Terminal settings",
   "terminal_settings_shell": "Default shell",
-  "terminal_settings_font": "Font"
+  "terminal_settings_font": "Font",
+  "terminal_settings_side_tabs": "Tab sidebar",
+  "terminal_settings_side_tabs_tip": "Shows tabs in a sidebar on the left instead of along the top of the window."
 }

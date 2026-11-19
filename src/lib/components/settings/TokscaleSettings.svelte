@@ -4,7 +4,7 @@ import Segmented from "#lib/components/ui/Segmented.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { SUBMIT_HOURS, settings } from "#lib/store/settings.svelte.ts"
-import { scheduleSubmit, submission, syncSubmit, usageGraph } from "#lib/store/usageGraph.svelte.ts"
+import { scheduleSubmit, submission, usageGraph } from "#lib/store/usageGraph.svelte.ts"
 
 const LABELS: Record<number, () => string> = {
   1: m.device_submit_hourly,
@@ -17,21 +17,7 @@ const SUBMITS = [
   ...SUBMIT_HOURS.map(hour => ({ id: String(hour), label: LABELS[hour]() })),
 ]
 
-$effect(() => {
-  if (settings.tokscale) {
-    syncSubmit()
-  }
-})
-
-const toggle = async (input: HTMLInputElement) => {
-  const on = input.checked
-
-  if (!on && settings.tokscaleSubmit > 0 && !(await scheduleSubmit(0))) {
-    input.checked = true
-
-    return
-  }
-
+const toggle = (on: boolean) => {
   usageGraph.reset()
   settings.setTokscale(on)
 }
@@ -43,7 +29,7 @@ const toggle = async (input: HTMLInputElement) => {
     class="toggle toggle-sm toggle-primary"
     aria-label={m.device_tokscale()}
     checked={settings.tokscale}
-    onchange={e => toggle(e.currentTarget)}
+    onchange={e => toggle(e.currentTarget.checked)}
   />
 </SettingRow>
 

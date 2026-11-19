@@ -8,6 +8,10 @@ mod windows;
 
 pub use windows::open_window;
 
+pub const APP_ID: &str = "Atrix.Terminal";
+
+pub const ICON: &[u8] = include_bytes!("../icons/128x128.png");
+
 pub fn close_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
     if let Some(sessions) = app.try_state::<pty::Sessions>() {
         sessions.close_window(label);
