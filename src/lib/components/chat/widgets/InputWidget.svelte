@@ -271,7 +271,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
     {@attach grow}
     class={[
       "max-h-40 w-full resize-none transition-[height] duration-140",
-      "bg-transparent py-1.5 pr-1.5 pl-0.5 text-sm leading-5 outline-none",
+      "bg-transparent py-1 pr-1.5 pl-0.5 text-sm leading-5 outline-none",
       "placeholder:truncate",
     ]}
     placeholder={composer.props.placeholder}

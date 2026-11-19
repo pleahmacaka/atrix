@@ -1,5 +1,6 @@
 import { homeDir } from "@tauri-apps/api/path"
 import { Knowledge } from "#lib/knowledge/service.ts"
+import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
 import type {
   Handlers,
@@ -21,6 +22,7 @@ import { Mailroom, type Network } from "./mailroom.ts"
 import { ExternalSessions } from "./mirror.ts"
 import { Harnesses } from "./registry.ts"
 import { Sessions } from "./sessions.ts"
+import { Spaces } from "./spaces.ts"
 import { atrixTools } from "./tools.ts"
 
 export type { Network, Remote } from "./mailroom.ts"
@@ -57,6 +59,8 @@ export class Host {
     release: id => this.#sessions.release(id),
     log: (harness, line) => this.#emit({ type: "install", harness, line }),
   })
+
+  #spaces = new Spaces()
 
   #data = new Datasources(name => this.#emit({ type: "ds", name }))
 
@@ -114,6 +118,9 @@ export class Host {
   start = () => {
     this.#ready ??= (async () => {
       this.#home = await homeDir()
+      await this.#spaces
+        .load(this.#home)
+        .catch((e: unknown) => logFailure("spaces load", e))
       this.#external.start(this.#home)
       await this.#bridge.start().catch(() => {})
       this.#knowledge.start()
@@ -174,6 +181,12 @@ export class Host {
 
       return null
     },
+    attach: r => this.#sessions.attach(r.sessionId),
+    press: async r => {
+      await this.#sessions.press(r.sessionId, r.strokes)
+
+      return null
+    },
     answer: async r => {
       await this.#sessions.answer(r.sessionId, r.toolId, r.answers)
 
@@ -214,6 +227,21 @@ export class Host {
     "profile.create": r =>
       this.#harnesses.createProfile(r.harness, r.name, r.fork),
     "profile.remove": r => this.#harnesses.removeProfile(r.harness),
+    "space.create": async r => {
+      const space = await this.#spaces.create(r.name, r.folder, r.color)
+
+      this.#changed()
+
+      return space
+    },
+    "space.update": ({ id, ...patch }) =>
+      this.#spaced(this.#spaces.update(id, patch)),
+    "space.delete": r => this.#spaced(this.#spaces.delete(r.id)),
+    "space.move": r => this.#spaced(this.#spaces.move(r.id, r.before)),
+    "space.place": r =>
+      this.#spaced(this.#spaces.place(r.sessionId, r.space, r.before)),
+    "session.pin": r => this.#spaced(this.#spaces.pin(r.sessionId, r.pinned)),
+    "session.seen": r => this.#spaced(this.#spaces.seen(r.sessionId, r.turn)),
   }
 
   handle: HostCall = async request => {
@@ -229,7 +257,28 @@ export class Host {
   }
 
   #changed = () => {
-    this.#emit({ type: "state", state: this.#state() })
+    const state = this.#state()
+
+    this.#spaces.track(
+      new Set(
+        [
+          ...state.open.filter(s => s.running || s.waiting).map(s => s.id),
+          ...state.external.filter(e => e.busy || e.waiting).map(e => e.id),
+        ].filter(id => !this.#sessions.taking(id)),
+      ),
+      new Set([...state.open, ...state.external].map(s => s.id)),
+    )
+    this.#emit({
+      type: "state",
+      state: { ...state, turns: this.#spaces.turns },
+    })
+  }
+
+  #spaced = async (work: Promise<unknown>) => {
+    await work
+    this.#changed()
+
+    return null
   }
 
   #state = (): HostState => ({
@@ -241,6 +290,11 @@ export class Host {
     external: [...this.#external.presence].map(([id, busy]) => ({
       id,
       busy,
+      waiting: this.#external.waiting(id),
     })),
+    spaces: this.#spaces.spaces,
+    loose: this.#spaces.loose,
+    pinned: this.#spaces.pinned,
+    turns: this.#spaces.turns,
   })
 }

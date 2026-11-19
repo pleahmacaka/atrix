@@ -3,7 +3,7 @@ import {
   agents,
   openAgent,
 } from "#lib/agents/agents.svelte.ts"
-import { matchChoice } from "#lib/components/chat/models.ts"
+import { matchChoice } from "#lib/chat/choices.ts"
 import { logFailure } from "#lib/logging.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
@@ -210,7 +210,11 @@ class Groups {
     const host = opened.kind === "chat" ? CHAT_HOST : opened.host
 
     try {
-      await this.join(groupId, host, opened.id, label, agent.id)
+      await this.join(groupId, host, opened.id, {
+        label,
+        agent: agent.id,
+        invited: true,
+      })
     } catch (e) {
       await (opened.kind === "chat"
         ? chats.remove(opened.id)
@@ -247,20 +251,21 @@ class Groups {
       p.label?.startsWith(harness.name),
     ).length
 
-    await this.join(
-      groupId,
-      host,
-      id,
-      same ? `${harness.name} ${same + 1}` : harness.name,
-    )
+    await this.join(groupId, host, id, {
+      label: same ? `${harness.name} ${same + 1}` : harness.name,
+      invited: true,
+    })
   }
 
   join = async (
     groupId: string,
     host: string,
     id: string,
-    label?: string,
-    agent?: string,
+    {
+      label,
+      agent,
+      invited,
+    }: Pick<GroupMember, "label" | "agent" | "invited"> = {},
   ) => {
     const group = this.find(groupId)
 
@@ -285,6 +290,7 @@ class Groups {
       offset: userCount(host, id),
       ...(label && { label }),
       ...(agent && { agent }),
+      ...(invited && { invited }),
     })
     await local.save()
   }

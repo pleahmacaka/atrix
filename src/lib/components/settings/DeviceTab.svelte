@@ -10,6 +10,7 @@ import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { updater } from "#lib/update/updater.svelte.ts"
+import TokscaleSettings from "./TokscaleSettings.svelte"
 
 const version = desktop
   ? import("@tauri-apps/api/app").then(app => app.getVersion())
@@ -25,7 +26,7 @@ const openDataFolder = async () => {
 }
 </script>
 
-<SettingRow icon="lucide:user-round" title={m.user_name()}>
+<SettingRow title={m.user_name()}>
   <input
     class="input input-sm w-48 max-sm:w-full"
     aria-label={m.user_name()}
@@ -33,7 +34,7 @@ const openDataFolder = async () => {
     onchange={e => settings.setUserName(e.currentTarget.value)}
   />
 </SettingRow>
-<SettingRow icon="lucide:tag" title={m.device_name()}>
+<SettingRow title={m.device_name()}>
   <input
     class="input input-sm w-48 max-sm:w-full"
     aria-label={m.device_name()}
@@ -44,7 +45,7 @@ const openDataFolder = async () => {
     }}
   />
 </SettingRow>
-<SettingRow icon="lucide:boxes" title={m.device_runs_harness()}>
+<SettingRow title={m.device_runs_harness()}>
   <span
     class={[
       "badge whitespace-nowrap",
@@ -56,14 +57,15 @@ const openDataFolder = async () => {
   </span>
 </SettingRow>
 {#if desktop}
-  <SettingRow icon="lucide:circle-arrow-up" title={m.update_title()}>
+  <SettingRow title={m.update_title()}>
     {#await version then current}
       <span class="text-sm text-base-content/60 tabular-nums">{current}</span>
     {/await}
     <UpdateButton />
   </SettingRow>
   <ErrorAlert message={updater.failure} />
-  <SettingRow icon="lucide:folder" title={m.device_data_folder()}>
+  <TokscaleSettings />
+  <SettingRow title={m.device_data_folder()}>
     <IconButton
       icon="lucide:folder-open"
       label={m.device_open_folder()}

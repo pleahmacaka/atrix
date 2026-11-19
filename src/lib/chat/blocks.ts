@@ -141,6 +141,13 @@ export const block = z.discriminatedUnion("type", [
 
 export type Block = z.infer<typeof block>
 
+export type AnswersBlock = {
+  type: "answers"
+  items: { question: string; answer: string }[]
+}
+
+export type ShownBlock = Block | AnswersBlock
+
 export const SHOW_UI = "show_ui"
 
 export const showUiInput = z.object({

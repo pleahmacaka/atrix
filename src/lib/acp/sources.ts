@@ -2,8 +2,14 @@ import { join } from "@tauri-apps/api/path"
 import { parse } from "yaml"
 import { z } from "zod"
 import { native } from "#lib/native.ts"
-import type { Command, HarnessKind, Listed } from "#lib/p2p/protocol.ts"
+import type {
+  Command,
+  HarnessKind,
+  Listed,
+  TerminalDialog,
+} from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { claudeConfirm, claudeDialog } from "./claudeScreen.ts"
 import type { Log } from "./items.ts"
 import { applyRollout } from "./rollout.ts"
 import { applyShells, applyTranscript, SHELL_NEEDLES } from "./transcript.ts"
@@ -13,7 +19,7 @@ export type Presence = {
   shell: boolean
   owner?: string
   pid?: number
-  waiting?: boolean
+  waiting?: string
   listing?: Listed
 }
 
@@ -24,6 +30,11 @@ export type Source = {
   apply: (log: Log, line: string) => void
   head?: { needles: string[]; apply: (log: Log, line: string) => void }
   commands?: (home: string) => Promise<Command[]>
+  dialog?: (screen: string[]) => TerminalDialog | null
+  confirm?: {
+    command: (text: string) => boolean
+    showing: (screen: string[]) => boolean
+  }
 }
 
 const claudeRecords = z.array(
@@ -36,6 +47,7 @@ const claudeRecords = z.array(
       updatedAt: z.number().optional(),
       entrypoint: z.string().optional(),
       status: z.string().optional(),
+      waitingFor: z.string().optional().catch(undefined),
     })
     .loose(),
 )
@@ -102,6 +114,8 @@ const folderOf = (cwd: string) =>
 
 const claude: Source = {
   shared: true,
+  dialog: claudeDialog,
+  confirm: claudeConfirm,
   live: async () =>
     new Map(
       claudeRecords
@@ -115,7 +129,10 @@ const claude: Source = {
             shell: p.status === "shell",
             owner: p.entrypoint,
             pid: p.pid,
-            waiting: p.status === "waiting",
+            waiting:
+              p.status === "waiting"
+                ? (p.waitingFor ?? "permission prompt")
+                : undefined,
             listing: {
               sessionId: p.sessionId,
               cwd: p.cwd,

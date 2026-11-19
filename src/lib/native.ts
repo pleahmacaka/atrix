@@ -59,6 +59,18 @@ export const messageOf = (raw: unknown) => {
       return m.error_ds_read_only()
     case "ds_sync_unset":
       return m.error_ds_sync_unset({ name: detail })
+    case "usage_failed":
+      return m.error_usage_failed({ detail })
+    case "usage_login":
+      return m.error_usage_login()
+    case "usage_submit_failed":
+      return m.error_usage_submit_failed({ detail })
+    case "usage_interval_invalid":
+      return m.error_usage_interval()
+    case "usage_missing":
+      return m.error_usage_missing()
+    case "usage_timeout":
+      return m.error_usage_timeout()
     case "channel_owner_invalid":
       return m.error_channel_owner_invalid()
     case "channel_token_missing":

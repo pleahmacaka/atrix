@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
+use tempfile::NamedTempFile;
 
 use crate::error::{Error, Result};
 
@@ -39,7 +40,24 @@ pub fn write_text(app: AppHandle, path: String, content: String) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    Ok(fs::write(path, content)?)
+    let linked = fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink());
+    let own = path.starts_with(app.path().home_dir()?.join(".atrix"));
+
+    if linked || !own {
+        return Ok(fs::write(path, content)?);
+    }
+
+    let mut staged = NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
+
+    staged.write_all(content.as_bytes())?;
+    staged.as_file().sync_all()?;
+
+    // windows refuses the rename while another process holds the target open
+    if staged.persist(&path).is_err() {
+        return Ok(fs::write(path, content)?);
+    }
+
+    Ok(())
 }
 
 #[tauri::command(async)]

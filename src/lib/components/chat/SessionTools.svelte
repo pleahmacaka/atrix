@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { handoff } from "#lib/chat/handoff.ts"
+import { olderModels } from "#lib/chat/versions.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
@@ -16,7 +17,6 @@ import ModelLabel from "./ModelLabel.svelte"
 import {
   efforts,
   OPTION_ICONS,
-  olderModels,
   PRIMARY,
   terminalChoices,
   terminalModel,
@@ -97,21 +97,45 @@ const knownModels = $derived(
     model={terminalModel(view.model)}
     efforts={EFFORTS}
     {effort}
-    readonly={!elsewhere}
     title={view.model}
-    onmodel={alias => send(`/model ${alias}`)}
+    onmodel={alias =>
+      elsewhere ? send(`/model ${alias}`) : attempt(() => host.configure(view.id, "model", alias))}
     oneffort={level => {
+      const before = effort
+
       effort = level
 
-      if (level) {
+      if (!level) {
+        return
+      }
+
+      if (elsewhere) {
         send(`/effort ${level}`)
+      } else {
+        attempt(() => host.configure(view.id, "thought_level", level)).then(
+          ok => {
+            if (!ok) {
+              effort = before
+            }
+          },
+        )
       }
     }}
   />
 {:else if !configured && view.model}
-  <span class="inline-flex h-6 max-w-72 min-w-0 items-center gap-1 px-2 text-xs" title={view.model}>
+  <button
+    type="button"
+    class="btn btn-ghost btn-xs max-w-72 min-w-0 font-normal"
+    title={view.model}
+    aria-label={m.chat_model_load({ model: view.model })}
+    disabled={elsewhere}
+    onclick={() => attempt(() => host.attach(view.id))}
+  >
     <ModelLabel name={view.model} />
-  </span>
+    {#if !elsewhere}
+      <Icon icon="lucide:chevron-down" class="size-3.5 shrink-0 opacity-60" />
+    {/if}
+  </button>
 {:else if modelOption}
   <ModelEffort
     models={choicesOf(modelOption)}

@@ -24,7 +24,6 @@ const compact = new Intl.NumberFormat(getLocale(), { notation: "compact" })
 const CAPS = [0, 100_000, 300_000, 1_000_000].map(cap => ({
   id: String(cap),
   label: cap ? compact.format(cap) : m.mail_token_cap_off(),
-  icon: cap ? "lucide:gauge" : "lucide:infinity",
 }))
 
 const attempt = new Attempt()
@@ -117,7 +116,7 @@ const toggle = (host: HostEntry, harness: HarnessInfo) =>
   {/each}
   {#if desktop}
     <Section icon="lucide:mails" title={m.mail_section()}>
-      <SettingRow icon="lucide:gauge" title={m.mail_token_cap()}>
+      <SettingRow title={m.mail_token_cap()}>
         <Segmented
           items={CAPS}
           value={String(settings.mailTokenCap)}

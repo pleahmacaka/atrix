@@ -8,12 +8,11 @@ import {
 
 export type LanguageChoice = "system" | "en" | "ko"
 
-export const LANGUAGES: { id: LanguageChoice; label: string; icon: string }[] =
-  [
-    { id: "system", label: m.appearance_system(), icon: "lucide:monitor" },
-    { id: "en", label: "English", icon: "lucide:languages" },
-    { id: "ko", label: "한국어", icon: "lucide:languages" },
-  ]
+export const LANGUAGES: { id: LanguageChoice; label: string }[] = [
+  { id: "system", label: m.appearance_system() },
+  { id: "en", label: "English" },
+  { id: "ko", label: "한국어" },
+]
 
 export const languageChoice = (): LanguageChoice => {
   const saved = localStorage.getItem(localStorageKey)

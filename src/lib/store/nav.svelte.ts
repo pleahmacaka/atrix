@@ -36,6 +36,7 @@ export const nav = $state<{
   agent: string | null
   table: { name: string; table: string } | null
   target: Target
+  space: { host: string; id: string } | null
   palette: boolean
   find: boolean
   settingsTab: SettingsTab
@@ -47,6 +48,7 @@ export const nav = $state<{
   agent: null,
   table: null,
   target: { kind: "model", gateway: "", model: "" },
+  space: null,
   palette: false,
   find: false,
   settingsTab: "appearance",
@@ -65,6 +67,8 @@ export const openSettings = (tab: SettingsTab) => {
 }
 
 export const openConversation = (current: Current) => {
+  nav.space = null
+
   panes.show(current)
   goPage("chat")
 }

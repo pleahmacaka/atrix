@@ -8,7 +8,7 @@ let {
   actions,
   children,
 }: {
-  icon: string
+  icon?: string
   title: string
   actions?: Snippet
   children: Snippet
@@ -17,7 +17,9 @@ let {
 
 <section class="flex flex-col gap-1">
   <header class="flex min-h-8 items-center gap-2">
-    <Icon {icon} class="size-4 shrink-0 text-base-content/60" />
+    {#if icon}
+      <Icon {icon} class="size-4 shrink-0 text-base-content/60" />
+    {/if}
     <h3
       class="min-w-0 flex-1 truncate text-sm font-medium text-base-content/70"
       {title}

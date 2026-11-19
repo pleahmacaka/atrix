@@ -84,7 +84,7 @@ const status = (peer: Peer) =>
 
 <div class="flex flex-col gap-6">
   <div class="flex flex-col">
-    <SettingRow icon="lucide:qr-code" title={m.sync_issue()}>
+    <SettingRow title={m.sync_issue()}>
       <IconButton
         icon={sync.pairing ? "lucide:refresh-cw" : "lucide:ticket-plus"}
         label={sync.pairing ? m.sync_reissue() : m.sync_issue_button()}

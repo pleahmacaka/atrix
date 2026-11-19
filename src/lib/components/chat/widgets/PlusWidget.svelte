@@ -34,6 +34,7 @@ const connect = (name: string) => {
       label={m.chat_add_menu()}
       size="sm"
       shape="circle"
+      class="size-7 min-h-0"
       iconClass="size-4"
     />
   {/snippet}

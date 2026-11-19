@@ -4,7 +4,7 @@ import DatasourceList from "#lib/components/datasource/DatasourceList.svelte"
 import DeviceList from "#lib/components/devices/DeviceList.svelte"
 import AgentList from "#lib/components/harness/AgentList.svelte"
 import KnowledgeTree from "#lib/components/knowledge/KnowledgeTree.svelte"
-import ConversationList from "#lib/components/shell/ConversationList.svelte"
+import SpaceList from "#lib/components/shell/SpaceList.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import { hostById, hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -28,13 +28,13 @@ const hosts = $derived(hostList().map(h => h.view))
 {#if rail}
   <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-none">
     {#if page.id === "chat"}
-      <ConversationList rail />
+      <SpaceList rail />
     {/if}
   </div>
 {:else}
   <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
     {#if page.id === "chat"}
-      <ConversationList />
+      <SpaceList />
     {:else if page.id === "agent"}
       <AgentList />
     {:else if page.id === "knowledge"}

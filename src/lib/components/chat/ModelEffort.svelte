@@ -13,7 +13,6 @@ let {
   effort = "",
   onmodel = () => {},
   oneffort = () => {},
-  readonly = false,
   locked = false,
   title,
 }: {
@@ -23,7 +22,6 @@ let {
   effort?: string
   onmodel?: (value: string) => void
   oneffort?: (value: string) => void
-  readonly?: boolean
   locked?: boolean
   title?: string
 } = $props()
@@ -46,7 +44,7 @@ const effortName = $derived(efforts.find(c => c.value === effort)?.name)
 const fresh = $derived(models.filter(c => !c.older))
 </script>
 
-{#if readonly || (locked && efforts.length === 0)}
+{#if locked && efforts.length === 0}
   <span class="inline-flex h-6 max-w-72 min-w-0 items-center gap-1 px-2 text-xs" title={title ?? model}>
     <ModelLabel name={modelName} effort={effortName} />
   </span>

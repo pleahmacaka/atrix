@@ -1,6 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import type { Block } from "#lib/chat/blocks.ts"
+import type { Block, ShownBlock } from "#lib/chat/blocks.ts"
 import GitPanel from "#lib/components/git/GitPanel.svelte"
 import TerminalPanel from "#lib/components/terminal/TerminalPanel.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
@@ -16,7 +16,7 @@ import { desktop } from "#lib/platform.ts"
 import { panes, type SideTab, usePane } from "#lib/store/panes.svelte.ts"
 import UiBlocks from "./UiBlocks.svelte"
 
-export type Shown = { id: string; blocks: Block[] }
+export type Shown = { id: string; blocks: ShownBlock[] }
 
 let {
   entries,
@@ -64,7 +64,7 @@ const current = $derived(entries[at])
 
 let listing = $state(false)
 
-const ICONS: Partial<Record<Block["type"], string>> = {
+const ICONS: Partial<Record<ShownBlock["type"], string>> = {
   file: "lucide:file",
   image: "lucide:image",
   html: "lucide:code-xml",

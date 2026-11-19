@@ -23,6 +23,7 @@ mod secret;
 mod stdio;
 #[cfg(desktop)]
 mod tray;
+mod usage;
 
 pub use stdio::{FLAG as MCP_STDIO_FLAG, run as mcp_stdio};
 use tauri::webview::PageLoadEvent;
@@ -157,6 +158,10 @@ pub fn run() {
             console::terminal_type,
             console::terminal_interrupt,
             console::terminal_keys,
+            console::terminal_screen,
+            usage::usage_graph,
+            usage::usage_autosubmit,
+            usage::usage_autosubmit_status,
             backdrop::window_backdrop,
             console::terminal_paste_image,
             console::clipboard_image,

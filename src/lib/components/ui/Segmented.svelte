@@ -6,7 +6,7 @@ let {
   value,
   onpick,
 }: {
-  items: { id: T; label: string; icon: string }[]
+  items: { id: T; label: string; icon?: string }[]
   value: T
   onpick: (id: T) => void
 } = $props()
@@ -26,7 +26,9 @@ let {
       title={item.label}
       onclick={() => onpick(item.id)}
     >
-      <Icon icon={item.icon} class="size-4 shrink-0" />
+      {#if item.icon}
+        <Icon icon={item.icon} class="size-4 shrink-0" />
+      {/if}
       <span class="max-sm:min-w-0 max-sm:truncate">{item.label}</span>
     </button>
   {/each}

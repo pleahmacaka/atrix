@@ -11,6 +11,7 @@
         "@dimforge/rapier3d-compat": "^0.21.0",
         "@fabianlars/tauri-plugin-oauth": "^2.1.0",
         "@floating-ui/dom": "^1.8.0",
+        "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "@gltf-transform/core": "^4.5.1",
         "@iconify/svelte": "^5.2.4",
         "@modelcontextprotocol/server": "^2.4.0",
@@ -170,6 +171,8 @@
     "@floating-ui/dom": ["@floating-ui/dom@1.8.0", "", { "dependencies": { "@floating-ui/core": "^1.8.0", "@floating-ui/utils": "^0.2.12" } }, "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@fontsource-variable/jetbrains-mono": ["@fontsource-variable/jetbrains-mono@5.3.0", "", {}, "sha512-F32xpS2NsGYoQi2ADSkKTgpJj7ozajsGgDJ8woTnqjmIB+dxDIqImjl4pXZVEExu8UFZ2ndhmX18EBS/hdz3Lw=="],
 
     "@gltf-transform/cli": ["@gltf-transform/cli@4.5.1", "", { "dependencies": { "@donmccurdy/caporal": "~0.0.10", "@gltf-transform/core": "^4.5.1", "@gltf-transform/extensions": "^4.5.1", "@gltf-transform/functions": "^4.5.1", "@types/micromatch": "~4.0.10", "@types/prompts": "^2.4.9", "@types/tmp": "~0.2.6", "cli-table3": "~0.6.5", "csv-stringify": "~6.8.3", "draco3dgltf": "~1.5.7", "gltf-validator": "~2.0.0-dev.3.10", "keyframe-resample": "~0.1.0", "ktx-parse": "^1.1.0", "listr2": "~8.3.3", "meshoptimizer": "~1.2.0", "micromatch": "~4.0.8", "mikktspace": "~1.1.1", "prompts": "^2.4.2", "sharp": "~0.35.3", "tmp": "~0.2.7", "watlas": "^1.0.1" }, "bin": { "gltf-transform": "./bin/cli.js" } }, "sha512-TNPU20U7caqUpyXdbqobQueUjWmrdEhsZeno77MGJJCyiV1EyrC5yOE+aFrpxPli45VSk6aNT0FHAed8LE7ecg=="],
 

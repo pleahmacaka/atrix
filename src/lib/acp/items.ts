@@ -5,7 +5,12 @@ import type {
   ToolCallContent,
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk"
-import { type Block, isShowUi, uiBlocksIn } from "#lib/chat/blocks.ts"
+import {
+  type Block,
+  isShowUi,
+  type ShownBlock,
+  uiBlocksIn,
+} from "#lib/chat/blocks.ts"
 import type { ContextUse, Limit } from "#lib/p2p/protocol.ts"
 import { baseName } from "#lib/path.ts"
 
@@ -77,7 +82,7 @@ export type TextItem = {
 
 export type ThoughtItem = TextItem & { type: "thought" }
 
-export type UiItem = { type: "ui"; id: string; blocks: Block[] }
+export type UiItem = { type: "ui"; id: string; blocks: ShownBlock[] }
 
 export type ChatItem =
   | TextItem
@@ -95,6 +100,7 @@ export type Shell = {
 export type Question = {
   question: string
   header: string
+  kind: "choice" | "text" | "number"
   multiSelect: boolean
   options: { label: string; description: string }[]
 }

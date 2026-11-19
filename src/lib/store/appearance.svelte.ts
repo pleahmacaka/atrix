@@ -1,6 +1,11 @@
 import { MediaQuery } from "svelte/reactivity"
 import { desktop } from "#lib/platform.ts"
-import { ACCENTS, settings, type WindowEffect } from "./settings.svelte.ts"
+import {
+  ACCENTS,
+  quotedFont,
+  settings,
+  type WindowEffect,
+} from "./settings.svelte.ts"
 
 const dark = new MediaQuery("(prefers-color-scheme: dark)")
 
@@ -49,6 +54,14 @@ export const startAppearance = () => {
 
       root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
       root.style.fontSize = `${settings.scale}%`
+
+      const font = settings.interfaceFont.trim()
+
+      if (font) {
+        root.style.setProperty("--font-interface", quotedFont(font))
+      } else {
+        root.style.removeProperty("--font-interface")
+      }
       root.style.setProperty(
         "--content-scale",
         String(settings.contentScale / 100),

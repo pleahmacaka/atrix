@@ -197,10 +197,11 @@ svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([f
 }
 
 @theme {
-  --font-sans: "Pretendard Variable", Pretendard, sans-serif;
+  --font-sans: var(--font-interface, "Pretendard Variable"), Pretendard, sans-serif;
   --font-mono: var(--font-sans);
   --default-transition-duration: 140ms;
   --transition-property-size: width, height;
+  --transition-property-dash: stroke-dashoffset;
   --transition-property-width: width;
   --transition-property-width-color: width, background-color;
   --transition-property-height-shadow: height, box-shadow;
@@ -338,6 +339,10 @@ summary {
   --color-base-100: oklch(99.2% 0.0015 247 / var(--surface));
   --color-base-200: oklch(97.4% 0.0035 247 / var(--gutter));
   --raised: oklch(100% 0 0 / var(--solid));
+}
+
+[data-sidebar-drawer] {
+  --color-base-100: var(--raised);
 }
 
 [data-effect="on"] body,
@@ -567,6 +572,7 @@ summary {
   border: var(--border) solid var(--color-base-300);
   padding: 0.5rem 0.75rem;
   text-align: left;
+  overflow-wrap: break-word;
 }
 
 .markdown hr {

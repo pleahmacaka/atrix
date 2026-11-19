@@ -3,9 +3,11 @@ import { SvelteMap } from "svelte/reactivity"
 import { z } from "zod"
 import { keyOf } from "./keys.ts"
 import type { Current } from "./nav.svelte.ts"
-import { persisted } from "./stored.svelte.ts"
+import { persist, persisted } from "./stored.svelte.ts"
 
 const SIDES = "panes:sides"
+
+const SHARED = "panes:shared-input"
 
 export type Side = "left" | "right" | "top" | "bottom"
 
@@ -175,6 +177,16 @@ class Panes {
 
   typing = $state<string | null>(null)
 
+  shared = $state(persisted(SHARED, false, z.boolean()))
+
+  inputSlot = $state<HTMLElement | null>(null)
+
+  toggleShared = () => {
+    this.shared = !this.shared
+    persist(SHARED, this.shared, false)
+    this.typing = this.focused
+  }
+
   width = $state(0)
 
   height = $state(0)
@@ -197,12 +209,6 @@ class Panes {
 
   get active() {
     return this.leaves.find(l => l.id === this.focused) ?? this.leaves[0]
-  }
-
-  get clusters() {
-    return [this.root, ...this.stashed]
-      .filter(n => n.kind === "split")
-      .map(n => leavesOf(n).flatMap(l => (l.current ? [keyOf(l.current)] : [])))
   }
 
   #sideKey = (id: string) => {
@@ -276,10 +282,27 @@ class Panes {
         return { id, distance: Math.hypot(c.x - origin.x, c.y - origin.y) }
       })
       .toSorted((a, b) => a.distance - b.distance)[0]
+    const behind = (r: DOMRect) =>
+      side === "left"
+        ? r.left >= from.right - 1
+        : side === "right"
+          ? r.right <= from.left + 1
+          : side === "top"
+            ? r.top >= from.bottom - 1
+            : r.bottom <= from.top + 1
+    const wrapped = [...rects]
+      .filter(([id, r]) => id !== this.focused && behind(r))
+      .map(([id, r]) => {
+        const c = center(r)
 
-    if (next) {
-      this.focused = next.id
-      this.typing = next.id
+        return { id, distance: Math.hypot(c.x - origin.x, c.y - origin.y) }
+      })
+      .toSorted((a, b) => b.distance - a.distance)[0]
+    const target = next?.id ?? wrapped?.id
+
+    if (target && target !== this.focused) {
+      this.focused = target
+      this.typing = target
     }
   }
 

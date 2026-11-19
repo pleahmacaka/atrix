@@ -2,6 +2,7 @@
 import Icon from "@iconify/svelte"
 import { tick } from "svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
+import { matchChoice } from "#lib/chat/choices.ts"
 import { groups } from "#lib/chat/groups.svelte.ts"
 import { MAX_MEMBERS } from "#lib/chat/groupTimeline.ts"
 import { peopleMatching } from "#lib/chat/mentions.ts"
@@ -10,18 +11,20 @@ import ModelEffort from "#lib/components/chat/ModelEffort.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
 import {
   efforts,
-  matchChoice,
   OPTION_ICONS,
   PRIMARY,
   terminalChoices,
 } from "#lib/components/chat/models.ts"
+import UsageGraph from "#lib/components/shell/UsageGraph.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
 import MenuItem from "#lib/components/ui/MenuItem.svelte"
 import { menuKeys } from "#lib/components/ui/menu.ts"
 import Popover from "#lib/components/ui/Popover.svelte"
 import Wheel from "#lib/components/ui/Wheel.svelte"
+import { logFailure } from "#lib/logging.ts"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { ConfigChoice } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -182,6 +185,15 @@ const startSession = async (target: Extract<Target, { kind: "harness" }>) => {
   }
 
   const id = await view.create(target.harness, target.cwd.trim())
+  const space = nav.space
+
+  nav.space = null
+
+  if (space?.host === target.host) {
+    await view
+      .place(id, space.id, null)
+      .catch((e: unknown) => logFailure("space place", e))
+  }
 
   for (const option of presets) {
     const value = pickOf(option)
@@ -243,7 +255,10 @@ const addMember = async (groupId: string, key: string) => {
       ? nav.target.model
       : (findGateway(second)?.model ?? "")
 
-  await groups.join(groupId, CHAT_HOST, chats.create(second, model), option.label)
+  await groups.join(groupId, CHAT_HOST, chats.create(second, model), {
+    label: option.label,
+    invited: true,
+  })
 }
 
 const startRoom = async (text: string, files: File[]) => {
@@ -325,6 +340,12 @@ const send = (text: string, files: File[]) =>
     await view.prompt(id, text, await Promise.all(files.map(toAttachment)))
   })
 
+const spaceName = $derived(
+  nav.space
+    ? hostById(nav.space.host)?.state?.spaces?.find(s => s.id === nav.space?.id)?.name
+    : undefined,
+)
+
 const ready = $derived(
   nav.target.kind === "model" ? !!findGateway(nav.target.gateway) : true,
 )
@@ -332,7 +353,14 @@ const ready = $derived(
 
 <div class="flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-24">
   <p class="text-2xl font-medium text-base-content/80">{m.chat_prompt()}</p>
-  <div class="w-full">
+  <div class="relative w-full">
+    {#if spaceName && nav.target.kind === "harness" && nav.target.host === nav.space?.host}
+      <div class="mx-auto mb-2 flex max-w-2xl items-center gap-2 px-4 text-sm text-base-content/70 sm:px-8">
+        <Icon icon="lucide:layers" class="size-4 shrink-0" />
+        <span class="min-w-0 flex-1 truncate">{m.space_target({ name: spaceName })}</span>
+        <IconButton icon="lucide:x" label={m.common_cancel()} size="xs" onclick={() => (nav.space = null)} />
+      </div>
+    {/if}
     <Composer
       busy={attempt.busy}
       draft="start"
@@ -478,5 +506,8 @@ const ready = $derived(
       {/snippet}
     </Composer>
     <ErrorAlert message={attempt.failure} />
+    <div class="absolute inset-x-0 top-full pt-6">
+      <UsageGraph />
+    </div>
   </div>
 </div>

@@ -1,61 +1,91 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import Section from "#lib/components/ui/Section.svelte"
 import Segmented from "#lib/components/ui/Segmented.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import Stepper from "#lib/components/ui/Stepper.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { chooseLanguage, LANGUAGES, languageChoice } from "#lib/store/locale.ts"
 import {
   ACCENTS,
-  CONTENT_SCALES,
+  type Bounds,
+  CONTENT_SCALE,
   type Layout,
   type PanelShape,
-  SCALES,
+  SCALE,
   type SidebarCollapse,
   settings,
+  TERMINAL_FONT,
+  TERMINAL_SCROLL,
+  TERMINAL_SIZE,
+  TERMINAL_WEIGHT,
   type Texture,
   type Theme,
+  type UsageRing,
   type WindowEffect,
 } from "#lib/store/settings.svelte.ts"
 
-const THEMES: { id: Theme; label: string; icon: string }[] = [
-  { id: "system", label: m.appearance_system(), icon: "lucide:monitor" },
-  { id: "light", label: m.appearance_light(), icon: "lucide:sun" },
-  { id: "dark", label: m.appearance_dark(), icon: "lucide:moon" },
+const THEMES: { id: Theme; label: string }[] = [
+  { id: "system", label: m.appearance_system() },
+  { id: "light", label: m.appearance_light() },
+  { id: "dark", label: m.appearance_dark() },
 ]
 
-const EFFECTS: { id: WindowEffect; label: string; icon: string }[] = [
-  { id: "none", label: m.appearance_effect_none(), icon: "lucide:square" },
-  { id: "glass", label: m.appearance_effect_glass(), icon: "lucide:droplet" },
+const EFFECTS: { id: WindowEffect; label: string }[] = [
+  { id: "none", label: m.appearance_effect_none() },
+  { id: "glass", label: m.appearance_effect_glass() },
 ]
 
-const LAYOUTS: { id: Layout; label: string; icon: string }[] = [
-  { id: "flat", label: m.appearance_layout_flat(), icon: "lucide:panels-top-left" },
-  { id: "island", label: m.appearance_layout_island(), icon: "lucide:layout-dashboard" },
+const LAYOUTS: { id: Layout; label: string }[] = [
+  { id: "flat", label: m.appearance_layout_flat() },
+  { id: "island", label: m.appearance_layout_island() },
 ]
 
-const SHAPES: { id: PanelShape; label: string; icon: string }[] = [
-  { id: "rounded", label: m.appearance_shape_rounded(), icon: "lucide:squircle" },
-  { id: "square", label: m.appearance_shape_square(), icon: "lucide:square" },
+const SHAPES: { id: PanelShape; label: string }[] = [
+  { id: "rounded", label: m.appearance_shape_rounded() },
+  { id: "square", label: m.appearance_shape_square() },
 ]
 
-const SCALE_ITEMS = SCALES.map(s => ({ id: String(s), label: `${s}%`, icon: "lucide:type" }))
-
-const CONTENT_ITEMS = CONTENT_SCALES.map(s => ({ id: String(s), label: `${s}%`, icon: "lucide:text" }))
-
-const SIDEBAR_MODES: { id: SidebarCollapse; label: string; icon: string }[] = [
-  { id: "compact", label: m.appearance_sidebar_compact(), icon: "lucide:panel-left" },
-  { id: "hidden", label: m.appearance_sidebar_hidden(), icon: "lucide:panel-left-dashed" },
+const SIDEBAR_MODES: { id: SidebarCollapse; label: string }[] = [
+  { id: "compact", label: m.appearance_sidebar_compact() },
+  { id: "hidden", label: m.appearance_sidebar_hidden() },
 ]
 
-const TEXTURES: { id: Texture; label: string; icon: string }[] = [
-  { id: "none", label: m.appearance_texture_none(), icon: "lucide:square" },
-  { id: "soft", label: m.appearance_texture_soft(), icon: "lucide:sparkle" },
-  { id: "strong", label: m.appearance_texture_strong(), icon: "lucide:sparkles" },
+const RINGS: { id: UsageRing; label: string }[] = [
+  { id: "both", label: m.appearance_ring_both() },
+  { id: "context", label: m.appearance_ring_context() },
+  { id: "week", label: m.appearance_ring_week() },
+]
+
+const TEXTURES: { id: Texture; label: string }[] = [
+  { id: "none", label: m.appearance_texture_none() },
+  { id: "soft", label: m.appearance_texture_soft() },
+  { id: "strong", label: m.appearance_texture_strong() },
 ]
 </script>
 
-<SettingRow icon="lucide:languages" title={m.appearance_language()}>
+{#snippet stepped(
+  title: string,
+  value: number,
+  range: Bounds,
+  onchange: (value: number) => void,
+  unit = "",
+)}
+  <SettingRow {title}>
+    <Stepper label={title} {value} {range} {unit} {onchange} />
+    <button
+      type="button"
+      class="btn btn-sm"
+      disabled={value === range.base}
+      onclick={() => onchange(range.base)}
+    >
+      {m.common_reset()}
+    </button>
+  </SettingRow>
+{/snippet}
+
+<SettingRow title={m.appearance_language()}>
   <Segmented
     items={LANGUAGES}
     value={languageChoice()}
@@ -63,11 +93,11 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
   />
 </SettingRow>
 
-<SettingRow icon="lucide:sun-moon" title={m.appearance_theme()}>
+<SettingRow title={m.appearance_theme()}>
   <Segmented items={THEMES} value={settings.theme} onpick={settings.setTheme} />
 </SettingRow>
 
-<SettingRow icon="lucide:palette" title={m.appearance_accent()}>
+<SettingRow title={m.appearance_accent()}>
   <div class="flex flex-wrap gap-2">
     {#each ACCENTS as accent (accent.id)}
       <button
@@ -91,27 +121,15 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
   </div>
 </SettingRow>
 
-<SettingRow icon="lucide:layout-template" title={m.appearance_layout()}>
+<SettingRow title={m.appearance_layout()}>
   <Segmented items={LAYOUTS} value={settings.layout} onpick={settings.setLayout} />
 </SettingRow>
 
-<SettingRow icon="lucide:layout-panel-left" title={m.appearance_shape()}>
+<SettingRow title={m.appearance_shape()}>
   <Segmented items={SHAPES} value={settings.shape} onpick={settings.setShape} />
 </SettingRow>
 
-<SettingRow icon="lucide:zoom-in" title={m.appearance_scale()}>
-  <Segmented items={SCALE_ITEMS} value={String(settings.scale)} onpick={v => settings.setScale(Number(v))} />
-</SettingRow>
-
-<SettingRow icon="lucide:text" title={m.appearance_content_scale()}>
-  <Segmented
-    items={CONTENT_ITEMS}
-    value={String(settings.contentScale)}
-    onpick={v => settings.setContentScale(Number(v))}
-  />
-</SettingRow>
-
-<SettingRow icon="lucide:panel-left-close" title={m.appearance_sidebar()}>
+<SettingRow title={m.appearance_sidebar()}>
   <Segmented
     items={SIDEBAR_MODES}
     value={settings.sidebarCollapse}
@@ -119,12 +137,12 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
   />
 </SettingRow>
 
-<SettingRow icon="lucide:grip" title={m.appearance_texture()}>
+<SettingRow title={m.appearance_texture()}>
   <Segmented items={TEXTURES} value={settings.texture} onpick={settings.setTexture} />
 </SettingRow>
 
 {#if desktop}
-  <SettingRow icon="lucide:app-window" title={m.appearance_window()}>
+  <SettingRow title={m.appearance_window()}>
     <div class="flex flex-col items-end gap-3 max-sm:w-full max-sm:items-stretch">
       <Segmented
         items={EFFECTS}
@@ -137,7 +155,6 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
           settings.effect === "none" && "opacity-40",
         ]}
       >
-        <Icon icon="lucide:blend" class="size-4 text-base-content/60" />
         {m.appearance_transparency()}
         <input
           type="range"
@@ -154,3 +171,45 @@ const TEXTURES: { id: Texture; label: string; icon: string }[] = [
     </div>
   </SettingRow>
 {/if}
+
+<SettingRow title={m.appearance_ring()}>
+  <Segmented items={RINGS} value={settings.usageRing} onpick={settings.setUsageRing} />
+</SettingRow>
+
+<Section title={m.appearance_fonts()}>
+  {@render stepped(m.appearance_scale(), settings.scale, SCALE, settings.setScale, "%")}
+
+  {@render stepped(m.appearance_content_scale(), settings.contentScale, CONTENT_SCALE, settings.setContentScale, "%")}
+
+  <SettingRow title={m.appearance_interface_font()}>
+    <input
+      class="input input-sm w-56"
+      aria-label={m.appearance_interface_font()}
+      placeholder="Pretendard"
+      autocomplete="off"
+      spellcheck="false"
+      value={settings.interfaceFont}
+      onchange={e => settings.setInterfaceFont(e.currentTarget.value.trim())}
+    />
+  </SettingRow>
+
+  {#if desktop}
+    <SettingRow title={m.appearance_terminal_font()}>
+      <input
+        class="input input-sm w-56"
+        aria-label={m.appearance_terminal_font()}
+        placeholder={TERMINAL_FONT}
+        autocomplete="off"
+        spellcheck="false"
+        value={settings.terminalFont}
+        onchange={e => settings.setTerminalFont(e.currentTarget.value.trim())}
+      />
+    </SettingRow>
+
+    {@render stepped(m.appearance_terminal_size(), settings.terminalSize, TERMINAL_SIZE, settings.setTerminalSize)}
+
+    {@render stepped(m.appearance_terminal_weight(), settings.terminalWeight, TERMINAL_WEIGHT, settings.setTerminalWeight)}
+
+    {@render stepped(m.appearance_terminal_scroll(), settings.terminalScroll, TERMINAL_SCROLL, settings.setTerminalScroll, "%")}
+  {/if}
+</Section>

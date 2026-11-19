@@ -6,7 +6,9 @@ import type {
   HarnessKind,
   Listed,
   SessionView,
+  Stroke,
   Subagent,
+  TerminalDialog,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { Asked, ChatItem, Log, Picked } from "./items.ts"
@@ -27,11 +29,35 @@ const TYPED_GRACE_MS = 5000
 
 const IMAGE_MARKER = /\[Image #(\d+)\]/g
 
-type Stroke =
-  | { kind: "digit"; digit: number }
-  | { kind: "text"; text: string }
-  | { kind: "tab" }
-  | { kind: "enter" }
+const CONFIRM_STEP_MS = 300
+
+const CONFIRM_TRIES = 6
+
+// claude rewrites its status file a beat after a keypress; until then the old dialog still reads as waiting
+const ANSWERED_MS = 1500
+
+const SCREEN_MS = 2000
+
+const STALE_MS = 5000
+
+const CLOSING = new Set(["digit", "enter", "escape"])
+
+const askedDialog = (view: SessionView): TerminalDialog | null => {
+  const questions = view.asked?.questions ?? []
+  const question = questions[0]
+
+  return question
+    ? {
+        lines: questions.map(q => q.question),
+        options: question.options.map((o, i) => ({
+          digit: i + 1,
+          label: o.label,
+          detail: o.description,
+          current: i === 0,
+        })),
+      }
+    : null
+}
 
 const strokesOf = ({ questions }: Asked, answers: Picked[]): Stroke[] => {
   const strokes = questions.flatMap((q, i): Stroke[] => {
@@ -112,11 +138,24 @@ export class ExternalSessions {
 
   #pids = new Map<string, number>()
 
-  #waiting = new Set<string>()
+  #waiting = new Map<string, string>()
+
+  #waited = ""
+
+  #answered = new Map<string, number>()
+
+  #found = new Map<HarnessKind, { at: number; found: Map<string, Presence> }>()
+
+  #screens = new Map<
+    string,
+    { at: number; kind: string; dialog: TerminalDialog | null }
+  >()
 
   #watches = new Map<string, Watch>()
 
   #timer: ReturnType<typeof setInterval> | null = null
+
+  #polling = false
 
   #home = ""
 
@@ -133,15 +172,26 @@ export class ExternalSessions {
     }
 
     this.#home = home
-    this.ready = this.#poll().catch(() => {})
-    this.#timer = setInterval(() => {
-      this.#poll().catch(() => {})
-    }, POLL_MS)
+    this.ready = this.#guarded()
+    this.#timer = setInterval(this.#guarded, POLL_MS)
+  }
+
+  #guarded = async () => {
+    if (this.#polling) {
+      return
+    }
+
+    this.#polling = true
+
+    await this.#poll().catch(() => {})
+    this.#polling = false
   }
 
   live = (id: string) => this.presence.has(id)
 
   busy = (id: string) => this.presence.get(id) === true
+
+  waiting = (id: string) => this.#waiting.has(id)
 
   get = (id: string) => this.#watches.get(id)?.view ?? undefined
 
@@ -172,21 +222,70 @@ export class ExternalSessions {
       throw new Error(m.chat_terminal_live())
     }
 
-    if (this.#waiting.has(id)) {
-      throw new Error(m.chat_terminal_waiting())
-    }
-
     return pid
   }
 
-  interrupt = (id: string) => {
-    const pid = this.#pids.get(id)
+  interrupt = (id: string) =>
+    native("terminal_interrupt", { pid: this.#pid(id) })
 
-    if (pid === undefined) {
-      throw new Error(m.chat_terminal_live())
+  press = async (id: string, strokes: Stroke[]) => {
+    const pid = this.#pid(id)
+    const view = this.#watches.get(id)?.view
+
+    if (!this.#waiting.has(id) && !view?.dialog) {
+      throw new Error(m.chat_terminal_no_dialog())
     }
 
-    return native("terminal_interrupt", { pid })
+    const closes = strokes.some(s => CLOSING.has(s.kind))
+
+    this.#screens.delete(id)
+
+    if (closes) {
+      this.#answered.set(id, Date.now())
+
+      if (view) {
+        view.dialog = null
+        this.onItems(view)
+      }
+    }
+
+    await native("terminal_keys", { pid, strokes })
+  }
+
+  #dialog = async (
+    id: string,
+    view: SessionView,
+  ): Promise<TerminalDialog | null> => {
+    const pid = this.#pids.get(id)
+    const kind = this.#waiting.get(id)
+    const read = this.#watches.get(id)?.source.dialog
+    const answered = this.#answered.get(id) ?? 0
+    const choices = view.asked?.questions.every(q => q.kind === "choice")
+
+    if (pid === undefined || choices || Date.now() - answered < ANSWERED_MS) {
+      this.#screens.delete(id)
+
+      return null
+    }
+
+    if (!kind || !read) {
+      return askedDialog(view)
+    }
+
+    const last = this.#screens.get(id)
+
+    if (last && last.kind === kind && Date.now() - last.at < SCREEN_MS) {
+      return last.dialog
+    }
+
+    const screen = await native<string[]>("terminal_screen", { pid }).catch(
+      () => [],
+    )
+    const dialog = read(screen) ?? askedDialog(view)
+
+    this.#screens.set(id, { at: Date.now(), kind, dialog })
+
+    return dialog
   }
 
   answer = async (id: string, toolId: string, answers: Picked[]) => {
@@ -215,8 +314,15 @@ export class ExternalSessions {
     await native("terminal_keys", { pid, strokes })
   }
 
-  keys = (id: string, text: string) =>
-    native("terminal_type", { pid: this.#pid(id), text })
+  keys = (id: string, text: string) => {
+    const pid = this.#pid(id)
+
+    if (this.#waiting.has(id)) {
+      throw new Error(m.chat_terminal_waiting())
+    }
+
+    return native("terminal_type", { pid, text })
+  }
 
   #showQueue = (id: string, change: (queue: string[]) => void) => {
     const watch = this.#watches.get(id)
@@ -230,6 +336,11 @@ export class ExternalSessions {
 
   type = async (id: string, text: string, attachments: Attachment[]) => {
     const pid = this.#pid(id)
+
+    if (this.#waiting.has(id)) {
+      throw new Error(m.chat_terminal_waiting())
+    }
+
     const pasted = attachments.flatMap(a => (a.kind === "text" ? a.text : []))
 
     const watch = this.#watches.get(id)
@@ -263,6 +374,22 @@ export class ExternalSessions {
         pid,
         text: [text, ...pasted].filter(Boolean).join("\n\n"),
       })
+
+      const confirm = watch?.source.confirm
+
+      for (let i = 0; confirm?.command(text) && i < CONFIRM_TRIES; i++) {
+        await new Promise(r => setTimeout(r, CONFIRM_STEP_MS))
+
+        const screen = await native<string[]>("terminal_screen", { pid }).catch(
+          () => [],
+        )
+
+        if (confirm.showing(screen)) {
+          await native("terminal_keys", { pid, strokes: [{ kind: "enter" }] })
+
+          break
+        }
+      }
 
       entry.at = Date.now()
     } catch (e) {
@@ -530,6 +657,7 @@ export class ExternalSessions {
 
   #live = async () => {
     const live = new Map<string, boolean>()
+    const present = new Set<string>()
     const shelling = new Set<string>()
     const listings = new Map<HarnessKind, Listed[]>()
 
@@ -537,9 +665,15 @@ export class ExternalSessions {
       HarnessKind,
       Source,
     ][]) {
-      const found: Map<string, Presence> = await source
-        .live()
-        .catch(() => new Map())
+      const read = await source.live().catch(() => null)
+      const last = this.#found.get(kind)
+      const found =
+        read ??
+        (last && Date.now() - last.at < STALE_MS ? last.found : new Map())
+
+      if (read) {
+        this.#found.set(kind, { at: Date.now(), found: read })
+      }
 
       listings.set(
         kind,
@@ -547,8 +681,10 @@ export class ExternalSessions {
       )
 
       for (const [id, { busy, shell, owner, pid, waiting }] of found) {
+        present.add(id)
+
         if (waiting) {
-          this.#waiting.add(id)
+          this.#waiting.set(id, waiting)
         } else {
           this.#waiting.delete(id)
         }
@@ -580,6 +716,15 @@ export class ExternalSessions {
       }
     }
 
+    for (const id of [...this.#waiting.keys(), ...this.#pids.keys()]) {
+      if (!present.has(id)) {
+        this.#waiting.delete(id)
+        this.#pids.delete(id)
+        this.#answered.delete(id)
+        this.#screens.delete(id)
+      }
+    }
+
     this.#shelling = shelling
     this.listings = listings
 
@@ -588,9 +733,13 @@ export class ExternalSessions {
 
   #poll = async () => {
     const next = await this.#live()
+    const waiting = [...this.#waiting].join("|")
     const changed =
       next.size !== this.presence.size ||
-      [...next].some(([id, busy]) => this.presence.get(id) !== busy)
+      [...next].some(([id, busy]) => this.presence.get(id) !== busy) ||
+      waiting !== this.#waited
+
+    this.#waited = waiting
 
     this.presence = next
 
@@ -631,7 +780,7 @@ export class ExternalSessions {
 
     const settled = Date.now() - (watch.typed ?? 0) > TYPED_GRACE_MS
 
-    if (!running && settled && log.queue.length > 0) {
+    if (!running && settled && !this.#waiting.has(id) && log.queue.length > 0) {
       log.queue.length = 0
       view.queued = []
       watch.dirty = true
@@ -650,6 +799,13 @@ export class ExternalSessions {
     if (running && log.since === undefined) {
       log.since = Date.now()
       view.since = log.since
+      watch.dirty = true
+    }
+
+    const dialog = await this.#dialog(id, view)
+
+    if (JSON.stringify(dialog) !== JSON.stringify(view.dialog ?? null)) {
+      view.dialog = dialog
       watch.dirty = true
     }
 

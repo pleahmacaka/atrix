@@ -13,6 +13,10 @@ export type SidebarCollapse = "compact" | "hidden"
 
 export type Texture = "none" | "soft" | "strong"
 
+export type UsageRing = "both" | "context" | "week"
+
+export const SUBMIT_HOURS = [1, 6, 24]
+
 export const ACCENTS = [
   { id: "indigo", label: m.accent_indigo(), hue: 268 },
   { id: "blue", label: m.accent_blue(), hue: 245 },
@@ -29,12 +33,43 @@ export type Accent = (typeof ACCENTS)[number]["id"]
 const read = <T extends string>(key: string, fallback: T) =>
   (localStorage.getItem(key) as T | null) ?? fallback
 
-export const SCALES = [90, 100, 110, 125]
+export const TERMINAL_FONT = "JetBrainsMono Nerd Font Mono"
 
-export const CONTENT_SCALES = [90, 100, 110, 125, 140]
+export type Bounds = { min: number; max: number; step: number; base: number }
 
-const pickScale = (raw: string, allowed: number[]) =>
-  allowed.includes(Number(raw)) ? Number(raw) : 100
+export const SCALE: Bounds = { min: 70, max: 150, step: 10, base: 100 }
+
+export const CONTENT_SCALE: Bounds = { min: 70, max: 200, step: 10, base: 100 }
+
+export const TERMINAL_SIZE: Bounds = { min: 8, max: 32, step: 1, base: 13 }
+
+export const TERMINAL_SCROLL: Bounds = {
+  min: 25,
+  max: 400,
+  step: 25,
+  base: 100,
+}
+
+export const TERMINAL_WEIGHT: Bounds = {
+  min: 100,
+  max: 800,
+  step: 100,
+  base: 400,
+}
+
+export const quotedFont = (font: string) =>
+  font.includes(",") ? font.trim() : `"${font.trim().replaceAll('"', "")}"`
+
+const within = (raw: string, range: Bounds) => {
+  const value = Number(raw)
+
+  return Number.isFinite(value) && value >= range.min && value <= range.max
+    ? value
+    : range.base
+}
+
+const ranged = (key: string, range: Bounds) =>
+  within(read(key, String(range.base)), range)
 
 class Settings {
   deviceName = $state<string>(
@@ -61,6 +96,29 @@ class Settings {
   )
 
   texture = $state<Texture>(read("window-texture", "none"))
+
+  usageRing = $state<UsageRing>(read("usage-ring", "both"))
+
+  tokscale = $state(read<string>("tokscale", "off") === "on")
+
+  tokscaleSubmit = $state<number>(
+    SUBMIT_HOURS.find(h => h === Number(read("tokscale-submit", "0"))) ?? 0,
+  )
+
+  setTokscaleSubmit = (hours: number) => {
+    this.tokscaleSubmit = hours
+    localStorage.setItem("tokscale-submit", String(hours))
+  }
+
+  setTokscale = (on: boolean) => {
+    this.tokscale = on
+    localStorage.setItem("tokscale", on ? "on" : "off")
+  }
+
+  setUsageRing = (ring: UsageRing) => {
+    this.usageRing = ring
+    localStorage.setItem("usage-ring", ring)
+  }
 
   sidebarCollapse = $state<SidebarCollapse>(
     read<string>("sidebar-collapse", "compact") === "hidden"
@@ -121,11 +179,44 @@ class Settings {
     localStorage.setItem("panel-shape", shape)
   }
 
-  scale = $state<number>(pickScale(read("ui-scale", "100"), SCALES))
+  scale = $state<number>(ranged("ui-scale", SCALE))
 
-  contentScale = $state<number>(
-    pickScale(read("content-scale", "100"), CONTENT_SCALES),
-  )
+  contentScale = $state<number>(ranged("content-scale", CONTENT_SCALE))
+
+  interfaceFont = $state<string>(read("interface-font", ""))
+
+  terminalFont = $state<string>(read("terminal-font", ""))
+
+  terminalSize = $state<number>(ranged("terminal-size", TERMINAL_SIZE))
+
+  terminalScroll = $state<number>(ranged("terminal-scroll", TERMINAL_SCROLL))
+
+  terminalWeight = $state<number>(ranged("terminal-weight", TERMINAL_WEIGHT))
+
+  setTerminalWeight = (weight: number) => {
+    this.terminalWeight = weight
+    localStorage.setItem("terminal-weight", String(weight))
+  }
+
+  setInterfaceFont = (font: string) => {
+    this.interfaceFont = font
+    localStorage.setItem("interface-font", font)
+  }
+
+  setTerminalFont = (font: string) => {
+    this.terminalFont = font
+    localStorage.setItem("terminal-font", font)
+  }
+
+  setTerminalSize = (size: number) => {
+    this.terminalSize = size
+    localStorage.setItem("terminal-size", String(size))
+  }
+
+  setTerminalScroll = (percent: number) => {
+    this.terminalScroll = percent
+    localStorage.setItem("terminal-scroll", String(percent))
+  }
 
   setContentScale = (scale: number) => {
     this.contentScale = scale

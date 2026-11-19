@@ -6,14 +6,14 @@ let {
   icon,
   title,
   children,
-}: { icon: string; title: string; children?: Snippet } = $props()
+}: { icon?: string; title: string; children?: Snippet } = $props()
 </script>
 
 <div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-  <div class="flex min-w-0 flex-1 basis-40 items-center gap-3">
-    <span class="grid size-8 shrink-0 place-items-center rounded-field bg-base-content/6">
-      <Icon {icon} class="size-4 text-base-content/70" />
-    </span>
+  <div class="flex min-h-8 min-w-0 flex-1 basis-40 items-center gap-3">
+    {#if icon}
+      <Icon {icon} class="size-5 shrink-0" />
+    {/if}
     <p class="min-w-0 text-sm font-medium">{title}</p>
   </div>
   {#if children}

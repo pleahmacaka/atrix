@@ -10,9 +10,9 @@ import {
 } from "#lib/agents/compose.ts"
 
 import { chats } from "#lib/chat/chats.svelte.ts"
+import { matchChoice } from "#lib/chat/choices.ts"
 import { prime } from "#lib/chat/primer.ts"
 import { TAGS } from "#lib/chat/tags.ts"
-import { matchChoice } from "#lib/components/chat/models.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"

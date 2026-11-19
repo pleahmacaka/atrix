@@ -29,6 +29,7 @@ import QueuedPrompts from "./QueuedPrompts.svelte"
 import RunningStatus from "./RunningStatus.svelte"
 import SessionTools from "./SessionTools.svelte"
 import SidePanel from "./SidePanel.svelte"
+import TerminalDialog from "./TerminalDialog.svelte"
 import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
 import UiBlocks from "./UiBlocks.svelte"
@@ -189,7 +190,13 @@ $effect(() => {
               {#if view.ask}
                 <PermissionCard ask={view.ask} onPermit={permit} />
               {/if}
-              {#if view.asked}
+              {#if view.dialog}
+                <TerminalDialog
+                  dialog={view.dialog}
+                  onPress={strokes => attempt(() => host.press(sessionId, strokes))}
+                />
+              {/if}
+              {#if view.asked?.questions.every(q => q.kind !== "text" && q.kind !== "number")}
                 {#key view.asked.id}
                   <QuestionCard
                     asked={view.asked}

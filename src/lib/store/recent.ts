@@ -18,6 +18,7 @@ export type Recent = {
   live: boolean
   harness: string | null
   device: string | null
+  cwd: string | null
   at: number
 }
 
@@ -43,6 +44,7 @@ const sessions = (): Recent[] =>
       key: `${host.id}:${s.id}`,
       current: { kind: "session" as const, host: host.id, id: s.id },
       harness: s.harness,
+      cwd: s.cwd,
       title: s.title || m.common_untitled(),
       running: s.running || external.get(s.id) === true,
       live: true,
@@ -54,6 +56,7 @@ const sessions = (): Recent[] =>
         key: `${host.id}:${s.sessionId}`,
         current: { kind: "session" as const, host: host.id, id: s.sessionId },
         harness,
+        cwd: s.cwd,
         title: s.title || m.common_untitled(),
         running: external.get(s.sessionId) === true,
         live: external.has(s.sessionId),
@@ -75,6 +78,7 @@ export const recents = (): Recent[] =>
       current: { kind: "chat" as const, id: c.id },
       harness: null,
       device: null,
+      cwd: null,
       title: c.title,
       source: c.model,
       icon: "lucide:message-square",
@@ -87,6 +91,7 @@ export const recents = (): Recent[] =>
       current: { kind: "group" as const, id: g.id },
       harness: null,
       device: null,
+      cwd: null,
       title: g.title,
       source: m.group_source({ count: g.members.length }),
       icon: "lucide:users",

@@ -7,6 +7,7 @@ import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { attention } from "#lib/store/attention.svelte.ts"
 import { droppedConversation, isConversationDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
 import {
@@ -42,6 +43,27 @@ const opening = new Attempt()
 $effect(() => {
   if (current) {
     markRead(keyOf(current))
+  }
+})
+
+let observed = ""
+
+$effect(() => {
+  if (!host || current?.kind !== "session" || !attention.active) {
+    return
+  }
+
+  const turn = host.state?.turns?.[current.id]
+  const mark = `${current.id}:${turn?.turn}`
+
+  if (observed === mark) {
+    return
+  }
+
+  observed = mark
+
+  if (turn && turn.turn > turn.seen) {
+    host.seen(current.id, turn.turn).catch(() => {})
   }
 })
 
@@ -110,7 +132,13 @@ const HINTS: Record<Zone, string> = {
 </script>
 
 <section
-  class="relative flex min-h-0 min-w-0 flex-1 flex-col"
+  class={[
+    "relative flex min-h-0 min-w-0 flex-1 flex-col",
+    split && [
+      "m-1 overflow-hidden rounded-box border transition-colors duration-140",
+      focused ? "border-primary/40" : "border-base-300",
+    ],
+  ]}
   aria-label={info?.title ?? m.chat_new()}
   data-find-root={focused || undefined}
   data-pane={leaf.id}
@@ -127,8 +155,8 @@ const HINTS: Record<Zone, string> = {
     <header
       class={[
         "flex h-9 shrink-0 items-center gap-2 px-3",
-        "text-xs font-semibold",
-        focused ? "text-primary" : "text-base-content/55",
+        "text-xs font-semibold transition-colors duration-140",
+        focused ? "bg-primary/8 text-primary" : "bg-base-content/4 text-base-content/55",
       ]}
     >
       <Icon icon={info?.icon ?? "lucide:square-pen"} class="size-4 shrink-0 opacity-70" />

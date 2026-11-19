@@ -1,9 +1,11 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { Composer, type ComposerProps, provideComposer } from "#lib/chat/composer.svelte.ts"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import CallBar from "./CallBar.svelte"
+import { dock } from "./dock.ts"
 import QueuePanel from "./QueuePanel.svelte"
 import InputWidget from "./widgets/InputWidget.svelte"
 import PlusWidget from "./widgets/PlusWidget.svelte"
@@ -18,6 +20,12 @@ const pane = usePane()
 
 const morph = $derived(!pane || panes.active.id === pane() ? "composer" : undefined)
 
+const split = $derived(!!pane && panes.leaves.length > 1)
+
+const sharing = $derived(split && panes.shared)
+
+const docked = $derived(sharing && panes.active.id === pane?.())
+
 let box = $state<HTMLElement>()
 
 let typing = $state(false)
@@ -29,10 +37,16 @@ $effect(() => {
 })
 </script>
 
+<!-- dock() moves the form into the shared slot; this wrapper keeps the component in place -->
+<div class="contents">
 <form
   data-draft={props.draft}
   style:view-transition-name={morph}
-  class="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2"
+  class={[
+    "mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2",
+    sharing && !docked && "hidden",
+  ]}
+  {@attach dock(() => (docked ? panes.inputSlot : null))}
   onsubmit={e => {
     e.preventDefault()
     composer.submit()
@@ -57,14 +71,14 @@ $effect(() => {
   {/if}
   <div class="flex items-end gap-2">
     {#if props.side}
-      <div class="mb-1 size-10 shrink-0">
+      <div class="size-9 shrink-0">
         {@render props.side()}
       </div>
     {/if}
     <div
       bind:this={box}
       class={[
-        "relative flex min-w-0 flex-1 items-end p-2",
+        "relative flex min-w-0 flex-1 items-end p-1",
         "rounded-3xl border border-base-300 bg-raised",
         "transition-colors duration-140 focus-within:border-primary",
       ]}
@@ -75,11 +89,11 @@ $effect(() => {
         typing = e.relatedTarget instanceof HTMLTextAreaElement && !!box?.contains(e.relatedTarget)
       }}
     >
-      <div class="flex h-8 shrink-0 items-center">
+      <div class="flex h-7 shrink-0 items-center">
         <PlusWidget />
       </div>
       <InputWidget />
-      <div class="size-8 shrink-0">
+      <div class="size-7 shrink-0">
         <SendWidget />
       </div>
       {#if composer.talking && !typing && !composer.text}
@@ -92,11 +106,22 @@ $effect(() => {
   </div>
   <div class="flex min-w-0 items-center gap-1">
     {#if props.side}
-      <div class="w-11 shrink-0"></div>
+      <div class="w-10 shrink-0"></div>
     {/if}
     <div class="flex min-w-0 flex-1 items-center gap-1">
       {@render props.tools?.()}
     </div>
     <VoiceWidget />
+    {#if split}
+      <IconButton
+        icon={panes.shared ? "lucide:square-split-horizontal" : "lucide:text-cursor-input"}
+        label={m.pane_input_shared()}
+        size="xs"
+        aria-pressed={panes.shared}
+        class={["shrink-0", panes.shared && "text-primary"]}
+        onclick={panes.toggleShared}
+      />
+    {/if}
   </div>
 </form>
+</div>

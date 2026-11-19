@@ -1,54 +1,5 @@
+import { olderModels } from "#lib/chat/versions.ts"
 import { m } from "#lib/paraglide/messages.js"
-
-type Named = { name: string }
-
-const versionOf = (name: string) => {
-  const words = name.split(" ")
-  const at = words.findIndex(w => w !== "" && Number.isFinite(Number(w)))
-
-  return at < 0
-    ? null
-    : {
-        family: words.toSpliced(at, 1).join(" ").toLowerCase(),
-        parts: words[at]?.split(".").map(Number) ?? [],
-      }
-}
-
-const newer = (a: number[], b: number[]) => {
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const d = (a[i] ?? 0) - (b[i] ?? 0)
-
-    if (d !== 0) {
-      return d > 0
-    }
-  }
-
-  return false
-}
-
-export const olderModels = (models: Named[]) => {
-  const best = new Map<string, number[]>()
-
-  for (const { name } of models) {
-    const v = versionOf(name)
-    const known = v && best.get(v.family)
-
-    if (v && (!known || newer(v.parts, known))) {
-      best.set(v.family, v.parts)
-    }
-  }
-
-  return new Set(
-    models
-      .filter(({ name }) => {
-        const v = versionOf(name)
-        const top = v && best.get(v.family)
-
-        return !!v && !!top && newer(top, v.parts)
-      })
-      .map(m => m.name),
-  )
-}
 
 const isVersion = (word: string) =>
   word.length > 0 && word.length <= 2 && Number.isInteger(Number(word))
@@ -107,10 +58,3 @@ export const efforts = () => [
   { value: "xhigh", name: m.effort_xhigh() },
   { value: "max", name: m.effort_max() },
 ]
-
-export const matchChoice = (
-  values: { value: string; name: string }[],
-  wanted: string,
-) =>
-  values.find(v => v.value === wanted)?.value ??
-  values.find(v => `${v.value} ${v.name}`.toLowerCase().includes(wanted))?.value

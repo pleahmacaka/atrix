@@ -6,7 +6,9 @@ import {
   sendToChannel,
 } from "#lib/channels/store.svelte.ts"
 import type { Block } from "#lib/chat/blocks.ts"
+import { matchChoice } from "#lib/chat/choices.ts"
 import { withoutInjected } from "#lib/chat/tags.ts"
+import { olderModels, versionOf } from "#lib/chat/versions.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
 import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
@@ -17,9 +19,10 @@ import type {
   HarnessKind,
   HostEvent,
   Listed,
-  OpenSession,
   Patch,
+  SessionSummary,
   SessionView,
+  Stroke,
 } from "#lib/p2p/protocol.ts"
 import { SESSION_BUSY, SESSION_GONE } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -33,6 +36,7 @@ import {
   promptBlocks,
 } from "./agent.ts"
 import type { Bridge } from "./bridge.ts"
+import { startsSubagent } from "./claudeTools.ts"
 import { applyUpdate, type Picked, shownInTurn } from "./items.ts"
 import type { ExternalSessions } from "./mirror.ts"
 import { type Harnesses, mirrorKind } from "./registry.ts"
@@ -89,13 +93,24 @@ const viewOf = ({
   ...view
 }: Live): SessionView => view
 
-const summaryOf = (s: SessionView): OpenSession => ({
-  id: s.id,
-  harness: s.harness,
-  cwd: s.cwd,
-  title: s.title,
-  running: s.running,
-})
+const newestMatch = (
+  values: { value: string; name: string }[],
+  wanted: string,
+) => {
+  const older = olderModels(values)
+  const rank = (v: { name: string }) =>
+    versionOf(v.name) && !older.has(v.name) ? 0 : 1
+
+  return matchChoice(
+    values.toSorted((a, b) => rank(a) - rank(b)),
+    wanted,
+  )
+}
+
+const OPTION_NAMES: Record<string, () => string> = {
+  model: m.chat_model,
+  thought_level: m.chat_effort,
+}
 
 const categoryOf = (session: Live, configId: string) =>
   session.config.find(o => o.id === configId)?.category
@@ -138,11 +153,29 @@ export class Sessions {
     this.#external = deps.external
   }
 
-  open = (): OpenSession[] =>
+  #subagents = new Map<string, Map<string, string>>()
+
+  open = (): SessionSummary[] =>
     [
       ...this.#live.values(),
       ...this.#external.views().filter(v => !this.#live.has(v.id)),
-    ].map(summaryOf)
+    ].map(s => ({
+      id: s.id,
+      harness: s.harness,
+      cwd: s.cwd,
+      title: s.title,
+      running: s.running,
+      waiting: !!s.ask || !!s.asked || this.#external.waiting(s.id),
+      since: s.running ? s.since : undefined,
+      subagents: s.agents?.length
+        ? s.agents.map(a => ({ id: a.id, description: a.description }))
+        : s.running
+          ? [...(this.#subagents.get(s.id) ?? [])].map(([id, description]) => ({
+              id,
+              description,
+            }))
+          : [],
+    }))
 
   reachable = (): Reachable[] =>
     this.open().map(s => ({
@@ -151,6 +184,8 @@ export class Sessions {
       harness: s.harness,
       running: s.running || this.busy(s.id),
     }))
+
+  taking = (id: string) => this.#taking.has(id)
 
   busy = (id: string) =>
     this.#taking.has(id) ||
@@ -397,6 +432,8 @@ export class Sessions {
       throw new Error(SESSION_BUSY)
     }
 
+    this.#subagents.delete(sessionId)
+
     const prompt = promptBlocks(session.conn, text, attachments)
 
     for (const content of prompt) {
@@ -442,6 +479,9 @@ export class Sessions {
     this.#session(sessionId).answer?.(optionId)
   }
 
+  press = (sessionId: string, strokes: Stroke[]) =>
+    this.#external.press(sessionId, strokes)
+
   answer = (sessionId: string, toolId: string, answers: Picked[]) =>
     this.#external.answer(sessionId, toolId, answers)
 
@@ -468,6 +508,7 @@ export class Sessions {
     this.#external.drop(sessionId)
     forget(sessionId)
     this.#usage.delete(sessionId)
+    this.#subagents.delete(sessionId)
     this.deps.closed(sessionId)
 
     if (session) {
@@ -479,22 +520,46 @@ export class Sessions {
     return null
   }
 
-  configure = async (sessionId: string, configId: string, value: string) => {
-    const session = this.#session(sessionId)
+  attach = async (sessionId: string) => {
+    await this.#writable(sessionId)
 
-    if (session.pinned && isModel(session, configId)) {
+    return null
+  }
+
+  configure = async (sessionId: string, wanted: string, value: string) => {
+    const session = await this.#writable(sessionId)
+    const option =
+      session.config.find(o => o.id === wanted) ??
+      session.config.find(o => o.category === wanted)
+
+    if (!option) {
+      throw new Error(
+        m.error_option_missing({ option: OPTION_NAMES[wanted]?.() ?? wanted }),
+      )
+    }
+
+    if (session.pinned && option.category === "model") {
       return null
+    }
+
+    const chosen =
+      option.category === "model"
+        ? newestMatch(option.values, value)
+        : matchChoice(option.values, value)
+
+    if (!chosen) {
+      throw new Error(m.error_option_unavailable({ value }))
     }
 
     const { configOptions } = await session.conn.agent.request(
       acp.methods.agent.session.setConfigOption,
-      { sessionId, configId, value },
+      { sessionId, configId: option.id, value: chosen },
     )
 
     this.#patch(session, { config: choicesOf(configOptions) })
 
-    if (!isPinned(session, configId)) {
-      remember(session.harness, session.cwd, configId, value)
+    if (!isPinned(session, option.id)) {
+      remember(session.harness, session.cwd, option.id, chosen)
     }
 
     return null
@@ -616,14 +681,48 @@ export class Sessions {
       rename(session.id, patch.title)
     }
 
-    if ("running" in patch || "title" in patch) {
+    if ("running" in patch || "title" in patch || "ask" in patch) {
       this.deps.changed()
     }
   }
 
   #apply = (session: Live, update: acp.SessionUpdate) => {
+    this.#trackSubagent(session.id, update)
     applyUpdate(session.items, update)
     this.deps.emit({ type: "update", sessionId: session.id, update })
+  }
+
+  #trackSubagent = (sessionId: string, update: acp.SessionUpdate) => {
+    if (
+      update.sessionUpdate !== "tool_call" &&
+      update.sessionUpdate !== "tool_call_update"
+    ) {
+      return
+    }
+
+    const running = this.#subagents.get(sessionId) ?? new Map<string, string>()
+    const known = running.has(update.toolCallId)
+
+    if (!known && !startsSubagent(update._meta)) {
+      return
+    }
+
+    const before = running.size
+
+    if (update.status === "completed" || update.status === "failed") {
+      running.delete(update.toolCallId)
+    } else {
+      running.set(
+        update.toolCallId,
+        update.title ?? running.get(update.toolCallId) ?? "",
+      )
+    }
+
+    this.#subagents.set(sessionId, running)
+
+    if (running.size !== before) {
+      this.deps.changed()
+    }
   }
 
   #session = (id: string) => {

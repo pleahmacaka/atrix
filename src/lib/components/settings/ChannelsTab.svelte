@@ -108,7 +108,7 @@ const remove = (providerId: string, channel: string) => {
 
 <div class="flex flex-col gap-6">
   <div class="flex flex-col">
-    <SettingRow icon="lucide:messages-square" title={m.channels_provider()}>
+    <SettingRow title={m.channels_provider()}>
       <IconSelect
         icon={provider.icon}
         label={m.channels_provider()}
@@ -120,7 +120,7 @@ const remove = (providerId: string, channel: string) => {
       />
     </SettingRow>
 
-    <SettingRow icon="lucide:key-round" title={m.channels_token()}>
+    <SettingRow title={m.channels_token()}>
       {#if present}
         <div class="flex items-center justify-end gap-2">
           <span class="flex items-center gap-2 text-sm whitespace-nowrap">
@@ -199,7 +199,7 @@ const remove = (providerId: string, channel: string) => {
       </div>
     </SettingRow>
 
-    <SettingRow icon="lucide:user-check" title={m.channels_owner()}>
+    <SettingRow title={m.channels_owner()}>
       <IconInput
         icon="lucide:at-sign"
         label={m.channels_owner()}

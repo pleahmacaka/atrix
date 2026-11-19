@@ -8,6 +8,7 @@ import type { Limit, SessionView } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { desktop } from "#lib/platform.ts"
+import { settings } from "#lib/store/settings.svelte.ts"
 
 let { view, claude }: { view: SessionView; claude: boolean } = $props()
 
@@ -21,6 +22,14 @@ const usageWindow = z
   .nullable()
   .optional()
 
+const parseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 const usageFile = z.object({ five_hour: usageWindow, seven_day: usageWindow }).loose()
 
 let claudeLimits = $state<Limit[]>([])
@@ -32,7 +41,7 @@ const loadClaude = async () => {
 
   const path = await join(await homeDir(), ".claude", "eris-usage.json")
   const text = await native<string | null>("read_text", { path }).catch(() => null)
-  const parsed = usageFile.safeParse(text ? JSON.parse(text) : null)
+  const parsed = usageFile.safeParse(text ? parseJson(text) : null)
 
   if (!parsed.success) {
     return
@@ -54,8 +63,10 @@ const loadClaude = async () => {
 let open = $state(false)
 
 $effect(() => {
-  if (open) {
-    loadClaude()
+  void view.running
+
+  if (claude && (open || settings.usageRing !== "context")) {
+    loadClaude().catch(() => {})
   }
 })
 
@@ -66,6 +77,51 @@ const context = $derived(view.context)
 const percent = $derived(
   context ? Math.min(100, Math.round((context.used / context.size) * 100)) : 0,
 )
+
+const week = $derived(limits.find(l => l.id === "week")?.percent)
+
+const shown = $derived.by(() => {
+  if (week === undefined) {
+    return "context"
+  }
+
+  return !context && settings.usageRing === "both" ? "week" : settings.usageRing
+})
+
+const ring = $derived(
+  shown === "context"
+    ? { outer: null, single: percent }
+    : shown === "week"
+      ? { outer: null, single: week ?? 0 }
+      : { outer: percent, single: null },
+)
+
+const toneOf = (value: number) =>
+  value >= 90 ? "error" : value >= 70 ? "warning" : "primary"
+
+const STROKES = {
+  error: "stroke-error",
+  warning: "stroke-warning",
+  primary: "stroke-primary",
+}
+
+const TEXTS = {
+  error: "text-error",
+  warning: "text-warning",
+  primary: "text-primary",
+}
+
+const ringTitle = $derived.by(() => {
+  const contextTitle = context ? m.context_ring({ percent }) : m.context_title()
+
+  if (week === undefined || shown === "context") {
+    return contextTitle
+  }
+
+  return shown === "week"
+    ? m.ring_week({ week: Math.round(week) })
+    : m.ring_both({ percent, week: Math.round(week) })
+})
 
 type Part = { id: string; label: string; chars: number }
 
@@ -171,6 +227,23 @@ const limitLabel = (limit: Limit) =>
     : m.limit_hours({ hours: Math.round(Number.parseInt(limit.id, 10) / 60) })
 </script>
 
+{#snippet arc(radius: number, value: number)}
+  {@const around = 2 * Math.PI * radius}
+  <circle cx="7" cy="7" r={radius} fill="none" stroke-width="1.5" class="stroke-base-content/20" />
+  <circle
+    cx="7"
+    cy="7"
+    r={radius}
+    fill="none"
+    stroke-width="1.5"
+    stroke-linecap="round"
+    stroke-dasharray={around}
+    stroke-dashoffset={around * (1 - Math.min(100, Math.max(0, value)) / 100)}
+    transform="rotate(-90 7 7)"
+    class={["transition-dash duration-140", STROKES[toneOf(value)]]}
+  />
+{/snippet}
+
 <Popover
   label={m.context_title()}
   placement="top-end"
@@ -183,19 +256,23 @@ const limitLabel = (limit: Limit) =>
       type="button"
       class="btn btn-ghost btn-xs btn-square"
       aria-label={m.context_title()}
-      title={context ? m.context_ring({ percent }) : m.context_title()}
+      title={ringTitle}
     >
-      <span
-        class={[
-          "radial-progress",
-          percent >= 90 ? "text-error" : percent >= 70 ? "text-warning" : "text-primary",
-        ]}
-        style:--value={percent}
-        style:--size="0.875rem"
-        style:--thickness="0.125rem"
-        role="progressbar"
-        aria-valuenow={percent}
-      ></span>
+      {#if ring.single !== null}
+        <span
+          class={["radial-progress", TEXTS[toneOf(ring.single)]]}
+          style:--value={ring.single}
+          style:--size="0.875rem"
+          style:--thickness="0.125rem"
+          role="progressbar"
+          aria-valuenow={ring.single}
+        ></span>
+      {:else if ring.outer !== null && week !== undefined}
+        <svg viewBox="0 0 14 14" class="size-3.5" role="img" aria-label={ringTitle}>
+          {@render arc(6, ring.outer)}
+          {@render arc(3.5, week)}
+        </svg>
+      {/if}
     </button>
   {/snippet}
   <div class="flex flex-col gap-4 p-3 text-sm">

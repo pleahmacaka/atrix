@@ -54,6 +54,7 @@ export type GroupMember = {
   role?: "worker" | "reviewer"
   label?: string
   agent?: string
+  invited?: boolean
 }
 
 export type StoredReply = { member: string; name: string; text: string }

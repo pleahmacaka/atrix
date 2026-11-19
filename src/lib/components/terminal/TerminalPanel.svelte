@@ -1,10 +1,13 @@
 <script lang="ts">
 import { Channel, invoke } from "@tauri-apps/api/core"
 import { FitAddon, init, Terminal } from "ghostty-web"
+import { untrack } from "svelte"
 import { errorText } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { settings } from "#lib/store/settings.svelte.ts"
+import { terminalFamily } from "./terminalFont.ts"
 
 let { cwd }: { cwd: string } = $props()
 
@@ -13,6 +16,35 @@ let generation = $state(0)
 let exited = $state(false)
 
 let failure = $state<string | null>(null)
+
+let term = $state.raw<Terminal | null>(null)
+
+let fitter: FitAddon | null = null
+
+let fontRequest = 0
+
+$effect(() => {
+  const font = settings.terminalFont
+  const weight = settings.terminalWeight
+  const size = settings.terminalSize
+  const current = term
+
+  if (!current) {
+    return
+  }
+
+  const request = ++fontRequest
+
+  terminalFamily(font, weight).then(family => {
+    if (request !== fontRequest || term !== current) {
+      return
+    }
+
+    current.options.fontFamily = family
+    current.options.fontSize = size
+    requestAnimationFrame(() => fitter?.fit())
+  })
+})
 
 const cssVar = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -37,10 +69,20 @@ const rgbOf = (color: string) => {
 const mount = (el: HTMLElement) => {
   const id = crypto.randomUUID()
   const fit = new FitAddon()
-  let term: Terminal | null = null
+
+  fitter = fit
+
   let disposed = false
+  let wheel = 0
 
   const start = async () => {
+    const [font, weight, size] = untrack(() => [
+      settings.terminalFont,
+      settings.terminalWeight,
+      settings.terminalSize,
+    ])
+    const family = await terminalFamily(font, weight)
+
     await init()
 
     if (disposed) {
@@ -48,8 +90,8 @@ const mount = (el: HTMLElement) => {
     }
 
     const next = new Terminal({
-      fontSize: 13,
-      fontFamily: cssVar("--font-mono"),
+      fontSize: size,
+      fontFamily: family,
       cursorBlink: true,
       theme: {
         background: rgbOf(cssVar("--color-base-100")),
@@ -61,10 +103,32 @@ const mount = (el: HTMLElement) => {
     term = next
     next.loadAddon(fit)
     next.open(el)
+    next.attachCustomWheelEventHandler(e => {
+      const speed = settings.terminalScroll / 100
+
+      if (speed === 1 || next.buffer.active.type === "alternate") {
+        return false
+      }
+
+      const row = el.clientHeight / next.rows
+
+      wheel += (e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY : e.deltaY / row) * speed
+
+      const lines = Math.trunc(wheel)
+
+      wheel -= lines
+      next.scrollLines(lines)
+
+      return true
+    })
     fit.fit()
     fit.observeResize()
 
     const channel = new Channel<ArrayBuffer>(data => {
+      if (disposed) {
+        return
+      }
+
       if (data.byteLength === 0) {
         exited = true
 
@@ -95,6 +159,8 @@ const mount = (el: HTMLElement) => {
     disposed = true
     fit.dispose()
     term?.dispose()
+    term = null
+    fitter = null
     invoke("pty_close", { id }).catch(() => {})
   }
 }

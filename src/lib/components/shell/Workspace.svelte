@@ -43,6 +43,9 @@ const hosts = $derived(hostList().map(h => h.view))
     >
       <PaneNode node={panes.root} />
     </div>
+    {#if panes.shared && panes.leaves.length > 1}
+      <div class="shrink-0 pt-1" bind:this={panes.inputSlot}></div>
+    {/if}
   {:else if nav.page === "agent"}
     {#if nav.agent?.startsWith("prompt:")}
       <PromptEditor />

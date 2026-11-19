@@ -5,7 +5,6 @@ import type { Canvas } from "#lib/knowledge/canvas.ts"
 import type { Editable } from "#lib/knowledge/document.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { settings } from "#lib/store/settings.svelte.ts"
-import { markUnread } from "#lib/store/unread.svelte.ts"
 import type {
   Attachment,
   CanvasEntry,
@@ -19,6 +18,7 @@ import type {
   Listed,
   ProviderChoice,
   SessionView,
+  Stroke,
   SyncConfig,
 } from "./protocol.ts"
 
@@ -120,14 +120,6 @@ export class HostView {
 
   #adopt = (state: HostState) => {
     const fresh = this.state === null
-    const before = this.state?.open ?? []
-
-    for (const s of state.open) {
-      if (!s.running && before.some(b => b.id === s.id && b.running)) {
-        markUnread(`${this.id}:${s.id}`)
-      }
-    }
-
     const ready = state.knowledge.ready && !this.state?.knowledge.ready
 
     this.state = state
@@ -284,6 +276,11 @@ export class HostView {
   permit = (sessionId: string, optionId: string | null) =>
     this.call({ op: "permit", sessionId, optionId })
 
+  attach = (sessionId: string) => this.call({ op: "attach", sessionId })
+
+  press = (sessionId: string, strokes: Stroke[]) =>
+    this.call({ op: "press", sessionId, strokes })
+
   answer = (sessionId: string, toolId: string, answers: Picked[]) =>
     this.call({ op: "answer", sessionId, toolId, answers })
 
@@ -291,6 +288,28 @@ export class HostView {
     this.call({ op: "option", sessionId, configId, value })
 
   browse = (path: string) => this.call({ op: "fs.browse", path })
+
+  createSpace = (name: string, folder: string, color?: number) =>
+    this.call({ op: "space.create", name, folder, color })
+
+  updateSpace = (
+    id: string,
+    patch: { name?: string; color?: number; folder?: string },
+  ) => this.call({ op: "space.update", id, ...patch })
+
+  deleteSpace = (id: string) => this.call({ op: "space.delete", id })
+
+  moveSpace = (id: string, before: string | null) =>
+    this.call({ op: "space.move", id, before })
+
+  place = (sessionId: string, space: string | null, before: string | null) =>
+    this.call({ op: "space.place", sessionId, space, before })
+
+  pin = (sessionId: string, pinned: boolean) =>
+    this.call({ op: "session.pin", sessionId, pinned })
+
+  seen = (sessionId: string, turn: number) =>
+    this.call({ op: "session.seen", sessionId, turn })
 
   git = (path: string) => this.call({ op: "fs.git", path })
 

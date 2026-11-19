@@ -96,13 +96,35 @@ export type OpenSession = {
   running: boolean
 }
 
+export type SessionSummary = OpenSession & {
+  waiting: boolean
+  since?: number
+  subagents: { id: string; description: string }[]
+}
+
+export type Space = {
+  id: string
+  name: string
+  color: number
+  folder: string
+  agents: string[]
+}
+
+export type Turn = { turn: number; seen: number }
+
+export const SPACE_HUES = [195, 45, 268, 150, 10, 300]
+
 export type HostState = {
   home: string
   harnesses: HarnessInfo[]
   available: Available[]
-  open: OpenSession[]
-  external: { id: string; busy: boolean }[]
+  open: SessionSummary[]
+  external: { id: string; busy: boolean; waiting: boolean }[]
   knowledge: { ready: boolean; error: string | null }
+  spaces?: Space[]
+  pinned?: string[]
+  loose?: string[]
+  turns?: Record<string, Turn>
 }
 
 export type Listed = {
@@ -152,6 +174,7 @@ export type SessionView = OpenSession & {
   tokens?: number
   pace?: Pace
   agents?: Subagent[]
+  dialog?: TerminalDialog | null
   commands?: Command[]
   pinned?: string
 }
@@ -159,6 +182,25 @@ export type SessionView = OpenSession & {
 export type Command = { name: string; description: string; hint?: string }
 
 export type Pace = { tokens: number; ms: number }
+
+export type TerminalDialog = {
+  lines: string[]
+  options: { digit: number; label: string; detail: string; current: boolean }[]
+}
+
+export const stroke = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("digit"), digit: z.number().int().min(0).max(9) }),
+  z.object({ kind: z.literal("text"), text: z.string().max(4000) }),
+  z.object({ kind: z.literal("tab") }),
+  z.object({ kind: z.literal("enter") }),
+  z.object({ kind: z.literal("escape") }),
+  z.object({ kind: z.literal("up") }),
+  z.object({ kind: z.literal("down") }),
+  z.object({ kind: z.literal("left") }),
+  z.object({ kind: z.literal("right") }),
+])
+
+export type Stroke = z.infer<typeof stroke>
 
 export type Subagent = {
   id: string
@@ -288,6 +330,36 @@ const device = { device: z.string(), user: z.string().optional() }
 export const hostRequest = z.discriminatedUnion("op", [
   ...datasourceRequest.options,
   request("state", {}),
+  request("space.create", {
+    name: z.string().trim().min(1),
+    folder: z.string(),
+    color: z
+      .number()
+      .int()
+      .min(0)
+      .max(SPACE_HUES.length - 1)
+      .optional(),
+  }),
+  request("space.update", {
+    id: z.string(),
+    name: z.string().trim().min(1).optional(),
+    color: z
+      .number()
+      .int()
+      .min(0)
+      .max(SPACE_HUES.length - 1)
+      .optional(),
+    folder: z.string().optional(),
+  }),
+  request("space.delete", { id: z.string() }),
+  request("space.move", { id: z.string(), before: z.string().nullable() }),
+  request("session.pin", { ...session, pinned: z.boolean() }),
+  request("space.place", {
+    ...session,
+    space: z.string().nullable(),
+    before: z.string().nullable(),
+  }),
+  request("session.seen", { ...session, turn: z.number().int() }),
   request("mail.sessions", {}),
   request("mail.post", { letter }),
   request("mail.notice", { to: z.string(), text: z.string() }),
@@ -318,6 +390,8 @@ export const hostRequest = z.discriminatedUnion("op", [
   request("speech.tts", { text: z.string() }),
   request("rename", { ...session, title: z.string() }),
   request("permit", { ...session, optionId: z.string().nullable() }),
+  request("attach", session),
+  request("press", { ...session, strokes: z.array(stroke).min(1).max(20) }),
   request("answer", {
     ...session,
     toolId: z.string(),
@@ -420,6 +494,13 @@ export type HostEvent =
 
 export type Answers = {
   state: HostState
+  "space.create": Space
+  "space.update": null
+  "space.delete": null
+  "space.move": null
+  "space.place": null
+  "session.pin": null
+  "session.seen": null
   "mail.sessions": Reachable[]
   "mail.post": { thread: string; queued: boolean }
   "mail.notice": null
@@ -438,6 +519,8 @@ export type Answers = {
   "speech.tts": { audio: string; mime: string }
   rename: null
   permit: null
+  press: null
+  attach: null
   answer: null
   option: null
   "harness.toggle": null

@@ -2,6 +2,14 @@
 import DOMPurify from "dompurify"
 import { Marked } from "marked"
 
+const linkOf = (text: string) => {
+  try {
+    return new URL(text)
+  } catch {
+    return null
+  }
+}
+
 const markdown = new Marked({
   async: false,
   gfm: true,
@@ -33,6 +41,22 @@ const markdown = new Marked({
       renderer: () => "~",
     },
   ],
+  renderer: {
+    codespan({ text }) {
+      const url = linkOf(text.trim())
+
+      if (url?.protocol !== "http:" && url?.protocol !== "https:") {
+        return false
+      }
+
+      const shown = text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+
+      return `<a href="${url.href.replaceAll('"', "%22")}"><code>${shown}</code></a>`
+    },
+  },
 })
 </script>
 

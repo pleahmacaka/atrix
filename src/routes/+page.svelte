@@ -112,8 +112,9 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
     role="dialog"
     tabindex="-1"
     aria-label={m.shell_sidebar()}
-    class="fixed bottom-0 left-0 z-30 flex max-w-viewport px-2 pb-2"
+    class="fixed bottom-0 z-30 flex max-w-viewport px-2 pb-2"
     style:top="{225 / settings.scale}rem"
+    style:left="{shell.compact ? RAIL_REM + 0.5 : 0}rem"
     style:width="{shell.width + 1}rem"
     data-sidebar-drawer
     transition:fly={{ x: -16, duration: 160 }}

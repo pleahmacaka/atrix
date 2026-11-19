@@ -72,10 +72,13 @@ const askedInput = z.object({
     z.object({
       question: z.string(),
       header: z.string().catch(""),
+      kind: z.enum(["choice", "text", "number"]).catch("choice"),
       multiSelect: z.boolean().catch(false),
-      options: z.array(
-        z.object({ label: z.string(), description: z.string().catch("") }),
-      ),
+      options: z
+        .array(
+          z.object({ label: z.string(), description: z.string().catch("") }),
+        )
+        .catch([]),
     }),
   ),
 })
@@ -658,17 +661,17 @@ const attachAnswers = (items: ChatItem[], toolId: string, raw: unknown) => {
   const pairs = answered.success ? Object.entries(answered.data.answers) : []
   const entries = pairs
     .map(([question, answer]) => ({
-      key: question.trim().slice(0, 80),
-      value: answer.trim().slice(0, 600),
+      question: question.trim().slice(0, 1_000),
+      answer: answer.trim().slice(0, 600),
     }))
-    .filter(e => e.key && e.value)
+    .filter(e => e.question && e.answer)
     .slice(0, 20)
 
   if (entries.length > 0) {
     items.push({
       type: "ui",
       id: `${toolId}:answers`,
-      blocks: [{ type: "keyvalue", items: entries }],
+      blocks: [{ type: "answers", items: entries }],
     })
   }
 }

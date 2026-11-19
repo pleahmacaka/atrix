@@ -28,6 +28,10 @@ mod imp {
     const VK_ESCAPE: u16 = 0x1B;
 
     const VK_TAB: u16 = 0x09;
+    const VK_LEFT: u16 = 0x25;
+    const VK_UP: u16 = 0x26;
+    const VK_RIGHT: u16 = 0x27;
+    const VK_DOWN: u16 = 0x28;
 
     // the CLI shows this placeholder while a subagent is selected, and prompts typed then go to it
     const SUBAGENT_PROMPT: &str = "❯ Message @";
@@ -187,6 +191,18 @@ mod imp {
         Ok(result?)
     }
 
+    pub fn screen(pid: u32) -> Result<Vec<String>> {
+        let mut lines = Vec::new();
+
+        with_input(pid, |_| {
+            lines = screen_lines();
+
+            Ok(())
+        })?;
+
+        Ok(lines)
+    }
+
     pub fn type_into(pid: u32, text: &str) -> Result<()> {
         let records = records_of(text);
         let mut submit = Vec::new();
@@ -228,6 +244,11 @@ mod imp {
                     super::Stroke::Text { text } => records = records_of(text),
                     super::Stroke::Tab => press(&mut records, 0x09, VK_TAB, 0),
                     super::Stroke::Enter => press(&mut records, 0x0D, VK_RETURN, 0),
+                    super::Stroke::Escape => press(&mut records, VK_ESCAPE, VK_ESCAPE, 0),
+                    super::Stroke::Up => press(&mut records, 0, VK_UP, 0),
+                    super::Stroke::Down => press(&mut records, 0, VK_DOWN, 0),
+                    super::Stroke::Left => press(&mut records, 0, VK_LEFT, 0),
+                    super::Stroke::Right => press(&mut records, 0, VK_RIGHT, 0),
                 }
 
                 records
@@ -335,6 +356,10 @@ mod imp {
         Err("unsupported".into())
     }
 
+    pub fn screen(_: u32) -> Result<Vec<String>> {
+        Err("unsupported".into())
+    }
+
     pub fn paste_image(_: u32, _: &[u8]) -> Result<()> {
         Err("unsupported".into())
     }
@@ -361,6 +386,16 @@ pub enum Stroke {
     Text { text: String },
     Tab,
     Enter,
+    Escape,
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+#[tauri::command]
+pub async fn terminal_screen(pid: u32) -> Result<Vec<String>> {
+    tauri::async_runtime::spawn_blocking(move || imp::screen(pid)).await?
 }
 
 #[tauri::command]

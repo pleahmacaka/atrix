@@ -63,7 +63,7 @@ const syncNow = (host: HostEntry, name: string) =>
               save(host, name)
             }}
           >
-            <SettingRow icon="lucide:database" title={name}>
+            <SettingRow title={name}>
               <label class="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"

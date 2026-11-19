@@ -1,6 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import type { Block } from "#lib/chat/blocks.ts"
+import type { Block, ShownBlock } from "#lib/chat/blocks.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
@@ -15,7 +15,7 @@ let {
   onAction,
   onSave,
 }: {
-  blocks: Block[]
+  blocks: ShownBlock[]
   onAction?: (text: string) => void
   onSave?: (blocks: Block[]) => Promise<unknown>
 } = $props()
@@ -24,7 +24,7 @@ let saved = $state(false)
 
 const save = async () => {
   if (onSave && !saved) {
-    await onSave(blocks)
+    await onSave(blocks.filter((b): b is Block => b.type !== "answers"))
     saved = true
   }
 }
@@ -37,7 +37,7 @@ const widthOf = (value: number, bars: { value: number }[]) => {
   return top > 0 ? (Math.abs(value) / top) * 100 : 0
 }
 
-const titleOf = (block: Block) =>
+const titleOf = (block: ShownBlock) =>
   "title" in block && typeof block.title === "string" ? block.title : ""
 </script>
 
@@ -52,7 +52,7 @@ const titleOf = (block: Block) =>
   />
 {/snippet}
 
-{#snippet body(block: Block)}
+{#snippet body(block: ShownBlock)}
   {#if block.type === "card"}
     <p class="text-sm whitespace-pre-line text-base-content/80">{block.body}</p>
   {:else if block.type === "image"}
@@ -73,6 +73,17 @@ const titleOf = (block: Block) =>
             {item.key}
           </dt>
           <dd class="min-w-0 flex-1 break-words tabular-nums">{item.value}</dd>
+        </div>
+      {/each}
+    </dl>
+  {:else if block.type === "answers"}
+    <dl class="flex max-h-96 flex-col gap-4 overflow-y-auto text-sm">
+      {#each block.items as item, i (i)}
+        <div class="flex min-w-0 flex-col gap-1">
+          <dt class="break-words whitespace-pre-line text-base-content/60">
+            {item.question}
+          </dt>
+          <dd class="break-words whitespace-pre-line">{item.answer}</dd>
         </div>
       {/each}
     </dl>
@@ -160,7 +171,7 @@ const titleOf = (block: Block) =>
 <div class="flex min-w-0 flex-col gap-3">
   {#each blocks as block, index (index)}
     {@const title = titleOf(block)}
-    {@const saving = index === 0 && !!onSave}
+    {@const saving = index === 0 && !!onSave && block.type !== "answers"}
     <section class={CARD}>
       {#if title || saving}
         <div class="mb-2 flex min-w-0 items-start gap-2">

@@ -11,7 +11,6 @@ import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages
 import { shell } from "#lib/store/shell.svelte.ts"
 import { type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
-import ConversationFilter from "./ConversationFilter.svelte"
 import Navigator from "./Navigator.svelte"
 
 let { rail = false, floated = false }: { rail?: boolean; floated?: boolean } = $props()
@@ -199,9 +198,6 @@ const hintOf = (action: Action) =>
           <div class="flex items-center gap-1">
             {@render actionButton(action)}
             {#if i === 0}
-              {#if nav.page === "chat"}
-                <ConversationFilter />
-              {/if}
               {@render toggle()}
             {/if}
           </div>
