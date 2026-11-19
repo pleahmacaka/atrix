@@ -1,5 +1,5 @@
-import { addTaskInMain } from "#lib/calendar/desktop.ts"
-import { dueLabel, quickTask } from "#lib/calendar/tasks.ts"
+import { addTodoInMain } from "#lib/calendar/desktop.ts"
+import { dueLabel, quickTodo } from "#lib/calendar/todo.ts"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import {
   convert,
@@ -235,19 +235,19 @@ export const pendingTimerResult = (timer: Timer, now = Date.now()): Result => ({
 })
 
 export const todoResult = (text: string): Result | null => {
-  const task = quickTask(text)
+  const todo = quickTodo(text)
 
-  if (!task) {
+  if (!todo) {
     return null
   }
 
   return {
     id: "todo",
     kind: "todo",
-    title: m.launcher_todo_add({ title: task.title }),
-    subtitle: task.due ? dueLabel(task.due) : m.launcher_todo_saves(),
+    title: m.launcher_todo_add({ title: todo.title }),
+    subtitle: todo.due ? dueLabel(todo.due) : m.launcher_todo_saves(),
     icon: "lucide:list-plus",
-    action: () => addTaskInMain(task.title, task.due),
+    action: () => addTodoInMain(todo),
     secondaryActions: [],
     score: 2000,
   }

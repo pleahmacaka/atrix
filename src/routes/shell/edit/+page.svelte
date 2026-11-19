@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
+  import { listen } from "@tauri-apps/api/event"
   import { getCurrentWindow } from "@tauri-apps/api/window"
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import Select from "#lib/components/ui/Select.svelte"
@@ -56,12 +57,8 @@
     })),
   ])
 
-  $effect(() => {
+  const raise = () => {
     native.editRaise().catch(() => undefined)
-
-    loadDevice()
-      .then(editor.accept)
-      .catch(() => undefined)
 
     listMonitors()
       .then(list => {
@@ -75,11 +72,34 @@
         origin = { x: p.x, y: p.y }
       })
       .catch(() => undefined)
+  }
 
-    const stop = onDevice(editor.accept)
+  const closePopovers = () => {
+    for (const open of document.querySelectorAll<HTMLElement>(":popover-open")) {
+      open.hidePopover()
+    }
+  }
+
+  $effect(() => {
+    raise()
+
+    loadDevice()
+      .then(editor.accept)
+      .catch(() => undefined)
+
+    const stops = [
+      onDevice(editor.accept),
+      listen<string>("window-shown", e => {
+        if (e.payload === "edit") {
+          raise()
+        }
+      }),
+    ]
 
     return () => {
-      stop.then(off => off())
+      for (const stop of stops) {
+        stop.then(off => off())
+      }
     }
   })
 
@@ -112,7 +132,7 @@
   }
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onblur={closePopovers} />
 
 <div class="relative size-full select-none">
   <button

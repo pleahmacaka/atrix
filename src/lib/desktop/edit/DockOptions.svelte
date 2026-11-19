@@ -10,8 +10,8 @@
 
   let { editor }: { editor: Editor } = $props()
 
-  const HEIGHT = { min: 32, max: 96, step: 4, base: 48 }
-  const ICON = { min: 16, max: 48, step: 4, base: 24 }
+  const HEIGHT = { min: 32, max: 140, step: 4, base: 48 }
+  const ICON = { min: 16, max: 56, step: 4, base: 24 }
   const WIDTH = { min: 320, max: 1400, step: 40, base: 720 }
 
   const device = $derived(editor.device)

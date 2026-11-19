@@ -8,6 +8,7 @@ import {
 import MenuItem from "./MenuItem.svelte"
 import { menuKeys } from "./menu.ts"
 import { popoverMotion } from "./popover.ts"
+import SubMenu from "./SubMenu.svelte"
 
 const REM = 16
 
@@ -125,9 +126,22 @@ const close = (e: KeyboardEvent) => {
   onkeydown={close}
   {@attach menuKeys}
 >
-  {#each items as item, index (index)}
+  {@render entries(items)}
+</div>
+</div>
+
+{#snippet entries(list: Item[])}
+  {#each list as item, index (index)}
     {#if item === "separator"}
       <hr class="my-1 border-0" />
+    {:else if "items" in item}
+      <SubMenu
+        icon={item.icon ?? "lucide:dot"}
+        label={item.label}
+        disabled={item.disabled}
+      >
+        {@render entries(item.items)}
+      </SubMenu>
     {:else}
       <MenuItem
         icon={item.icon ?? "lucide:dot"}
@@ -140,5 +154,4 @@ const close = (e: KeyboardEvent) => {
       />
     {/if}
   {/each}
-</div>
-</div>
+{/snippet}

@@ -3,8 +3,11 @@
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import MenuItem from "#lib/components/ui/MenuItem.svelte"
   import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
+  import SubMenu from "#lib/components/ui/SubMenu.svelte"
   import * as native from "#lib/desktop/native/index.js"
   import { m } from "#lib/paraglide/messages.js"
+  import Mixer from "./Mixer.svelte"
+  import { volumeIcon } from "./sound"
 
   type Props = {
     volume: native.Volume
@@ -20,6 +23,7 @@
   const STEP = 0.05
 
   let open = $state(false)
+  let page = $state<"main" | "mixer">("main")
   let devices = $state<native.AudioDevice[]>([])
   let switching = $state<string | null>(null)
 
@@ -30,22 +34,16 @@
   $effect(() => {
     if (open) {
       loadDevices()
+    } else {
+      page = "main"
     }
   })
 
   const level = $derived(Math.round(volume.level * 100))
 
-  const icon = $derived.by(() => {
-    if (volume.muted) {
-      return "lucide:volume-x"
-    }
+  const icon = $derived(volumeIcon(volume.level, volume.muted))
 
-    if (volume.level <= 0) {
-      return "lucide:volume"
-    }
-
-    return volume.level < 0.5 ? "lucide:volume-1" : "lucide:volume-2"
-  })
+  const current = $derived(devices.find(d => d.default)?.name ?? "")
 
   const label = $derived(
     volume.muted ? m.dock_volume_muted() : m.dock_volume_level({ percent: level }),
@@ -75,7 +73,12 @@
   }
 </script>
 
-<Popover label={m.dock_sound()} {placement} width="w-72" bind:open>
+<Popover
+  label={m.dock_sound()}
+  {placement}
+  width={page === "mixer" ? "w-80" : "w-72"}
+  bind:open
+>
   {#snippet trigger(p)}
     <button
       {...p}
@@ -94,60 +97,77 @@
     </button>
   {/snippet}
 
-  <section class="flex flex-col gap-3 p-3 text-sm">
-    <div class="flex items-center gap-2">
-      <IconButton
-        {icon}
-        label={volume.muted ? m.dock_unmute() : m.dock_mute()}
-        onclick={ontogglemute}
-      />
+  {#if page === "mixer"}
+    <Mixer
+      {volume}
+      device={current}
+      onmaster={apply}
+      onsync={onchange}
+      {ontogglemute}
+      onback={() => (page = "main")}
+    />
+  {:else}
+    <section class="flex flex-col gap-3 p-3 text-sm">
+      <div class="flex items-center gap-2">
+        <IconButton
+          {icon}
+          label={volume.muted ? m.dock_unmute() : m.dock_mute()}
+          onclick={ontogglemute}
+        />
 
-      <input
-        type="range"
-        class="range range-primary range-xs grow"
-        min="0"
-        max="100"
-        value={level}
-        aria-label={m.dock_volume()}
-        oninput={e => apply(Number(e.currentTarget.value) / 100)}
-      />
+        <input
+          type="range"
+          class="range range-primary range-xs grow"
+          min="0"
+          max="100"
+          value={level}
+          aria-label={m.dock_volume()}
+          oninput={e => apply(Number(e.currentTarget.value) / 100)}
+        />
 
-      <span class="w-10 shrink-0 text-right text-xs tabular-nums text-base-content/70">
-        {level}%
-      </span>
-    </div>
+        <span class="w-10 shrink-0 text-right text-xs tabular-nums text-base-content/70">
+          {level}%
+        </span>
+      </div>
 
-    <div class="flex flex-col gap-1">
-      <h3 class="text-xs font-medium text-base-content/60">{m.dock_output_device()}</h3>
-
-      {#if devices.length === 0}
-        <p class="py-1 text-xs text-base-content/50">{m.dock_no_devices()}</p>
-      {:else}
-        <div class="flex max-h-40 flex-col overflow-y-auto" role="menu">
+      <div class="flex flex-col">
+        <SubMenu icon="lucide:speaker" label={m.dock_output_device()} value={current}>
           {#each devices as device (device.id)}
             <MenuItem
-              icon={device.default ? "lucide:check" : "lucide:speaker"}
+              icon="lucide:speaker"
               label={device.name}
-              selected={device.default}
+              checked={device.default}
               disabled={switching !== null}
               onclick={() => pick(device)}
             />
+          {:else}
+            <p class="px-2 py-1 text-xs text-base-content/50">{m.dock_no_devices()}</p>
           {/each}
-        </div>
-      {/if}
-    </div>
+        </SubMenu>
 
-    <MenuItem
-      icon="lucide:settings"
-      label={m.dock_sound_settings()}
-      onclick={() => {
-        open = false
-        native.openUrl("ms-settings:sound").catch(() => undefined)
-      }}
-    >
-      {#snippet trailing()}
-        <Icon icon="lucide:external-link" class="size-3.5 shrink-0 opacity-50" />
-      {/snippet}
-    </MenuItem>
-  </section>
+        <MenuItem
+          icon="lucide:sliders-vertical"
+          label={m.dock_mixer()}
+          onclick={() => (page = "mixer")}
+        >
+          {#snippet trailing()}
+            <Icon icon="lucide:chevron-right" class="size-4 shrink-0 opacity-60" />
+          {/snippet}
+        </MenuItem>
+
+        <MenuItem
+          icon="lucide:settings"
+          label={m.dock_sound_settings()}
+          onclick={() => {
+            open = false
+            native.openUrl("ms-settings:sound").catch(() => undefined)
+          }}
+        >
+          {#snippet trailing()}
+            <Icon icon="lucide:external-link" class="size-3.5 shrink-0 opacity-50" />
+          {/snippet}
+        </MenuItem>
+      </div>
+    </section>
+  {/if}
 </Popover>

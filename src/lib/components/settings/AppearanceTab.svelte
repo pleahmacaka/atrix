@@ -26,6 +26,8 @@ import AccentPicker from "./AccentPicker.svelte"
 import SteppedSetting from "./SteppedSetting.svelte"
 import WindowEffect from "./WindowEffect.svelte"
 
+let { client = true }: { client?: boolean } = $props()
+
 const THEMES: { id: Theme; label: string }[] = [
   { id: "system", label: m.appearance_system() },
   { id: "light", label: m.appearance_light() },
@@ -62,7 +64,7 @@ const TEXTURES: { id: Texture; label: string }[] = [
 
 <div class="flex flex-col gap-6">
   <Section>
-    <SettingRow title={m.appearance_language()}>
+    <SettingRow title={m.appearance_language()} tip={m.appearance_language_tip()}>
       <Select
         class="w-44 max-sm:w-full"
         label={m.appearance_language()}
@@ -71,50 +73,64 @@ const TEXTURES: { id: Texture; label: string }[] = [
         onchange={chooseLanguage}
       />
     </SettingRow>
-    <SettingRow title={m.appearance_theme()}>
+    <SettingRow title={m.appearance_theme()} tip={m.appearance_theme_tip()}>
       <Segmented label={m.appearance_theme()} items={THEMES} value={settings.theme} onpick={settings.setTheme} />
     </SettingRow>
-    <SettingRow title={m.appearance_accent()}>
+    <SettingRow title={m.appearance_accent()} tip={m.appearance_accent_tip()}>
       <AccentPicker />
     </SettingRow>
-    <SettingRow title={m.appearance_layout()}>
+    <SettingRow title={m.appearance_layout()} tip={m.appearance_layout_tip()}>
       <Segmented label={m.appearance_layout()} items={LAYOUTS} value={settings.layout} onpick={settings.setLayout} />
     </SettingRow>
-    <SettingRow title={m.appearance_shape()}>
+    <SettingRow title={m.appearance_shape()} tip={m.appearance_shape_tip()}>
       <Segmented label={m.appearance_shape()} items={SHAPES} value={settings.shape} onpick={settings.setShape} />
     </SettingRow>
-    <SettingRow title={m.appearance_sidebar()}>
-      <Segmented
-        label={m.appearance_sidebar()}
-        items={SIDEBAR_MODES}
-        value={settings.sidebarCollapse}
-        onpick={settings.setSidebarCollapse}
-      />
-    </SettingRow>
-    <SettingRow title={m.appearance_texture()}>
+    {#if client}
+      <SettingRow title={m.appearance_sidebar()} tip={m.appearance_sidebar_tip()}>
+        <Segmented
+          label={m.appearance_sidebar()}
+          items={SIDEBAR_MODES}
+          value={settings.sidebarCollapse}
+          onpick={settings.setSidebarCollapse}
+        />
+      </SettingRow>
+    {/if}
+    <SettingRow title={m.appearance_texture()} tip={m.appearance_texture_tip()}>
       <Segmented label={m.appearance_texture()} items={TEXTURES} value={settings.texture} onpick={settings.setTexture} />
     </SettingRow>
     {#if desktop}
-      <SettingRow title={m.appearance_window()}>
+      <SettingRow title={m.appearance_window()} tip={m.appearance_window_tip()}>
         <WindowEffect />
       </SettingRow>
     {/if}
-    <SettingRow title={m.appearance_ring()}>
-      <Segmented label={m.appearance_ring()} items={RINGS} value={settings.usageRing} onpick={settings.setUsageRing} />
-    </SettingRow>
+    {#if client}
+      <SettingRow title={m.appearance_ring()} tip={m.appearance_ring_tip()}>
+        <Segmented label={m.appearance_ring()} items={RINGS} value={settings.usageRing} onpick={settings.setUsageRing} />
+      </SettingRow>
+    {/if}
   </Section>
 
   <Section title={m.appearance_fonts()}>
-    <SteppedSetting title={m.appearance_scale()} value={settings.scale} range={SCALE} onchange={settings.setScale} unit="%" />
+    <SteppedSetting title={m.appearance_scale()} tip={m.appearance_scale_tip()} value={settings.scale} range={SCALE} onchange={settings.setScale} unit="%" />
     <SteppedSetting
       title={m.appearance_content_scale()}
+      tip={m.appearance_content_scale_tip()}
       value={settings.contentScale}
       range={CONTENT_SCALE}
       onchange={settings.setContentScale}
       unit="%"
     />
-    <SteppedSetting title={m.chat_width()} value={chatWidth()} range={CHAT_WIDTH} onchange={setChatWidth} unit="rem" />
-    <SettingRow title={m.appearance_interface_font()}>
+    {#if client}
+      <SteppedSetting
+        title={m.chat_width()}
+        tip={m.chat_width_tip()}
+        value={chatWidth()}
+        range={CHAT_WIDTH}
+        onchange={setChatWidth}
+        unit="rem"
+      />
+    {/if}
+    <SettingRow title={m.appearance_interface_font()} tip={m.appearance_interface_font_tip()}>
       <input
         class="input input-sm w-56"
         aria-label={m.appearance_interface_font()}
@@ -126,7 +142,7 @@ const TEXTURES: { id: Texture; label: string }[] = [
       />
     </SettingRow>
     {#if desktop}
-      <SettingRow title={m.appearance_terminal_font()}>
+      <SettingRow title={m.appearance_terminal_font()} tip={m.appearance_terminal_font_tip()}>
         <input
           class="input input-sm w-56"
           aria-label={m.appearance_terminal_font()}
@@ -139,18 +155,21 @@ const TEXTURES: { id: Texture; label: string }[] = [
       </SettingRow>
       <SteppedSetting
         title={m.appearance_terminal_size()}
+        tip={m.appearance_terminal_size_tip()}
         value={settings.terminalSize}
         range={TERMINAL_SIZE}
         onchange={settings.setTerminalSize}
       />
       <SteppedSetting
         title={m.appearance_terminal_weight()}
+        tip={m.appearance_terminal_weight_tip()}
         value={settings.terminalWeight}
         range={TERMINAL_WEIGHT}
         onchange={settings.setTerminalWeight}
       />
       <SteppedSetting
         title={m.appearance_terminal_scroll()}
+        tip={m.appearance_terminal_scroll_tip()}
         value={settings.terminalScroll}
         range={TERMINAL_SCROLL}
         onchange={settings.setTerminalScroll}

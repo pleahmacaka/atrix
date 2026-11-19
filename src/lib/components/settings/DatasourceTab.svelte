@@ -3,6 +3,7 @@ import Icon from "@iconify/svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import { hoverTip } from "#lib/components/ui/tooltip.ts"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import HostTag from "./HostTag.svelte"
@@ -36,7 +37,10 @@ $effect(() => {
         <span class="min-w-0 truncate text-sm font-medium">{name}</span>
         <HostTag {host} {many} />
         <span class="flex-1"></span>
-        <label class="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-base-content/70">
+        <label
+          class="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-base-content/70"
+          {@attach hoverTip(() => m.ds_knowledge_tip(), "bottom-end")}
+        >
           <input
             type="checkbox"
             class="toggle toggle-sm toggle-primary"

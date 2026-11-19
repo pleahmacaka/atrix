@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "files": { "command": "npx", "args": ["-y", "files-mcp"], "env": { "ROOT": "/tmp" } },
+    "docs": { "type": "http", "url": "https://docs.example/mcp", "headers": { "X-Team": "core" } },
+    "off": { "command": "off-mcp", "disabled": true }
+  }
+}

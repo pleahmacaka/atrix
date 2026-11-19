@@ -7,15 +7,13 @@ import AppearanceTab from "#lib/components/settings/AppearanceTab.svelte"
 import DesktopComponents from "#lib/components/settings/DesktopComponents.svelte"
 import DesktopDock from "#lib/components/settings/DesktopDock.svelte"
 import DesktopLauncher from "#lib/components/settings/DesktopLauncher.svelte"
-import DesktopSection from "#lib/components/settings/DesktopSection.svelte"
 import DesktopTray from "#lib/components/settings/DesktopTray.svelte"
 import { desktopSettings, windows } from "#lib/components/settings/desktop.svelte.ts"
 import { DESKTOP_PAGES, type DesktopPage } from "#lib/components/settings/desktopSettings.ts"
 import SettingsList from "#lib/components/settings/SettingsList.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
-import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { startTitleTips } from "#lib/components/ui/tooltip.ts"
 import WindowControls from "#lib/components/ui/WindowControls.svelte"
-import { editMode } from "#lib/desktop/native/dock.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { startAppearance } from "#lib/store/appearance.svelte.ts"
 
@@ -64,6 +62,8 @@ $effect(() => desktopSettings.watch())
 
 $effect(() => startAppearance())
 
+$effect(() => startTitleTips())
+
 $effect(() => {
   const id = desktopSettings.focus
 
@@ -99,34 +99,14 @@ $effect(() => {
         {#if current.id === "general"}
           <DesktopComponents />
         {:else if current.id === "appearance"}
-          <AppearanceTab />
+          <AppearanceTab client={false} />
         {:else if device && launcher}
           {#if current.id === "dock" || current.id === "topbar" || current.id === "panel"}
             <DesktopDock {device} page={current.id} />
           {:else if current.id === "launcher"}
             <DesktopLauncher {device} {launcher} />
-          {:else if current.id === "tray"}
-            <DesktopTray {device} />
           {:else}
-            <DesktopSection id="experimental">
-              <SettingRow title={m.desktop_edit_mode()}>
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  disabled={!device.editMode}
-                  onclick={() => desktopSettings.saving.run(() => editMode(true))}
-                >
-                  {m.desktop_edit_start()}
-                </button>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-sm toggle-primary"
-                  aria-label={m.desktop_edit_mode()}
-                  checked={device.editMode}
-                  onchange={e => desktopSettings.setDevice("editMode", e.currentTarget.checked)}
-                />
-              </SettingRow>
-            </DesktopSection>
+            <DesktopTray {device} />
           {/if}
         {/if}
       </section>

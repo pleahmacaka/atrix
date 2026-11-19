@@ -19,7 +19,6 @@ export type DesktopPage =
   | "panel"
   | "launcher"
   | "tray"
-  | "experimental"
 
 export type DesktopSection =
   | "components"
@@ -32,7 +31,6 @@ export type DesktopSection =
   | "clock"
   | "media"
   | "claude"
-  | "experimental"
 
 export const DESKTOP_PAGES: {
   id: DesktopPage
@@ -46,11 +44,6 @@ export const DESKTOP_PAGES: {
   { id: "panel", label: m.desktop_panel(), icon: "lucide:calendar" },
   { id: "launcher", label: m.desktop_launcher(), icon: "lucide:search" },
   { id: "tray", label: m.desktop_tray(), icon: "lucide:layout-grid" },
-  {
-    id: "experimental",
-    label: m.desktop_experimental(),
-    icon: "lucide:flask-conical",
-  },
 ]
 
 export const DESKTOP_SECTIONS: {
@@ -109,12 +102,6 @@ export const DESKTOP_SECTIONS: {
     label: m.desktop_claude(),
     icon: "lucide:gauge",
   },
-  {
-    id: "experimental",
-    page: "experimental",
-    label: m.desktop_experimental(),
-    icon: "lucide:flask-conical",
-  },
 ]
 
 export const MAIN_SETTINGS = "main:settings"
@@ -135,6 +122,11 @@ export const loadComponents = () => invoke<Components>("desktop_components_get")
 
 export const launchedComponents = () =>
   invoke<Components>("desktop_components_launched")
+
+export const agentLaunched = () =>
+  launchedComponents()
+    .then(c => c.agent)
+    .catch(() => true)
 
 export const saveComponents = (components: Components) =>
   invoke<void>("desktop_components_set", { components })

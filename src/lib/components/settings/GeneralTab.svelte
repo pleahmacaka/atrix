@@ -28,7 +28,7 @@ const openDataFolder = async () => {
 
 <div class="flex flex-col gap-6">
   <Section>
-    <SettingRow title={m.user_name()}>
+    <SettingRow title={m.user_name()} tip={m.user_name_tip()}>
       <input
         class="input input-sm w-48 max-sm:w-full"
         aria-label={m.user_name()}
@@ -36,7 +36,7 @@ const openDataFolder = async () => {
         onchange={e => settings.setUserName(e.currentTarget.value)}
       />
     </SettingRow>
-    <SettingRow title={m.device_name()}>
+    <SettingRow title={m.device_name()} tip={m.device_name_tip()}>
       <input
         class="input input-sm w-48 max-sm:w-full"
         aria-label={m.device_name()}
@@ -47,7 +47,7 @@ const openDataFolder = async () => {
         }}
       />
     </SettingRow>
-    <SettingRow title={m.device_runs_harness()}>
+    <SettingRow title={m.device_runs_harness()} tip={m.device_runs_harness_tip()}>
       <span
         class={[
           "badge whitespace-nowrap",
@@ -59,13 +59,13 @@ const openDataFolder = async () => {
       </span>
     </SettingRow>
     {#if desktop}
-      <SettingRow title={m.update_title()}>
+      <SettingRow title={m.update_title()} tip={m.update_title_tip()}>
         {#await version then current}
           <span class="text-sm text-base-content/60 tabular-nums">{current}</span>
         {/await}
         <UpdateButton />
       </SettingRow>
-      <SettingRow title={m.device_data_folder()}>
+      <SettingRow title={m.device_data_folder()} tip={m.device_data_folder_tip()}>
         <IconButton
           icon="lucide:folder-open"
           label={m.device_open_folder()}

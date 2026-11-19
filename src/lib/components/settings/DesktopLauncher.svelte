@@ -1,13 +1,17 @@
 <script lang="ts">
+import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import Segmented from "#lib/components/ui/Segmented.svelte"
 import Select from "#lib/components/ui/Select.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { setLauncherShortcut } from "#lib/desktop/native/dock.ts"
 import { installedTerminals } from "#lib/desktop/native/system.ts"
 import {
   type DeviceSettings,
   defaultProfile,
   isLastEntryPoint,
   type LauncherPrefs,
+  type LauncherTrigger,
   type TerminalApp,
   type WebSearchEngine,
 } from "#lib/desktop/settings/index.ts"
@@ -18,6 +22,8 @@ import { TRIGGERS } from "./desktopSettings.ts"
 import LauncherShortcut from "./LauncherShortcut.svelte"
 import SteppedSetting from "./SteppedSetting.svelte"
 import ToggleRow from "./ToggleRow.svelte"
+
+type Source = "showWindows" | "showCommands" | "showTodos" | "calculator"
 
 let {
   device,
@@ -51,11 +57,27 @@ const TERMINAL_NAMES: Record<TerminalApp, string> = {
   cmd: m.desktop_terminal_cmd(),
 }
 
-const TOGGLES: { key: "showWindows" | "showCommands" | "showTodos" | "calculator"; title: string }[] = [
-  { key: "showWindows", title: m.desktop_launcher_windows() },
-  { key: "showCommands", title: m.desktop_launcher_commands() },
-  { key: "showTodos", title: m.desktop_launcher_todos() },
-  { key: "calculator", title: m.desktop_launcher_calculator() },
+const SOURCES: { key: Source; title: string; tip: string }[] = [
+  {
+    key: "showWindows",
+    title: m.desktop_launcher_windows(),
+    tip: m.desktop_launcher_windows_tip(),
+  },
+  {
+    key: "showCommands",
+    title: m.desktop_launcher_commands(),
+    tip: m.desktop_launcher_commands_tip(),
+  },
+  {
+    key: "showTodos",
+    title: m.desktop_launcher_todos(),
+    tip: m.desktop_launcher_todos_tip(),
+  },
+  {
+    key: "calculator",
+    title: m.desktop_launcher_calculator(),
+    tip: m.desktop_launcher_calculator_tip(),
+  },
 ]
 
 let installed = $state<TerminalApp[]>([])
@@ -68,52 +90,83 @@ $effect(() => {
     .catch(() => undefined)
 })
 
+const atrixTerminal = $derived(desktopSettings.components?.terminal !== false)
+
 const terminals = $derived(
-  [...new Set<TerminalApp>(["auto", "atrix", ...installed, device.terminal])].map(app => ({
+  [
+    ...new Set<TerminalApp>([
+      "auto",
+      ...(atrixTerminal ? (["atrix"] as const) : []),
+      ...installed,
+      device.terminal,
+    ]),
+  ].map(app => ({
     value: app,
     label: TERMINAL_NAMES[app],
   })),
 )
+
+const locked = $derived(isLastEntryPoint(device.features, "launcher"))
+
+const binding = new Attempt()
+
+const bind = (shortcut: string | null, save: () => void) =>
+  binding.run(async () => {
+    await setLauncherShortcut(shortcut).catch(() => {
+      throw new Error(m.desktop_shortcut_failed())
+    })
+    save()
+  })
+
+const pickTrigger = (trigger: LauncherTrigger) =>
+  bind(trigger === "win" ? null : device.launcherShortcut, () =>
+    set("launcherTrigger", trigger),
+  )
+
+const pickShortcut = (shortcut: string) =>
+  bind(shortcut, () => set("launcherShortcut", shortcut))
 </script>
 
 <DesktopSection id="launcher">
   <ToggleRow
     title={m.desktop_launcher_enabled()}
+    tip={locked ? m.desktop_last_entry_tip() : m.desktop_launcher_enabled_tip()}
     checked={device.features.launcher}
-    disabled={isLastEntryPoint(device.features, "launcher")}
+    disabled={locked}
     onchange={on => set("features", { ...device.features, launcher: on })}
   />
-  {#if device.features.launcher}
-    <SettingRow title={m.desktop_launcher_trigger()}>
+</DesktopSection>
+{#if device.features.launcher}
+  <DesktopSection title={m.desktop_group_launcher_open()}>
+    <SettingRow title={m.desktop_launcher_trigger()} tip={m.desktop_launcher_trigger_tip()}>
       <Segmented
         label={m.desktop_launcher_trigger()}
         items={TRIGGERS}
         value={device.launcherTrigger}
-        onpick={trigger => set("launcherTrigger", trigger)}
+        onpick={pickTrigger}
       />
     </SettingRow>
     {#if device.launcherTrigger !== "win"}
-      <SettingRow title={m.desktop_launcher_shortcut()}>
+      <SettingRow title={m.desktop_launcher_shortcut()} tip={m.desktop_launcher_shortcut_tip()}>
         <LauncherShortcut
           value={device.launcherShortcut}
-          onchange={shortcut => set("launcherShortcut", shortcut)}
+          onchange={pickShortcut}
         />
       </SettingRow>
     {/if}
-    <SteppedSetting
-      title={m.desktop_launcher_results()}
-      value={launcher.maxResults}
-      range={RESULTS}
-      onchange={count => prefer("maxResults", count)}
-    />
-    {#each TOGGLES as toggle (toggle.key)}
+  </DesktopSection>
+  <ErrorAlert message={binding.failure} />
+
+  <DesktopSection title={m.desktop_group_launcher_results()}>
+    {#each SOURCES as source (source.key)}
       <ToggleRow
-        title={toggle.title}
-        checked={launcher[toggle.key]}
-        onchange={on => prefer(toggle.key, on)}
+        title={source.title}
+        tip={source.tip}
+        checked={launcher[source.key]}
+        onchange={on => prefer(source.key, on)}
       />
     {/each}
-    <SettingRow title={m.desktop_launcher_web()}>
+    <SettingRow title={m.desktop_launcher_web()} tip={m.desktop_launcher_web_tip()}>
       <Select
         class="w-44 max-sm:w-full"
         label={m.desktop_launcher_web()}
@@ -122,12 +175,26 @@ const terminals = $derived(
         onchange={engine => prefer("webSearch", engine)}
       />
     </SettingRow>
+  </DesktopSection>
+
+  <DesktopSection title={m.desktop_group_launcher_display()}>
+    <SteppedSetting
+      title={m.desktop_launcher_results()}
+      tip={m.desktop_launcher_results_tip()}
+      value={launcher.maxResults}
+      range={RESULTS}
+      onchange={count => prefer("maxResults", count)}
+    />
     <ToggleRow
       title={m.desktop_launcher_keymap()}
+      tip={m.desktop_launcher_keymap_tip()}
       checked={device.showKeymap}
       onchange={on => set("showKeymap", on)}
     />
-    <SettingRow title={m.desktop_launcher_terminal()}>
+  </DesktopSection>
+
+  <DesktopSection title={m.desktop_group_launcher_terminal()}>
+    <SettingRow title={m.desktop_launcher_terminal()} tip={m.desktop_launcher_terminal_tip()}>
       <Select
         class="w-44 max-sm:w-full"
         label={m.desktop_launcher_terminal()}
@@ -136,5 +203,5 @@ const terminals = $derived(
         onchange={app => set("terminal", app)}
       />
     </SettingRow>
-  {/if}
-</DesktopSection>
+  </DesktopSection>
+{/if}

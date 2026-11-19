@@ -1,18 +1,21 @@
 <script lang="ts">
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { calendar, WEEKS } from "#lib/calendar/calendar.svelte.ts"
-import { addDays, startOfDay } from "#lib/calendar/dates.ts"
-import { CalendarEditor } from "#lib/calendar/editor.svelte.ts"
-import { format } from "#lib/calendar/format.ts"
-import DayAgenda from "#lib/components/calendar/DayAgenda.svelte"
-import MonthGrid from "#lib/components/calendar/MonthGrid.svelte"
-import TaskList from "#lib/components/calendar/TaskList.svelte"
-import IconButton from "#lib/components/ui/IconButton.svelte"
+import { tick } from "svelte"
+import { agentLaunched } from "#lib/components/settings/desktopSettings.ts"
 import { askAtrix } from "#lib/desktop/launcher/atrix.ts"
-import { hideWindow, onWindowShown } from "#lib/desktop/native/windows.ts"
-import QuickMemo from "#lib/desktop/panel/QuickMemo.svelte"
-import { overlayOpen, windowRegion } from "#lib/desktop/panel/region.ts"
+import { setShareWatch, watchScreenShare } from "#lib/desktop/native/share.ts"
+import {
+  hideWindow,
+  onWindowHidden,
+  onWindowShown,
+} from "#lib/desktop/native/windows.ts"
+import CompactPanel from "#lib/desktop/panel/CompactPanel.svelte"
+import MonthGrid from "#lib/desktop/panel/MonthGrid.svelte"
+import { Morph } from "#lib/desktop/panel/morph.svelte.ts"
+import PanelAside from "#lib/desktop/panel/PanelAside.svelte"
+import PanelHeader from "#lib/desktop/panel/PanelHeader.svelte"
+import { Panel } from "#lib/desktop/panel/panel.svelte.ts"
 import {
   type DeviceSettings,
   defaultDevice,
@@ -22,11 +25,12 @@ import {
 import { logFailure } from "#lib/logging.ts"
 import { askNav, type HostEntry, RemoteHosts } from "#lib/p2p/float.svelte.ts"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"
-import { m } from "#lib/paraglide/messages.js"
 
 const PICKERS = ["date", "datetime-local", "time", "color", "file"]
 
 const BLUR_GRACE_MS = 400
+
+const CLOCK_MS = 60_000
 
 const POSITIONS: Record<DeviceSettings["panelPosition"], string> = {
   left: "left-0",
@@ -37,6 +41,8 @@ const POSITIONS: Record<DeviceSettings["panelPosition"], string> = {
 const win = getCurrentWindow()
 
 const remotes = new RemoteHosts()
+
+const morph = new Morph()
 
 let device = $state<DeviceSettings>(defaultDevice)
 
@@ -54,37 +60,55 @@ const openDoc = (id: string) => {
   hide()
 }
 
-const editor = new CalendarEditor(() => hostList().map(h => h.view), openDoc)
-
-const title = $derived(
-  format(addDays(calendar.start, 7), { year: "numeric", month: "long" }),
-)
+const panel = new Panel(() => hostList().map(h => h.view), openDoc)
 
 const anchorTop = $derived(
   device.dockEdge === "top" || (device.topBar && device.features.dock),
 )
 
-const shift = (pages: number) => {
-  calendar.start = addDays(calendar.start, pages * WEEKS * 7)
-}
+const hidesWhileSharing = $derived(panel.tags.some(t => t.hideWhileSharing))
 
-const today = () => editor.choose(startOfDay(new Date()))
+const rest = () =>
+  morph.snap(false, () => {
+    panel.revealedDays = []
+    panel.close()
+  })
+
+const collapse = () => {
+  panel.close()
+  morph.collapse()
+}
 
 const isPicker = (el: Element | null) =>
   el instanceof HTMLSelectElement ||
   (el instanceof HTMLInputElement && PICKERS.includes(el.type))
 
 const keydown = (e: KeyboardEvent) => {
-  if (e.key !== "Escape" || e.defaultPrevented || overlayOpen()) {
+  if (e.key !== "Escape" || document.querySelector(":popover-open")) {
     return
   }
 
-  if (editor.editing) {
-    editor.editing = null
+  if (panel.asking) {
+    panel.asking.answer(null)
+  } else if (panel.detailOpen) {
+    panel.close()
+  } else if (morph.expanded) {
+    collapse()
   } else {
     hide()
   }
 }
+
+$effect(() => {
+  void [device.panelPosition, anchorTop]
+  tick().then(morph.fit)
+})
+
+$effect(() => {
+  if (hidesWhileSharing) {
+    setShareWatch(true).catch(e => logFailure("panel share watch", e))
+  }
+})
 
 $effect(() => {
   const stop = getCurrentWebviewWindow().listen<HostEntry[]>(
@@ -101,15 +125,29 @@ $effect(() => {
 })
 
 $effect(() => {
+  agentLaunched().then(on => {
+    panel.knowledge = on
+  })
   loadDevice()
     .then(d => {
       device = d
     })
     .catch(e => logFailure("panel device", e))
 
+  const clock = setInterval(() => {
+    panel.now = new Date()
+  }, CLOCK_MS)
+
   const stops = [
     onDevice(d => {
       device = d
+    }),
+    watchScreenShare(sharing => {
+      panel.sharing = sharing
+
+      if (!sharing) {
+        panel.revealedDays = []
+      }
     }),
     win.onFocusChanged(({ payload: focused }) => {
       if (focused) {
@@ -130,11 +168,14 @@ $effect(() => {
     onWindowShown("panel", () => {
       landed = false
       shownAt = Date.now()
-      today()
+      panel.reset()
     }),
+    onWindowHidden("panel", rest),
   ]
 
   return () => {
+    clearInterval(clock)
+
     for (const stop of stops) {
       stop.then(f => f())
     }
@@ -142,66 +183,66 @@ $effect(() => {
 })
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onresize={morph.fit} />
 
-<main
-  {@attach windowRegion}
-  class={[
-    "fixed flex h-128 w-3xl gap-2 rounded-box border border-base-300 bg-base-200 p-2",
-    "shadow-xl select-none",
-    anchorTop ? "top-0" : "bottom-0",
-    POSITIONS[device.panelPosition],
-  ]}
+<div
+  {@attach morph.overlays}
+  class="contents"
+  inert={!panel.ready}
 >
-  <div class="flex min-w-0 flex-1 flex-col gap-2">
-    <header
+  <div
+    class={[
+      "absolute flex transition-opacity select-none",
+      anchorTop ? "top-0 items-start" : "bottom-0 items-end",
+      POSITIONS[device.panelPosition],
+      morph.expanded
+        ? "pointer-events-none opacity-0 duration-140"
+        : "delay-160 duration-200",
+      morph.snapping && "transition-none",
+    ]}
+    inert={morph.expanded}
+  >
+    <CompactPanel {panel} {morph} />
+  </div>
+
+  <div
+    class={[
+      "absolute inset-0 transition-all duration-200 select-none",
+      !morph.expanded && "pointer-events-none",
+      morph.snapping && "transition-none",
+    ]}
+    style:clip-path={morph.clipPath}
+    inert={!morph.expanded}
+    ontransitionend={morph.settle}
+  >
+    <div
       class={[
-        "flex h-10 shrink-0 items-center gap-1 ps-3 pe-1.5",
-        "rounded-box border border-base-300 bg-base-100",
+        "size-full transition-opacity duration-120",
+        !morph.expanded && "opacity-0 delay-160",
+        morph.snapping && "transition-none",
       ]}
     >
-      <h1 class="min-w-0 flex-1 truncate text-sm font-semibold tabular-nums">
-        {title}
-      </h1>
-      {#if !editor.ready}
-        <span class="loading loading-spinner loading-xs opacity-60"></span>
-      {/if}
-      <IconButton
-        icon="lucide:chevron-left"
-        label={m.calendar_prev()}
-        onclick={() => shift(-1)}
-      />
-      <button type="button" class="btn btn-ghost btn-sm" onclick={today}>
-        {m.calendar_today()}
-      </button>
-      <IconButton
-        icon="lucide:chevron-right"
-        label={m.calendar_next()}
-        onclick={() => shift(1)}
-      />
-      <IconButton icon="lucide:x" label={m.common_close()} onclick={hide} />
-    </header>
-    <div
-      class={["flex min-h-0 flex-1 flex-col gap-2", !editor.ready && "opacity-60"]}
-      inert={!editor.ready}
-    >
-      <div class="flex shrink-0">
-        <MonthGrid
-          start={calendar.start}
-          selected={calendar.selected}
-          events={editor.events}
-          tags={editor.tags}
-          onpick={editor.choose}
-        />
+      <div
+        {@attach morph.fullCard}
+        class={[
+          "absolute inset-x-0 flex h-152 max-h-full gap-2 p-2",
+          "rounded-box border border-base-300 bg-base-200",
+          anchorTop ? "top-0" : "bottom-0",
+          !panel.ready && "opacity-60",
+        ]}
+      >
+        <main
+          class="flex min-w-0 flex-1 flex-col rounded-box border border-base-300 bg-base-100"
+        >
+          <PanelHeader {panel} {collapse} {hide} />
+          <div class="flex min-h-0 flex-1 flex-col px-2 pb-2">
+            <MonthGrid {panel} />
+          </div>
+        </main>
+        <div class="flex w-88 shrink-0">
+          <PanelAside {panel} />
+        </div>
       </div>
-      <TaskList {editor} class="min-h-0 flex-1 overflow-y-auto" />
     </div>
   </div>
-  <div
-    class={["flex w-xs shrink-0 flex-col gap-2", !editor.ready && "opacity-60"]}
-    inert={!editor.ready}
-  >
-    <DayAgenda {editor} class="min-h-0 flex-1 overflow-y-auto" />
-    <QuickMemo onopen={openDoc} />
-  </div>
-</main>
+</div>

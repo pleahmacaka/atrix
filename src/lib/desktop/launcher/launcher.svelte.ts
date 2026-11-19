@@ -1,5 +1,8 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
-import { launchedComponents } from "#lib/components/settings/desktopSettings.ts"
+import {
+  type Components,
+  launchedComponents,
+} from "#lib/components/settings/desktopSettings.ts"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import { parseQuery, type Route } from "#lib/desktop/launcher/core/index.ts"
 import {
@@ -56,7 +59,14 @@ export class Launcher {
 
   timers = $state.raw<Timer[]>([])
 
-  agent = $state(true)
+  components = $state<Components>({
+    agent: true,
+    shell: true,
+    files: true,
+    terminal: true,
+  })
+
+  agent = $derived(this.components.agent)
 
   atrix = $state.raw<AtrixItems>({ conversations: [], docs: [] })
 
@@ -76,7 +86,10 @@ export class Launcher {
 
   private appsAt = 0
 
-  commandRows = [...systemCommands(), ...settingsLinks()]
+  commandRows = $derived([
+    ...systemCommands(this.components, this.device.terminal),
+    ...settingsLinks(),
+  ])
 
   atrixOpen = atrixOpenResult()
 
@@ -165,9 +178,7 @@ export class Launcher {
   }
 
   async refreshAgent() {
-    this.agent = await launchedComponents()
-      .then(c => c.agent)
-      .catch(() => true)
+    this.components = await launchedComponents().catch(() => this.components)
   }
 
   refresh() {

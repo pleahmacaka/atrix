@@ -1,6 +1,5 @@
 <script lang="ts">
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
-import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import MenuLabel from "#lib/components/ui/MenuLabel.svelte"
 import { appIcon } from "#lib/desktop/apps.js"
 import { m } from "#lib/paraglide/messages.js"
@@ -85,5 +84,4 @@ $effect(() => {
   {:else}
     <EmptyState icon={empty.icon} text={empty.text} centered />
   {/each}
-  <ErrorAlert message={launcher.error} />
 </div>

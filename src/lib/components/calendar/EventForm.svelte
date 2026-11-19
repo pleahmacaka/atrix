@@ -4,6 +4,11 @@ import { on } from "svelte/events"
 import { cite } from "#lib/calendar/citations.ts"
 import { dateKey } from "#lib/calendar/dates.ts"
 import { blankDraft } from "#lib/calendar/draft.ts"
+import {
+  RECURRENCE_LABELS,
+  reminderLabel,
+  SHIFT_LABELS,
+} from "#lib/calendar/labels.ts"
 import { shiftable } from "#lib/calendar/occurrence.ts"
 import type { EventTag } from "#lib/calendar/store.ts"
 import { COLOR_KEYS, COLORS } from "#lib/calendar/tags.ts"
@@ -12,7 +17,6 @@ import {
   type Occurrence,
   RECURRENCES,
   REMINDERS,
-  type Recurrence,
   SHIFTS,
   type Shift,
 } from "#lib/calendar/types.ts"
@@ -21,8 +25,6 @@ import type { Entry } from "#lib/knowledge/store.ts"
 import { m } from "#lib/paraglide/messages.js"
 import DocPicker from "./DocPicker.svelte"
 import TagPicker from "./TagPicker.svelte"
-
-type Reminder = (typeof REMINDERS)[number]
 
 let {
   event,
@@ -49,36 +51,6 @@ let {
   onremovetag: (tag: EventTag) => unknown
   onnotesync?: (on: boolean) => void
 } = $props()
-
-const RECURRENCE_LABELS: Record<Recurrence, () => string> = {
-  none: m.calendar_recurrence_none,
-  daily: m.calendar_recurrence_daily,
-  weekdays: m.calendar_recurrence_weekdays,
-  weekly: m.calendar_recurrence_weekly,
-  monthly: m.calendar_recurrence_monthly,
-  yearly: m.calendar_recurrence_yearly,
-}
-
-const SHIFT_LABELS: Record<Shift | "", () => string> = {
-  "": m.calendar_shift_none,
-  next: m.calendar_shift_next,
-  previous: m.calendar_shift_previous,
-}
-
-const reminderLabel = (minutes: Reminder) => {
-  switch (minutes) {
-    case null:
-      return m.panel_reminder_none()
-    case 0:
-      return m.panel_reminder_start()
-    case 60:
-      return m.panel_reminder_hour()
-    case 1440:
-      return m.panel_reminder_day()
-    default:
-      return m.panel_reminder_minutes({ count: minutes })
-  }
-}
 
 const base = untrack(() => event ?? blankDraft(day))
 

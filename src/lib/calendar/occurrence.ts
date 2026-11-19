@@ -1,4 +1,11 @@
-import { addDays, DAY_MS, dateKey, dateTimeKey, startOfDay } from "./dates.ts"
+import {
+  addDays,
+  DAY_MS,
+  dateKey,
+  dateTimeKey,
+  parseLocal,
+  startOfDay,
+} from "./dates.ts"
 import type {
   CalendarEvent,
   HolidayCheck,
@@ -28,9 +35,26 @@ export const shifted = (event: CalendarEvent) => shiftStep(event) !== 0
 export const openEnded = (event: CalendarEvent) =>
   !event.allDay && event.end === event.start
 
+export const occurrenceKey = (event: Occurrence) =>
+  event.seriesDate ?? event.start.slice(0, 10)
+
+export const isDone = (event: Occurrence) =>
+  event.task && event.done.includes(occurrenceKey(event))
+
+export const withDone = (
+  stored: CalendarEvent,
+  key: string,
+  done: boolean,
+  stamp: number,
+): CalendarEvent => {
+  const rest = stored.done.filter(day => day !== key)
+
+  return { ...stored, done: done ? [...rest, key] : rest, updatedAt: stamp }
+}
+
 export const span = (event: CalendarEvent) => {
-  const start = new Date(event.start)
-  const rawEnd = new Date(event.end)
+  const start = parseLocal(event.start)
+  const rawEnd = parseLocal(event.end)
   const latest = new Date(Math.max(start.getTime(), rawEnd.getTime()))
   const end = event.allDay ? addDays(startOfDay(latest), 1) : latest
 
@@ -221,7 +245,7 @@ export const occurrenceAt = (
   seriesDate: string,
   isHoliday?: HolidayCheck,
 ) => {
-  const day = new Date(seriesDate)
+  const day = parseLocal(seriesDate)
 
   return (
     occurrences(

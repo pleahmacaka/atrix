@@ -1,8 +1,18 @@
 import type { Attachment } from "svelte/attachments"
 
 export const menuKeys: Attachment<HTMLElement> = node => {
+  const nested = (el: Element) => {
+    const menu = el.parentElement?.closest("[role=menu]")
+
+    return !!menu && menu !== node && node.contains(menu)
+  }
+
   const step = (e: KeyboardEvent) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") {
+      return
+    }
+
+    if (e.target instanceof Element && nested(e.target)) {
       return
     }
 
@@ -10,7 +20,7 @@ export const menuKeys: Attachment<HTMLElement> = node => {
 
     const items = [
       ...node.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
-    ]
+    ].filter(item => !nested(item))
     const focused = document.activeElement
     const at =
       focused instanceof HTMLButtonElement ? items.indexOf(focused) : -1

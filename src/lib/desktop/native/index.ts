@@ -1,4 +1,5 @@
 export * from "./apps"
+export * from "./bluetooth"
 export * from "./clipboard"
 export * from "./dock"
 export * from "./files"

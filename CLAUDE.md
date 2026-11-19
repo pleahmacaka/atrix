@@ -1,6 +1,6 @@
 # Atrix
 
-Agent DE/DX environment: a Tauri 2 desktop and web client for coding-agent harnesses (Claude Agent, Codex and others) over ACP, plus an optional Windows desktop environment (dock, top bar, launcher, panel, notification center) and a file explorer and terminal. Paired devices drive a desktop's harnesses over P2P. Sessions share a markdown knowledge graph and message each other through Atrix.
+Atrix ships as two installable products built from one Tauri 2 app. Atrix DE is a complete desktop environment on its own: the Windows shell (dock, top bar, launcher, panel, notification center), the file explorer and the terminal. Atrix AI is the desktop and web client for coding-agent harnesses (Claude Agent, Codex and others) over ACP plus every AI-native feature: paired devices drive a desktop's harnesses over P2P, and sessions share a markdown knowledge graph and message each other through Atrix. DE features that depend on Atrix AI (the launcher's Atrix group, knowledge links, device pairing) stay hidden while Atrix AI is off.
 
 ## Stack
 
@@ -27,7 +27,7 @@ Agent DE/DX environment: a Tauri 2 desktop and web client for coding-agent harne
 - Every session gets an HTTP MCP server named `atrix` (`bridge.ts`, `tools.ts`): `send_message`, `list_sessions` and the `kg_*` knowledge tools. The bearer token identifies the calling session.
 - Knowledge documents live in versitygw (posix backend, sidecar metadata, versioning) under `~/.atrix/kg`. `src/lib/knowledge/store.ts` is the only write path: creates use `If-None-Match: *`, updates use `If-Match`, and the author is filled from the session. The schema is in `src/lib/knowledge/document.ts`; examples are in `examples/knowledge`.
 - versitygw is not bundled. The app runs `~/.atrix/bin/versitygw.exe` or `versitygw` on PATH.
-- Desktop components are chosen in `~/.atrix/desktop.json` (`agent` for Atrix AI, `shell`, `files`, `terminal`), read once at startup (`src-tauri/src/desktop/components.rs`); the separate desktop settings window (`/shell/settings`, opened with `openDesktopSettings`) and the installer write it. Atrix AI's own settings dialog holds no desktop settings. The shell is Windows-only and off by default; with Atrix AI off the main window stays hidden but keeps running as the host and bridge.
+- Components are chosen in `~/.atrix/desktop.json` (`agent` for Atrix AI; `shell`, `files` and `terminal` for Atrix DE), read once at startup (`src-tauri/src/desktop/components.rs`); the Atrix DE settings window (`/shell/settings`, opened with `openDesktopSettings`) and the installer write it. On Windows the shell or Atrix AI stays on; elsewhere Atrix AI is required. Atrix AI's own settings dialog holds no desktop settings. The shell is Windows-only and off by default; with Atrix AI off the main window stays hidden but keeps running as the host and bridge.
 - Shell windows are `create:false` templates in `tauri.conf.json` with routes under `src/routes/shell/*`; their code lives in `src/lib/desktop` and `src-tauri/src/desktop`. They are separate webviews: the root layout skips Atrix startup for them, and they reach Atrix data through the main window (`src/lib/p2p/float.svelte.ts` bridge, or main-window events such as the launcher's and `openDesktopSettings`).
 - The file explorer (`src/lib/files`, `crates/files`) and terminal (`src/lib/terminal`, `crates/terminal`) run as child windows on desktop; the explorer is the `files` page on Android, and the terminal also backs the chat side panel. File sharing runs on the single `atrix-net` endpoint and its paired-device roster.
 - The shell hides the Windows taskbar while it runs; startup with the shell off restores a taskbar left hidden by a forced exit. Develop shell features with `--headless` first, because a running shell owns the taskbar.
@@ -37,7 +37,7 @@ Agent DE/DX environment: a Tauri 2 desktop and web client for coding-agent harne
 - Island layout: `base-200` background with `rounded-box border border-base-300 bg-base-100` blocks. No horizontal divider lines inside a block.
 - Selected items use `bg-primary/8 text-primary`. Motion stays at 120 to 200 ms.
 - No px and no arbitrary Tailwind values, except JSON Canvas node coordinates, which are pixels by spec.
-- Settings rows carry a plain title and self-explanatory options only, without hint text.
+- Settings rows carry a plain title and self-explanatory options only, without hint text. Every row explains itself through the `tip` of `SettingRow` (a one-sentence tooltip on hover and keyboard focus saying what the setting changes).
 - Knowledge documents open locked; unlocking enables the Tiptap editor with autosave.
 
 ## Testing with live harnesses

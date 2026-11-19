@@ -1,6 +1,7 @@
 <script lang="ts">
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
+import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { ensureDevice } from "#lib/desktop/device.js"
 import { ATRIX_ITEMS, type AtrixItems } from "#lib/desktop/launcher/atrix.js"
 import {
@@ -98,6 +99,7 @@ $effect(() => {
   >
     <SearchBox {launcher} />
     <ResultList {launcher} />
+    <ErrorAlert message={launcher.error} />
     {#if launcher.device.showKeymap}
       <LauncherFooter {launcher} />
     {/if}

@@ -36,7 +36,10 @@ $effect(() => recorder.capture())
   {/snippet}
   {#each SHORTCUTS as shortcut (shortcut.id)}
     {@const active = recorder.id === shortcut.id}
-    <SettingRow title={shortcut.label}>
+    <SettingRow
+      title={shortcut.label}
+      tip={"binding" in shortcut ? m.shortcut_tip() : m.shortcut_fixed_tip()}
+    >
       {#if "binding" in shortcut}
         <IconButton
           icon="lucide:rotate-ccw"

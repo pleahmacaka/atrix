@@ -24,11 +24,6 @@ pub async fn set_radio(kind: String, on: bool) -> Result<(), String> {
     blocking(move || win::set_radio(&kind, on)).await
 }
 
-#[tauri::command]
-pub async fn bluetooth_devices() -> Result<Vec<String>, String> {
-    blocking(win::bluetooth_devices).await
-}
-
 #[tauri::command(async)]
 pub fn quick_action(action: String) -> Result<(), String> {
     match action.as_str() {
@@ -65,10 +60,6 @@ fn language_label(locale: &str, iso3: &str) -> String {
 mod win {
     use std::sync::atomic::{AtomicIsize, Ordering};
 
-    use windows::Devices::Bluetooth::{
-        BluetoothConnectionStatus, BluetoothDevice, BluetoothLEDevice,
-    };
-    use windows::Devices::Enumeration::DeviceInformation;
     use windows::Devices::Radios::{Radio, RadioAccessStatus, RadioKind, RadioState};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::Globalization::{
@@ -170,35 +161,6 @@ mod win {
         }
 
         Ok(())
-    }
-
-    pub fn bluetooth_devices() -> Result<Vec<String>, String> {
-        let connected = BluetoothConnectionStatus::Connected;
-        let selectors = [
-            BluetoothDevice::GetDeviceSelectorFromConnectionStatus(connected).map_err(text)?,
-            BluetoothLEDevice::GetDeviceSelectorFromConnectionStatus(connected).map_err(text)?,
-        ];
-        let mut names = Vec::new();
-
-        for selector in selectors {
-            let found = DeviceInformation::FindAllAsyncAqsFilter(&selector)
-                .map_err(text)?
-                .join()
-                .map_err(text)?;
-
-            names.extend(
-                found
-                    .into_iter()
-                    .filter_map(|device| device.Name().ok())
-                    .map(|name| name.to_string())
-                    .filter(|name| !name.is_empty()),
-            );
-        }
-
-        names.sort();
-        names.dedup();
-
-        Ok(names)
     }
 
     pub fn open_or_chord(uri: &str, chord: Chord) -> Result<(), String> {

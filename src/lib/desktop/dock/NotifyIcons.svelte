@@ -95,9 +95,8 @@
       setHidden(id, false)
     }
 
-    if (overflow.length === 0) {
-      stashOpen = false
-    }
+    // the panel is where the icon just went, so keep it up instead of making the user reopen it
+    stashOpen = overflow.length > 0
   }
 
   const endDrag = () => {
@@ -225,6 +224,24 @@
     {/if}
   </button>
 {/snippet}
+
+<svelte:window
+  ondragover={e => {
+    if (e.dataTransfer?.types.includes(TRAY_ICON)) {
+      e.preventDefault()
+    }
+  }}
+  ondrop={e => {
+    const dropped = e.dataTransfer?.getData(TRAY_ICON)
+
+    if (!dropped || e.defaultPrevented) {
+      return
+    }
+
+    endDrag()
+    void promote(dropped, true)
+  }}
+/>
 
 {#if icons.length > 0}
   <fieldset

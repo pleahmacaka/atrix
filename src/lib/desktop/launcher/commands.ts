@@ -1,6 +1,7 @@
 import { emit } from "@tauri-apps/api/event"
 import { exit } from "@tauri-apps/plugin-process"
 import {
+  type Components,
   DESKTOP_SECTIONS,
   openDesktopSettings,
 } from "#lib/components/settings/desktopSettings.ts"
@@ -49,10 +50,13 @@ const TERMINAL_COMMANDS: Record<
   cmd: "cmd",
 }
 
+const opensAtrixTerminal = (terminal: TerminalApp) =>
+  terminal === "auto" || terminal === "atrix"
+
 const openTerminal = async () => {
   const { terminal } = await loadDevice()
 
-  if (terminal === "auto" || terminal === "atrix") {
+  if (opensAtrixTerminal(terminal)) {
     await newTerminalWindow()
 
     return
@@ -122,7 +126,10 @@ const shellFolder = (
     "folder",
   ])
 
-export const systemCommands = (): Result[] => [
+export const systemCommands = (
+  components: Pick<Components, "files" | "terminal">,
+  terminal: TerminalApp,
+): Result[] => [
   power("lock", "lucide:lock", ["lock screen"]),
   power("sleep", "lucide:moon", ["suspend"]),
   power("hibernate", "lucide:moon-star"),
@@ -137,14 +144,18 @@ export const systemCommands = (): Result[] => [
     emptyRecycleBin,
     ["trash"],
   ),
-  command(
-    "atrix-files",
-    m.launcher_cmd_files(),
-    m.launcher_sub_desktop(),
-    "lucide:folder-open",
-    () => openAtrixFiles(),
-    ["explorer", "files"],
-  ),
+  ...(components.files
+    ? [
+        command(
+          "atrix-files",
+          m.launcher_cmd_files(),
+          m.launcher_sub_desktop(),
+          "lucide:folder-open",
+          () => openAtrixFiles(),
+          ["explorer", "files"],
+        ),
+      ]
+    : []),
   command(
     "atrix-settings",
     m.launcher_cmd_desktop_settings(),
@@ -204,14 +215,18 @@ export const systemCommands = (): Result[] => [
     () => runCommand("explorer"),
     ["files", "folders"],
   ),
-  command(
-    "terminal",
-    m.launcher_cmd_terminal(),
-    m.launcher_sub_windows(),
-    "lucide:terminal",
-    openTerminal,
-    ["cmd", "console", "shell", "powershell"],
-  ),
+  ...(components.terminal || !opensAtrixTerminal(terminal)
+    ? [
+        command(
+          "terminal",
+          m.launcher_cmd_terminal(),
+          m.launcher_sub_windows(),
+          "lucide:terminal",
+          openTerminal,
+          ["cmd", "console", "shell", "powershell"],
+        ),
+      ]
+    : []),
   command(
     "control",
     m.launcher_cmd_control(),

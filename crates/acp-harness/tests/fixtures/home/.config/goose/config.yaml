@@ -1,0 +1,15 @@
+extensions:
+  developer:
+    type: builtin
+    enabled: true
+  fetch:
+    type: stdio
+    cmd: uvx
+    args:
+      - mcp-server-fetch
+    envs: {}
+    enabled: true
+  stream:
+    type: streamable_http
+    uri: https://stream.example/mcp
+    enabled: false

@@ -12,6 +12,8 @@ import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { platform } from "#lib/platform.ts"
 
+let { title }: { title?: string } = $props()
+
 const syncing = new Attempt()
 
 $effect(() => {
@@ -50,8 +52,8 @@ const toggleAndroid = (on: boolean) =>
   })
 </script>
 
-<Section>
-  <SettingRow title={m.calendar_week_start()}>
+<Section {title}>
+  <SettingRow title={m.calendar_week_start()} tip={m.calendar_week_start_tip()}>
     <Segmented
       label={m.calendar_week_start()}
       items={WEEK_STARTS}
@@ -59,7 +61,7 @@ const toggleAndroid = (on: boolean) =>
       onpick={id => prefs.setWeekStart(id === "1" ? 1 : 0)}
     />
   </SettingRow>
-  <SettingRow title={m.calendar_week_numbers()}>
+  <SettingRow title={m.calendar_week_numbers()} tip={m.calendar_week_numbers_tip()}>
     <input
       type="checkbox"
       class="toggle toggle-sm toggle-primary"
@@ -68,7 +70,7 @@ const toggleAndroid = (on: boolean) =>
       onchange={e => prefs.setWeekNumbers(e.currentTarget.checked)}
     />
   </SettingRow>
-  <SettingRow title={m.calendar_region()}>
+  <SettingRow title={m.calendar_region()} tip={m.calendar_region_tip()}>
     <Select
       label={m.calendar_region()}
       class="w-48 max-sm:w-full"
@@ -78,7 +80,7 @@ const toggleAndroid = (on: boolean) =>
     />
   </SettingRow>
   {#if platform === "android"}
-    <SettingRow title={m.calendar_android_sync()}>
+    <SettingRow title={m.calendar_android_sync()} tip={m.calendar_android_sync_tip()}>
       <input
         type="checkbox"
         class="toggle toggle-sm toggle-primary"

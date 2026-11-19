@@ -34,7 +34,7 @@ const choose = (value: string) => {
 }
 </script>
 
-<SettingRow title={m.lock_method()}>
+<SettingRow title={m.lock_method()} tip={m.lock_method_tip()}>
   {#if kind}
     <IconButton
       icon="lucide:pencil"
@@ -53,7 +53,7 @@ const choose = (value: string) => {
   {/key}
 </SettingRow>
 
-<SettingRow title={m.lock_idle()}>
+<SettingRow title={m.lock_idle()} tip={m.lock_idle_tip()}>
   <Segmented
     label={m.lock_idle()}
     items={IDLE}

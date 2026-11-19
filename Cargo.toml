@@ -9,6 +9,7 @@ members = [
   "crates/files",
   "crates/terminal",
   "apps/installer/src-tauri",
+  "crates/acp-harness",
 ]
 resolver = "3"
 

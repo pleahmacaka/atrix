@@ -10,7 +10,6 @@ import { m } from "#lib/paraglide/messages.js"
 import { goPage, nav } from "#lib/store/nav.svelte.ts"
 import DayAgenda from "./DayAgenda.svelte"
 import MonthGrid from "./MonthGrid.svelte"
-import TaskList from "./TaskList.svelte"
 
 let { hosts }: { hosts: HostView[] } = $props()
 
@@ -73,7 +72,6 @@ const shift = (pages: number) => {
         ]}
       >
         <DayAgenda {editor} />
-        <TaskList {editor} />
       </div>
     </div>
   </div>

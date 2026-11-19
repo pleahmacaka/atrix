@@ -11,8 +11,6 @@ export const radios = () => invoke<RadioInfo[]>("radios")
 export const setRadio = (kind: RadioKind, on: boolean) =>
   invoke<void>("set_radio", { kind, on })
 
-export const bluetoothDevices = () => invoke<string[]>("bluetooth_devices")
-
 export type QuickAction =
   | "notifications"
   | "quicksettings"

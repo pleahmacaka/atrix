@@ -54,11 +54,17 @@ pub fn activate<R: Runtime>(app: &AppHandle<R>) {
 
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let open = if agent(app) {
-        Some(MenuItem::with_id(app, OPEN, "Atrix", true, None::<&str>)?)
+        Some(MenuItem::with_id(
+            app,
+            OPEN,
+            "Atrix AI",
+            true,
+            None::<&str>,
+        )?)
     } else {
         None
     };
-    let settings = MenuItem::with_id(app, SETTINGS, "Desktop settings", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, SETTINGS, "Atrix DE settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT, "Quit", true, None::<&str>)?;
     let entries: Vec<&dyn IsMenuItem<R>> = open
         .iter()

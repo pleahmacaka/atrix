@@ -29,6 +29,11 @@ export const blankDraft = (day: Date): CalendarEvent => {
     originalDate: null,
     notesSync: false,
     reminder: null,
+    task: false,
+    done: [],
+    parentId: null,
+    group: null,
+    order: null,
     createdBy: "",
     updatedAt: 0,
   }

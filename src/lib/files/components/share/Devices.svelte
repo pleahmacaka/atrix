@@ -1,7 +1,10 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
   import { open } from "@tauri-apps/plugin-dialog"
-  import { openMainSettings } from "#lib/components/settings/desktopSettings.ts"
+  import {
+    agentLaunched,
+    openMainSettings,
+  } from "#lib/components/settings/desktopSettings.ts"
   import EmptyState from "#lib/components/ui/EmptyState.svelte"
   import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
   import IconButton from "#lib/components/ui/IconButton.svelte"
@@ -23,6 +26,14 @@
   ]
 
   let browsing = $state<Member | null>(null)
+
+  let agent = $state(false)
+
+  $effect(() => {
+    agentLaunched().then(on => {
+      agent = on
+    })
+  })
 
   const browse = $derived(share.state.browse)
 
@@ -77,7 +88,7 @@
   <Section
     icon="lucide:monitor-smartphone"
     title={m.files_devices_paired()}
-    actions={pairAction}
+    actions={agent ? pairAction : undefined}
   >
     {#if share.state.devices.length === 0}
       <EmptyState icon="lucide:wifi-off" text={m.files_devices_none()} />

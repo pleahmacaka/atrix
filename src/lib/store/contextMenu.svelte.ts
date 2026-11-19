@@ -11,7 +11,14 @@ export type MenuAction = {
   run: () => unknown
 }
 
-export type MenuItem = MenuAction | "separator"
+export type MenuGroup = {
+  label: string
+  icon?: string
+  disabled?: boolean
+  items: MenuItem[]
+}
+
+export type MenuItem = MenuAction | MenuGroup | "separator"
 
 type Open = { x: number; y: number; items: MenuItem[] }
 

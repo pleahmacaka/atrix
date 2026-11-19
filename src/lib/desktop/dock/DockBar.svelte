@@ -42,7 +42,7 @@
       style:height={rem(layout.barHeight)}
       aria-label={m.dock_dock()}
       bind:offsetWidth={layout.navWidth}
-      oncontextmenu={e => contextMenu.show(e, barMenu())}
+      oncontextmenu={e => contextMenu.show(e, barMenu(layout.device.showSettingsButton))}
     >
       <BarZones {layout} {status} {panelOpen} {onclock} />
     </nav>

@@ -1,5 +1,4 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
 import { relaunch } from "@tauri-apps/plugin-process"
 import { isEqual } from "es-toolkit"
 import {
@@ -113,7 +112,7 @@ const finish = () =>
   ]}
 >
   <header data-tauri-drag-region class="flex items-center gap-3 px-6 pt-5 pb-2">
-    <Icon icon="lucide:monitor" class="pointer-events-none size-5 text-primary" />
+    <img src="/favicon.svg" alt="" class="pointer-events-none size-5" />
     <h1 class="pointer-events-none min-w-0 flex-1 truncate text-base font-semibold">
       {m.desktop_setup_title()}
     </h1>
@@ -126,33 +125,46 @@ const finish = () =>
   <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-2">
     <p class="px-1 text-sm text-base-content/70">{m.desktop_setup_text()}</p>
     {#if components && choices}
-      <Section icon="lucide:blocks" title={m.desktop_components()}>
-        <ToggleRow
-          title={m.desktop_component_agent()}
-          checked={components.agent}
-          disabled={!components.shell}
-          onchange={on => setComponent("agent", on)}
-        />
+      <Section title={m.desktop_product_de()}>
         <ToggleRow
           title={m.desktop_component_shell()}
+          tip={components.agent
+            ? m.desktop_component_shell_tip()
+            : m.desktop_component_keep_one_tip()}
           checked={components.shell}
           disabled={!components.agent}
           onchange={on => setComponent("shell", on)}
         />
         <ToggleRow
           title={m.desktop_component_files()}
+          tip={m.desktop_component_files_tip()}
           checked={components.files}
           onchange={on => setComponent("files", on)}
         />
         <ToggleRow
           title={m.desktop_component_terminal()}
+          tip={m.desktop_component_terminal_tip()}
           checked={components.terminal}
           onchange={on => setComponent("terminal", on)}
         />
       </Section>
-      {#if choices.features.launcher}
-        <Section icon="lucide:search" title={m.desktop_launcher()}>
-          <SettingRow title={m.desktop_launcher_trigger()}>
+      <Section title={m.desktop_product_ai()}>
+        <ToggleRow
+          title={m.desktop_component_agent()}
+          tip={components.shell
+            ? m.desktop_component_agent_tip()
+            : m.desktop_component_keep_one_tip()}
+          checked={components.agent}
+          disabled={!components.shell}
+          onchange={on => setComponent("agent", on)}
+        />
+      </Section>
+      {#if components.shell && choices.features.launcher}
+        <Section title={m.desktop_launcher()}>
+          <SettingRow
+            title={m.desktop_launcher_trigger()}
+            tip={m.desktop_launcher_trigger_tip()}
+          >
             <Segmented
               label={m.desktop_launcher_trigger()}
               items={TRIGGERS}
@@ -161,7 +173,10 @@ const finish = () =>
             />
           </SettingRow>
           {#if choices.launcherTrigger !== "win"}
-            <SettingRow title={m.desktop_launcher_shortcut()}>
+            <SettingRow
+              title={m.desktop_launcher_shortcut()}
+              tip={m.desktop_launcher_shortcut_tip()}
+            >
               <LauncherShortcut
                 value={choices.launcherShortcut}
                 onchange={shortcut => choose("launcherShortcut", shortcut)}

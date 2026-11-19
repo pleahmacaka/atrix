@@ -10,7 +10,6 @@ import {
 import type {
   ClockAlign,
   DeviceSettings,
-  DockSide,
   SpectrumStyle,
 } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -22,37 +21,82 @@ type Flag = {
   [K in keyof DeviceSettings]: DeviceSettings[K] extends boolean ? K : never
 }[keyof DeviceSettings]
 
+type Item = { key: Flag; title: string; tip: string; child?: Item }
+
 let { device }: { device: DeviceSettings } = $props()
 
 const set = desktopSettings.setDevice
 
-const TRAY: { key: Flag; title: string; child?: { key: Flag; title: string } }[] = [
-  { key: "showTrayIcons", title: m.desktop_tray_icons() },
-  { key: "showVolume", title: m.desktop_tray_volume() },
-  { key: "showBattery", title: m.desktop_tray_battery() },
+const STATUS: Item[] = [
+  {
+    key: "showTrayIcons",
+    title: m.desktop_tray_icons(),
+    tip: m.desktop_tray_icons_tip(),
+  },
+  {
+    key: "showVolume",
+    title: m.desktop_tray_volume(),
+    tip: m.desktop_tray_volume_tip(),
+  },
+  {
+    key: "showBattery",
+    title: m.desktop_tray_battery(),
+    tip: m.desktop_tray_battery_tip(),
+  },
   {
     key: "showMeters",
     title: m.desktop_tray_meters(),
-    child: { key: "metersStacked", title: m.desktop_tray_meters_stacked() },
+    tip: m.desktop_tray_meters_tip(),
+    child: {
+      key: "metersStacked",
+      title: m.desktop_tray_meters_stacked(),
+      tip: m.desktop_tray_meters_stacked_tip(),
+    },
   },
-  { key: "showNetwork", title: m.desktop_tray_network() },
-  { key: "showBluetooth", title: m.desktop_tray_bluetooth() },
-  { key: "showInputLanguage", title: m.desktop_tray_input() },
-  { key: "showNotifications", title: m.desktop_tray_notifications() },
-  { key: "showTaskView", title: m.desktop_tray_taskview() },
-  { key: "showDesktopButton", title: m.desktop_tray_desktop() },
-  { key: "showSettingsButton", title: m.desktop_tray_settings() },
+  {
+    key: "showNetwork",
+    title: m.desktop_tray_network(),
+    tip: m.desktop_tray_network_tip(),
+  },
+  {
+    key: "showBluetooth",
+    title: m.desktop_tray_bluetooth(),
+    tip: m.desktop_tray_bluetooth_tip(),
+  },
+  {
+    key: "showInputLanguage",
+    title: m.desktop_tray_input(),
+    tip: m.desktop_tray_input_tip(),
+  },
+]
+
+const BUTTONS: Item[] = [
+  {
+    key: "showNotifications",
+    title: m.desktop_tray_notifications(),
+    tip: m.desktop_tray_notifications_tip(),
+  },
+  {
+    key: "showTaskView",
+    title: m.desktop_tray_taskview(),
+    tip: m.desktop_tray_taskview_tip(),
+  },
+  {
+    key: "showDesktopButton",
+    title: m.desktop_tray_desktop(),
+    tip: m.desktop_tray_desktop_tip(),
+  },
+  {
+    key: "showSettingsButton",
+    title: m.desktop_tray_settings(),
+    tip: m.desktop_tray_settings_tip(),
+  },
 ]
 
 const CLOCK_ALIGNS: { id: ClockAlign; label: string }[] = [
   { id: "start", label: m.desktop_left() },
   { id: "center", label: m.desktop_center() },
   { id: "end", label: m.desktop_right() },
-]
-
-const SIDES: { id: DockSide; label: string }[] = [
-  { id: "left", label: m.desktop_left() },
-  { id: "right", label: m.desktop_right() },
 ]
 
 const SPECTRUMS: { id: SpectrumStyle; label: string }[] = [
@@ -81,36 +125,48 @@ const toggleBridge = () =>
   })
 </script>
 
-<DesktopSection id="tray">
-  {#each TRAY as item (item.key)}
+{#snippet toggles(items: Item[])}
+  {#each items as item (item.key)}
     {@const child = item.child}
     <ToggleRow
       title={item.title}
+      tip={item.tip}
       checked={device[item.key]}
       onchange={on => set(item.key, on)}
     />
     {#if child && device[item.key]}
       <ToggleRow
         title={child.title}
+        tip={child.tip}
         checked={device[child.key]}
         onchange={on => set(child.key, on)}
       />
     {/if}
   {/each}
+{/snippet}
+
+<DesktopSection id="tray" title={m.desktop_group_tray_status()}>
+  {@render toggles(STATUS)}
 </DesktopSection>
 
-<DesktopSection id="clock">
+<DesktopSection title={m.desktop_group_tray_buttons()}>
+  {@render toggles(BUTTONS)}
+</DesktopSection>
+
+<DesktopSection id="clock" title={m.desktop_clock()}>
   <ToggleRow
     title={m.desktop_clock_24h()}
+    tip={m.desktop_clock_24h_tip()}
     checked={device.clock24h}
     onchange={on => set("clock24h", on)}
   />
   <ToggleRow
     title={m.desktop_clock_seconds()}
+    tip={m.desktop_clock_seconds_tip()}
     checked={device.showSeconds}
     onchange={on => set("showSeconds", on)}
   />
-  <SettingRow title={m.desktop_clock_align()}>
+  <SettingRow title={m.desktop_clock_align()} tip={m.desktop_clock_align_tip()}>
     <Segmented
       label={m.desktop_clock_align()}
       items={CLOCK_ALIGNS}
@@ -120,28 +176,25 @@ const toggleBridge = () =>
   </SettingRow>
 </DesktopSection>
 
-<DesktopSection id="media">
+<DesktopSection id="media" title={m.desktop_media()}>
   <ToggleRow
     title={m.desktop_media_enabled()}
+    tip={m.desktop_media_enabled_tip()}
     checked={device.showMedia}
     onchange={on => set("showMedia", on)}
   />
   {#if device.showMedia}
-    <SettingRow title={m.desktop_position()}>
-      <Segmented
-        label={m.desktop_position()}
-        items={SIDES}
-        value={device.mediaSide}
-        onpick={side => set("mediaSide", side)}
-      />
-    </SettingRow>
     <ToggleRow
       title={m.desktop_media_spectrum()}
+      tip={m.desktop_media_spectrum_tip()}
       checked={device.showSpectrum}
       onchange={on => set("showSpectrum", on)}
     />
     {#if device.showSpectrum}
-      <SettingRow title={m.desktop_media_spectrum_style()}>
+      <SettingRow
+        title={m.desktop_media_spectrum_style()}
+        tip={m.desktop_media_spectrum_style_tip()}
+      >
         <Segmented
           label={m.desktop_media_spectrum_style()}
           items={SPECTRUMS}
@@ -153,27 +206,21 @@ const toggleBridge = () =>
   {/if}
 </DesktopSection>
 
-<DesktopSection id="claude">
+<DesktopSection id="claude" title={m.desktop_claude()}>
   <ToggleRow
     title={m.desktop_claude_enabled()}
+    tip={m.desktop_claude_enabled_tip()}
     checked={device.showClaudeUsage}
     onchange={on => set("showClaudeUsage", on)}
   />
   {#if device.showClaudeUsage}
-    <SettingRow title={m.desktop_position()}>
-      <Segmented
-        label={m.desktop_position()}
-        items={SIDES}
-        value={device.claudeUsageSide}
-        onpick={side => set("claudeUsageSide", side)}
-      />
-    </SettingRow>
     <ToggleRow
       title={m.desktop_claude_stacked()}
+      tip={m.desktop_claude_stacked_tip()}
       checked={device.claudeUsageStacked}
       onchange={on => set("claudeUsageStacked", on)}
     />
-    <SettingRow title={m.desktop_claude_bridge()}>
+    <SettingRow title={m.desktop_claude_bridge()} tip={m.desktop_claude_bridge_tip()}>
       <button
         type="button"
         class={["btn btn-sm min-w-24", !bridged && "btn-primary"]}
@@ -184,7 +231,7 @@ const toggleBridge = () =>
       </button>
     </SettingRow>
     {#if !bridged}
-      <SettingRow title={m.desktop_claude_file()}>
+      <SettingRow title={m.desktop_claude_file()} tip={m.desktop_claude_file_tip()}>
         <input
           class="input input-sm w-64 max-sm:w-full"
           aria-label={m.desktop_claude_file()}

@@ -13,7 +13,7 @@ const CAPS = [0, 100_000, 300_000, 1_000_000].map(cap => ({
 }))
 </script>
 
-<SettingRow title={m.mail_token_cap()}>
+<SettingRow title={m.mail_token_cap()} tip={m.mail_token_cap_tip()}>
   <Segmented
     label={m.mail_token_cap()}
     items={CAPS}

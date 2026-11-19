@@ -20,7 +20,11 @@
 
   let { items, layout, status, compact, placement, panelOpen, onclock }: Props = $props()
 
+  const MENU_GRACE = 600
+
   let width = $state(0)
+  let graced: typeof contextMenu.current = null
+  let graceTimer: ReturnType<typeof setTimeout> | undefined
 
   const island = $derived(layout.device.dockIslands)
 
@@ -31,9 +35,27 @@
 
     if (kind) {
       contextMenu.show(e, itemMenu(kind, status.info.volume, status.toggleMute))
+      graced = kind === "settings" ? contextMenu.current : null
     }
   }
+
+  const closeSoon = () => {
+    if (!graced || contextMenu.current !== graced) {
+      return
+    }
+
+    clearTimeout(graceTimer)
+    graceTimer = setTimeout(() => {
+      if (contextMenu.current === graced) {
+        contextMenu.close()
+      }
+    }, MENU_GRACE)
+  }
+
+  $effect(() => () => clearTimeout(graceTimer))
 </script>
+
+<svelte:document onmouseleave={closeSoon} onmouseenter={() => clearTimeout(graceTimer)} />
 
 <fieldset
   class={[

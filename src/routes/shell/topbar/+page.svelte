@@ -106,7 +106,7 @@
     ]}
     style:height={rem(layout.barHeight)}
     aria-label={m.dock_top_bar()}
-    oncontextmenu={e => contextMenu.show(e, barMenu())}
+    oncontextmenu={e => contextMenu.show(e, barMenu(layout.device.showSettingsButton))}
   >
     <BarZones {layout} {status} {panelOpen} onclock={togglePanel} />
   </nav>

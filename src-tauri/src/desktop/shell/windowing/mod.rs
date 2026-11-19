@@ -145,10 +145,7 @@ pub fn hide_on_blur(window: &WebviewWindow) {
         std::thread::sleep(SHOW_SETTLE);
 
         let _ = app.run_on_main_thread(move || {
-            if crate::desktop::shell::edit::editing()
-                || window.is_focused().unwrap_or(true)
-                || !window.is_visible().unwrap_or(false)
-            {
+            if window.is_focused().unwrap_or(true) || !window.is_visible().unwrap_or(false) {
                 return;
             }
 

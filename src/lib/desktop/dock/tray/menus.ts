@@ -37,12 +37,23 @@ const editLayout: MenuItem = {
   run: startEdit,
 }
 
-export const barMenu = (): MenuItem[] => [
+export const barMenu = (settingsShown: boolean): MenuItem[] => [
   editLayout,
   {
     label: m.dock_task_manager(),
     icon: "lucide:activity",
     run: () => native.runCommand("taskmgr"),
+  },
+  {
+    label: settingsShown
+      ? m.dock_hide_settings_button()
+      : m.dock_show_settings_button(),
+    icon: "lucide:settings-2",
+    run: () =>
+      updateDevice(device => ({
+        ...device,
+        showSettingsButton: !settingsShown,
+      })).catch(() => undefined),
   },
   "separator",
   { label: m.common_settings(), icon: "lucide:settings", run: openSettings },

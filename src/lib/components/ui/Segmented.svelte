@@ -38,7 +38,6 @@ let {
         value === item.id ? "bg-raised text-primary shadow-sm" : "btn-ghost",
       ]}
       aria-pressed={value === item.id}
-      title={item.label}
       onclick={() => onpick(item.id)}
     >
       {#if item.icon}

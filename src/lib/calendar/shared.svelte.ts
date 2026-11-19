@@ -1,15 +1,11 @@
 import { untrack } from "svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import {
-  type EventTag,
-  listEvents,
-  listTags,
-  listTasks,
-  type Task,
-} from "./store.ts"
-import type { HolidayCheck, Occurrence } from "./types.ts"
+import { allEvents, type EventTag, listEvents, listTags } from "./store.ts"
+import type { CalendarEvent, HolidayCheck, Occurrence } from "./types.ts"
 
 export type SharedEvent = Occurrence & { host: HostView }
+
+export type SharedRecord = CalendarEvent & { host: HostView }
 
 const settle = async <T>(work: Promise<T[]>[]) => {
   const settled = await Promise.allSettled(work)
@@ -43,6 +39,13 @@ export const sharedTags = async (hosts: HostView[]): Promise<EventTag[]> => {
   return [...new Map(all.map(t => [t.id, t])).values()]
 }
 
+export const sharedRecords = (hosts: HostView[]): Promise<SharedRecord[]> =>
+  settle(
+    hosts.map(async host =>
+      (await allEvents(host)).map(event => ({ ...event, host })),
+    ),
+  )
+
 export const watchShared = (
   query: () => {
     hosts: HostView[]
@@ -73,28 +76,10 @@ export const watchShared = (
   })
 }
 
-export type SharedTask = Task & { host: HostView }
-
-const NO_DUE = "9999-12-31"
-
-const byTask = (a: Task, b: Task) =>
-  Number(a.done) - Number(b.done) ||
-  (a.done
-    ? b.updatedAt - a.updatedAt
-    : (a.due ?? NO_DUE).localeCompare(b.due ?? NO_DUE) ||
-      a.updatedAt - b.updatedAt)
-
-export const listSharedTasks = async (
-  hosts: HostView[],
-): Promise<SharedTask[]> =>
-  settle(
-    hosts.map(async host => (await listTasks(host)).map(t => ({ ...t, host }))),
-  ).then(all => all.toSorted(byTask))
-
-export const watchTasks = (
+export const watchRecords = (
   hosts: () => HostView[],
   load: (work: () => Promise<void>) => unknown,
-  onData: (tasks: SharedTask[]) => void,
+  onData: (records: SharedRecord[], tags: EventTag[]) => void,
 ) => {
   $effect(() => {
     const list = hosts()
@@ -103,6 +88,15 @@ export const watchTasks = (
       void host.dsChange
     }
 
-    untrack(() => load(async () => onData(await listSharedTasks(list))))
+    untrack(() =>
+      load(async () => {
+        const [records, tags] = await Promise.all([
+          sharedRecords(list),
+          sharedTags(list),
+        ])
+
+        onData(records, tags)
+      }),
+    )
   })
 }

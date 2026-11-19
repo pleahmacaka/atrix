@@ -42,6 +42,11 @@ const menu = (e: MouseEvent, tag: EventTag) =>
       icon: "lucide:pencil",
       run: () => (renaming = tag.id),
     },
+    {
+      label: m.panel_tag_hide(),
+      icon: tag.hideWhileSharing ? "lucide:check" : "lucide:eye-off",
+      run: () => onupdate({ ...tag, hideWhileSharing: !tag.hideWhileSharing }),
+    },
     "separator",
     ...COLOR_KEYS.map(color => ({
       label: COLORS[color].label(),
@@ -138,6 +143,9 @@ const submit = async () => {
       >
         <span class={["size-2 rounded-full", COLORS[toColor(tag.color)].chip]}></span>
         {tagLabel(tag)}
+        {#if tag.hideWhileSharing}
+          <Icon icon="lucide:eye-off" class="size-3 text-base-content/50" />
+        {/if}
         {#if on}
           <Icon icon="lucide:check" class="size-3" />
         {/if}

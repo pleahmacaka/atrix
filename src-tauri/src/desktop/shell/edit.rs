@@ -1,19 +1,9 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 use crate::desktop::shell::{appbar, windowing};
 
-static EDITING: AtomicBool = AtomicBool::new(false);
-
-pub fn editing() -> bool {
-    EDITING.load(Ordering::Relaxed)
-}
-
 #[tauri::command]
 pub fn edit_mode(app: AppHandle, on: bool) {
-    EDITING.store(on, Ordering::Relaxed);
-
     if on {
         std::thread::spawn(move || {
             let Some(window) = windowing::window_for(&app, "edit") else {

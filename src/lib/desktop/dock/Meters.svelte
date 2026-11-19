@@ -14,9 +14,12 @@
   let { stacked = false, compact = false, placement }: Props = $props()
 
   const POLL = 3_000
+  const DOUBLE_CLICK = 250
 
   let meters = $state<Meters | null>(null)
   let open = $state(false)
+  let openAtPress = false
+  let clickTimer: ReturnType<typeof setTimeout> | undefined
 
   const refresh = async () => {
     meters = await systemMeters().catch(() => null)
@@ -33,6 +36,21 @@
 
     return () => clearInterval(timer)
   })
+
+  const onclick = () => {
+    clearTimeout(clickTimer)
+    clickTimer = setTimeout(() => {
+      open = !openAtPress
+    }, DOUBLE_CLICK)
+  }
+
+  const ondblclick = () => {
+    clearTimeout(clickTimer)
+    open = false
+    runCommand("taskmgr").catch(() => undefined)
+  }
+
+  $effect(() => () => clearTimeout(clickTimer))
 
   const percent = (ratio: number) => Math.round(ratio * 100)
 
@@ -59,6 +77,7 @@
     {#snippet trigger(p)}
       <button
         {...p}
+        popovertarget={null}
         type="button"
         class={[
           "btn btn-ghost gap-1.5 px-1.5 font-normal tabular-nums",
@@ -67,6 +86,9 @@
         ]}
         title={summary}
         aria-label={m.dock_meters()}
+        onpointerdown={() => (openAtPress = open)}
+        {onclick}
+        {ondblclick}
       >
         <Icon icon="lucide:cpu" class="size-4 shrink-0" />
 

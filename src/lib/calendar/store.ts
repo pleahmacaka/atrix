@@ -1,9 +1,8 @@
-import { and, asc, eq, gte, isNull, lt, ne, or } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm"
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { type Backend, datasource } from "#lib/datasource/client.ts"
 import { addDays, DAY_MS, dateKey, dateTimeKey, parseLocal } from "./dates.ts"
 import { expand } from "./occurrence.ts"
-import { putEvent } from "./records.ts"
 import {
   type CalendarEvent,
   type HolidayCheck,
@@ -34,6 +33,11 @@ export const events = sqliteTable("events", {
   tags: text("tags", { mode: "json" }).$type<string[]>().notNull(),
   notesSync: integer("notes_sync", { mode: "boolean" }).notNull(),
   reminder: integer("reminder"),
+  task: integer("task", { mode: "boolean" }).notNull(),
+  done: text("done", { mode: "json" }).$type<string[]>().notNull(),
+  parentId: text("parent_id"),
+  group: text("group_id"),
+  order: integer("sort_order"),
   updatedAt: integer("updated_at").notNull(),
 })
 
@@ -41,22 +45,14 @@ export const tags = sqliteTable("tags", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   color: text("color").notNull(),
-})
-
-export const tasks = sqliteTable("tasks", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  done: integer("done", { mode: "boolean" }).notNull(),
-  due: text("due"),
-  createdBy: text("created_by").notNull(),
-  updatedAt: integer("updated_at").notNull(),
+  hideWhileSharing: integer("hide_while_sharing", {
+    mode: "boolean",
+  }).notNull(),
 })
 
 type EventRow = typeof events.$inferSelect
 
 export type EventTag = typeof tags.$inferSelect
-
-export type Task = typeof tasks.$inferSelect
 
 export type EventInput = {
   title: string
@@ -83,7 +79,7 @@ const CREATE_EVENTS = `CREATE TABLE IF NOT EXISTS events (
   created_by TEXT NOT NULL DEFAULT ''
 )`
 
-const COLUMNS: [string, string][] = [
+const EVENT_COLUMNS: [string, string][] = [
   ["recurrence", "TEXT NOT NULL DEFAULT 'none'"],
   ["exdates", "TEXT NOT NULL DEFAULT '[]'"],
   ["until", "TEXT"],
@@ -94,6 +90,11 @@ const COLUMNS: [string, string][] = [
   ["notes_sync", "INTEGER NOT NULL DEFAULT 0"],
   ["updated_at", "INTEGER NOT NULL DEFAULT 0"],
   ["reminder", "INTEGER"],
+  ["task", "INTEGER NOT NULL DEFAULT 0"],
+  ["done", "TEXT NOT NULL DEFAULT '[]'"],
+  ["parent_id", "TEXT"],
+  ["group_id", "TEXT"],
+  ["sort_order", "INTEGER"],
 ]
 
 const CREATE_TAGS = `CREATE TABLE IF NOT EXISTS tags (
@@ -102,14 +103,9 @@ const CREATE_TAGS = `CREATE TABLE IF NOT EXISTS tags (
   color TEXT NOT NULL DEFAULT ''
 )`
 
-const CREATE_TASKS = `CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  done INTEGER NOT NULL DEFAULT 0,
-  due TEXT,
-  created_by TEXT NOT NULL DEFAULT '',
-  updated_at INTEGER NOT NULL DEFAULT 0
-)`
+const TAG_COLUMNS: [string, string][] = [
+  ["hide_while_sharing", "INTEGER NOT NULL DEFAULT 0"],
+]
 
 const DEFAULT_TAGS = [
   ["todo", "warning"],
@@ -129,6 +125,29 @@ const tableNames = async (backend: Backend) => {
   return new Set(rows.map(r => String(r[0])))
 }
 
+const addColumns = async (
+  backend: Backend,
+  table: string,
+  columns: [string, string][],
+) => {
+  const { rows } = await backend.dsQuery(
+    CALENDAR,
+    `SELECT name FROM pragma_table_info('${table}')`,
+    [],
+  )
+  const present = new Set(rows.map(r => String(r[0])))
+
+  for (const [name, type] of columns) {
+    if (!present.has(name)) {
+      await backend.dsExecute(
+        CALENDAR,
+        `ALTER TABLE ${table} ADD COLUMN ${name} ${type}`,
+        [],
+      )
+    }
+  }
+}
+
 const prepare = async (backend: Backend) => {
   if (!(await backend.dsList()).includes(CALENDAR)) {
     await backend.dsCreate(CALENDAR)
@@ -137,25 +156,9 @@ const prepare = async (backend: Backend) => {
   const existing = await tableNames(backend)
 
   await backend.dsExecute(CALENDAR, CREATE_EVENTS, [])
-
-  const { rows } = await backend.dsQuery(
-    CALENDAR,
-    "SELECT name FROM pragma_table_info('events')",
-    [],
-  )
-  const present = new Set(rows.map(r => String(r[0])))
-
-  for (const [name, type] of COLUMNS) {
-    if (!present.has(name)) {
-      await backend.dsExecute(
-        CALENDAR,
-        `ALTER TABLE events ADD COLUMN ${name} ${type}`,
-        [],
-      )
-    }
-  }
-
+  await addColumns(backend, "events", EVENT_COLUMNS)
   await backend.dsExecute(CALENDAR, CREATE_TAGS, [])
+  await addColumns(backend, "tags", TAG_COLUMNS)
 
   if (!existing.has("tags")) {
     for (const [id, color] of DEFAULT_TAGS) {
@@ -166,8 +169,6 @@ const prepare = async (backend: Backend) => {
       )
     }
   }
-
-  await backend.dsExecute(CALENDAR, CREATE_TASKS, [])
 }
 
 const open = async (backend: Backend) => {
@@ -224,6 +225,11 @@ const fromRow = (row: EventRow): CalendarEvent => {
     originalDate: row.originalDate,
     notesSync: row.notesSync,
     reminder: row.reminder,
+    task: row.task,
+    done: row.done ?? [],
+    parentId: row.parentId,
+    group: row.group,
+    order: row.order,
     createdBy: row.createdBy,
     updatedAt: row.updatedAt,
   }
@@ -250,6 +256,11 @@ export const toRow = (event: CalendarEvent): EventRow => ({
   tags: event.tags,
   notesSync: event.notesSync,
   reminder: event.reminder,
+  task: event.task,
+  done: event.done,
+  parentId: event.parentId,
+  group: event.group,
+  order: event.order,
   updatedAt: event.updatedAt,
 })
 
@@ -288,6 +299,11 @@ export const fromInput = (
     tags: input.tags ?? [],
     notesSync: false,
     reminder: input.reminder ?? null,
+    task: false,
+    done: [],
+    parentId: null,
+    group: null,
+    order: null,
     updatedAt: Date.now(),
   })
 }
@@ -333,6 +349,25 @@ export const allEvents = async (backend: Backend) => {
   return (await db.select().from(events)).map(fromRow)
 }
 
+export const putEvent = async (backend: Backend, event: CalendarEvent) => {
+  const db = await open(backend)
+  const row = toRow(event)
+  const { id, ...rest } = row
+
+  await db
+    .insert(events)
+    .values(row)
+    .onConflictDoUpdate({ target: events.id, set: rest })
+
+  return id
+}
+
+export const deleteEvents = async (backend: Backend, ids: string[]) => {
+  const db = await open(backend)
+
+  await db.delete(events).where(inArray(events.id, ids))
+}
+
 export const addEvent = async (
   backend: Backend,
   input: EventInput,
@@ -368,34 +403,3 @@ export const deleteTag = async (backend: Backend, id: string) => {
 
   await db.delete(tags).where(eq(tags.id, id))
 }
-
-export const listTasks = async (backend: Backend) => {
-  const db = await open(backend)
-
-  return db.select().from(tasks)
-}
-
-export const putTask = async (backend: Backend, task: Task) => {
-  const db = await open(backend)
-  const { id, ...rest } = task
-
-  await db
-    .insert(tasks)
-    .values(task)
-    .onConflictDoUpdate({ target: tasks.id, set: rest })
-}
-
-export const deleteTask = async (backend: Backend, id: string) => {
-  const db = await open(backend)
-
-  await db.delete(tasks).where(eq(tasks.id, id))
-}
-
-export const newTask = (title: string, due: string | null): Task => ({
-  id: crypto.randomUUID(),
-  title,
-  done: false,
-  due,
-  createdBy: "",
-  updatedAt: Date.now(),
-})

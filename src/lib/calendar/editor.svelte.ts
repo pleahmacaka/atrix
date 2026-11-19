@@ -7,26 +7,14 @@ import {
   removeOccurrence,
   saveOccurrence,
   setNotesSync,
+  toggleDone,
 } from "./actions.ts"
 import { calendar, holidays, pick, WEEKS } from "./calendar.svelte.ts"
 import { addDays } from "./dates.ts"
 import { allDayDraft } from "./draft.ts"
 import { onDay } from "./occurrence.ts"
-import {
-  type SharedEvent,
-  type SharedTask,
-  watchShared,
-  watchTasks,
-} from "./shared.svelte.ts"
-import {
-  deleteTag,
-  deleteTask,
-  type EventTag,
-  newTask,
-  putTag,
-  putTask,
-  type Task,
-} from "./store.ts"
+import { type SharedEvent, watchShared } from "./shared.svelte.ts"
+import { deleteTag, type EventTag, putTag } from "./store.ts"
 import { newTag } from "./tags.ts"
 import type { CalendarEvent, Scope } from "./types.ts"
 
@@ -35,18 +23,12 @@ type Asking = {
   answer: (scope: Scope | null) => void
 }
 
-type TaskChange = Partial<Pick<Task, "title" | "done" | "due">>
-
 export class CalendarEditor {
   attempt = new Attempt()
-
-  tasking = new Attempt()
 
   events = $state<SharedEvent[]>([])
 
   tags = $state<EventTag[]>([])
-
-  tasks = $state<SharedTask[]>([])
 
   editing = $state<SharedEvent | "new" | null>(null)
 
@@ -79,10 +61,6 @@ export class CalendarEditor {
         this.tags = known
       },
     )
-
-    watchTasks(this.hosts, this.tasking.run, found => {
-      this.tasks = found
-    })
   }
 
   get ready() {
@@ -191,21 +169,6 @@ export class CalendarEditor {
       this.tags = this.tags.filter(t => t.id !== tag.id)
     })
 
-  addTask = (title: string, due: string | null) =>
-    this.tasking.run(() => putTask(this.#home(), newTask(title, due)))
-
-  changeTask = ({ host, ...task }: SharedTask, change: TaskChange) =>
-    this.tasking.run(() =>
-      putTask(host, { ...task, ...change, updatedAt: Date.now() }),
-    )
-
-  removeTask = (task: SharedTask) =>
-    this.tasking.run(() => deleteTask(task.host, task.id))
-
-  clearDone = () =>
-    this.tasking.run(() =>
-      Promise.all(
-        this.tasks.filter(t => t.done).map(t => deleteTask(t.host, t.id)),
-      ),
-    )
+  toggleDone = (event: SharedEvent) =>
+    this.attempt.run(() => toggleDone(event.host, event))
 }

@@ -1,4 +1,5 @@
 import type { Backend } from "#lib/datasource/client.ts"
+import { isDone, occurrenceKey, withDone } from "./occurrence.ts"
 import {
   applyChange,
   deleteEvent,
@@ -42,19 +43,49 @@ export const saveOccurrence = async (
   const series = occurrence && (await seriesOf(backend, occurrence))
 
   if (!occurrence || !series) {
-    await putEvent(backend, { ...draft, updatedAt: stamp })
+    const saved = { ...draft, updatedAt: stamp }
 
-    return
+    await putEvent(backend, saved)
+
+    return saved
   }
 
   const family = await familyOf(backend, series.id)
 
-  await applyChange(
-    backend,
-    series.notesSync && notesOnly(occurrence, draft)
-      ? shareNotes(series, draft.notes, family, stamp)
-      : editInSeries(series, occurrence, draft, scope ?? "one", family, stamp),
+  if (series.notesSync && notesOnly(occurrence, draft)) {
+    await applyChange(backend, shareNotes(series, draft.notes, family, stamp))
+
+    return null
+  }
+
+  const change = editInSeries(
+    series,
+    occurrence,
+    draft,
+    scope ?? "one",
+    family,
+    stamp,
   )
+
+  await applyChange(backend, change)
+
+  return change.edited
+}
+
+export const toggleDone = async (backend: Backend, occurrence: Occurrence) => {
+  const stored = await getEvent(backend, occurrence.id)
+
+  if (stored) {
+    await putEvent(
+      backend,
+      withDone(
+        stored,
+        occurrenceKey(occurrence),
+        !isDone(occurrence),
+        Date.now(),
+      ),
+    )
+  }
 }
 
 export const removeOccurrence = async (

@@ -121,7 +121,7 @@ const open = (host: HostEntry, id: string) => {
         {#snippet top()}
           <div class="px-4 pb-4 sm:px-6">
             <div class="rounded-box border border-base-300 bg-base-100 px-4">
-              <SettingRow icon="lucide:plug" title={m.harness_provider()}>
+              <SettingRow icon="lucide:plug" title={m.harness_provider()} tip={m.harness_provider_tip()}>
                 {#if kind}
                   {#key `${host.id}:${harness.id}`}
                     <ProviderPicker
@@ -159,7 +159,7 @@ const open = (host: HostEntry, id: string) => {
     </button>
     {#if local}
       <Section>
-        <SettingRow title={m.harness_default_provider()}>
+        <SettingRow title={m.harness_default_provider()} tip={m.harness_default_provider_tip()}>
           {#key JSON.stringify(local.view.state?.defaultProvider ?? null)}
             <ProviderPicker
               host={local.view}

@@ -107,7 +107,7 @@ pub(crate) mod win {
     }
 
     // an apartment object stays on its creating thread, so each pool thread keeps its own
-    fn enumerator() -> windows::core::Result<IMMDeviceEnumerator> {
+    pub(crate) fn enumerator() -> windows::core::Result<IMMDeviceEnumerator> {
         ENUMERATOR.with(|cell| {
             if let Some(enumerator) = cell.get() {
                 return Ok(enumerator.clone());

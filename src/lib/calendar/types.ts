@@ -34,6 +34,11 @@ export type CalendarEvent = {
   originalDate: string | null
   notesSync: boolean
   reminder: number | null
+  task: boolean
+  done: string[]
+  parentId: string | null
+  group: string | null
+  order: number | null
   createdBy: string
   updatedAt: number
 }

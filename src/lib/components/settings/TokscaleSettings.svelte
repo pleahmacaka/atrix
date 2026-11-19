@@ -37,7 +37,7 @@ const toggle = async (input: HTMLInputElement) => {
 }
 </script>
 
-<SettingRow icon="lucide:chart-column-big" title={m.device_tokscale()}>
+<SettingRow icon="lucide:chart-column-big" title={m.device_tokscale()} tip={m.device_tokscale_tip()}>
   <input
     type="checkbox"
     class="toggle toggle-sm toggle-primary"
@@ -48,7 +48,7 @@ const toggle = async (input: HTMLInputElement) => {
 </SettingRow>
 
 {#if settings.tokscale}
-  <SettingRow title={m.device_tokscale_submit()}>
+  <SettingRow title={m.device_tokscale_submit()} tip={m.device_tokscale_submit_tip()}>
     <Segmented
       label={m.device_tokscale_submit()}
       items={SUBMITS}

@@ -118,6 +118,67 @@ export const tooltip =
     }
   }
 
+export const hoverTip =
+  (
+    text: () => string | undefined,
+    placement: Placement,
+  ): Attachment<HTMLElement> =>
+  node => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const hide = () => {
+      clearTimeout(timer)
+      close()
+    }
+
+    const show = (delay: number) => {
+      const value = text()
+
+      clearTimeout(timer)
+
+      if (value) {
+        timer = setTimeout(() => open(node, [value], placement), delay)
+      }
+    }
+
+    const enter = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") {
+        show(DELAY_MS)
+      }
+    }
+
+    const focusin = (e: FocusEvent) => {
+      if (e.target instanceof Element && e.target.matches(":focus-visible")) {
+        show(0)
+      }
+    }
+
+    const focusout = (e: FocusEvent) => {
+      if (
+        !(e.relatedTarget instanceof Node && node.contains(e.relatedTarget))
+      ) {
+        hide()
+      }
+    }
+
+    node.addEventListener("pointerenter", enter)
+    node.addEventListener("pointerleave", hide)
+    node.addEventListener("pointerdown", hide)
+    node.addEventListener("wheel", hide, { passive: true })
+    node.addEventListener("focusin", focusin)
+    node.addEventListener("focusout", focusout)
+
+    return () => {
+      hide()
+      node.removeEventListener("pointerenter", enter)
+      node.removeEventListener("pointerleave", hide)
+      node.removeEventListener("pointerdown", hide)
+      node.removeEventListener("wheel", hide)
+      node.removeEventListener("focusin", focusin)
+      node.removeEventListener("focusout", focusout)
+    }
+  }
+
 export const startTitleTips = () => {
   let owner: HTMLElement | null = null
   let timer: ReturnType<typeof setTimeout> | undefined

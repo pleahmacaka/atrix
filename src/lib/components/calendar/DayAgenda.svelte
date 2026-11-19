@@ -85,6 +85,7 @@ const quick = (e: SubmitEvent) => {
         onedit={event => (editor.editing = event)}
         onmenu={editor.menu}
         onopendoc={editor.openDoc}
+        ondone={editor.toggleDone}
       />
     {/if}
   {/if}

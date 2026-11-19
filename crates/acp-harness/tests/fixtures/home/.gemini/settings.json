@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "events": { "url": "https://events.example/sse" },
+    "api": { "httpUrl": "https://api.example/mcp" }
+  }
+}
