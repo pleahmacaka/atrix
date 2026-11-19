@@ -5,6 +5,7 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import type { Stroke, TerminalDialog } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { CARD } from "./labels.ts"
+import Markdown from "./Markdown.svelte"
 
 let {
   dialog,
@@ -98,7 +99,78 @@ const stepsOf = (line: string) => {
   return steps.length > 0 ? steps : null
 }
 
-const quoteless = (line: string) => (line.startsWith("│") ? line.slice(1).trim() : line)
+const BORDERS = new Set("─━═-–—┌┐└┘├┤┬┴┼╭╮╰╯↓ ")
+
+const isBorder = (line: string) => [...line].every(c => BORDERS.has(c))
+
+const cellsOf = (line: string) => {
+  const cells = line.split("│").map(c => c.replace("↓", "").trim())
+
+  return cells.slice(1, cells.at(-1) === "" ? -1 : undefined)
+}
+
+const toMarkdown = (lines: string[]) => {
+  const out: string[] = []
+  let table = false
+
+  for (const line of lines) {
+    if (isBorder(line)) {
+      continue
+    }
+
+    const cells = line.startsWith("│") ? cellsOf(line) : []
+
+    if (cells.length > 1) {
+      out.push(`| ${cells.join(" | ")} |`)
+
+      if (!table) {
+        out.push(`|${" --- |".repeat(cells.length)}`)
+      }
+
+      table = true
+      continue
+    }
+
+    if (table) {
+      out.push("")
+      table = false
+    }
+
+    out.push(line.startsWith("│") ? line.slice(1).trim() : line)
+  }
+
+  return out.join("\n")
+}
+
+const blocks = $derived.by(() => {
+  const result: ({ steps: NonNullable<ReturnType<typeof stepsOf>> } | { text: string })[] = []
+  let run: string[] = []
+
+  const flush = () => {
+    const text = toMarkdown(run).trim()
+
+    if (text) {
+      result.push({ text })
+    }
+
+    run = []
+  }
+
+  for (const line of dialog.lines) {
+    const steps = stepsOf(line)
+
+    if (steps) {
+      flush()
+      result.push({ steps })
+    } else {
+      run.push(line)
+    }
+  }
+
+  flush()
+
+  return result
+})
 </script>
 
 <section class={CARD} aria-label={m.terminal_dialog()}>
@@ -106,13 +178,12 @@ const quoteless = (line: string) => (line.startsWith("│") ? line.slice(1).trim
     <Icon icon="lucide:square-terminal" class="size-4 shrink-0 text-primary" />
     <span class="min-w-0 flex-1 truncate">{m.terminal_dialog()}</span>
   </header>
-  {#if dialog.lines.length}
-    <div class="mb-3 flex flex-col gap-0.5 text-sm break-words whitespace-pre-wrap text-base-content/80">
-      {#each dialog.lines as line, i (i)}
-        {@const steps = stepsOf(line)}
-        {#if steps}
+  {#if blocks.length}
+    <div class="mb-3 flex max-h-96 flex-col gap-1 overflow-y-auto text-sm text-base-content/80">
+      {#each blocks as block, i (i)}
+        {#if "steps" in block}
           <ol class="mb-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
-            {#each steps as step, j (j)}
+            {#each block.steps as step, j (j)}
               {#if j > 0}
                 <Icon icon="lucide:chevron-right" class="size-3 shrink-0 opacity-40" />
               {/if}
@@ -128,7 +199,7 @@ const quoteless = (line: string) => (line.startsWith("│") ? line.slice(1).trim
             {/each}
           </ol>
         {:else}
-          <p>{quoteless(line)}</p>
+          <Markdown text={block.text} />
         {/if}
       {/each}
     </div>

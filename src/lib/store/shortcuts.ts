@@ -13,6 +13,7 @@ export type ShortcutId =
   | "splitRight"
   | "splitDown"
   | "closePane"
+  | "lock"
   | "harness"
   | "focusInput"
   | "focusPane"
@@ -105,6 +106,13 @@ export const SHORTCUTS: Shortcut[] = [
     label: m.shortcut_close_pane(),
     matches: e => mod(e) && e.key.toLowerCase() === "w",
     run: () => panes.close(panes.active.id),
+  },
+  {
+    id: "lock",
+    keys: ["Ctrl", "L"],
+    label: m.lock_now(),
+    matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "l",
+    run: () => screen.lock(),
   },
   {
     id: "harness",

@@ -56,6 +56,7 @@ $effect(() => {
     attempt.failure = null
     dialog?.showModal()
     focusInput()
+    requestAnimationFrame(focusInput)
   } else {
     dialog?.close()
   }

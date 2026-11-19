@@ -2,6 +2,7 @@
 import { tick } from "svelte"
 import { fly } from "svelte/transition"
 import CallDock from "#lib/components/chat/CallDock.svelte"
+import SelectionReply from "#lib/components/chat/SelectionReply.svelte"
 import SettingsDialog from "#lib/components/settings/SettingsDialog.svelte"
 import Palette from "#lib/components/shell/Palette.svelte"
 import Sidebar from "#lib/components/shell/Sidebar.svelte"
@@ -128,4 +129,5 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 <Palette />
 <SettingsDialog />
 <ContextMenu />
+<SelectionReply />
 <CallDock />

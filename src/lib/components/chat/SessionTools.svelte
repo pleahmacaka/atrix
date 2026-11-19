@@ -1,7 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { olderModels } from "#lib/chat/versions.ts"
-import IconButton from "#lib/components/ui/IconButton.svelte"
 import Popover from "#lib/components/ui/Popover.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { ConfigChoice, SessionView } from "#lib/p2p/protocol.ts"

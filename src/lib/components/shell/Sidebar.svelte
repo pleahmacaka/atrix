@@ -45,6 +45,12 @@ const chatActions = (): Action[] => [
       nav.palette = true
     },
   },
+  {
+    label: APPS_PAGE.label(),
+    icon: APPS_PAGE.icon,
+    pressed: nav.page === "apps",
+    run: () => goPage("apps"),
+  },
 ]
 
 const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
@@ -69,7 +75,6 @@ const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
   data: () => [],
   devices: () => [],
   knowledge: () => [],
-  apps: () => [],
   settings: () => [],
 }
 
@@ -113,7 +118,7 @@ const drop = () => {
 }
 
 const pages = $derived([
-  ...[...PAGES, CALENDAR_PAGE, APPS_PAGE].map(page => ({
+  ...[...PAGES, CALENDAR_PAGE].map(page => ({
     id: page.id as string,
     label: page.label(),
     icon: page.icon,
@@ -121,7 +126,7 @@ const pages = $derived([
     run: () => {
       goPage(page.id)
 
-      if (rail && page.id !== "chat" && page.id !== "apps") {
+      if (rail && page.id !== "chat") {
         shell.openDrawer()
       }
     },

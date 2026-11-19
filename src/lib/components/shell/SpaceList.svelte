@@ -18,7 +18,6 @@ import { droppedConversation, isConversationDrag, startDrag } from "#lib/store/d
 import { keyOf } from "#lib/store/keys.ts"
 import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
-import type { Recent } from "#lib/store/recent.ts"
 import {
   type AgentRow,
   folderKey,
@@ -27,7 +26,6 @@ import {
   spaceTree,
 } from "#lib/store/spaceTree.ts"
 import { Stored } from "#lib/store/stored.svelte.ts"
-import { unread } from "#lib/store/unread.svelte.ts"
 import { conversationMenu } from "./conversationMenu.ts"
 import FolderPicker from "./FolderPicker.svelte"
 import SessionPicker from "./SessionPicker.svelte"
@@ -40,9 +38,11 @@ const attempt = new Attempt()
 
 const tree = $derived(spaceTree())
 
-const empty = $derived(tree.chats.length === 0 && tree.hosts.every(h => h.spaces.length === 0))
+const shown = $derived(tree.hosts.filter(h => h.spaces.length > 0))
 
-const many = $derived(tree.hosts.length > 1)
+const empty = $derived(shown.length === 0)
+
+const many = $derived(shown.length > 1)
 
 const activeKey = $derived(panes.active.current ? keyOf(panes.active.current) : null)
 
@@ -81,7 +81,6 @@ $effect(() => {
 
 const folds = new Stored("space-fold:", null as boolean | null, z.boolean().nullable())
 
-const CHATS = "chats"
 
 let frozen = $state.raw<Map<string, number> | null>(null)
 
@@ -539,7 +538,7 @@ const railRows = $derived(
     <button
       type="button"
       class={[
-        "group/space flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field ps-2 pe-1 text-sm",
+        "group/space flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field ps-2 pe-9 text-sm",
         "transition-colors duration-140 hover:bg-base-content/8",
       ]}
       aria-expanded={open}
@@ -559,26 +558,27 @@ const railRows = $derived(
       oncontextmenu={e => contextMenu.show(e, spaceMenu(host, node))}
     >
       <span
-        class="grid size-5 shrink-0 place-items-center rounded-field text-xs font-semibold text-white"
+        class="grid size-5 shrink-0 place-items-center rounded-field text-xs leading-none font-semibold text-white"
         style:background-color={colorOf(node.space)}
       >
         {[...node.space.name][0]?.toUpperCase()}
       </span>
       <span class="min-w-0 flex-1 truncate text-start font-medium">{node.space.name}</span>
-      <span class="shrink-0 text-xs text-base-content/50 tabular-nums">{node.agents.length}</span>
       {@render status(open ? "idle" : node.status, false)}
-      <Icon
-        icon="lucide:chevron-down"
-        class={["size-3.5 shrink-0 opacity-50 transition-transform duration-140", !open && "-rotate-90"]}
-      />
-      <Icon
-        icon="lucide:grip-vertical"
-        class={[
-          "size-3.5 shrink-0 cursor-grab transition-opacity duration-140",
-          node.auto ? "opacity-0" : "opacity-30 group-hover/space:opacity-70",
-        ]}
-      />
+      {#if !node.auto}
+        <Icon
+          icon="lucide:grip-vertical"
+          class="size-3.5 shrink-0 cursor-grab opacity-0 transition-opacity duration-140 group-hover/space:opacity-70"
+        />
+      {/if}
     </button>
+    <IconButton
+      icon="lucide:plus"
+      label={m.space_add_session()}
+      size="xs"
+      class="absolute inset-y-0 end-1.5 my-auto opacity-60 hover:opacity-100"
+      onclick={() => (adding = { host, node })}
+    />
   </div>
 {/snippet}
 
@@ -607,25 +607,6 @@ const railRows = $derived(
                   : "text-primary",
               row.status === "running" && "animate-breathe",
             ]}
-          />
-        </button>
-      </li>
-    {/each}
-    {#each tree.chats as item (item.key)}
-      <li>
-        <button
-          type="button"
-          class={["size-8 content-center justify-center p-0", activeKey === item.key && "menu-active"]}
-          aria-label={item.title}
-          {@attach tooltip(() => [item.title, item.source], () => true)}
-          draggable="true"
-          ondragstart={e => startDrag(e, item.current)}
-          onclick={() => openConversation(item.current)}
-          oncontextmenu={e => contextMenu.show(e, conversationMenu(item, null))}
-        >
-          <Icon
-            icon={item.icon}
-            class={["size-4 shrink-0", unread.has(item.key) ? "text-primary" : "opacity-60"]}
           />
         </button>
       </li>
@@ -659,13 +640,13 @@ const railRows = $derived(
     {#if empty && !editing}
       <EmptyState icon="lucide:inbox" text={m.chat_none()} class="py-6" />
     {/if}
-    {#each tree.hosts as host (host.id)}
+    {#each shown as host (host.id)}
       <section class="flex flex-col">
         {#if many}
           <h3 class="truncate px-4 pt-2 pb-1 text-xs text-base-content/50">{host.name}</h3>
         {/if}
         {#each host.spaces as node (node.key)}
-          <div class="px-2">
+          <div class="px-1">
             {@render spaceHeader(host.id, node, host.spaces)}
           </div>
           {#if !folded(node)}
@@ -678,52 +659,6 @@ const railRows = $derived(
         {/each}
       </section>
     {/each}
-    {#if tree.chats.length > 0}
-      <div class="px-2 pt-2">
-        <button
-          type="button"
-          class={[
-            "flex h-8 w-full cursor-pointer items-center gap-2 rounded-field px-2 text-sm",
-            "transition-colors duration-140 hover:bg-base-content/8",
-          ]}
-          aria-expanded={!(folds.get(CHATS) ?? false)}
-          onclick={() => folds.set(CHATS, !(folds.get(CHATS) ?? false))}
-        >
-          <Icon icon="lucide:messages-square" class="size-4 shrink-0 opacity-60" />
-          <span class="min-w-0 flex-1 truncate text-start font-medium">{m.spaces_chats()}</span>
-          <span class="shrink-0 text-xs text-base-content/50 tabular-nums">{tree.chats.length}</span>
-          <Icon
-            icon="lucide:chevron-down"
-            class={["size-3.5 shrink-0 opacity-50 transition-transform duration-140", folds.get(CHATS) && "-rotate-90"]}
-          />
-        </button>
-      </div>
-      {#if !folds.get(CHATS)}
-        <ul class="menu w-full gap-0.5 py-0 ps-2 pe-1">
-          {#each tree.chats as item (item.key)}
-            {@render chat(item)}
-          {/each}
-        </ul>
-      {/if}
-    {/if}
   </div>
 {/if}
 
-{#snippet chat(item: Recent)}
-  {@const fresh = unread.has(item.key)}
-  <li>
-    <button
-      type="button"
-      class={["min-w-0 cursor-grab gap-2 ps-7 pe-1.5 active:cursor-grabbing", activeKey === item.key && "menu-active"]}
-      title={item.source}
-      draggable="true"
-      ondragstart={e => startDrag(e, item.current)}
-      onclick={() => openConversation(item.current)}
-      oncontextmenu={e => contextMenu.show(e, conversationMenu(item, null))}
-    >
-      <Icon icon={item.icon} class="size-4 shrink-0 opacity-80" />
-      <span class={["min-w-0 flex-1 truncate", fresh && "font-semibold"]}>{item.title}</span>
-      {@render status(item.running ? "running" : "idle", false, fresh)}
-    </button>
-  </li>
-{/snippet}

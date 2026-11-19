@@ -87,7 +87,13 @@ export const tooltip =
     enabled: () => boolean = () => true,
   ): Attachment<HTMLElement> =>
   node => {
-    const show = () => {
+    const show = (e: Event) => {
+      const touch = e instanceof PointerEvent && e.pointerType !== "mouse"
+
+      if (touch || (e.type === "focus" && !node.matches(":focus-visible"))) {
+        return
+      }
+
       const value = text()
       const lines = (Array.isArray(value) ? value : [value]).filter(Boolean)
 
@@ -132,7 +138,7 @@ export const startTitleTips = () => {
       el.removeAttribute("title")
     }
 
-    if (!el || el === owner) {
+    if (!el || el === owner || e.pointerType !== "mouse") {
       return
     }
 
