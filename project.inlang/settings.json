@@ -1,9 +1,23 @@
 {
   "$schema": "https://inlang.com/schema/project-settings",
-  "modules": ["./node_modules/@inlang/plugin-message-format/dist/index.js"],
+  "modules": [
+    "./node_modules/@inlang/plugin-message-format/dist/index.js"
+  ],
   "plugin.inlang.messageFormat": {
-    "pathPattern": "./messages/{locale}.json"
+    "pathPattern": [
+      "./messages/{locale}.json",
+      "./messages/dock/{locale}.json",
+      "./messages/launcher/{locale}.json",
+      "./messages/panel/{locale}.json",
+      "./messages/notices/{locale}.json",
+      "./messages/files/{locale}.json",
+      "./messages/terminal/{locale}.json",
+      "./messages/desktop/{locale}.json"
+    ]
   },
   "baseLocale": "en",
-  "locales": ["en", "ko"]
+  "locales": [
+    "en",
+    "ko"
+  ]
 }
