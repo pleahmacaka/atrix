@@ -45,8 +45,8 @@ pub async fn bluetooth_pair(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn bluetooth_pair_reply(accept: bool, pin: Option<String>) {
-    win::reply(accept, pin);
+pub fn bluetooth_pair_reply(id: String, accept: bool, pin: Option<String>) {
+    win::reply(&id, accept, pin);
 }
 
 #[tauri::command]
@@ -131,7 +131,7 @@ mod win {
     use std::collections::HashMap;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
-    use std::sync::mpsc::{self, Sender};
+    use std::sync::mpsc::{self, Receiver, Sender};
     use std::time::Duration;
 
     use tauri::{AppHandle, Emitter};
@@ -197,9 +197,16 @@ mod win {
         pin: Option<String>,
     }
 
+    struct Pairing {
+        device: String,
+        reply: Option<Sender<Reply>>,
+        canceled: bool,
+    }
+
     static SCAN: Mutex<Option<Scan>> = Mutex::new(None);
+    static SCANNING: Mutex<()> = Mutex::new(());
     static GENERATION: AtomicU64 = AtomicU64::new(0);
-    static REPLY: Mutex<Option<Sender<Reply>>> = Mutex::new(None);
+    static PAIRING: Mutex<Option<Pairing>> = Mutex::new(None);
 
     fn text<E: std::fmt::Display>(error: E) -> String {
         error.to_string()
@@ -435,7 +442,9 @@ mod win {
     }
 
     pub fn start_scan(app: AppHandle) -> Result<(), String> {
-        stop_scan();
+        let _scanning = SCANNING.lock().unwrap();
+
+        halt();
 
         let watcher = DeviceInformation::CreateWatcherWithKindAqsFilterAndAdditionalProperties(
             &selector(false)?,
@@ -515,6 +524,12 @@ mod win {
     }
 
     pub fn stop_scan() {
+        let _scanning = SCANNING.lock().unwrap();
+
+        halt();
+    }
+
+    fn halt() {
         let scan = SCAN.lock().unwrap().take();
 
         if let Some(scan) = scan {
@@ -522,11 +537,27 @@ mod win {
         }
     }
 
+    fn listen(id: &str) -> Option<Receiver<Reply>> {
+        let mut slot = PAIRING.lock().unwrap();
+        let pairing = slot
+            .as_mut()
+            .filter(|pairing| pairing.device == id && !pairing.canceled)?;
+        let (sender, receiver) = mpsc::channel();
+
+        pairing.reply = Some(sender);
+
+        Some(receiver)
+    }
+
     fn requested(
         app: &AppHandle,
         id: &str,
         args: &DevicePairingRequestedEventArgs,
     ) -> windows::core::Result<()> {
+        let Some(receiver) = listen(id) else {
+            return Ok(());
+        };
+
         let kind = args.PairingKind()?;
 
         if kind == DevicePairingKinds::ConfirmOnly {
@@ -562,9 +593,7 @@ mod win {
         };
 
         let deferral = args.GetDeferral()?;
-        let (sender, receiver) = mpsc::channel();
 
-        *REPLY.lock().unwrap() = Some(sender);
         prompt(name);
 
         let reply = receiver.recv_timeout(REPLY_WAIT).unwrap_or_default();
@@ -596,6 +625,28 @@ mod win {
     }
 
     pub fn pair(app: AppHandle, id: &str) -> Result<(), String> {
+        {
+            let mut slot = PAIRING.lock().unwrap();
+
+            if slot.is_some() {
+                return Err("busy".into());
+            }
+
+            *slot = Some(Pairing {
+                device: id.into(),
+                reply: None,
+                canceled: false,
+            });
+        }
+
+        let paired = attempt(app, id);
+
+        PAIRING.lock().unwrap().take();
+
+        paired
+    }
+
+    fn attempt(app: AppHandle, id: &str) -> Result<(), String> {
         let scanned = SCAN
             .lock()
             .unwrap()
@@ -632,7 +683,6 @@ mod win {
             .and_then(|result| result.Status());
 
         let _ = custom.RemovePairingRequested(token);
-        REPLY.lock().unwrap().take();
 
         match status.map_err(text)? {
             DevicePairingResultStatus::Paired | DevicePairingResultStatus::AlreadyPaired => Ok(()),
@@ -640,9 +690,20 @@ mod win {
         }
     }
 
-    pub fn reply(accept: bool, pin: Option<String>) {
-        if let Some(sender) = REPLY.lock().unwrap().take() {
-            let _ = sender.send(Reply { accept, pin });
+    pub fn reply(id: &str, accept: bool, pin: Option<String>) {
+        let mut slot = PAIRING.lock().unwrap();
+
+        let Some(pairing) = slot.as_mut().filter(|pairing| pairing.device == id) else {
+            return;
+        };
+
+        let delivered = pairing
+            .reply
+            .take()
+            .is_some_and(|sender| sender.send(Reply { accept, pin }).is_ok());
+
+        if !delivered && !accept {
+            pairing.canceled = true;
         }
     }
 

@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm"
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { type Backend, datasource } from "#lib/datasource/client.ts"
 import { addDays, DAY_MS, dateKey, dateTimeKey, parseLocal } from "./dates.ts"
+import { allDayDraft } from "./draft.ts"
 import { expand } from "./occurrence.ts"
 import {
   type CalendarEvent,
@@ -48,6 +49,15 @@ export const tags = sqliteTable("tags", {
   hideWhileSharing: integer("hide_while_sharing", {
     mode: "boolean",
   }).notNull(),
+})
+
+const legacyTasks = sqliteTable("tasks", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  done: integer("done", { mode: "boolean" }).notNull(),
+  due: text("due"),
+  createdBy: text("created_by").notNull(),
+  updatedAt: integer("updated_at").notNull(),
 })
 
 type EventRow = typeof events.$inferSelect
@@ -148,6 +158,36 @@ const addColumns = async (
   }
 }
 
+const dueDay = (due: string | null) => {
+  const day = due ? parseLocal(due) : new Date()
+
+  return Number.isNaN(day.getTime()) ? new Date() : day
+}
+
+const moveTasks = async (backend: Backend) => {
+  const db = datasource(backend, CALENDAR)
+
+  for (const task of await db.select().from(legacyTasks)) {
+    const event = allDayDraft(dueDay(task.due), task.title)
+
+    await db
+      .insert(events)
+      .values(
+        toRow({
+          ...event,
+          id: task.id,
+          task: true,
+          done: task.done ? [event.start] : [],
+          createdBy: task.createdBy,
+          updatedAt: task.updatedAt,
+        }),
+      )
+      .onConflictDoNothing()
+  }
+
+  await backend.dsExecute(CALENDAR, "DROP TABLE tasks", [])
+}
+
 const prepare = async (backend: Backend) => {
   if (!(await backend.dsList()).includes(CALENDAR)) {
     await backend.dsCreate(CALENDAR)
@@ -159,6 +199,10 @@ const prepare = async (backend: Backend) => {
   await addColumns(backend, "events", EVENT_COLUMNS)
   await backend.dsExecute(CALENDAR, CREATE_TAGS, [])
   await addColumns(backend, "tags", TAG_COLUMNS)
+
+  if (existing.has("tasks")) {
+    await moveTasks(backend)
+  }
 
   if (!existing.has("tags")) {
     for (const [id, color] of DEFAULT_TAGS) {

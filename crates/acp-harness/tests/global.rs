@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use acp_harness::compose::McpTransport;
 use acp_harness::global::{Discovered, Owner, Roots, Scope, discover};
+use serde_json::json;
 
 fn fixtures() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -81,6 +82,28 @@ fn tools_are_read_from_every_dialect() {
         transport(&found, "project-tool"),
         Some(McpTransport::Stdio { .. })
     ));
+}
+
+#[test]
+fn codex_bearer_token_stays_a_reference_until_the_session() {
+    let found = found();
+    let tool = found
+        .tools
+        .iter()
+        .find(|t| t.server.name == "tokened")
+        .unwrap();
+
+    assert!(matches!(
+        &tool.server.transport,
+        McpTransport::Http { headers, .. } if headers["Authorization"] == "Bearer ${PATH}"
+    ));
+
+    let path = std::env::var("PATH").unwrap();
+
+    assert_eq!(
+        tool.server.acp()["headers"],
+        json!([{ "name": "Authorization", "value": format!("Bearer {path}") }])
+    );
 }
 
 #[test]

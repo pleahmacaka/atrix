@@ -3,7 +3,7 @@
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import * as native from "#lib/desktop/native/index.js"
   import { m } from "#lib/paraglide/messages.js"
-  import { volumeIcon } from "./sound"
+  import { latest, volumeIcon } from "./sound"
 
   type Props = {
     volume: native.Volume
@@ -81,9 +81,19 @@
     return () => clearInterval(timer)
   })
 
+  const senders = new Map<string, (level: number) => void>()
+
   const setLevel = (session: native.AudioSession, level: number) => {
+    const { id } = session
+    let send = senders.get(id)
+
+    if (!send) {
+      send = latest(next => native.setSessionVolume(id, next))
+      senders.set(id, send)
+    }
+
     session.level = level
-    native.setSessionVolume(session.id, level).catch(() => undefined)
+    send(level)
   }
 
   const toggleMute = (session: native.AudioSession) => {

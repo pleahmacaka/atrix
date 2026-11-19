@@ -43,6 +43,7 @@ const PAIR_ERRORS: Record<string, () => string> = {
   timeout: m.dock_bluetooth_pair_timeout,
   auth: m.dock_bluetooth_pair_auth,
   "not-ready": m.dock_bluetooth_pair_not_ready,
+  busy: m.dock_bluetooth_pair_busy,
 }
 
 export const pairError = (code: string) =>

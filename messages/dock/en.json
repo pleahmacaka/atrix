@@ -94,6 +94,7 @@
   "dock_bluetooth_pair_timeout": "The device did not respond in time. Try again.",
   "dock_bluetooth_pair_auth": "Authentication failed. Check the PIN and try again.",
   "dock_bluetooth_pair_not_ready": "The device is not ready to pair. Put it in pairing mode.",
+  "dock_bluetooth_pair_busy": "Another device is pairing. Try again when it finishes.",
   "dock_bluetooth_pair_failed": "The device could not be paired. Try again.",
   "dock_bluetooth_kind_headphones": "Headphones",
   "dock_bluetooth_kind_speaker": "Speaker",

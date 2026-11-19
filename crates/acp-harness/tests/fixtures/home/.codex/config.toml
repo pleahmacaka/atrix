@@ -4,3 +4,7 @@ args = ["--stdio"]
 
 [mcp_servers.remote]
 url = "https://remote.example/mcp"
+
+[mcp_servers.tokened]
+url = "https://tokened.example/mcp"
+bearer_token_env_var = "PATH"

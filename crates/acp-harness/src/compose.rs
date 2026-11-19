@@ -120,7 +120,7 @@ impl McpServer {
     pub fn acp(&self) -> Value {
         let pairs = |map: &BTreeMap<String, String>| -> Vec<Value> {
             map.iter()
-                .map(|(name, value)| json!({ "name": name, "value": value }))
+                .map(|(name, value)| json!({ "name": name, "value": expand(value) }))
                 .collect()
         };
 
@@ -145,4 +145,32 @@ impl McpServer {
             }),
         }
     }
+}
+
+fn expand(value: &str) -> String {
+    let mut out = String::new();
+    let mut rest = value;
+
+    while let Some((before, after)) = rest.split_once("${") {
+        out.push_str(before);
+
+        match after.split_once('}').filter(|(name, _)| env_name(name)) {
+            Some((name, tail)) => {
+                out.push_str(&std::env::var(name).unwrap_or_default());
+                rest = tail;
+            }
+            None => {
+                out.push_str("${");
+                rest = after;
+            }
+        }
+    }
+
+    out.push_str(rest);
+
+    out
+}
+
+fn env_name(name: &str) -> bool {
+    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }

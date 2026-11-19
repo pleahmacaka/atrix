@@ -96,10 +96,17 @@ export const draftFrom = (
   }
 }
 
-const titled = (draft: Draft): Draft => {
-  const token = draft.allDay ? null : parseTimeToken(draft.title)
+const titled = (draft: Draft, saved: string | null): Draft => {
+  const token =
+    draft.allDay || draft.title === saved ? null : parseTimeToken(draft.title)
 
   if (!token) {
+    return draft
+  }
+
+  const title = withoutToken(draft.title, token)
+
+  if (saved !== null && title.trim() === "") {
     return draft
   }
 
@@ -109,13 +116,11 @@ const titled = (draft: Draft): Draft => {
 
   return {
     ...draft,
-    title: withoutToken(draft.title, token),
+    title,
     start: clockAt(token.minutes),
     end: clockAt(token.minutes + length),
   }
 }
-
-export const finalTitle = (draft: Draft) => titled(draft).title.trim()
 
 const timesOf = (draft: Draft) => {
   const day = parseLocal(draft.date)
@@ -130,10 +135,11 @@ const timesOf = (draft: Draft) => {
   return { day, start, end: end < start ? addDays(end, 1) : end }
 }
 
-export const isValid = (draft: Draft) => {
+export const isValid = (input: Draft, saved: string | null) => {
+  const draft = titled(input, saved)
   const { day, start, end } = timesOf(draft)
 
-  if (finalTitle(draft) === "" || Number.isNaN(day.getTime())) {
+  if (draft.title.trim() === "" || Number.isNaN(day.getTime())) {
     return false
   }
 
@@ -148,7 +154,7 @@ export const eventFrom = (
   stored: CalendarEvent | null,
   stamp: number,
 ): CalendarEvent => {
-  const draft = titled(input)
+  const draft = titled(input, stored?.title ?? null)
   const { day, start, end } = timesOf(draft)
   const base = stored ?? blankDraft(day)
 

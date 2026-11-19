@@ -475,8 +475,18 @@ impl Build<'_> {
                 Some(config) => self.files.put(config.join(rel), text, FileKind::Plain),
                 None => self.skip(Item::Instructions, Reason::NoIsolatedHome),
             },
+            Prompt::Flag(_) if batch(&self.launch.command) && text.contains(['\r', '\n']) => {
+                self.skip(Item::Instructions, Reason::BatchCommand)
+            }
             Prompt::Flag(flag) => self.launch.args.extend([flag.to_owned(), text]),
             Prompt::Unknown => self.skip(Item::Instructions, Reason::Unknown),
         }
     }
+}
+
+fn batch(command: &Path) -> bool {
+    cfg!(windows)
+        && command
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("cmd") || e.eq_ignore_ascii_case("bat"))
 }

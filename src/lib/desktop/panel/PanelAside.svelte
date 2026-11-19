@@ -8,12 +8,6 @@ import type { Panel } from "./panel.svelte.ts"
 const SWAP = { duration: 120 }
 
 let { panel }: { panel: Panel } = $props()
-
-const key = $derived(
-  panel.view.kind === "event"
-    ? `${panel.view.id}@${panel.view.date}`
-    : panel.view.kind,
-)
 </script>
 
 <aside
@@ -22,7 +16,7 @@ const key = $derived(
     "rounded-box border border-base-300 bg-base-100",
   ]}
 >
-  {#key panel.detailOpen ? key : "day"}
+  {#key panel.detailOpen ? panel.detailKey : "day"}
     <div class="absolute inset-0 flex flex-col" transition:fade={SWAP}>
       {#if panel.detailOpen}
         <EventDetail {panel} />

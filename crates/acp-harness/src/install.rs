@@ -25,6 +25,13 @@ pub struct Download {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Downloaded {
+    pub run: Invocation,
+
+    pub verified: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Resolution {
     Ready(Invocation),
     NeedsDownload(Download),
@@ -66,11 +73,13 @@ fn invocation(command: PathBuf, target: &BinaryTarget) -> Invocation {
     }
 }
 
-fn runner(program: &str, prefix: &[&str], package: &Package) -> Option<Invocation> {
-    let command = which::which(program).ok()?;
-    let args = prefix
-        .iter()
-        .map(|a| a.to_string())
+type Launcher = (PathBuf, Vec<String>);
+
+fn runner(launcher: Option<Launcher>, prefix: &[&str], package: &Package) -> Option<Invocation> {
+    let (command, lead) = launcher?;
+    let args = lead
+        .into_iter()
+        .chain(prefix.iter().map(|a| a.to_string()))
         .chain([package.package.clone()])
         .chain(package.args.iter().cloned())
         .collect();
@@ -82,8 +91,39 @@ fn runner(program: &str, prefix: &[&str], package: &Package) -> Option<Invocatio
     })
 }
 
-fn command_name(cmd: &str) -> Option<&str> {
-    Path::new(cmd).file_stem()?.to_str()
+fn on_search_path(program: &str) -> Option<Launcher> {
+    Some((which::which(program).ok()?, Vec::new()))
+}
+
+fn npx() -> Option<Launcher> {
+    let shim = which::which("npx").ok()?;
+
+    #[cfg(windows)]
+    if let Some(script) = npx_script(&shim) {
+        return Some(script);
+    }
+
+    Some((shim, Vec::new()))
+}
+
+#[cfg(windows)]
+fn npx_script(shim: &Path) -> Option<Launcher> {
+    let dir = shim.parent()?;
+    let script = dir
+        .join("node_modules")
+        .join("npm")
+        .join("bin")
+        .join("npx-cli.js");
+    let bundled = dir.join("node.exe");
+    let node = if bundled.is_file() {
+        bundled
+    } else {
+        which::which("node").ok()?
+    };
+
+    script
+        .is_file()
+        .then(|| (node, vec![script.to_string_lossy().into_owned()]))
 }
 
 pub fn installed(agent: &Agent, cache: &Path) -> Option<Invocation> {
@@ -92,13 +132,7 @@ pub fn installed(agent: &Agent, cache: &Path) -> Option<Invocation> {
         .ok()?
         .join(command_path(target).ok()?);
 
-    if local.is_file() {
-        return Some(invocation(local, target));
-    }
-
-    let on_path = which::which(command_name(&target.cmd)?).ok()?;
-
-    Some(invocation(on_path, target))
+    local.is_file().then(|| invocation(local, target))
 }
 
 pub fn resolve(agent: &Agent, cache: &Path) -> Result<Resolution> {
@@ -110,11 +144,11 @@ pub fn resolve(agent: &Agent, cache: &Path) -> Result<Resolution> {
     let npx = distribution
         .npx
         .as_ref()
-        .and_then(|p| runner("npx", &["-y", "--prefer-offline"], p));
+        .and_then(|p| runner(npx(), &["-y", "--prefer-offline"], p));
     let uvx = distribution
         .uvx
         .as_ref()
-        .and_then(|p| runner("uvx", &[], p));
+        .and_then(|p| runner(on_search_path("uvx"), &[], p));
 
     if let Some(ready) = npx.or(uvx) {
         return Ok(Resolution::Ready(ready));
@@ -144,7 +178,7 @@ pub fn on_path(command_line: &[&str]) -> Option<Invocation> {
     })
 }
 
-pub async fn download(client: &reqwest::Client, download: &Download) -> Result<Invocation> {
+pub async fn download(client: &reqwest::Client, download: &Download) -> Result<Downloaded> {
     let url = &download.target.archive;
 
     if !url.starts_with("https://") {
@@ -167,28 +201,30 @@ pub async fn download(client: &reqwest::Client, download: &Download) -> Result<I
         }
     }
 
+    let verified = download.target.sha256.is_some();
     let download = download.clone();
+    let run = tokio::task::spawn_blocking(move || place(&download, &bytes)).await??;
 
-    tokio::task::spawn_blocking(move || place(&download, &bytes)).await?
+    Ok(Downloaded { run, verified })
 }
 
-fn place(download: &Download, bytes: &[u8]) -> Result<Invocation> {
+pub fn place(download: &Download, bytes: &[u8]) -> Result<Invocation> {
     let target = &download.target;
     let command = command_path(target)?;
-    let mut partial = download.dir.clone().into_os_string();
+    let parent = download
+        .dir
+        .parent()
+        .ok_or_else(|| Error::UnsafePath(download.dir.display().to_string()))?;
 
-    partial.push(".partial");
+    fs::create_dir_all(parent)?;
 
-    let partial = PathBuf::from(partial);
+    let staging = tempfile::Builder::new()
+        .prefix(".staging-")
+        .tempdir_in(parent)?;
 
-    if partial.exists() {
-        fs::remove_dir_all(&partial)?;
-    }
+    unpack(&target.archive, &command, bytes, staging.path())?;
 
-    fs::create_dir_all(&partial)?;
-    unpack(&target.archive, &command, bytes, &partial)?;
-
-    let program = partial.join(&command);
+    let program = staging.path().join(&command);
 
     if !program.is_file() {
         return Err(Error::MissingBinary(program));
@@ -196,13 +232,19 @@ fn place(download: &Download, bytes: &[u8]) -> Result<Invocation> {
 
     make_executable(&program)?;
 
-    if download.dir.exists() {
+    let installed = download.dir.join(&command);
+
+    if download.dir.exists() && !installed.is_file() {
         fs::remove_dir_all(&download.dir)?;
     }
 
-    fs::rename(&partial, &download.dir)?;
+    if let Err(error) = fs::rename(staging.path(), &download.dir)
+        && !installed.is_file()
+    {
+        return Err(error.into());
+    }
 
-    Ok(invocation(download.dir.join(command), target))
+    Ok(invocation(installed, target))
 }
 
 fn unpack(archive: &str, command: &Path, bytes: &[u8], dir: &Path) -> Result<()> {

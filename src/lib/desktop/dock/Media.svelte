@@ -9,6 +9,7 @@
   import { m } from "#lib/paraglide/messages.js"
   import { dockAwake } from "./dock.svelte"
   import Spectrum from "./Spectrum.svelte"
+  import { sendVolume } from "./sound"
 
   type Props = {
     compact?: boolean
@@ -107,11 +108,11 @@
     }
   }
 
-  const setLevel = async (next: number) => {
+  const setLevel = (next: number) => {
     const clamped = Math.min(1, Math.max(0, Math.round(next * 100) / 100))
 
     volume = { level: clamped, muted: false }
-    await native.setVolume(clamped).catch(() => undefined)
+    sendVolume(clamped)
   }
 
   const onwheel = (e: WheelEvent) => {

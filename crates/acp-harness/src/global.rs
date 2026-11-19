@@ -413,10 +413,10 @@ fn codex(entry: &Value) -> Option<McpTransport> {
     }
 
     let mut headers = map(entry, "http_headers");
-    let token = text(entry, "bearer_token_env_var").and_then(|var| std::env::var(var).ok());
+    let token = text(entry, "bearer_token_env_var").filter(|var| std::env::var_os(var).is_some());
 
-    if let Some(token) = token {
-        headers.insert("Authorization".to_owned(), format!("Bearer {token}"));
+    if let Some(var) = token {
+        headers.insert("Authorization".to_owned(), format!("Bearer ${{{var}}}"));
     }
 
     Some(McpTransport::Http {

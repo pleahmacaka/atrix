@@ -11,3 +11,10 @@ pub mod session;
 
 pub use error::{Error, Result};
 pub use reqwest;
+
+pub fn client(user_agent: &str) -> Result<reqwest::Client> {
+    Ok(reqwest::Client::builder()
+        .user_agent(user_agent)
+        .https_only(true)
+        .build()?)
+}

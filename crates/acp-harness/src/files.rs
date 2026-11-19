@@ -93,8 +93,58 @@ fn owner_only(path: &Path) -> io::Result<()> {
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))
 }
 
-#[cfg(not(unix))]
-fn owner_only(_path: &Path) -> io::Result<()> {
+#[cfg(windows)]
+fn owner_only(path: &Path) -> io::Result<()> {
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Security::Authorization::{SE_FILE_OBJECT, SetNamedSecurityInfoW};
+    use windows::Win32::Security::{
+        ACCESS_ALLOWED_ACE, ACL, ACL_REVISION, AddAccessAllowedAce, DACL_SECURITY_INFORMATION,
+        GetLengthSid, GetTokenInformation, InitializeAcl, PROTECTED_DACL_SECURITY_INFORMATION,
+        TOKEN_QUERY, TOKEN_USER, TokenUser,
+    };
+    use windows::Win32::Storage::FileSystem::FILE_ALL_ACCESS;
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use windows::core::HSTRING;
+
+    unsafe {
+        let mut token = HANDLE::default();
+
+        OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token)?;
+
+        let mut size = 0;
+        let _ = GetTokenInformation(token, TokenUser, None, 0, &mut size);
+        let mut user = vec![0u64; (size as usize).div_ceil(8)];
+        let read = GetTokenInformation(
+            token,
+            TokenUser,
+            Some(user.as_mut_ptr().cast()),
+            size,
+            &mut size,
+        );
+        let _ = CloseHandle(token);
+
+        read?;
+
+        let sid = (*user.as_ptr().cast::<TOKEN_USER>()).User.Sid;
+        let length =
+            size_of::<ACL>() + size_of::<ACCESS_ALLOWED_ACE>() + GetLengthSid(sid) as usize;
+        let mut buffer = vec![0u64; length.div_ceil(8)];
+        let acl = buffer.as_mut_ptr().cast::<ACL>();
+
+        InitializeAcl(acl, length as u32, ACL_REVISION)?;
+        AddAccessAllowedAce(acl, ACL_REVISION, FILE_ALL_ACCESS.0, sid)?;
+        SetNamedSecurityInfoW(
+            &HSTRING::from(path),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            Some(acl),
+            None,
+        )
+        .ok()?;
+    }
+
     Ok(())
 }
 

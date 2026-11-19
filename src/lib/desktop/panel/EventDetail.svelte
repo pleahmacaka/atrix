@@ -4,7 +4,6 @@ import { untrack } from "svelte"
 import { isDone } from "#lib/calendar/occurrence.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
-import { finalTitle } from "./draft.ts"
 import EventFields from "./EventFields.svelte"
 import EventNotes from "./EventNotes.svelte"
 import { editingState } from "./editing.svelte.ts"
@@ -81,11 +80,7 @@ const locked = $derived(event !== null && panel.hasChildren(event))
           }
         }}
         oninput={e => (draft.title = e.currentTarget.value)}
-        onblur={() => {
-          if (finalTitle(draft)) {
-            void editor.commit()
-          }
-        }}
+        onblur={() => void editor.commit()}
         onkeydown={e => {
           if (e.key === "Enter") {
             e.currentTarget.blur()

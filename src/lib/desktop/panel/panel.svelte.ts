@@ -81,6 +81,8 @@ export class Panel {
 
   view = $state<View>({ kind: "day" })
 
+  detailKey = $state("day")
+
   rangeEnd = $state<Date | null>(null)
 
   drag = $state<DragRange | null>(null)
@@ -96,6 +98,10 @@ export class Panel {
   readonly openDoc: (id: string) => void
 
   #creating = false
+
+  #queued: CalendarEvent | null = null
+
+  #mounts = 0
 
   constructor(hosts: () => HostView[], openDoc: (id: string) => void) {
     this.hosts = hosts
@@ -235,9 +241,24 @@ export class Panel {
     return inSeries(event) ? ["border", color.ring] : color.chip
   }
 
-  go = (view: View) => {
+  #keyOf = (view: View) => {
+    if (view.kind === "event") {
+      return `${view.id}@${view.date}`
+    }
+
+    return view.kind === "new" && this.view.kind === "new"
+      ? this.detailKey
+      : `${view.kind}:${this.#mounts++}`
+  }
+
+  go = (view: View, remount = true) => {
     this.asking?.answer(null)
-    this.kept = null
+
+    if (remount) {
+      this.kept = null
+      this.detailKey = this.#keyOf(view)
+    }
+
     this.view = view
   }
 
@@ -282,12 +303,15 @@ export class Panel {
         (event.recurrence === "none" ? null : event.start.slice(0, 10)),
     })
 
-  #reveal = (event: CalendarEvent) =>
-    this.go({
-      kind: "event",
-      id: event.id,
-      date: event.recurrence === "none" ? null : event.start.slice(0, 10),
-    })
+  #reveal = (event: CalendarEvent, remount = true) =>
+    this.go(
+      {
+        kind: "event",
+        id: event.id,
+        date: event.recurrence === "none" ? null : event.start.slice(0, 10),
+      },
+      remount,
+    )
 
   startNew = () =>
     this.go({
@@ -345,25 +369,41 @@ export class Panel {
   }
 
   createEvent = async (next: CalendarEvent) => {
+    if (this.#creating) {
+      this.#queued = next
+
+      return
+    }
+
     const host = next.parentId ? this.#hostOf(next.parentId) : this.#home()
 
-    if (this.#creating || !host) {
+    if (!host) {
       return
     }
 
     this.#creating = true
 
+    let saved = next
+
     try {
       const created = await this.attempt.run(async () => {
-        await putEvent(host, next)
-        await this.#refresh()
+        let latest: CalendarEvent | null = next
+
+        while (latest) {
+          saved = { ...latest, id: next.id }
+          await putEvent(host, saved)
+          await this.#refresh()
+          latest = this.#queued
+          this.#queued = null
+        }
       })
 
       if (created) {
-        this.#reveal(next)
+        this.#reveal(saved, false)
       }
     } finally {
       this.#creating = false
+      this.#queued = null
     }
   }
 

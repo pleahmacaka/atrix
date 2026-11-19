@@ -94,6 +94,7 @@
   "dock_bluetooth_pair_timeout": "장치 응답 시간이 초과되었습니다. 다시 시도하세요.",
   "dock_bluetooth_pair_auth": "인증에 실패했습니다. PIN을 확인한 뒤 다시 시도하세요.",
   "dock_bluetooth_pair_not_ready": "장치가 페어링 대기 상태가 아닙니다. 장치를 페어링 모드로 전환하세요.",
+  "dock_bluetooth_pair_busy": "다른 장치를 페어링하는 중입니다. 페어링이 끝난 뒤 다시 시도하세요.",
   "dock_bluetooth_pair_failed": "장치를 페어링할 수 없습니다. 다시 시도하세요.",
   "dock_bluetooth_kind_headphones": "헤드폰",
   "dock_bluetooth_kind_speaker": "스피커",

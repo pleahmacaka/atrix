@@ -19,9 +19,7 @@ export const editingState = (panel: Panel) => {
   const seed = $derived<Seed>(
     view.kind === "new" ? view : { day: panel.selected, span: 0, parent: null },
   )
-  const keepKey = untrack(() =>
-    view.kind === "event" ? `${view.id}@${view.date}` : "new",
-  )
+  const keepKey = untrack(() => panel.detailKey)
   const baseline = () => draftFrom(event, seed, DEFAULT_REMINDER)
   const kept = untrack(() => panel.kept)
 
@@ -71,7 +69,7 @@ export const editingState = (panel: Panel) => {
   const commit = async () => {
     const current = event
 
-    if (!isValid(draft) || matches(draft)) {
+    if (!isValid(draft, current?.title ?? null) || matches(draft)) {
       return
     }
 

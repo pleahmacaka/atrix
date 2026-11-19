@@ -157,10 +157,7 @@ fn bin_dir() -> PathBuf {
 }
 
 fn client() -> Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
-        .user_agent("atrix")
-        .build()
-        .map_err(acp_harness::Error::from)?)
+    Ok(acp_harness::client("atrix")?)
 }
 
 fn relative(path: &str) -> Result<PathBuf> {
@@ -186,13 +183,13 @@ async fn registry_of(state: &Harnesses, refresh: bool) -> Result<Registry> {
     let cache = cache_file();
     let loaded = match refresh {
         true => None,
-        false => registry::load(&cache)?,
+        false => registry::load(&cache),
     };
     let fresh = match loaded {
         Some(cached) => cached,
         None => match registry::refresh(&client()?, &cache).await {
             Ok((fetched, _)) => fetched,
-            Err(e) => registry::load(&cache)?.ok_or(e)?,
+            Err(e) => registry::load(&cache).ok_or(e)?,
         },
     };
 
@@ -335,11 +332,22 @@ fn companion(adapter: &Adapter) -> bool {
 
 fn quoted(run: &Invocation, extra: &[&str]) -> String {
     let program = format!("\"{}\"", run.command.display());
+    let args = run
+        .args
+        .iter()
+        .map(String::as_str)
+        .chain(extra.iter().copied())
+        .map(|arg| {
+            if arg.contains(char::is_whitespace) {
+                format!("\"{arg}\"")
+            } else {
+                arg.to_owned()
+            }
+        });
 
     [program]
         .into_iter()
-        .chain(run.args.iter().cloned())
-        .chain(extra.iter().map(|a| a.to_string()))
+        .chain(args)
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -593,6 +601,7 @@ fn reason(reason: Reason) -> &'static str {
         Reason::TransportUnsupported => "transportUnsupported",
         Reason::NotAdvertised => "notAdvertised",
         Reason::CommandNotFound => "commandNotFound",
+        Reason::BatchCommand => "batchCommand",
     }
 }
 
@@ -717,7 +726,7 @@ async fn resolve(state: &Harnesses, adapter: &'static Adapter) -> Result<Invocat
     let found = spawn_blocking(move || presence(adapter, agent.as_ref())).await?;
     let run = match found {
         Presence::Installed { run, .. } | Presence::Runner(run) => run,
-        Presence::Download(download) => resolver::download(&client()?, &download).await?,
+        Presence::Download(download) => resolver::download(&client()?, &download).await?.run,
         Presence::Missing(_) => return Err(Error::code("harness_missing", adapter.id)),
     };
 

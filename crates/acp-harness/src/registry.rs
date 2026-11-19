@@ -138,12 +138,12 @@ pub enum Freshness {
     NotModified,
 }
 
-pub fn load(cache: &Path) -> Result<Option<Registry>> {
-    Ok(read_cache(cache)?.map(|c| c.registry))
+pub fn load(cache: &Path) -> Option<Registry> {
+    read_cache(cache).map(|c| c.registry)
 }
 
 pub async fn refresh(client: &reqwest::Client, cache: &Path) -> Result<(Registry, Freshness)> {
-    let cached = read_cache(cache)?;
+    let cached = read_cache(cache);
     let mut request = client.get(REGISTRY_URL);
 
     if let Some(c) = &cached {
@@ -189,12 +189,8 @@ fn header(headers: &HeaderMap, name: reqwest::header::HeaderName) -> Option<Stri
         .map(str::to_owned)
 }
 
-fn read_cache(path: &Path) -> Result<Option<Cached>> {
-    match std::fs::read(path) {
-        Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.into()),
-    }
+fn read_cache(path: &Path) -> Option<Cached> {
+    serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
 async fn write_cache(path: &Path, cached: &Cached) -> Result<()> {

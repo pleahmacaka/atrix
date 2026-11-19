@@ -56,6 +56,7 @@ pub enum Reason {
     TransportUnsupported,
     NotAdvertised,
     CommandNotFound,
+    BatchCommand,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

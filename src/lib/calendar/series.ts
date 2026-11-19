@@ -131,6 +131,7 @@ const editOne = (
   shift: null,
   exdates: [],
   until: null,
+  done: series.done.includes(seriesDate) ? [draft.start.slice(0, 10)] : [],
   seriesId: series.id,
   originalDate: seriesDate,
   updatedAt: stamp,
@@ -146,13 +147,14 @@ const moveFrom = (
   stamp: number,
 ) => {
   const shiftDays = dayDelta(occurrence.start, draft.start)
+  const carried = (days: string[]) =>
+    days.filter(day => day >= from).map(day => rekey(day, shiftDays))
   const moved: CalendarEvent = {
     ...draft,
     ...placed(draft, addDays(parseLocal(from), shiftDays)),
     id: following ? crypto.randomUUID() : series.id,
-    exdates: series.exdates
-      .filter(day => day >= from)
-      .map(day => rekey(day, shiftDays)),
+    exdates: carried(series.exdates),
+    done: carried(series.done),
     until: series.until && rekey(series.until, shiftDays),
     updatedAt: stamp,
   }

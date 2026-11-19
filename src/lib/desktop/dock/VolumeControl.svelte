@@ -7,7 +7,7 @@
   import * as native from "#lib/desktop/native/index.js"
   import { m } from "#lib/paraglide/messages.js"
   import Mixer from "./Mixer.svelte"
-  import { volumeIcon } from "./sound"
+  import { sendVolume, volumeIcon } from "./sound"
 
   type Props = {
     volume: native.Volume
@@ -49,11 +49,11 @@
     volume.muted ? m.dock_volume_muted() : m.dock_volume_level({ percent: level }),
   )
 
-  const apply = async (next: number) => {
+  const apply = (next: number) => {
     const clamped = Math.min(1, Math.max(0, Math.round(next * 100) / 100))
 
     onchange({ level: clamped, muted: false })
-    await native.setVolume(clamped).catch(() => undefined)
+    sendVolume(clamped)
   }
 
   const onwheel = (e: WheelEvent) => {

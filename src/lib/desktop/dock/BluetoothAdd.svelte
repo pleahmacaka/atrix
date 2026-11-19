@@ -61,7 +61,7 @@
       bluetoothScan(false).catch(() => undefined)
 
       if (pairing) {
-        bluetoothPairReply(false).catch(() => undefined)
+        bluetoothPairReply(pairing, false).catch(() => undefined)
       }
     }
   })
@@ -93,10 +93,14 @@
   }
 
   const answer = (accept: boolean) => {
-    const provided = prompt?.kind === "provide" ? pin.trim() : undefined
+    if (!prompt) {
+      return
+    }
 
+    const provided = prompt.kind === "provide" ? pin.trim() : undefined
+
+    bluetoothPairReply(prompt.id, accept, provided).catch(() => undefined)
     prompt = null
-    bluetoothPairReply(accept, provided).catch(() => undefined)
   }
 
   const focus: Attachment<HTMLInputElement> = node => {

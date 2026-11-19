@@ -33,8 +33,15 @@ export type PairingPrompt = {
 export const bluetoothDevices = () =>
   invoke<BluetoothDevice[]>("bluetooth_devices")
 
-export const bluetoothScan = (on: boolean) =>
-  invoke<void>("bluetooth_scan", { on })
+let scanning: Promise<unknown> = Promise.resolve()
+
+export const bluetoothScan = (on: boolean) => {
+  const call = scanning.then(() => invoke<void>("bluetooth_scan", { on }))
+
+  scanning = call.catch(() => undefined)
+
+  return call
+}
 
 export const onBluetoothScan = (run: (devices: BluetoothDevice[]) => void) =>
   listen<BluetoothDevice[]>("bluetooth-scan", e => run(e.payload))
@@ -45,8 +52,8 @@ export const bluetoothPair = (id: string) =>
 export const onPairingPrompt = (run: (prompt: PairingPrompt) => void) =>
   listen<PairingPrompt>("bluetooth-pairing", e => run(e.payload))
 
-export const bluetoothPairReply = (accept: boolean, pin?: string) =>
-  invoke<void>("bluetooth_pair_reply", { accept, pin: pin ?? null })
+export const bluetoothPairReply = (id: string, accept: boolean, pin?: string) =>
+  invoke<void>("bluetooth_pair_reply", { id, accept, pin: pin ?? null })
 
 export const bluetoothUnpair = (id: string) =>
   invoke<void>("bluetooth_unpair", { id })
