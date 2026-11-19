@@ -7,12 +7,12 @@ import { m } from "#lib/paraglide/messages.js"
 import { modelIcon } from "#lib/store/gateways.svelte.ts"
 
 let {
-  ids,
+  models,
   enabled,
   ontoggle,
   class: extra,
 }: {
-  ids: string[]
+  models: string[]
   enabled?: string[]
   ontoggle?: (next: string[] | undefined) => void
   class?: ClassValue
@@ -20,35 +20,33 @@ let {
 
 let filter = $state("")
 
-const shown = $derived(
-  ids.filter(id => id.toLowerCase().includes(filter.trim().toLowerCase())),
-)
+const shown = $derived(models.filter(id => id.toLowerCase().includes(filter.trim().toLowerCase())))
 
 const on = (id: string) => !enabled || enabled.includes(id)
 
+const count = $derived(enabled ? enabled.length : models.length)
+
 const toggle = (id: string) => {
-  const current = enabled ?? ids
+  const current = enabled ?? models
   const next = on(id) ? current.filter(x => x !== id) : [...current, id]
 
-  ontoggle?.(next.length === ids.length ? undefined : next)
+  ontoggle?.(next.length === models.length ? undefined : next)
 }
-
-const count = $derived(enabled ? enabled.length : ids.length)
 </script>
 
 <div class={["flex flex-col gap-1.5", extra]}>
   <div class="flex items-center gap-2">
     <SearchField bind:value={filter} placeholder={m.gateway_model_filter()} class="min-w-0 flex-1" />
     <span class="shrink-0 text-xs text-base-content/55 tabular-nums">
-      {m.gateway_models_enabled({ count, total: ids.length })}
+      {m.gateway_models_enabled({ count, total: models.length })}
     </span>
     {#if ontoggle}
       <button
         type="button"
         class="btn btn-ghost btn-xs shrink-0"
-        onclick={() => ontoggle(count === ids.length ? [] : undefined)}
+        onclick={() => ontoggle(count === models.length ? [] : undefined)}
       >
-        {count === ids.length ? m.gateway_models_none() : m.gateway_models_all()}
+        {count === models.length ? m.gateway_models_none() : m.gateway_models_all()}
       </button>
     {/if}
   </div>

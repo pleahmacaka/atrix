@@ -9,15 +9,11 @@ pub fn tree(command: Command) -> CommandWrap {
     let mut command = CommandWrap::from(command);
 
     #[cfg(windows)]
-    {
-        use process_wrap::std::{CreationFlags, JobObject};
-        use windows::Win32::System::Threading::CREATE_NO_WINDOW;
-
-        // JobObject overwrites creation_flags; CreationFlags keeps CREATE_NO_WINDOW
-        command
-            .wrap(CreationFlags(CREATE_NO_WINDOW))
-            .wrap(JobObject);
-    }
+    command
+        .wrap(process_wrap::std::CreationFlags(
+            windows::Win32::System::Threading::CREATE_NO_WINDOW,
+        ))
+        .wrap(process_wrap::std::JobObject);
 
     #[cfg(unix)]
     command.wrap(process_wrap::std::ProcessGroup::leader());
@@ -26,18 +22,14 @@ pub fn tree(command: Command) -> CommandWrap {
 }
 
 pub fn hidden(program: impl AsRef<OsStr>) -> Command {
-    let command = Command::new(program);
+    let mut command = Command::new(program);
 
     #[cfg(windows)]
-    let command = {
+    {
         use std::os::windows::process::CommandExt;
 
-        use windows::Win32::System::Threading::CREATE_NO_WINDOW;
-
-        let mut command = command;
-        command.creation_flags(CREATE_NO_WINDOW.0);
-        command
-    };
+        command.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0);
+    }
 
     command
 }

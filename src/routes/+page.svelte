@@ -15,12 +15,21 @@ import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { handleContextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { onNewChatFloat } from "#lib/store/drag.ts"
+import { nav } from "#lib/store/nav.svelte.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { RAIL_REM, shell } from "#lib/store/shell.svelte.ts"
 import { handleShortcut } from "#lib/store/shortcuts.ts"
 
 const FOCUSABLE =
   "button:not(:disabled), [href], input:not(:disabled), select, textarea, [tabindex]:not([tabindex='-1'])"
+
+$effect(() => {
+  void [nav.agent, nav.doc, nav.table, nav.harness]
+
+  if (shell.narrow) {
+    shell.drawer = false
+  }
+})
 
 if (desktop) {
   onNewChatFloat(() => {
@@ -82,10 +91,10 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 />
 
 <div class="window-frame flex h-dvh flex-col bg-base-200" data-frame>
-<div class="flex min-h-0 flex-1 gap-2 p-2 max-sm:gap-0 max-sm:p-0" data-shell>
+<div class="flex min-h-0 flex-1 gap-2 p-2 max-sm:gap-0 max-sm:p-1" data-shell>
   {#if docked && (!shell.collapsed || shell.compact)}
     <div
-      class="flex min-h-0 shrink-0 transition-width duration-140"
+      class="flex min-h-0 shrink-0 transition-width"
       style:width="{shell.collapsed ? RAIL_REM : shell.width}rem"
     >
       <Sidebar rail={shell.collapsed} />
@@ -95,7 +104,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
         type="button"
         class={[
           "relative -mx-1.5 my-2 w-1 shrink-0 cursor-col-resize rounded-full",
-          "transition-colors duration-140 hover:bg-primary/60 active:bg-primary",
+          "transition-colors hover:bg-primary/60 active:bg-primary",
         ]}
         aria-label={m.shell_resize_pane()}
         data-resize

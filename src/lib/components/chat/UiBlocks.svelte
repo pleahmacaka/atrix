@@ -4,11 +4,12 @@ import type { Block, ShownBlock } from "#lib/chat/blocks.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
+import { CARD } from "./card.ts"
 import DataTable from "./DataTable.svelte"
 import FileBlock from "./FileBlock.svelte"
 import FormBlock from "./FormBlock.svelte"
-import { CARD } from "./labels.ts"
 import QueryBlock from "./QueryBlock.svelte"
+import Thumbnail from "./Thumbnail.svelte"
 
 let {
   blocks,
@@ -56,12 +57,7 @@ const titleOf = (block: ShownBlock) =>
   {#if block.type === "card"}
     <p class="text-sm whitespace-pre-line text-base-content/80">{block.body}</p>
   {:else if block.type === "image"}
-    <img
-      src={block.url}
-      alt={block.alt}
-      class="max-h-80 w-full rounded-field object-contain"
-      loading="lazy"
-    />
+    <Thumbnail url={block.url} name={block.alt} />
   {:else if block.type === "keyvalue"}
     <dl class="flex max-h-80 flex-col gap-1 overflow-y-auto text-sm">
       {#each block.items as item, i (i)}

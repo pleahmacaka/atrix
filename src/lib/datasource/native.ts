@@ -5,8 +5,6 @@ const WRITES = new Set<DatasourceRequest["op"]>([
   "ds.create",
   "ds.delete",
   "ds.execute",
-  "ds.sync.set",
-  "ds.sync",
   "ds.knowledge.set",
 ])
 

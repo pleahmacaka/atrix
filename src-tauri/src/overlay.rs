@@ -8,10 +8,9 @@ const MARGIN: f64 = 24.0;
 
 fn corner(app: &AppHandle, width: f64, height: f64) -> Option<(f64, f64)> {
     let monitor = app.primary_monitor().ok()??;
-    let scale = monitor.scale_factor();
     let area = monitor.work_area();
-    let origin = area.position.to_logical::<f64>(scale);
-    let size = area.size.to_logical::<f64>(scale);
+    let origin = area.position.to_logical::<f64>(monitor.scale_factor());
+    let size = area.size.to_logical::<f64>(monitor.scale_factor());
 
     Some((
         origin.x + size.width - width - MARGIN,
@@ -30,15 +29,13 @@ pub async fn overlay_open(app: AppHandle, x: Option<f64>, y: Option<f64>) -> Res
         .app
         .windows
         .iter()
-        .find(|w| w.label == LABEL)
-        .ok_or("overlay window is not configured")?
-        .clone();
-
+        .find(|window| window.label == LABEL)
+        .cloned()
+        .ok_or("overlay window is not configured")?;
     let position = match (x, y) {
         (Some(x), Some(y)) => Some((x, y)),
         _ => corner(&app, config.width, config.height),
     };
-
     let mut builder = WebviewWindowBuilder::from_config(&app, &config)?;
 
     if let Some((x, y)) = position {

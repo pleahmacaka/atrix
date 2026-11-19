@@ -149,7 +149,7 @@ $effect(() => {
             {@attach stickBottom}
           >
             <div
-              class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-3 pt-6 pb-2"
+              class="content-zoom chat-column relative mx-auto flex w-full flex-col gap-4 px-3 pt-6 pb-2"
               data-cornered={cornered || undefined}
               data-quote={sessionId}
             >
@@ -195,7 +195,7 @@ $effect(() => {
                   <UiBlocks blocks={segment.item.blocks} onAction={reply} onSave={saveApp} />
                 {/if}
               {/each}
-              <QueuedPrompts {queued} images={view.queuedImages} />
+              <QueuedPrompts {queued} images={view.queuedImages} pending={view.pendingImages} />
               {#if view.running && !view.ask}
                 <RunningStatus
                   since={view.since}

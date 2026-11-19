@@ -1,31 +1,3 @@
-export const pinToggles = (scroller: HTMLElement) => {
-  let held: { summary: Element; top: number } | null = null
-
-  const press = (e: Event) => {
-    const summary =
-      e.target instanceof Element ? e.target.closest("summary") : null
-
-    held = summary
-      ? { summary, top: summary.getBoundingClientRect().top }
-      : null
-  }
-
-  const toggled = () => {
-    if (held) {
-      scroller.scrollTop += held.summary.getBoundingClientRect().top - held.top
-      held = null
-    }
-  }
-
-  scroller.addEventListener("click", press, true)
-  scroller.addEventListener("toggle", toggled, true)
-
-  return () => {
-    scroller.removeEventListener("click", press, true)
-    scroller.removeEventListener("toggle", toggled, true)
-  }
-}
-
 const NEAR_REM = 4
 
 export const stickBottom = (scroller: HTMLElement) => {
@@ -54,5 +26,33 @@ export const stickBottom = (scroller: HTMLElement) => {
   return () => {
     grown.disconnect()
     scroller.removeEventListener("scroll", scrolled)
+  }
+}
+
+export const pinToggles = (scroller: HTMLElement) => {
+  let held: { summary: Element; top: number } | null = null
+
+  const press = (e: Event) => {
+    const summary =
+      e.target instanceof Element ? e.target.closest("summary") : null
+
+    held = summary
+      ? { summary, top: summary.getBoundingClientRect().top }
+      : null
+  }
+
+  const toggled = () => {
+    if (held) {
+      scroller.scrollTop += held.summary.getBoundingClientRect().top - held.top
+      held = null
+    }
+  }
+
+  scroller.addEventListener("click", press, true)
+  scroller.addEventListener("toggle", toggled, true)
+
+  return () => {
+    scroller.removeEventListener("click", press, true)
+    scroller.removeEventListener("toggle", toggled, true)
   }
 }

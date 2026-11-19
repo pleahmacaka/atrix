@@ -1,10 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/server"
 import { z } from "zod"
-import type { EventInput } from "#lib/calendar/events.ts"
+import type { EventInput } from "#lib/calendar/store.ts"
 import { type Block, SHOW_UI, showUiInput } from "#lib/chat/blocks.ts"
 import { type OpenArgs, openArgs } from "#lib/p2p/protocol.ts"
 import type { Caller } from "./bridge.ts"
-import { BRIDGE_NAME } from "./toolNames.ts"
+import { newServer } from "./toolNames.ts"
 
 export type Reachable = {
   id: string
@@ -141,7 +140,7 @@ const callerOf = (caller: Caller) => {
 }
 
 export const atrixTools = (caller: Caller, desk: Desk) => {
-  const server = new McpServer({ name: BRIDGE_NAME, version: "0.1.0" })
+  const server = newServer()
 
   server.registerTool(
     SHOW_UI,
@@ -378,6 +377,7 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
       description: [
         "Add an event to the user's Atrix calendar. For an all-day event set allDay",
         "and pass dates; `end` is exclusive, so a one-day event ends the next day.",
+        "Set recurrence to repeat it.",
       ].join(" "),
       inputSchema: z.object({
         title: z.string().trim().min(1).max(200),
@@ -385,6 +385,24 @@ export const atrixTools = (caller: Caller, desk: Desk) => {
         end: instant,
         allDay: z.boolean().optional(),
         note: z.string().max(4000).optional(),
+        recurrence: z
+          .enum(["none", "daily", "weekdays", "weekly", "monthly", "yearly"])
+          .optional(),
+        until: z.iso
+          .date()
+          .optional()
+          .describe("Last date of a recurring series, YYYY-MM-DD"),
+        shift: z
+          .enum(["next", "previous"])
+          .optional()
+          .describe(
+            "Move weekly, monthly or yearly occurrences that land on a weekend or holiday",
+          ),
+        tags: z
+          .array(z.string().trim().min(1).max(60))
+          .max(20)
+          .optional()
+          .describe("Tag names; missing tags are created"),
       }),
     },
     async event => json(await calendar.add(callerOf(caller), event)),

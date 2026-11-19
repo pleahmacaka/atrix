@@ -21,6 +21,7 @@ const BRANDS: Record<string, string> = {
   "deepseek-acp": "simple-icons:deepseek",
   "hermes-agent": "lucide:feather",
   "oh-my-pi": "lucide:pi",
+  "pi-acp": "lucide:pi",
   omo: "lucide:sparkles",
   "zcode-acp": "thesvg:zhipu",
   devin: "logos:devin",
@@ -40,8 +41,6 @@ const BRANDS: Record<string, string> = {
   "qwen-code": "simple-icons:qwen",
   "grok-build": "thesvg:grok-xai",
 }
-
-export const OFFICIAL = new Set(["claude-acp", "codex-acp", "gemini"])
 
 export const brandIcon = (base: string) => BRANDS[base] ?? "lucide:bot"
 

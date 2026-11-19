@@ -1,5 +1,4 @@
 <script lang="ts">
-
 import { hasTimeline, type Turn } from "#lib/chat/session.ts"
 import { m } from "#lib/paraglide/messages.js"
 
@@ -19,9 +18,9 @@ const track = () => {
   let current: string | null = null
 
   for (const turn of turns) {
-    const el = elementOf(turn.id)
+    const element = elementOf(turn.id)
 
-    if (el && el.getBoundingClientRect().top <= line) {
+    if (element && element.getBoundingClientRect().top <= line) {
       current = turn.id
     }
   }
@@ -60,8 +59,7 @@ const jump = (id: string) =>
 {#if hasTimeline(turns)}
   <nav
     class={[
-      "absolute inset-y-6 right-4 z-10 hidden w-8 content-center",
-      "pointer-fine:@4xl:grid",
+      "pointer-fine:@4xl:grid absolute inset-y-6 right-4 z-10 hidden w-8 content-center",
     ]}
     style:grid-template-rows="repeat({turns.length}, minmax(0, 0.75rem))"
     aria-label={m.chat_timeline()}
@@ -77,7 +75,7 @@ const jump = (id: string) =>
         >
           <span
             class={[
-              "h-0.5 rounded-full transition-width-color duration-140",
+              "h-0.5 rounded-full transition-[width,background-color] duration-140",
               active === turn.id
                 ? "w-5 bg-base-content"
                 : "w-3 bg-base-content/30 group-hover/tick:w-5 group-hover/tick:bg-base-content/70",

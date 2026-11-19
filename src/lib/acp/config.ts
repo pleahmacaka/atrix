@@ -62,10 +62,16 @@ const LAYOUTS: Record<HarnessKind, Layout> = {
 
 const SKILL_FILE = "SKILL.md"
 
+const SKILLS = "skills"
+
+const FORBIDDEN = ["/", "\\", ":"]
+
 const readText = (path: string) => native<string | null>("read_text", { path })
 
 const writeText = (path: string, content: string) =>
   native("write_text", { path, content })
+
+const parseJson = (raw: string) => objectSchema.safeParse(JSON.parse(raw)).data
 
 export const envFor = (kind: HarnessKind, dir: string) => ({
   [LAYOUTS[kind].env]: dir,
@@ -82,11 +88,7 @@ const profilesFile = async (home: string) =>
 export const loadProfiles = async (home: string): Promise<Profile[]> => {
   const raw = await readText(await profilesFile(home))
 
-  if (!raw) {
-    return []
-  }
-
-  return profilesSchema.safeParse(JSON.parse(raw)).data ?? []
+  return raw ? (profilesSchema.safeParse(JSON.parse(raw)).data ?? []) : []
 }
 
 export const saveProfiles = async (home: string, profiles: Profile[]) =>
@@ -103,11 +105,14 @@ const claudeState = (target: Target) =>
 const readState = async (target: Target) => {
   const raw = await readText(await claudeState(target))
 
-  return raw ? objectSchema.safeParse(JSON.parse(raw)).data : undefined
+  return raw ? parseJson(raw) : undefined
 }
 
+const serversOf = async (target: Target) =>
+  parseJson(JSON.stringify((await readState(target))?.mcpServers ?? {}))
+
 const readMcp = async (target: Target) =>
-  JSON.stringify((await readState(target))?.mcpServers ?? {}, null, 2)
+  JSON.stringify(await serversOf(target), null, 2)
 
 const writeMcp = async (target: Target, content: string) => {
   const servers = objectSchema.safeParse(JSON.parse(content))
@@ -125,12 +130,10 @@ const writeMcp = async (target: Target, content: string) => {
 }
 
 const checkName = (name: string) => {
-  const bad =
-    !name ||
-    name.startsWith(".") ||
-    ["/", "\\", ":"].some(c => name.includes(c))
+  const valid =
+    !!name && !name.startsWith(".") && !FORBIDDEN.some(c => name.includes(c))
 
-  if (bad) {
+  if (!valid) {
     throw new Error(m.error_skill_name())
   }
 }
@@ -138,7 +141,7 @@ const checkName = (name: string) => {
 const skillPath = async (target: Target, name: string) => {
   checkName(name)
 
-  return join(await rootOf(target), "skills", name, SKILL_FILE)
+  return join(await rootOf(target), SKILLS, name, SKILL_FILE)
 }
 
 export const readConfig = async (target: Target): Promise<HarnessConfig> => {
@@ -153,7 +156,7 @@ export const readConfig = async (target: Target): Promise<HarnessConfig> => {
     })),
   )
   const names = await native<string[]>("list_dirs", {
-    path: await join(root, "skills"),
+    path: await join(root, SKILLS),
   })
   const skills: Skill[] = await Promise.all(
     names
@@ -198,7 +201,7 @@ export const writeSkill = async (
 export const removeSkill = async (target: Target, name: string) => {
   checkName(name)
   await native("remove_path", {
-    path: await join(await rootOf(target), "skills", name),
+    path: await join(await rootOf(target), SKILLS, name),
   })
 }
 
@@ -214,12 +217,12 @@ export const createProfileDir = async (
   const skipped: string[] = []
 
   for (const item of items) {
-    const missed = await native<string[]>("copy_path", {
-      from: await join(global, item),
-      to: await join(dir, item),
-    })
-
-    skipped.push(...missed)
+    skipped.push(
+      ...(await native<string[]>("copy_path", {
+        from: await join(global, item),
+        to: await join(dir, item),
+      })),
+    )
   }
 
   if (kind === "claude" && fork) {

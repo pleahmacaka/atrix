@@ -23,6 +23,31 @@ const page = $derived(
 const local = $derived(hostById(LOCAL))
 
 const hosts = $derived(hostList().map(h => h.view))
+
+let above = $state(false)
+
+let below = $state(false)
+
+const edges = (node: HTMLElement) => {
+  const measure = () => {
+    above = node.scrollTop > 0
+    below = node.scrollTop + node.clientHeight < node.scrollHeight - 1
+  }
+  const observer = new ResizeObserver(measure)
+
+  measure()
+  node.addEventListener("scroll", measure, { passive: true })
+  observer.observe(node)
+
+  for (const child of node.children) {
+    observer.observe(child)
+  }
+
+  return () => {
+    node.removeEventListener("scroll", measure)
+    observer.disconnect()
+  }
+}
 </script>
 
 {#if rail}
@@ -32,7 +57,14 @@ const hosts = $derived(hostList().map(h => h.view))
     {/if}
   </div>
 {:else}
-  <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+  <div
+    class={[
+      "min-h-0 flex-1 overflow-x-hidden overflow-y-auto",
+      above && "mask-t-from-94%",
+      below && "mask-b-from-94%",
+    ]}
+    {@attach edges}
+  >
     {#if page.id === "chat"}
       <SpaceList />
     {:else if page.id === "agent"}

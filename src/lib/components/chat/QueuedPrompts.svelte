@@ -4,19 +4,33 @@ import { splitQueued } from "#lib/acp/items.ts"
 import { m } from "#lib/paraglide/messages.js"
 import Attachments from "./Attachments.svelte"
 
-let { queued, images = {} }: { queued: string[]; images?: Record<string, string> } =
-  $props()
+let {
+  queued,
+  images = {},
+  pending = {},
+}: {
+  queued: string[]
+  images?: Record<string, string>
+  pending?: Record<string, string[]>
+} = $props()
 
 const expanded = new SvelteSet<number>()
 
 const entries = $derived(
-  queued.map(text =>
-    splitQueued(
+  queued.map(text => {
+    const entry = splitQueued(
       text,
       number => m.chat_queued_image({ number }),
       number => images[number],
-    ),
-  ),
+    )
+    const optimistic = (pending[text] ?? []).map((url, i) => ({
+      name: m.chat_queued_image({ number: String(i + 1) }),
+      mimeType: url.slice(5, url.indexOf(";")),
+      url,
+    }))
+
+    return { ...entry, files: [...entry.files, ...optimistic] }
+  }),
 )
 </script>
 

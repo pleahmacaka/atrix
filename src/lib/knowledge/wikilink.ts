@@ -8,6 +8,9 @@ type Options = {
   open: (id: string) => void
 }
 
+const labelOf = (options: Options, id: string, alias: string | null) =>
+  alias || options.title(id) || id
+
 export const WikiLink = Node.create<Options>({
   name: "wikilink",
   group: "inline",
@@ -37,12 +40,11 @@ export const WikiLink = Node.create<Options>({
 
   renderHTML({ node }) {
     const { id, alias } = node.attrs
-    const label = alias || this.options.title(id) || id
 
     return [
       "a",
       { "data-kg": id, "data-alias": alias, class: "wikilink", href: "#" },
-      label,
+      labelOf(this.options, id, alias),
     ]
   },
 
@@ -54,7 +56,7 @@ export const WikiLink = Node.create<Options>({
       dom.className = "wikilink"
       dom.href = "#"
       dom.dataset.kg = id
-      dom.textContent = alias || this.options.title(id) || id
+      dom.textContent = labelOf(this.options, id, alias)
       dom.addEventListener("click", e => {
         e.preventDefault()
         this.options.open(id)

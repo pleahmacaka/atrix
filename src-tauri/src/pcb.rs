@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
@@ -13,6 +12,8 @@ use crate::fetch::sha256_hex;
 use crate::platform;
 
 const MANIFEST: &str = "pcb.toml";
+
+const DERIVED: &str = "manifest.json";
 
 #[derive(Deserialize)]
 struct Manifest {
@@ -47,28 +48,10 @@ pub struct Project {
     boards: Vec<Board>,
 }
 
-fn manifest(root: &Path) -> Result<Manifest> {
-    let text = fs::read_to_string(root.join(MANIFEST))?;
-
-    toml::from_str(&text).map_err(|e| Error::code("pcb_manifest", e.message()))
-}
-
-fn inside(root: &str, relative: &str) -> Result<PathBuf> {
-    let root = PathBuf::from(root);
-    let path = Path::new(relative);
-    let plain = path
-        .components()
-        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
-
-    if !root.join(MANIFEST).is_file() || !plain {
-        return Err(Error::code("path_not_allowed", relative));
-    }
-
-    Ok(root.join(path))
-}
-
-fn file_sha(path: &Path) -> Result<String> {
-    Ok(sha256_hex(&fs::read(path)?))
+#[derive(Serialize)]
+pub struct Outputs {
+    boards: Vec<(String, String)>,
+    assembly: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -81,16 +64,44 @@ struct Stamp {
     sha256: String,
 }
 
+fn manifest(root: &Path) -> Result<Manifest> {
+    let text = fs::read_to_string(root.join(MANIFEST))?;
+
+    toml::from_str(&text).map_err(|e| Error::code("pcb_manifest", e.message()))
+}
+
+fn inside(root: &str, relative: &str) -> Result<PathBuf> {
+    let root = PathBuf::from(root);
+    let path = Path::new(relative);
+    let plain = path
+        .components()
+        .all(|component| matches!(component, Component::Normal(_) | Component::CurDir));
+
+    if !root.join(MANIFEST).is_file() || !plain {
+        return Err(Error::code("path_not_allowed", relative));
+    }
+
+    Ok(root.join(path))
+}
+
+fn text(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn file_sha(path: &Path) -> Result<String> {
+    Ok(sha256_hex(&fs::read(path)?))
+}
+
 fn derived_sha(out: &Path) -> Option<String> {
-    let text = fs::read_to_string(out.join("manifest.json")).ok()?;
+    let text = fs::read_to_string(out.join(DERIVED)).ok()?;
 
     serde_json::from_str::<Derived>(&text)
         .ok()
-        .map(|d| d.source.sha256)
+        .map(|derived| derived.source.sha256)
 }
 
 fn modified(path: &Path) -> Option<SystemTime> {
-    fs::metadata(path).and_then(|m| m.modified()).ok()
+    fs::metadata(path).and_then(|meta| meta.modified()).ok()
 }
 
 fn cache_root(app: &AppHandle, root: &str) -> Result<PathBuf> {
@@ -108,7 +119,6 @@ fn bun(scripts: &Path, script: &str, args: &[&str]) -> Result<()> {
     let output = platform::hidden(bun)
         .arg(scripts.join(script))
         .args(args)
-        .stdin(Stdio::null())
         .output()
         .map_err(|e| Error::code("pcb_derive_failed", e))?;
 
@@ -125,6 +135,23 @@ fn bun(scripts: &Path, script: &str, args: &[&str]) -> Result<()> {
     ))
 }
 
+fn main_board(manifest: &Manifest, board: &Board) -> bool {
+    manifest
+        .board
+        .first()
+        .is_some_and(|first| first.name == board.name)
+}
+
+fn board_out(cache: &Path, manifest: &Manifest, board: &Board) -> PathBuf {
+    let project = &manifest.project.name;
+
+    if main_board(manifest, board) {
+        cache.join(project)
+    } else {
+        cache.join(format!("{project}-{}", board.name))
+    }
+}
+
 fn derive_board(
     scripts: &Path,
     cache: &Path,
@@ -132,24 +159,24 @@ fn derive_board(
     manifest: &Manifest,
     board: &Board,
 ) -> Result<PathBuf> {
-    let project = &manifest.project.name;
-    let main = manifest.board.first().is_some_and(|b| b.name == board.name);
-    let out = if main {
-        cache.join(project)
-    } else {
-        cache.join(format!("{project}-{}", board.name))
-    };
+    let out = board_out(cache, manifest, board);
     let pcb = inside(root, &board.pcb)?;
 
     if derived_sha(&out) == Some(file_sha(&pcb)?) {
         return Ok(out);
     }
 
-    let source = pcb.parent().unwrap_or(&pcb).to_string_lossy().into_owned();
-    let out_arg = out.to_string_lossy().into_owned();
-    let mut args = vec![source.as_str(), "--project", project, "--out", &out_arg];
+    let source = text(pcb.parent().unwrap_or(&pcb));
+    let out_arg = text(&out);
+    let mut args = vec![
+        source.as_str(),
+        "--project",
+        &manifest.project.name,
+        "--out",
+        &out_arg,
+    ];
 
-    if !main {
+    if !main_board(manifest, board) {
         args.extend(["--board", &board.name]);
     }
 
@@ -175,21 +202,17 @@ fn derive_assembly(
 
     let spec = inside(root, assembly)?;
     let out = cache.join(format!("{}-assembly", manifest.project.name));
-    let built = modified(&out.join("manifest.json"));
+    let built = modified(&out.join(DERIVED));
     let newer_board = boards
         .iter()
-        .any(|b| modified(&b.join("manifest.json")) > built);
+        .any(|board| modified(&board.join(DERIVED)) > built);
 
     if derived_sha(&out) == Some(file_sha(&spec)?) && !newer_board {
         return Ok(Some(out));
     }
 
-    let source = spec
-        .parent()
-        .unwrap_or(&spec)
-        .to_string_lossy()
-        .into_owned();
-    let out_arg = out.to_string_lossy().into_owned();
+    let source = text(spec.parent().unwrap_or(&spec));
+    let out_arg = text(&out);
 
     bun(
         scripts,
@@ -206,16 +229,9 @@ fn derive_assembly(
     Ok(Some(out))
 }
 
-#[derive(Serialize)]
-pub struct Outputs {
-    boards: Vec<(String, String)>,
-    assembly: Option<String>,
-}
-
 static DERIVE: Mutex<()> = Mutex::new(());
 
 fn derive(app: &AppHandle, root: &str, assembly: bool) -> Result<Outputs> {
-    // concurrent kicad-cli exports of one board write truncated GLBs
     let _guard = DERIVE.lock()?;
     let parsed = manifest(Path::new(root))?;
     let cache = cache_root(app, root)?;
@@ -223,21 +239,20 @@ fn derive(app: &AppHandle, root: &str, assembly: bool) -> Result<Outputs> {
     let dirs = parsed
         .board
         .iter()
-        .map(|b| derive_board(&scripts, &cache, root, &parsed, b))
+        .map(|board| derive_board(&scripts, &cache, root, &parsed, board))
         .collect::<Result<Vec<_>>>()?;
     let assembly = if assembly {
         derive_assembly(&scripts, &cache, root, &parsed, &dirs)?
     } else {
         None
     };
-    let text = |p: &Path| p.to_string_lossy().into_owned();
 
     Ok(Outputs {
         boards: parsed
             .board
             .iter()
             .zip(&dirs)
-            .map(|(b, d)| (b.name.clone(), text(d)))
+            .map(|(board, dir)| (board.name.clone(), text(dir)))
             .collect(),
         assembly: assembly.as_deref().map(text),
     })
@@ -271,7 +286,7 @@ pub fn pcb_project(cwd: String) -> Result<Option<Project>> {
     let parsed = manifest(root)?;
 
     Ok(Some(Project {
-        root: root.to_string_lossy().into_owned(),
+        root: text(root),
         name: parsed.project.name,
         title: parsed.project.title,
         assembly: parsed.project.assembly,

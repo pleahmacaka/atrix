@@ -36,6 +36,8 @@ pub enum Frame {
         guild: Option<String>,
         channel_id: String,
         channel_name: Option<String>,
+        parent_id: Option<String>,
+        direct: bool,
         author: String,
         author_id: String,
         content: String,
@@ -129,15 +131,11 @@ fn without_mentions(content: &str, own: Owner, roles: &HashSet<Id<RoleMarker>>) 
     .to_owned()
 }
 
-async fn run(
-    mut shard: Shard,
-    sink: Channel<Frame>,
-    slot: Slot,
-    client: Arc<Client>,
-    owner: Owner,
-) {
-    let wanted =
-        EventTypeFlags::READY | EventTypeFlags::GUILD_CREATE | EventTypeFlags::MESSAGE_CREATE;
+async fn run(mut shard: Shard, sink: Channel<Frame>, slot: Slot, client: Arc<Client>) {
+    let wanted = EventTypeFlags::READY
+        | EventTypeFlags::GUILD_CREATE
+        | EventTypeFlags::MESSAGE_CREATE
+        | EventTypeFlags::THREAD_CREATE;
     let mut guilds = HashMap::new();
     let mut channels = HashMap::new();
     let mut own = None;
@@ -173,27 +171,41 @@ async fn run(
                     );
 
                     for channel in guild.channels.into_iter().chain(guild.threads) {
-                        channels.insert(channel.id, channel.name.unwrap_or_default());
+                        channels.insert(
+                            channel.id,
+                            (channel.name.unwrap_or_default(), channel.parent_id),
+                        );
                     }
 
                     guilds.insert(guild.id, guild.name);
                 }
             }
+            Event::ThreadCreate(thread) => {
+                channels.insert(
+                    thread.id,
+                    (thread.name.clone().unwrap_or_default(), thread.parent_id),
+                );
+            }
             Event::MessageCreate(message) => {
                 let Some(me) = own else {
                     continue;
                 };
+                let direct = message.guild_id.is_none();
                 let mentioned = message.mentions.iter().any(|u| u.id == me)
                     || message.mention_roles.iter().any(|r| own_roles.contains(r));
 
-                if message.author.bot || message.author.id != owner || !mentioned {
+                if message.author.bot || !(mentioned || direct) {
                     continue;
                 }
+
+                let known = channels.get(&message.channel_id);
 
                 let _ = sink.send(Frame::Message {
                     guild: message.guild_id.and_then(|g| guilds.get(&g).cloned()),
                     channel_id: message.channel_id.to_string(),
-                    channel_name: channels.get(&message.channel_id).cloned(),
+                    channel_name: known.map(|(name, _)| name.clone()),
+                    parent_id: known.and_then(|(_, parent)| parent.map(|p| p.to_string())),
+                    direct,
                     author: message
                         .member
                         .as_ref()
@@ -252,7 +264,6 @@ pub async fn channel_start(
         channel,
         channels.http.clone(),
         client,
-        owner,
     )));
 
     Ok(())
@@ -269,6 +280,8 @@ pub async fn channel_send(
     channels: State<'_, Channels>,
     channel_id: String,
     text: String,
+    mention: Option<String>,
+    reply_to: Option<String>,
 ) -> Result<()> {
     let (http, owner) = channels
         .http
@@ -276,21 +289,32 @@ pub async fn channel_send(
         .unwrap()
         .clone()
         .ok_or("channel_not_connected")?;
+    let target = match mention {
+        Some(user) => owner_of(&user)?,
+        None => owner,
+    };
     let mentions = AllowedMentions {
-        users: vec![owner],
+        users: vec![target],
+        replied_user: true,
         ..AllowedMentions::default()
     };
-    let id = channel_id
-        .trim()
-        .parse()
-        .ok()
-        .and_then(Id::new_checked)
-        .ok_or_else(|| Error::code("channel_id_invalid", &channel_id))?;
+    let id = channel_of(&channel_id)?;
+    let reference = reply_to
+        .as_deref()
+        .and_then(|m| m.trim().parse().ok())
+        .and_then(Id::new_checked);
 
-    for part in chunks(&format!("<@{owner}> {text}")) {
-        http.create_message(id)
-            .content(&part)
-            .allowed_mentions(Some(&mentions))
+    for (i, part) in chunks(&format!("<@{target}> {text}")).iter().enumerate() {
+        let request = http
+            .create_message(id)
+            .content(part)
+            .allowed_mentions(Some(&mentions));
+        let request = match reference {
+            Some(m) if i == 0 => request.reply(m),
+            _ => request,
+        };
+
+        request
             .await
             .map_err(|e| Error::code("channel_send_failed", e))?;
     }

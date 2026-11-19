@@ -93,24 +93,24 @@ const RETRY_MS = 1000
 const web = (): Transport => {
   let node: WebNode | null = null
 
-  const ready = () => {
+  const run = async <T>(work: (node: WebNode) => T | Promise<T>) => {
     if (!node) {
       throw new Error("net_stopped:")
     }
 
-    return node
-  }
-
-  const run = async <T>(work: (node: WebNode) => T | Promise<T>) => {
     try {
-      return await work(ready())
+      return await work(node)
     } catch (e) {
       throw new Error(messageOf(e))
     }
   }
 
   const next = async (on: (event: NetEvent) => void) => {
-    const event = netEvent.parse(JSON.parse(await ready().next_event()))
+    if (!node) {
+      throw new Error("net_stopped:")
+    }
+
+    const event = netEvent.parse(JSON.parse(await run(n => n.next_event())))
 
     if (event.type === "peers") {
       local.data.net = { ...local.data.net, peers: event.peers }
@@ -133,7 +133,7 @@ const web = (): Transport => {
 
   return {
     start: async (info, on) => {
-      const mod = (await import(/* @vite-ignore */ MODULE)) as WebModule
+      const mod: WebModule = await import(/* @vite-ignore */ MODULE)
 
       await mod.default()
 

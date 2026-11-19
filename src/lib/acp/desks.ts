@@ -1,5 +1,14 @@
 import { appFile, appKeyOf } from "#lib/apps/app.ts"
-import { addEvent, listEvents, toIso } from "#lib/calendar/events.ts"
+import { holidays } from "#lib/calendar/calendar.svelte.ts"
+import {
+  addEvent,
+  listEvents,
+  listTags,
+  putTag,
+  toIso,
+  toRow,
+} from "#lib/calendar/store.ts"
+import { newTag, tagLabel } from "#lib/calendar/tags.ts"
 import { isBound, sendToChannel } from "#lib/channels/store.svelte.ts"
 import type { Backend } from "#lib/datasource/client.ts"
 import { datasourceCall, isWrite } from "#lib/datasource/native.ts"
@@ -39,9 +48,6 @@ export class Datasources {
     "ds.tables": r => this.call(r),
     "ds.query": r => this.call(r),
     "ds.execute": r => this.call(r),
-    "ds.sync.get": r => this.call(r),
-    "ds.sync.set": r => this.call(r),
-    "ds.sync": r => this.call(r),
     "ds.knowledge.get": r => this.call(r),
     "ds.knowledge.set": r => this.call(r),
   }
@@ -169,14 +175,67 @@ export const appsDesk = (knowledge: Knowledge, actorOf: ActorOf): AppsDesk => ({
   },
 })
 
+const tagIds = async (backend: Backend, names: string[]) => {
+  const known = await listTags(backend)
+  const ids: string[] = []
+
+  for (const name of names) {
+    const found = known.find(t => tagLabel(t) === name || t.name === name)
+    const tag = found ?? newTag(known, name)
+
+    if (!found) {
+      await putTag(backend, tag)
+      known.push(tag)
+    }
+
+    ids.push(tag.id)
+  }
+
+  return ids
+}
+
 export const calendarDesk = (
   data: Datasources,
   actorOf: ActorOf,
 ): CalendarDesk => ({
-  list: (from, to) =>
-    listEvents(data.backend, new Date(toIso(from)), new Date(toIso(to))),
-  add: (sessionId, event) =>
-    addEvent(data.backend, event, actorOf(sessionId).agent ?? sessionId),
+  list: async (from, to) => {
+    await holidays.load()
+
+    const [found, known] = await Promise.all([
+      listEvents(
+        data.backend,
+        new Date(toIso(from)),
+        new Date(toIso(to)),
+        holidays.isHoliday,
+      ),
+      listTags(data.backend),
+    ])
+
+    return found.map(e => {
+      const row = toRow(e)
+
+      return {
+        id: e.id,
+        title: e.title,
+        start: row.start,
+        end: row.end,
+        allDay: e.allDay,
+        note: e.notes,
+        recurrence: e.recurrence,
+        until: e.until,
+        seriesDate: e.seriesDate,
+        shiftedFrom: e.shiftedFrom,
+        tags: known.filter(t => e.tags.includes(t.id)).map(tagLabel),
+        createdBy: e.createdBy,
+      }
+    })
+  },
+  add: async (sessionId, { tags, ...event }) =>
+    addEvent(
+      data.backend,
+      { ...event, tags: await tagIds(data.backend, tags ?? []) },
+      actorOf(sessionId).agent ?? sessionId,
+    ),
 })
 
 export const channelDesk: ChannelDesk = {

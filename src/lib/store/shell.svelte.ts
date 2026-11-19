@@ -1,33 +1,35 @@
 import { MediaQuery } from "svelte/reactivity"
 import { z } from "zod"
 import { settings } from "./settings.svelte.ts"
-import { persisted } from "./stored.svelte.ts"
+import { persist, persisted } from "./stored.svelte.ts"
 
 const KEY = "shell"
 
-const MIN_REM = 14
-
-const MAX_REM = 30
-
-const DEFAULT_REM = 18
+const BOUNDS = { min: 14, max: 30, base: 18 }
 
 export const RAIL_REM = 3
 
 const savedSchema = z.object({
-  width: z.number().catch(DEFAULT_REM),
+  width: z.number().catch(BOUNDS.base),
   hidden: z.boolean().catch(false),
 })
+
+const saved = persisted(KEY, savedSchema.parse({}), savedSchema)
+
+const save = (width: number, rail: boolean) => {
+  try {
+    persist(KEY, { width, hidden: rail }, savedSchema.parse({}))
+  } catch {}
+}
 
 class Shell {
   #wide = new MediaQuery("(min-width: 64rem)")
 
   #narrow = new MediaQuery("(max-width: 40rem)")
 
-  #saved = persisted(KEY, savedSchema.parse({}), savedSchema)
+  width = $state(saved.width)
 
-  width = $state(this.#saved.width)
-
-  rail = $state(this.#saved.hidden)
+  rail = $state(saved.hidden)
 
   drawer = $state(false)
 
@@ -47,7 +49,7 @@ class Shell {
 
   get compact() {
     return (
-      this.collapsed && !this.narrow && settings.sidebarCollapse === "compact"
+      !this.docked && !this.narrow && settings.sidebarCollapse === "compact"
     )
   }
 
@@ -56,12 +58,12 @@ class Shell {
   }
 
   resize = (rem: number) => {
-    this.width = Math.round(Math.min(MAX_REM, Math.max(MIN_REM, rem)))
-    this.#save()
+    this.width = Math.round(Math.min(BOUNDS.max, Math.max(BOUNDS.min, rem)))
+    save(this.width, this.rail)
   }
 
   reset = () => {
-    this.resize(DEFAULT_REM)
+    this.resize(BOUNDS.base)
   }
 
   toggle = () => {
@@ -74,7 +76,7 @@ class Shell {
 
     this.rail = !this.rail
     this.drawer = false
-    this.#save()
+    save(this.width, this.rail)
   }
 
   openDrawer = () => {
@@ -82,27 +84,13 @@ class Shell {
     this.peek = true
   }
 
-  leaveDrawer = () => {
-    if (this.peek) {
-      this.drawer = false
-    }
-  }
-
   closeDrawer = () => {
     this.drawer = false
   }
 
-  #save = () => {
-    try {
-      localStorage.setItem(
-        KEY,
-        JSON.stringify({
-          width: this.width,
-          hidden: this.rail,
-        }),
-      )
-    } catch {
-      return
+  leaveDrawer = () => {
+    if (this.peek) {
+      this.drawer = false
     }
   }
 }

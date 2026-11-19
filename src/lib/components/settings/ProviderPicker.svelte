@@ -1,119 +1,113 @@
 <script lang="ts">
-import { servesKind } from "#lib/acp/provider.ts"
-import IconButton from "#lib/components/ui/IconButton.svelte"
-import Popover from "#lib/components/ui/Popover.svelte"
+import { untrack } from "svelte"
+import { type ProviderKind, servesKind } from "#lib/acp/provider.ts"
 import Select from "#lib/components/ui/Select.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import type { HarnessInfo, HarnessKind } from "#lib/p2p/protocol.ts"
+import { DEFAULT_PROVIDER, type HarnessInfo, type ProviderChoice } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { activeGateways } from "#lib/store/gatewayCatalog.ts"
+import { activeGateways, findGateway } from "#lib/store/gatewayCatalog.ts"
 import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
 
 let {
   host,
-  harness,
-  kind,
+  harness = null,
+  kind = null,
   run,
+  apply,
 }: {
   host: HostView
-  harness: HarnessInfo
-  kind: HarnessKind
+  harness?: HarnessInfo | null
+  kind?: ProviderKind | null
   run: (work: () => Promise<unknown>) => void
+  apply: (choice: ProviderChoice | null) => Promise<unknown>
 } = $props()
 
-const DEFAULT = ""
+const INHERIT = ""
 
-let open = $state(false)
+const NATIVE = "native"
 
-let gateway = $state(DEFAULT)
+const fieldsOf = (choice: ProviderChoice | null | undefined) =>
+  choice?.source === "native"
+    ? { gateway: NATIVE, model: "" }
+    : { gateway: choice?.gateway ?? INHERIT, model: choice?.model ?? "" }
 
-let model = $state("")
+const saved = $derived(
+  !harness
+    ? fieldsOf(host.state?.defaultProvider)
+    : harness.providerSource === "default"
+      ? fieldsOf(null)
+      : fieldsOf(harness.provider),
+)
 
-let dirty = $state(false)
+let gateway = $state(untrack(() => saved.gateway))
 
-const toggle = (next: boolean) => {
-  open = next
+let model = $state(untrack(() => saved.model))
 
-  if (next) {
-    dirty = !!harness.provider && !harness.providerActive
+const fallback = $derived(host.state?.defaultProvider ?? null)
 
-    const saved = harness.provider?.gateway ?? DEFAULT
+const fallbackGateway = $derived(fallback?.source === "gateway" ? findGateway(fallback.gateway) : undefined)
 
-    gateway = gateways.some(g => g.id === saved) ? saved : DEFAULT
-    model = harness.provider?.model ?? ""
-  }
-}
+const usable = $derived(!!fallbackGateway && !!kind && servesKind(kind, fallbackGateway))
 
-const gateways = $derived(activeGateways().filter(g => servesKind(kind, g)))
+const gateways = $derived(activeGateways().filter(g => !harness || (kind && servesKind(kind, g))))
 
 const picked = $derived(gateways.find(g => g.id === gateway))
 
+const inheritDetail = $derived(
+  !fallbackGateway
+    ? m.harness_provider_off()
+    : usable
+      ? m.harness_provider_fallback({ gateway: fallbackGateway.name, model: fieldsOf(fallback).model })
+      : m.harness_provider_unusable(),
+)
+
 const options = $derived([
-  { value: DEFAULT, label: m.harness_provider_default(), icon: "lucide:house" },
+  harness
+    ? { value: INHERIT, label: m.harness_provider_inherit(), detail: inheritDetail, icon: "lucide:arrow-down-to-line" }
+    : { value: INHERIT, label: m.harness_provider_off(), icon: "lucide:circle-off" },
   ...gateways.map(g => ({ value: g.id, label: g.name, icon: gatewayIcon(g) })),
+  ...(harness ? [{ value: NATIVE, label: m.harness_provider_native(), icon: "lucide:house" }] : []),
 ])
 
-const save = () => {
-  open = false
-  run(() =>
-    host.setProvider(
-      harness.id,
-      picked && model.trim() ? { gateway: picked.id, model: model.trim() } : null,
-    ),
-  )
-}
+const dirty = $derived(gateway !== saved.gateway || (!!picked && model.trim() !== saved.model))
+
+const choice = (): ProviderChoice | null =>
+  picked ? { source: "gateway", gateway: picked.id, model: model.trim() } : gateway === NATIVE ? { source: "native" } : null
+
+const save = () => run(() => apply(choice()))
 </script>
 
-<Popover label={m.harness_provider()} placement="bottom-end" width="w-80" bind:open={() => open, toggle}>
-  {#snippet trigger(p)}
-    <IconButton
-      icon={harness.provider ? "lucide:plug-zap" : "lucide:plug"}
-      label={m.harness_provider()}
-      tone={harness.provider && !harness.providerActive ? "warning" : undefined}
-      {...p}
+<form
+  class="flex min-w-0 flex-wrap items-center justify-end gap-2"
+  onsubmit={e => {
+    e.preventDefault()
+    save()
+  }}
+>
+  <Select
+    class="w-52 max-sm:w-full"
+    label={harness ? m.harness_provider() : m.harness_default_provider()}
+    {options}
+    bind:value={gateway}
+  />
+  {#if picked}
+    <input
+      class="input input-sm w-52 max-sm:w-full"
+      list={`models-${harness?.id ?? DEFAULT_PROVIDER}`}
+      placeholder={m.harness_provider_model()}
+      aria-label={m.harness_provider_model()}
+      bind:value={model}
     />
-  {/snippet}
-  <form
-    class="flex flex-col gap-3 p-3"
-    onsubmit={e => {
-      e.preventDefault()
-      save()
-    }}
-  >
-    {#if harness.provider && !harness.providerActive}
-      <p class="text-xs text-warning">{m.harness_provider_inactive()}</p>
-    {/if}
-    <Select
-      label={m.harness_provider()}
-      {options}
-      value={gateway}
-      onchange={v => {
-        gateway = v
-        dirty = true
-      }}
-    />
-    {#if picked}
-      <input
-        class="input input-sm w-full"
-        list={`models-${harness.id}`}
-        placeholder={m.harness_provider_model()}
-        aria-label={m.harness_provider_model()}
-        bind:value={model}
-        oninput={() => (dirty = true)}
-      />
-      <datalist id={`models-${harness.id}`}>
-        {#each picked.models ?? [] as id (id)}
-          <option value={id}></option>
-        {/each}
-      </datalist>
-      {#if kind === "claude"}
-        <p class="text-xs text-warning">{m.harness_provider_browser()}</p>
-      {/if}
-    {:else if gateways.length === 0}
-      <p class="text-xs text-base-content/60">{m.harness_provider_none()}</p>
-    {/if}
-    <button type="submit" class="btn btn-primary btn-sm" disabled={!dirty || (!!picked && !model.trim())}>
-      {m.common_save()}
-    </button>
-  </form>
-</Popover>
+    <datalist id={`models-${harness?.id ?? DEFAULT_PROVIDER}`}>
+      {#each picked.models ?? [] as id (id)}
+        <option value={id}></option>
+      {/each}
+    </datalist>
+  {/if}
+  <button type="submit" class="btn btn-primary btn-sm" disabled={!dirty || (!!picked && !model.trim())}>
+    {m.common_save()}
+  </button>
+</form>
+{#if harness && picked && kind === "claude"}
+  <p class="w-full text-end text-xs text-warning">{m.harness_provider_browser()}</p>
+{/if}

@@ -89,7 +89,7 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
           <span>{m.pcb_fea_load()}</span>
         </div>
         <div class="flex gap-2">
-          <div class="legend h-40 w-4 rounded-field"></div>
+          <div class="h-40 w-4 rounded-field bg-linear-to-t from-violet-900 via-teal-600 to-yellow-300"></div>
           <div class="flex flex-col justify-between tabular-nums">
             <span>{range[1]} MPa</span>
             <span>{(range[0] + range[1]) / 2}</span>
@@ -172,21 +172,3 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
     </aside>
   {/if}
 </div>
-
-<style>
-  .legend {
-    background: linear-gradient(
-      to top,
-      #440154,
-      #482878,
-      #3e4989,
-      #31688e,
-      #26828e,
-      #1f9e89,
-      #35b779,
-      #6ece58,
-      #b5de2b,
-      #fde725
-    );
-  }
-</style>

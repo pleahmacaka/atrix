@@ -484,6 +484,19 @@ export class ExternalSessions {
     }
   }
 
+  #pending = (id: string, text: string, images: string[]) => {
+    const view = this.#watches.get(id)?.view
+
+    if (!view || (images.length === 0 && !view.pendingImages?.[text])) {
+      return
+    }
+
+    const { [text]: _old, ...rest } = view.pendingImages ?? {}
+
+    view.pendingImages = images.length > 0 ? { ...rest, [text]: images } : rest
+    this.onItems(view)
+  }
+
   type = async (id: string, text: string, attachments: StoredAttachment[]) => {
     const pid = this.#pid(id)
 
@@ -511,18 +524,28 @@ export class ExternalSessions {
 
     if (pasted.length === 0) {
       this.#showQueue(id, queue => queue.push(text))
+      this.#pending(id, text, images)
     }
 
     try {
+      const saved: string[] = []
+
       for (const a of attachments) {
         if (a.kind === "image") {
-          await pasteImage(pid, a.data)
+          await pasteImage(pid, a.data).catch(async () => {
+            saved.push(
+              await native<string>("save_attachment", {
+                name: a.name,
+                data: a.data,
+              }),
+            )
+          })
         }
       }
 
       await native("terminal_type", {
         pid,
-        text: [text, ...pasted].filter(Boolean).join("\n\n"),
+        text: [text, ...pasted, ...saved].filter(Boolean).join("\n\n"),
       })
 
       const confirm = watch?.source.confirm
@@ -544,6 +567,7 @@ export class ExternalSessions {
       entry.at = Date.now()
     } catch (e) {
       entry.at = 0
+      this.#pending(id, text, [])
 
       this.#showQueue(id, queue => {
         const at = queue.lastIndexOf(text)
@@ -648,19 +672,24 @@ export class ExternalSessions {
     this.#watches.set(id, watch)
 
     await this.#serial(watch, async () => {
-      if (source.head) {
-        const lines = await native<string[]>("grep_head", {
-          path,
-          tail: TAIL_BYTES,
-          needles: source.head.needles,
-        })
+      const head = source.head
+        ? native<string[]>("grep_head", {
+            path,
+            tail: TAIL_BYTES,
+            needles: source.head.needles,
+          })
+        : null
+      const tail = this.#lines(watch)
 
-        this.#feed(watch, lines, source.head.apply)
+      tail.catch(() => {})
+
+      if (source.head && head) {
+        this.#feed(watch, await head, source.head.apply)
 
         watch.owned = false
       }
 
-      await this.#pull(watch)
+      await this.#pull(watch, tail)
     })
 
     return watch
@@ -749,7 +778,10 @@ export class ExternalSessions {
         continue
       }
 
-      const [{ images }] = watch.pasted.splice(own, 1)
+      const [{ text: typed, images }] = watch.pasted.splice(own, 1)
+      const { [typed]: _done, ...pending } = view.pendingImages ?? {}
+
+      view.pendingImages = pending
       const shown = numbers.flatMap((n, i) =>
         images[i] ? [[n, images[i]] as const] : [],
       )
@@ -777,8 +809,8 @@ export class ExternalSessions {
       .catch(() => {})
   }
 
-  #pull = async (watch: Watch) => {
-    const { lines, offset } = await this.#lines(watch)
+  #pull = async (watch: Watch, read = this.#lines(watch)) => {
+    const { lines, offset } = await read
 
     watch.offset = offset
 

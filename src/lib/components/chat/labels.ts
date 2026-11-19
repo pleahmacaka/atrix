@@ -50,13 +50,6 @@ export const STATUS_ICONS: Record<string, string> = {
   failed: "lucide:circle-x",
 }
 
-export const CARD = "min-w-0 rounded-box border border-base-300 bg-base-100 p-4"
-
-export const BUBBLE = [
-  "max-w-xl min-w-0 rounded-box bg-inset px-4 py-2",
-  "break-keep whitespace-pre-wrap wrap-anywhere",
-]
-
 export const REVEAL = [
   "text-base-content/50 transition-opacity",
   "pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100",

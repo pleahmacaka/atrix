@@ -1,49 +1,52 @@
 <script lang="ts">
-import { untrack } from "svelte"
-import {
-  addDays,
-  calendar,
-  format,
-  pick,
-  sameDay,
-  TONES,
-} from "#lib/calendar/calendar.svelte.ts"
-import { listShared, type SharedEvent } from "#lib/calendar/shared.ts"
+import { calendar, holidays, pick, sameDay } from "#lib/calendar/calendar.svelte.ts"
+import { addDays, parseLocal, startOfDay } from "#lib/calendar/dates.ts"
+import { clock, shortDay } from "#lib/calendar/format.ts"
+import { type SharedEvent, watchShared } from "#lib/calendar/shared.svelte.ts"
+import type { EventTag } from "#lib/calendar/store.ts"
+import { colorOf } from "#lib/calendar/tags.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 let { hosts }: { hosts: HostView[] } = $props()
 
+const HORIZON_DAYS = 30
+
 let events = $state<SharedEvent[]>([])
 
-$effect(() => {
-  for (const host of hosts) {
-    void host.dsChange
-  }
+let tags = $state<EventTag[]>([])
 
-  untrack(async () => {
+watchShared(
+  () => {
     const now = new Date()
 
-    events = await listShared(hosts, now, addDays(now, 30)).catch(() => [])
-  })
-})
+    return {
+      hosts,
+      from: now,
+      to: addDays(now, HORIZON_DAYS),
+      isHoliday: holidays.isHoliday,
+    }
+  },
+  work => work().catch(() => {}),
+  (found, known) => {
+    events = found
+    tags = known
+  },
+)
 
-const label = (e: SharedEvent) => {
-  const start = new Date(e.start)
-  const day = format(start, { month: "short", day: "numeric", weekday: "short" })
+const label = (event: SharedEvent) => {
+  const day = shortDay(parseLocal(event.start))
 
-  return e.allDay
-    ? day
-    : `${day} ${format(start, { hour: "numeric", minute: "2-digit" })}`
+  return event.allDay ? day : `${day} ${clock(event.start)}`
 }
 </script>
 
 <div class="flex flex-col gap-1 p-2">
   {#if events.length > 0}
     <ul class="flex flex-col" aria-label={m.calendar_upcoming()}>
-      {#each events as event (event.id)}
-        {@const start = new Date(event.start)}
+      {#each events as event (`${event.host.id}:${event.id}:${event.start}`)}
+        {@const start = parseLocal(event.start)}
         <li>
           <button
             type="button"
@@ -54,10 +57,10 @@ const label = (e: SharedEvent) => {
                 ? "bg-primary/8 text-primary"
                 : "hover:bg-base-content/8",
             ]}
-            onclick={() => pick(addDays(start, 0))}
+            onclick={() => pick(startOfDay(start))}
           >
             <span
-              class={["mt-1.5 size-2 shrink-0 rounded-full", TONES[event.color]]}
+              class={["mt-1.5 size-2 shrink-0 rounded-full", colorOf(tags, event)]}
             ></span>
             <span class="flex min-w-0 flex-1 flex-col">
               <span class="truncate">{event.title}</span>

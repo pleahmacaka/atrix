@@ -17,20 +17,20 @@ const detectAll = () => {
   }
 }
 
+const detectWhenVisible = () => {
+  if (document.visibilityState === "visible") {
+    detectAll()
+  }
+}
+
 export const autoDetect = () => {
   untrack(detectAll)
 
-  const visible = () => {
-    if (document.visibilityState === "visible") {
-      detectAll()
-    }
-  }
-
   window.addEventListener("focus", detectAll)
-  document.addEventListener("visibilitychange", visible)
+  document.addEventListener("visibilitychange", detectWhenVisible)
 
   return () => {
     window.removeEventListener("focus", detectAll)
-    document.removeEventListener("visibilitychange", visible)
+    document.removeEventListener("visibilitychange", detectWhenVisible)
   }
 }

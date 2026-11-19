@@ -215,8 +215,12 @@ export class Host {
     option: r => this.#sessions.configure(r.sessionId, r.configId, r.value),
     "harness.toggle": r => this.#harnesses.toggle(r.harness, r.enabled),
     "harness.provider": async r => {
-      if (this.#harnesses.setProvider(r.harness, r.provider)) {
-        this.#sessions.retire(r.harness)
+      if (!this.#harnesses.setProvider(r.harness, r.provider)) {
+        return null
+      }
+
+      for (const id of this.#harnesses.affectedBy(r.harness)) {
+        this.#sessions.retire(id)
       }
 
       return null
@@ -322,5 +326,6 @@ export class Host {
     loose: this.#spaces.loose,
     pinned: this.#spaces.pinned,
     turns: this.#spaces.turns,
+    defaultProvider: this.#harnesses.defaultProvider(),
   })
 }

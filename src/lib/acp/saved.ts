@@ -70,12 +70,17 @@ export const isNamed = (sessionId: string) =>
 
 const saveKept = (all: Kept[]) => persist(SESSIONS, all, [])
 
+const keptOf = (sessionId: string) =>
+  kept().find(k => k.sessionId === sessionId)
+
+const without = (sessionId: string) =>
+  kept().filter(k => k.sessionId !== sessionId)
+
 export const keep = (session: Kept) => {
-  const all = kept()
-  const known = all.find(k => k.sessionId === session.sessionId)
+  const known = keptOf(session.sessionId)
 
   saveKept([
-    ...all.filter(k => k.sessionId !== session.sessionId),
+    ...without(session.sessionId),
     { ...known, ...session, ...(known?.named && { title: known.title }) },
   ])
 }
@@ -90,10 +95,21 @@ export const rename = (sessionId: string, title: string) => {
   }
 }
 
-export const forget = (sessionId: string) =>
-  saveKept(kept().filter(k => k.sessionId !== sessionId))
+export const forget = (sessionId: string) => saveKept(without(sessionId))
 
-const providersSchema = z.record(z.string(), providerChoice)
+const legacyChoice = z
+  .object({ gateway: z.string(), model: z.string() })
+  .transform(
+    ({ gateway, model }): ProviderChoice =>
+      gateway === "native"
+        ? { source: "native" }
+        : { source: "gateway", gateway, model },
+  )
+
+const providersSchema = z.record(
+  z.string(),
+  z.union([providerChoice, legacyChoice]),
+)
 
 export const providerChoices = () => persisted(PROVIDERS, {}, providersSchema)
 

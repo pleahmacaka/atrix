@@ -1,7 +1,7 @@
 <script lang="ts">
 import { trackPointer } from "#lib/components/ui/pointer.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { type Node, panes } from "#lib/store/panes.svelte.ts"
+import { type Node, panes, type Split } from "#lib/store/panes.svelte.ts"
 import PaneNode from "./PaneNode.svelte"
 import PaneView from "./PaneView.svelte"
 
@@ -9,43 +9,58 @@ let { node }: { node: Node } = $props()
 
 let box = $state<HTMLDivElement>()
 
+const STEP = 0.05
+
+const arrow = (split: Split) =>
+  split.dir === "row"
+    ? { back: "ArrowLeft", forward: "ArrowRight" }
+    : { back: "ArrowUp", forward: "ArrowDown" }
+
+const apply = (split: Split, ratio: number) => {
+  const rect = box?.getBoundingClientRect()
+
+  if (!rect) {
+    return
+  }
+
+  panes.resize(split.id, ratio, split.dir === "row" ? rect.width : rect.height)
+}
+
 const drag = (e: PointerEvent) => {
-  if (node.kind !== "split" || !box) {
+  if (node.kind !== "split") {
     return
   }
 
   const split = node
-  const rect = box.getBoundingClientRect()
+  const rect = box?.getBoundingClientRect()
 
-  trackPointer(e, p => {
-    const ratio =
-      split.dir === "row"
-        ? (p.clientX - rect.left) / rect.width
-        : (p.clientY - rect.top) / rect.height
-
-    panes.resize(split.id, ratio, split.dir === "row" ? rect.width : rect.height)
-  })
-}
-
-const STEP = 0.05
-
-const nudge = (e: KeyboardEvent) => {
-  if (node.kind !== "split" || !box) {
+  if (!rect) {
     return
   }
 
-  const rect = box.getBoundingClientRect()
-  const back = node.dir === "row" ? "ArrowLeft" : "ArrowUp"
-  const forward = node.dir === "row" ? "ArrowRight" : "ArrowDown"
+  trackPointer(e, p =>
+    apply(
+      split,
+      split.dir === "row"
+        ? (p.clientX - rect.left) / rect.width
+        : (p.clientY - rect.top) / rect.height,
+    ),
+  )
+}
 
-  if (e.key === back || e.key === forward) {
-    e.preventDefault()
-    panes.resize(
-      node.id,
-      node.ratio + (e.key === back ? -STEP : STEP),
-      node.dir === "row" ? rect.width : rect.height,
-    )
+const nudge = (e: KeyboardEvent) => {
+  if (node.kind !== "split") {
+    return
   }
+
+  const { back, forward } = arrow(node)
+
+  if (e.key !== back && e.key !== forward) {
+    return
+  }
+
+  e.preventDefault()
+  apply(node, node.ratio + (e.key === back ? -STEP : STEP))
 }
 </script>
 

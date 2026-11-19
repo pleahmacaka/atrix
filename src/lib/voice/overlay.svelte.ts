@@ -27,24 +27,46 @@ export const mirrorCall = (payload: () => CallSync, handlers: Handlers) => {
 
   let sent = ""
 
+  const report = (e: unknown) => console.error(e)
+
+  const sync = (next: CallSync) => {
+    const text = JSON.stringify(next)
+
+    if (text === sent) {
+      return
+    }
+
+    sent = text
+    emitTo(OVERLAY, STATE_EVENT, JSON.parse(text)).catch(report)
+  }
+
+  const command = (e: { payload: CallCommand }) => {
+    const next = e.payload
+
+    if (next === "ready") {
+      sent = ""
+      return
+    }
+
+    if (next === "open") {
+      win
+        .unminimize()
+        .then(() => win.setFocus())
+        .catch(report)
+      handlers.open()
+
+      return
+    }
+
+    handlers[next]()
+  }
+
   $effect(() => {
     const stops = [
       win.onFocusChanged(e => {
         focused = e.payload
       }),
-      listen<CallCommand>(COMMAND_EVENT, e => {
-        if (e.payload === "ready") {
-          sent = ""
-        } else if (e.payload === "open") {
-          win
-            .unminimize()
-            .then(() => win.setFocus())
-            .catch(console.error)
-          handlers.open()
-        } else {
-          handlers[e.payload]()
-        }
-      }),
+      listen<CallCommand>(COMMAND_EVENT, command),
     ]
 
     win.isFocused().then(f => {
@@ -64,16 +86,9 @@ export const mirrorCall = (payload: () => CallSync, handlers: Handlers) => {
     }
 
     const opened = invoke("overlay_open", bubble.get("overlay") ?? {}).catch(
-      console.error,
+      report,
     )
-    const timer = setInterval(() => {
-      const next = JSON.stringify(payload())
-
-      if (next !== sent) {
-        sent = next
-        emitTo(OVERLAY, STATE_EVENT, JSON.parse(next)).catch(console.error)
-      }
-    }, SYNC_MS)
+    const timer = setInterval(() => sync(payload()), SYNC_MS)
 
     return () => {
       clearInterval(timer)
@@ -81,7 +96,7 @@ export const mirrorCall = (payload: () => CallSync, handlers: Handlers) => {
       opened
         .then(() => Window.getByLabel(OVERLAY))
         .then(w => w?.destroy())
-        .catch(console.error)
+        .catch(report)
     }
   })
 }

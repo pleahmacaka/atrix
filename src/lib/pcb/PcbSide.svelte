@@ -8,7 +8,6 @@ import { findProject, type Project } from "./pcb.ts"
 
 let { cwd }: { cwd: string } = $props()
 
-// tracked-props mode skips updates for fields first read after the fetch settled
 const client = new QueryClient({
   defaultOptions: { queries: { notifyOnChangeProps: "all" } },
 })
@@ -39,7 +38,7 @@ $effect(() => {
     <aside
       class={[
         "flex min-w-80 shrink-0 flex-col border-l border-base-300 bg-base-100",
-        "transition-width duration-140",
+        "transition-width",
         wide ? "w-2/3" : "w-1/2 max-w-3xl",
       ]}
     >

@@ -1,7 +1,8 @@
-import { drafts, quotes } from "./composer.svelte.ts"
+import { setQuote } from "./composer/quote.ts"
+import { drafts } from "./composer.svelte.ts"
 
 export const quoteInto = (draft: string, text: string, mention = "") => {
-  quotes.set(draft, text.trim())
+  setQuote(draft, text.trim())
 
   if (mention && !drafts.get(draft).startsWith(mention)) {
     drafts.set(draft, `${mention} ${drafts.get(draft)}`)

@@ -38,12 +38,20 @@ export type {
 
 export type HarnessKind = "claude" | "codex"
 
-export const providerChoice = z.object({
-  gateway: z.string(),
-  model: z.string(),
-})
+export const providerChoice = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("native") }),
+  z.object({
+    source: z.literal("gateway"),
+    gateway: z.string(),
+    model: z.string(),
+  }),
+])
 
 export type ProviderChoice = z.infer<typeof providerChoice>
+
+export const DEFAULT_PROVIDER = "*"
+
+export type ProviderSource = "own" | "default" | "native"
 
 export type HarnessInfo = {
   id: string
@@ -55,7 +63,8 @@ export type HarnessInfo = {
   local: boolean
   login: string | null
   provider: ProviderChoice | null
-  providerActive: boolean
+  providerSource: ProviderSource
+  providerModel: string | null
 }
 
 const installScope = z.enum(["atrix", "global"])
@@ -126,6 +135,7 @@ export type HostState = {
   pinned?: string[]
   loose?: string[]
   turns?: Record<string, Turn>
+  defaultProvider?: ProviderChoice | null
 }
 
 export type Listed = {
@@ -164,6 +174,7 @@ export type SessionView = OpenSession & {
   external?: boolean
   queued?: string[]
   queuedImages?: Record<string, string>
+  pendingImages?: Record<string, string[]>
   context?: ContextUse
   contextFrom?: number
   contextChars?: Record<string, number>
@@ -255,10 +266,6 @@ export type Rows = { columns: string[]; rows: unknown[][] }
 
 export type Executed = { changes: number; lastInsertRowid: number }
 
-const syncConfig = z.object({ url: z.string(), token: z.string() })
-
-export type SyncConfig = z.infer<typeof syncConfig>
-
 export const SESSION_BUSY = "session_busy"
 
 export const isBusyError = (e: unknown) =>
@@ -323,9 +330,6 @@ const datasourceRequest = z.discriminatedUnion("op", [
   request("ds.tables", named),
   request("ds.query", statement),
   request("ds.execute", statement),
-  request("ds.sync.get", {}),
-  request("ds.sync.set", { name: z.string(), config: syncConfig.nullable() }),
-  request("ds.sync", named),
   request("ds.knowledge.get", {}),
   request("ds.knowledge.set", { name: z.string(), on: z.boolean() }),
 ])
@@ -579,9 +583,6 @@ export type Answers = {
   "ds.tables": string[]
   "ds.query": Rows
   "ds.execute": Executed
-  "ds.sync.get": Record<string, SyncConfig>
-  "ds.sync.set": null
-  "ds.sync": boolean
   "ds.knowledge.get": string[]
   "ds.knowledge.set": null
 }
@@ -602,31 +603,17 @@ export type HostCall = <K extends Op>(
   request: RequestOf<K>,
 ) => Promise<Answers[K]>
 
-export const reply = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), value: z.unknown().optional() }),
-  z.object({ ok: z.literal(false), error: z.string() }),
-])
+export type Reply<T = unknown> =
+  | { ok: true; value?: T }
+  | { ok: false; error: string }
 
-export type Reply = z.infer<typeof reply>
+export const replyOf = <T>(schema: z.ZodType<T>) =>
+  z.discriminatedUnion("ok", [
+    z.object({ ok: z.literal(true), value: schema }),
+    z.object({ ok: z.literal(false), error: z.string() }),
+  ])
 
-const EVENT_TYPES: Record<HostEvent["type"], true> = {
-  state: true,
-  update: true,
-  patch: true,
-  view: true,
-  kg: true,
-  ds: true,
-  install: true,
-}
-
-const hostEvent = z.custom<HostEvent>(
-  value =>
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof value.type === "string" &&
-    Object.hasOwn(EVENT_TYPES, value.type),
-)
+export const reply = replyOf(z.unknown())
 
 export const lockKinds = ["pin", "pattern"] as const
 
@@ -642,7 +629,7 @@ const lockSecret = z.object({
 export type LockSecret = z.infer<typeof lockSecret>
 
 export const frame = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("event"), event: hostEvent }),
+  z.object({ kind: z.literal("event"), event: z.custom<HostEvent>() }),
   z.object({
     kind: z.literal("gateways"),
     gateways: z.array(gateway),

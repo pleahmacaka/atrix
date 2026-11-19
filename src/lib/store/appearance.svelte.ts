@@ -9,6 +9,10 @@ import {
 
 const dark = new MediaQuery("(prefers-color-scheme: dark)")
 
+const handheld = new MediaQuery("(pointer: coarse) and (width < 40rem)")
+
+const HANDHELD_SCALE = 1.15
+
 export const frame = $state({ maximized: false })
 
 const trackFrame = async () => {
@@ -53,7 +57,7 @@ export const startAppearance = () => {
       const root = document.documentElement
 
       root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
-      root.style.fontSize = `${settings.scale}%`
+      root.style.fontSize = `${settings.scale * (handheld.current ? HANDHELD_SCALE : 1)}%`
 
       const font = settings.interfaceFont.trim()
 

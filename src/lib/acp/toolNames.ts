@@ -1,9 +1,9 @@
-import { SHOW_UI } from "#lib/chat/blocks.ts"
+import { McpServer } from "@modelcontextprotocol/server"
 
 export const BRIDGE_NAME = "atrix"
 
-export const ATRIX_TOOLS: readonly string[] = [
-  SHOW_UI,
+export const ATRIX_TOOLS = [
+  "show_ui",
   "app_list",
   "app_save",
   "list_sessions",
@@ -23,4 +23,7 @@ export const ATRIX_TOOLS: readonly string[] = [
   "ds_list",
   "ds_query",
   "ds_execute",
-]
+] as const
+
+export const newServer = () =>
+  new McpServer({ name: BRIDGE_NAME, version: "0.1.0" })

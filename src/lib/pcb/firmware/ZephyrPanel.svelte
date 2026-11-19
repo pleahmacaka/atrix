@@ -15,7 +15,7 @@ import {
   type ZephyrReport,
   type ZephyrUnresolved,
 } from "../types.ts"
-import { highlight, languageOf } from "./highlight.ts"
+import { highlight, languageOf, type Token } from "./highlight.ts"
 import {
   downloadProject,
   type Focus,
@@ -51,6 +51,21 @@ let zipFailed = $state(false)
 let panel = $state(true)
 
 let hovered = $state<Hover>(null)
+let dark = $state(document.documentElement.dataset.theme === "atrix-dark")
+
+$effect(() => {
+  const root = document.documentElement
+  const read = () => {
+    dark = root.dataset.theme === "atrix-dark"
+  }
+  const observer = new MutationObserver(read)
+
+  observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] })
+
+  return () => observer.disconnect()
+})
+
+const tintOf = (token: Token) => (dark ? token.dark : token.light)
 
 const tree = $derived(treeOf(zephyrFiles(outputs)))
 
@@ -284,7 +299,7 @@ const zipProject = async () => {
               <Markdown text={body.data ?? ""} />
             </div>
           {:else}
-            <div class="code min-w-max py-3 text-sm leading-relaxed tabular-nums" style:tab-size="4">
+            <div class="min-w-max py-3 text-sm leading-relaxed tabular-nums" style:tab-size="4">
               {#each lines as line, i (i)}
                 {@const tokens = colored.data?.[i]}
                 <div class={["flex", hits.lines.has(i) && "bg-primary/15"]}>
@@ -295,9 +310,7 @@ const zipProject = async () => {
                     {i + 1}
                   </span>
                   {#if tokens}
-                    <span class="px-4 whitespace-pre">{#each tokens as t, j (j)}<span
-                          style:--light={t.light}
-                          style:--dark={t.dark}>{t.content}</span>{/each}</span>
+                    <span class="px-4 whitespace-pre">{#each tokens as t, j (j)}<span style:color={tintOf(t)}>{t.content}</span>{/each}</span>
                   {:else}
                     <span class="px-4 whitespace-pre">{line}</span>
                   {/if}
@@ -411,13 +424,3 @@ const zipProject = async () => {
     </aside>
   </div>
 </div>
-
-<style>
-  .code span[style] {
-    color: var(--light);
-  }
-
-  :global([data-theme="atrix-dark"]) .code span[style] {
-    color: var(--dark);
-  }
-</style>

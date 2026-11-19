@@ -1,24 +1,18 @@
 <script lang="ts">
-import { untrack } from "svelte"
 import {
-  addDays,
-  calendar,
-  format,
-  onDay,
-  pick,
-  sameDay,
-  TONES,
-  timeRange,
-  WEEKS,
-  weeksFrom,
-} from "#lib/calendar/calendar.svelte.ts"
-import {
-  addEvent,
-  deleteEvent,
-  type EventInput,
-  updateEvent,
-} from "#lib/calendar/events.ts"
-import { listShared, type SharedEvent } from "#lib/calendar/shared.ts"
+  notesOnly,
+  removeOccurrence,
+  saveOccurrence,
+  setNotesSync,
+} from "#lib/calendar/actions.ts"
+import { calendar, holidays, pick, WEEKS } from "#lib/calendar/calendar.svelte.ts"
+import { addDays, startOfDay } from "#lib/calendar/dates.ts"
+import { format } from "#lib/calendar/format.ts"
+import { onDay } from "#lib/calendar/occurrence.ts"
+import { type SharedEvent, watchShared } from "#lib/calendar/shared.svelte.ts"
+import { deleteTag, type EventTag, putTag } from "#lib/calendar/store.ts"
+import { newTag } from "#lib/calendar/tags.ts"
+import type { CalendarEvent, Scope } from "#lib/calendar/types.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -27,8 +21,11 @@ import PageHeader from "#lib/components/ui/PageHeader.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
-import { settings } from "#lib/store/settings.svelte.ts"
+import DayHeading from "./DayHeading.svelte"
+import DayPanel from "./DayPanel.svelte"
 import EventForm from "./EventForm.svelte"
+import MonthGrid from "./MonthGrid.svelte"
+import ScopeDialog from "./ScopeDialog.svelte"
 
 let { hosts }: { hosts: HostView[] } = $props()
 
@@ -36,65 +33,85 @@ const attempt = new Attempt()
 
 let events = $state<SharedEvent[]>([])
 
+let tags = $state<EventTag[]>([])
+
 let editing = $state<SharedEvent | "new" | null>(null)
+
+let asking = $state<{
+  mode: "edit" | "delete"
+  answer: (scope: Scope | null) => void
+} | null>(null)
 
 let adder = $state<HTMLButtonElement>()
 
-const days = $derived(weeksFrom(calendar.start))
+const selected = $derived(events.filter(event => onDay(event, calendar.selected)))
 
-const today = addDays(new Date(), 0)
-
-const weekdays = weeksFrom(addDays(today, -today.getDay()))
-  .slice(0, 7)
-  .map(d => format(d, { weekday: "short" }))
-
-const selected = $derived(events.filter(e => onDay(e, calendar.selected)))
+const title = $derived(
+  format(addDays(calendar.start, 7), { year: "numeric", month: "long" }),
+)
 
 $effect(() => {
-  const from = days[0]
-  const to = addDays(days[days.length - 1], 1)
-
-  for (const host of hosts) {
-    void host.dsChange
-  }
-
-  untrack(() =>
-    attempt.run(async () => {
-      events = await listShared(hosts, from, to)
-    }),
-  )
+  void holidays.load()
 })
+
+watchShared(
+  () => ({
+    hosts,
+    from: calendar.start,
+    to: addDays(calendar.start, WEEKS * 7),
+    isHoliday: holidays.isHoliday,
+  }),
+  attempt.run,
+  (found, known) => {
+    events = found
+    tags = known
+  },
+)
 
 const shift = (pages: number) => {
   calendar.start = addDays(calendar.start, pages * WEEKS * 7)
 }
-
-const focus = $derived(addDays(calendar.start, 7))
-
-const title = $derived(format(focus, { year: "numeric", month: "long" }))
 
 const choose = (day: Date) => {
   editing = null
   pick(day)
 }
 
-const save = (input: EventInput) =>
-  attempt.run(async () => {
-    if (editing === "new") {
-      await addEvent(hosts[0], input, settings.deviceName)
-    } else if (editing) {
-      await updateEvent(editing.host, editing.id, input)
-    }
-
-    editing = null
+const askScope = (mode: "edit" | "delete") =>
+  new Promise<Scope | null>(resolve => {
+    asking = { mode, answer: resolve }
   })
 
-const remove = (event: SharedEvent) =>
-  attempt.run(async () => {
-    await deleteEvent(event.host, event.id)
+const targetHost = () => (editing && editing !== "new" ? editing.host : hosts[0])
 
-    editing = null
-  })
+const save = async (draft: CalendarEvent) => {
+  const current = editing === "new" ? null : editing
+  const scoped =
+    current?.seriesDate !== undefined &&
+    !(current.notesSync && notesOnly(current, draft))
+  const scope = scoped ? await askScope("edit") : null
+
+  if (scope || !current?.seriesDate) {
+    await attempt.run(async () => {
+      await saveOccurrence(targetHost(), current, draft, scope)
+
+      editing = null
+    })
+  }
+}
+
+const remove = async (event: SharedEvent) => {
+  const direct = event.seriesDate === undefined
+  const scope = direct ? null : await askScope("delete")
+
+  if (direct || scope) {
+    await attempt.run(async () => {
+      await removeOccurrence(event.host, event, scope)
+
+      editing = null
+    })
+  }
+}
 
 const menu = (e: MouseEvent, event: SharedEvent) =>
   contextMenu.show(e, [
@@ -108,18 +125,36 @@ const menu = (e: MouseEvent, event: SharedEvent) =>
       label: m.common_delete(),
       icon: "lucide:trash-2",
       danger: true,
-      confirm: m.common_confirm_delete(),
+      confirm: event.seriesDate ? undefined : m.common_confirm_delete(),
       run: () => remove(event),
     },
   ])
+
+const createTag = async (name: string) => {
+  const tag = newTag(tags, name)
+  const created = await attempt.run(async () => {
+    await putTag(targetHost(), tag)
+    tags = [...tags, tag]
+  })
+
+  return created ? tag.id : null
+}
+
+const updateTag = (tag: EventTag) =>
+  attempt.run(async () => {
+    await Promise.all(hosts.map(h => putTag(h, tag)))
+    tags = tags.map(t => (t.id === tag.id ? tag : t))
+  })
+
+const removeTag = (tag: EventTag) =>
+  attempt.run(async () => {
+    await Promise.all(hosts.map(h => deleteTag(h, tag.id)))
+    tags = tags.filter(t => t.id !== tag.id)
+  })
 </script>
 
 <div class="@container flex min-h-0 flex-1 flex-col">
-  <PageHeader
-    icon="lucide:calendar"
-    title={title}
-    class="tabular-nums"
-  >
+  <PageHeader icon="lucide:calendar" {title} class="tabular-nums">
     {#snippet actions()}
       <IconButton
         icon="lucide:chevron-left"
@@ -129,7 +164,7 @@ const menu = (e: MouseEvent, event: SharedEvent) =>
       <button
         type="button"
         class="btn btn-ghost btn-sm"
-        onclick={() => choose(addDays(new Date(), 0))}
+        onclick={() => choose(startOfDay(new Date()))}
       >
         {m.calendar_today()}
       </button>
@@ -144,63 +179,15 @@ const menu = (e: MouseEvent, event: SharedEvent) =>
     <div
       class="flex flex-col gap-3 px-4 pb-4 sm:px-6 sm:pb-6 @2xl:flex-row @2xl:items-start"
     >
-      <section
-        class="flex min-w-0 flex-1 flex-col gap-2 rounded-box border border-base-300 bg-base-100 p-3"
-        aria-label={title}
-      >
-        <div class="grid grid-cols-7 gap-1">
-          {#each weekdays as weekday (weekday)}
-            <span class="py-1 text-center text-xs text-base-content/55 @2xl:ps-1 @2xl:text-start">
-              {weekday}
-            </span>
-          {/each}
-          {#each days as day (day.getTime())}
-            {@const items = events.filter(e => onDay(e, day))}
-            {@const active = sameDay(day, calendar.selected)}
-            <button
-              type="button"
-              class={[
-                "flex min-h-14 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-field p-1",
-                "text-start transition-colors duration-140 @2xl:min-h-28 @2xl:items-start",
-                active ? "bg-primary/8 text-primary" : "hover:bg-base-content/8",
-                day < today && !sameDay(day, today) && !active && "text-base-content/40",
-              ]}
-              aria-pressed={active}
-              aria-label={format(day, { dateStyle: "full" })}
-              onclick={() => choose(day)}
-            >
-              <span
-                class={[
-                  "inline-flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
-                  sameDay(day, today) && "bg-primary font-semibold text-primary-content",
-                ]}
-              >
-                {day.getDate()}
-              </span>
-              <span class="flex flex-wrap gap-0.5 @2xl:hidden">
-                {#each items.slice(0, 3) as item (item.id)}
-                  <span class={["size-1.5 rounded-full", TONES[item.color]]}></span>
-                {/each}
-              </span>
-              <span class="hidden w-full min-w-0 flex-col gap-0.5 @2xl:flex">
-                {#each items.slice(0, 2) as item (item.id)}
-                  <span class="flex min-w-0 items-center gap-1 text-xs">
-                    <span
-                      class={["size-1.5 shrink-0 rounded-full", TONES[item.color]]}
-                    ></span>
-                    <span class="truncate">{item.title}</span>
-                  </span>
-                {/each}
-                {#if items.length > 2}
-                  <span class="text-xs text-base-content/55 tabular-nums">
-                    {m.calendar_more({ count: items.length - 2 })}
-                  </span>
-                {/if}
-              </span>
-            </button>
-          {/each}
-        </div>
-      </section>
+      <div class="flex min-w-0 flex-1">
+        <MonthGrid
+          start={calendar.start}
+          selected={calendar.selected}
+          {events}
+          {tags}
+          onpick={choose}
+        />
+      </div>
       <section
         class={[
           "flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 p-3",
@@ -208,13 +195,7 @@ const menu = (e: MouseEvent, event: SharedEvent) =>
         ]}
       >
         <header class="flex items-center gap-1">
-          <h2 class="min-w-0 flex-1 truncate ps-1 text-sm font-semibold">
-            {format(calendar.selected, {
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            })}
-          </h2>
+          <DayHeading day={calendar.selected} />
           <IconButton
             icon="lucide:plus"
             label={m.calendar_add()}
@@ -228,6 +209,7 @@ const menu = (e: MouseEvent, event: SharedEvent) =>
             <EventForm
               event={current}
               day={calendar.selected}
+              {tags}
               busy={attempt.busy}
               onsave={save}
               oncancel={() => {
@@ -235,44 +217,30 @@ const menu = (e: MouseEvent, event: SharedEvent) =>
                 adder?.focus()
               }}
               ondelete={current ? () => remove(current) : undefined}
+              oncreatetag={createTag}
+              onupdatetag={updateTag}
+              onremovetag={removeTag}
+              onnotesync={current
+                ? on => attempt.run(() => setNotesSync(current.host, current, on))
+                : undefined}
             />
           {/key}
         {:else if selected.length === 0}
           <EmptyState icon="lucide:calendar" text={m.calendar_empty()} />
         {:else}
-          <ul class="flex flex-col gap-0.5">
-            {#each selected as event (event.id)}
-              <li>
-                <button
-                  type="button"
-                  class={[
-                    "flex w-full cursor-pointer items-start gap-2 rounded-field px-2 py-1.5",
-                    "text-start transition-colors duration-140 hover:bg-base-content/8",
-                  ]}
-                  onclick={() => (editing = event)}
-                  oncontextmenu={e => menu(e, event)}
-                >
-                  <span
-                    class={["mt-1.5 size-2 shrink-0 rounded-full", TONES[event.color]]}
-                  ></span>
-                  <span class="flex min-w-0 flex-1 flex-col">
-                    <span class="truncate text-sm">{event.title}</span>
-                    <span class="text-xs text-base-content/55 tabular-nums">
-                      {event.allDay ? m.calendar_all_day() : timeRange(event)}
-                    </span>
-                    {#if event.note}
-                      <span class="line-clamp-2 text-xs text-base-content/55">
-                        {event.note}
-                      </span>
-                    {/if}
-                  </span>
-                </button>
-              </li>
-            {/each}
-          </ul>
+          <DayPanel
+            events={selected}
+            {tags}
+            onedit={event => (editing = event)}
+            onmenu={menu}
+          />
         {/if}
         <ErrorAlert message={attempt.failure} />
       </section>
     </div>
   </div>
 </div>
+
+{#if asking}
+  <ScopeDialog mode={asking.mode} choose={asking.answer} />
+{/if}

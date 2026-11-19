@@ -1,9 +1,9 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import type { FileRef } from "#lib/acp/items.ts"
-import ImageViewer, { type Viewed } from "#lib/components/ui/ImageViewer.svelte"
 import { native } from "#lib/native.ts"
 import { m } from "#lib/paraglide/messages.js"
+import Thumbnail from "./Thumbnail.svelte"
 
 let { files, mine = false }: { files: FileRef[]; mine?: boolean } = $props()
 
@@ -33,8 +33,6 @@ const images = $derived(
 
 const others = $derived(resolved.filter(f => !images.includes(f)))
 
-let zoomed = $state<Viewed | null>(null)
-
 const chip = "island flex h-16 max-w-64 min-w-0 items-center gap-2 px-3 text-sm"
 </script>
 
@@ -53,23 +51,8 @@ const chip = "island flex h-16 max-w-64 min-w-0 items-center gap-2 px-3 text-sm"
       aria-label={m.attach_images()}
     >
       {#each images as file, index (index)}
-        <li>
-          <button
-            type="button"
-            class="island block cursor-zoom-in overflow-hidden"
-            aria-label={m.attach_zoom({ name: file.name })}
-            title={file.name}
-            onclick={() => {
-              zoomed = { url: file.url ?? "", name: file.name }
-            }}
-          >
-            <img
-              src={file.url}
-              alt={file.name}
-              class="size-20 object-cover"
-              loading="lazy"
-            />
-          </button>
+        <li class="max-w-full">
+          <Thumbnail url={file.url ?? ""} name={file.name} />
         </li>
       {/each}
     </ul>
@@ -101,4 +84,3 @@ const chip = "island flex h-16 max-w-64 min-w-0 items-center gap-2 px-3 text-sm"
   {/if}
 </div>
 
-<ImageViewer bind:image={zoomed} />

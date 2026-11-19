@@ -1,16 +1,18 @@
 use std::fs;
 use std::io::ErrorKind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use atrix_net::{Event, Info, Key, Member, Node, Pairing};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::error::{Error, Result};
 use crate::platform;
 
-const PAIR_FLAG: &str = "--pair";
+const HEADLESS_PAIR_MINUTES: u64 = 10;
 
 type Sink = Arc<Mutex<Option<Channel<Event>>>>;
 
@@ -18,24 +20,6 @@ type Sink = Arc<Mutex<Option<Channel<Event>>>>;
 pub struct Net {
     node: tauri::async_runtime::Mutex<Option<Node>>,
     sink: Sink,
-}
-
-fn load_key(path: &Path) -> Result<Key> {
-    match fs::read(path) {
-        Ok(bytes) => <[u8; 32]>::try_from(bytes.as_slice())
-            .map(|b| Key::from_bytes(&b))
-            .map_err(|_| Error::code("net_key_invalid", path.display())),
-        Err(e) if e.kind() == ErrorKind::NotFound => create_key(path),
-        Err(_) => Err(Error::code("net_key_invalid", path.display())),
-    }
-}
-
-fn create_key(path: &Path) -> Result<Key> {
-    let key = Key::generate();
-
-    write_private(path, &key.to_bytes())?;
-
-    Ok(key)
 }
 
 fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -47,10 +31,28 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     fs::rename(&staged, path)
 }
 
+fn load_key(path: &Path) -> Result<Key> {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            let key = Key::generate();
+
+            write_private(path, &key.to_bytes())?;
+
+            return Ok(key);
+        }
+        Err(_) => return Err(Error::code("net_key_invalid", path.display())),
+    };
+
+    <[u8; 32]>::try_from(bytes.as_slice())
+        .map(|bytes| Key::from_bytes(&bytes))
+        .map_err(|_| Error::code("net_key_invalid", path.display()))
+}
+
 fn load_peers(path: &Path) -> Vec<Member> {
     fs::read(path)
         .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or_default()
 }
 
@@ -60,19 +62,40 @@ fn deliver(sink: &Sink, event: Event) {
     }
 }
 
+fn save_peers(roster: &Path, peers: &[Member]) {
+    if let Ok(json) = serde_json::to_vec_pretty(peers) {
+        let _ = write_private(roster, &json);
+    }
+}
+
+fn forward(mut events: UnboundedReceiver<Event>, sink: Sink, roster: PathBuf) {
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = events.recv().await {
+            if let Event::Peers { peers } = &event {
+                save_peers(&roster, peers);
+            }
+
+            deliver(&sink, event);
+        }
+    });
+}
+
+fn issue_headless_pairs(node: Node) {
+    let minutes = HEADLESS_PAIR_MINUTES;
+
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let pairing = node.issue(minutes).await;
+
+            println!("pair code ({minutes} minutes): {}", pairing.code);
+
+            tokio::time::sleep(Duration::from_secs(minutes * 60)).await;
+        }
+    });
+}
+
 async fn node(net: &State<'_, Net>) -> Result<Node> {
-    Ok(net.node.lock().await.clone().ok_or("net_stopped:")?)
-}
-
-#[tauri::command]
-pub fn startup_pair_code() -> Option<String> {
-    pair_code_in(&std::env::args().collect::<Vec<_>>())
-}
-
-pub fn pair_code_in(args: &[String]) -> Option<String> {
-    args.iter()
-        .position(|a| a == PAIR_FLAG)
-        .and_then(|i| args.get(i + 1).cloned())
+    net.node.lock().await.clone().ok_or("net_stopped:".into())
 }
 
 #[tauri::command]
@@ -99,24 +122,18 @@ pub async fn net_start(
 
     let key = load_key(&dir.join("key"))?;
     let roster = dir.join("peers.json");
-    let (node, mut events) = Node::start(key, load_peers(&roster), info).await?;
-    let sink = net.sink.clone();
+    let (node, events) = Node::start(key, load_peers(&roster), info).await?;
 
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = events.recv().await {
-            if let Event::Peers { peers } = &event
-                && let Ok(json) = serde_json::to_vec_pretty(peers)
-            {
-                let _ = write_private(&roster, &json);
-            }
+    forward(events, net.sink.clone(), roster);
 
-            deliver(&sink, event);
-        }
-    });
+    if app.state::<crate::launch::Launch>().headless {
+        issue_headless_pairs(node.clone());
+    }
 
     let id = node.id();
 
     node.announce();
+
     *slot = Some(node);
 
     Ok(id)
@@ -131,7 +148,9 @@ pub async fn net_info(net: State<'_, Net>, info: Info) -> Result<()> {
 
 #[tauri::command]
 pub async fn net_send(net: State<'_, Net>, to: Option<String>, data: String) -> Result<()> {
-    Ok(node(&net).await?.send(to.as_deref(), data)?)
+    node(&net).await?.send(to.as_deref(), data)?;
+
+    Ok(())
 }
 
 #[tauri::command]

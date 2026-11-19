@@ -2,7 +2,7 @@
 import Icon from "@iconify/svelte"
 import type { Asked, Picked } from "#lib/acp/items.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { CARD } from "./labels.ts"
+import { CARD } from "./card.ts"
 
 let {
   asked,

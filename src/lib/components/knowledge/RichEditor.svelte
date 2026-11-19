@@ -36,13 +36,13 @@ let {
   compact?: boolean
 } = $props()
 
+const NOTICE_MS = 4000
+
 let element = $state<HTMLDivElement>()
 
 let editor = $state<Editor | null>(null)
 
 let tick = $state(0)
-
-const NOTICE_MS = 4000
 
 let notice = $state(false)
 
@@ -121,10 +121,7 @@ $effect(() => {
   const next = markdown
 
   if (editor && !editor.isFocused && next !== editor.getMarkdown()) {
-    editor.commands.setContent(next, {
-      contentType: "markdown",
-      emitUpdate: false,
-    })
+    editor.commands.setContent(next, { contentType: "markdown", emitUpdate: false })
   }
 })
 </script>

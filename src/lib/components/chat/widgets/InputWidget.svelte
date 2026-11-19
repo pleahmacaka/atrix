@@ -112,6 +112,22 @@ const pick = (o: Option) => {
   requestAnimationFrame(() => field?.setSelectionRange(caret, caret))
 }
 
+const recall = () => {
+  const { onRecall } = composer.props
+
+  if (!onRecall) {
+    return false
+  }
+
+  onRecall()
+    .then(texts => {
+      composer.text = [...texts, composer.text.trim()].filter(Boolean).join("\n\n")
+    })
+    .catch(() => {})
+
+  return true
+}
+
 const keydown = (e: KeyboardEvent) => {
   if (e.isComposing) {
     return
@@ -138,20 +154,13 @@ const keydown = (e: KeyboardEvent) => {
     }
   }
 
-  const working = composer.props.busy || composer.props.running
-
-  const { onRecall } = composer.props
-
-  if (e.key === "Escape" && onRecall && !e.repeat) {
+  if (recall() && e.key === "Escape" && !e.repeat) {
     e.preventDefault()
-    onRecall()
-      .then(texts => {
-        composer.text = [...texts, composer.text.trim()].filter(Boolean).join("\n\n")
-      })
-      .catch(() => {})
 
     return
   }
+
+  const working = composer.props.busy || composer.props.running
 
   if (e.key === "Escape" && working && !e.repeat && !composer.stopped) {
     e.preventDefault()
@@ -160,19 +169,14 @@ const keydown = (e: KeyboardEvent) => {
     return
   }
 
-  if (e.key === "ArrowUp" && composer.recall()) {
+  if (e.key === "ArrowUp") {
     e.preventDefault()
 
-    return
-  }
+    if (composer.recall() || composer.text.trim()) {
+      return
+    }
 
-  if (e.key === "ArrowUp" && onRecall && !composer.text.trim()) {
-    e.preventDefault()
-    onRecall()
-      .then(texts => {
-        composer.text = texts.join("\n\n")
-      })
-      .catch(() => {})
+    recall()
 
     return
   }

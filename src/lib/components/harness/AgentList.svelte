@@ -40,7 +40,7 @@ const message = (agent: StoredAgent) =>
     {@const provider = providerOf(agent)}
     <div
       class={[
-        "group flex items-center gap-3 rounded-field px-2 py-2 transition-colors duration-140",
+        "group flex items-center gap-3 rounded-field px-2 py-2 transition-colors",
         nav.agent === agent.id ? "bg-primary/8" : "hover:bg-base-content/5",
       ]}
     >
@@ -69,7 +69,7 @@ const message = (agent: StoredAgent) =>
       <IconButton
         icon="lucide:message-square-plus"
         label={m.agents_message({ name: agent.name })}
-        class="shrink-0 opacity-0 transition-opacity duration-140 group-hover:opacity-100 focus-visible:opacity-100"
+        class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
         disabled={!provider}
         onclick={() => message(agent)}
       />
@@ -95,7 +95,7 @@ const message = (agent: StoredAgent) =>
         type="button"
         class={[
           "flex min-w-0 cursor-pointer items-center gap-2 rounded-field px-2 py-1.5 text-start text-sm",
-          "transition-colors duration-140",
+          "transition-colors",
           nav.agent === id ? "bg-primary/8 text-primary" : "hover:bg-base-content/5",
         ]}
         aria-current={nav.agent === id ? "page" : undefined}

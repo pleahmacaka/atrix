@@ -20,7 +20,10 @@ export const gateway = z.object({
 
 export type Gateway = z.infer<typeof gateway>
 
-type Legacy = { openrouter?: { key: string | null; at: number } }
+type Legacy = {
+  openrouter?: { key: string | null; at: number }
+  groups?: unknown
+}
 
 export type StoredChat = {
   id: string
@@ -45,37 +48,6 @@ export type SpeechProvider = {
   voice: string
   at: number
   removed?: boolean
-}
-
-export type GroupMember = {
-  host: string
-  id: string
-  from: number
-  offset: number
-  role?: "worker" | "reviewer"
-  label?: string
-  agent?: string
-  invited?: boolean
-}
-
-export type StoredReply = { member: string; name: string; text: string }
-
-export type GroupMessage = {
-  id: string
-  text: string
-  at: number
-  targets?: string[]
-  replies?: StoredReply[]
-}
-
-export type StoredGroup = {
-  id: string
-  title: string
-  cwd?: string
-  cwdHost?: string
-  members: GroupMember[]
-  messages: GroupMessage[]
-  at: number
 }
 
 export type StoredAgent = {
@@ -118,7 +90,6 @@ export type Contents = {
   lock?: LockSecret
   net?: { key?: string; peers: Peer[] }
   chats: StoredChat[]
-  groups: StoredGroup[]
   speech: SpeechProvider[]
   threads: StoredThread[]
   agents: StoredAgent[]
@@ -129,7 +100,6 @@ export type Contents = {
 const EMPTY: Contents = {
   gateways: [],
   chats: [],
-  groups: [],
   speech: [],
   threads: [],
   agents: [],
@@ -142,8 +112,11 @@ class Local {
   data = $state<Contents>(structuredClone(EMPTY))
 
   load = async () => {
-    const { openrouter, ...stored } =
-      (await get<Partial<Contents> & Legacy>(STORE)) ?? {}
+    const {
+      openrouter,
+      groups: _groups,
+      ...stored
+    } = (await get<Partial<Contents> & Legacy>(STORE)) ?? {}
 
     this.data = { ...structuredClone(EMPTY), ...stored }
 

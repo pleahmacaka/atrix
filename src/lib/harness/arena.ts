@@ -138,10 +138,9 @@ export const servedBy = (name: string, ids: string[]) => {
     const have = tokensOf(id.split("/").at(-1) ?? id)
     const [short, long] =
       have.length < want.length ? [have, want] : [want, have]
-    const prefix = short.every((t, i) => long[i] === t)
     const next = long[short.length]
 
-    if (short.length === 0 || !prefix) {
+    if (short.length === 0 || !short.every((t, i) => long[i] === t)) {
       return false
     }
 

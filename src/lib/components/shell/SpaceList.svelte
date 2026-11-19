@@ -1,7 +1,5 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { SvelteDate } from "svelte/reactivity"
-import { z } from "zod"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -12,11 +10,14 @@ import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { SPACE_HUES, type Space } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { getLocale } from "#lib/paraglide/runtime.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
-import { droppedConversation, isConversationDrag, startDrag } from "#lib/store/drag.ts"
+import { startDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
-import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
+import {
+  goPage,
+  nav,
+  openConversation,
+} from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import {
   type AgentRow,
@@ -25,14 +26,12 @@ import {
   type Status,
   spaceTree,
 } from "#lib/store/spaceTree.ts"
-import { Stored } from "#lib/store/stored.svelte.ts"
 import { conversationMenu } from "./conversationMenu.ts"
 import FolderPicker from "./FolderPicker.svelte"
+import { elapsed } from "./format.ts"
 import SessionPicker from "./SessionPicker.svelte"
 
 let { rail = false }: { rail?: boolean } = $props()
-
-const SPACE_MIME = "application/x-atrix-space"
 
 const attempt = new Attempt()
 
@@ -40,9 +39,47 @@ const tree = $derived(spaceTree())
 
 const shown = $derived(tree.hosts.filter(h => h.spaces.length > 0))
 
-const empty = $derived(shown.length === 0)
-
 const many = $derived(shown.length > 1)
+
+type Entry = { host: (typeof shown)[number]; node: SpaceNode; row: AgentRow }
+
+const DAY_MS = 86_400_000
+
+const SETTLE_MS = DAY_MS
+
+const entries = $derived(
+  shown.flatMap(host =>
+    host.spaces.flatMap(node => node.agents.map(row => ({ host, node, row }))),
+  ),
+)
+
+const recency = (entry: Entry) => entry.row.since ?? 0
+
+const tier = (entry: Entry) =>
+  entry.row.pinned ? 0 : entry.row.status === "idle" ? 2 : 1
+
+let frozen = $state.raw<Map<string, number> | null>(null)
+
+const sorted = $derived.by(() => {
+  const at = frozen
+  const natural = entries.toSorted(
+    (a, b) => tier(a) - tier(b) || recency(b) - recency(a),
+  )
+
+  if (!at) {
+    return natural
+  }
+
+  const rank = (entry: Entry) => at.get(entry.row.item.key) ?? Number.MAX_SAFE_INTEGER
+
+  return natural.toSorted((a, b) => rank(a) - rank(b))
+})
+
+const freeze = () => {
+  frozen = new Map(sorted.map((e, i) => [e.row.item.key, i]))
+}
+
+const empty = $derived(entries.length === 0)
 
 const activeKey = $derived(panes.active.current ? keyOf(panes.active.current) : null)
 
@@ -52,56 +89,22 @@ const openKeys = $derived(
 
 const clustered = $derived(panes.leaves.length > 1 ? openKeys : new Set<string>())
 
-const now = new SvelteDate()
-
-const units = [
-  { unit: "day", ms: 86_400_000 },
-  { unit: "hour", ms: 3_600_000 },
-  { unit: "minute", ms: 60_000 },
-] as const
-
-const elapsed = (since: number) => {
-  const gap = Math.max(0, now.getTime() - since)
-  const found = units.find(u => gap >= u.ms) ?? units[2]
-
-  const format = new Intl.NumberFormat(getLocale(), {
-    style: "unit",
-    unit: found.unit,
-    unitDisplay: "narrow",
-  })
-
-  return gap < found.ms ? `<${format.format(1)}` : format.format(Math.floor(gap / found.ms))
-}
-
 $effect(() => {
-  const timer = setInterval(() => now.setTime(Date.now()), 30_000)
+  const timer = setInterval(() => (now = Date.now()), 30_000)
 
   return () => clearInterval(timer)
 })
 
-const folds = new Stored("space-fold:", null as boolean | null, z.boolean().nullable())
+let now = $state(Date.now())
 
+const settledOf = (entry: Entry) =>
+  tier(entry) === 2 && now - recency(entry) > SETTLE_MS
 
-let frozen = $state.raw<Map<string, number> | null>(null)
+const recent = $derived(sorted.filter(e => !settledOf(e)))
 
-const freeze = () => {
-  frozen = new Map(
-    tree.hosts.flatMap(h => h.spaces.flatMap(n => n.agents.map((a, i) => [a.id, i] as const))),
-  )
-}
+const settled = $derived(sorted.filter(settledOf))
 
-const ordered = (node: SpaceNode) => {
-  if (!frozen) {
-    return node.agents
-  }
-
-  const at = frozen
-  const rank = (id: string) => at.get(id) ?? Number.MAX_SAFE_INTEGER
-
-  return node.agents.toSorted((a, b) => rank(a.id) - rank(b.id))
-}
-
-const folded = (node: SpaceNode) => folds.get(node.key) ?? false
+let showSettled = $state(false)
 
 let editing = $state<{
   host: string
@@ -112,8 +115,6 @@ let editing = $state<{
 
 let adding = $state<{ host: string; node: SpaceNode } | null>(null)
 
-let hint = $state<{ key: string; after: boolean } | null>(null)
-
 const STATUS_LABEL: Record<Status, () => string> = {
   waiting: m.status_waiting,
   running: m.status_running,
@@ -122,47 +123,6 @@ const STATUS_LABEL: Record<Status, () => string> = {
 }
 
 const colorOf = (space: Space) => `oklch(62% 0.15 ${SPACE_HUES[space.color]})`
-
-const hintAt = (e: DragEvent, key: string) => {
-  e.preventDefault()
-
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-
-  hint = { key, after: e.clientY > r.top + r.height / 2 }
-}
-
-const clear = () => {
-  hint = null
-}
-
-const draggedSpace = (e: DragEvent) => e.dataTransfer?.types.includes(SPACE_MIME) ?? false
-
-const dropOnAgent = async (e: DragEvent, host: string, node: SpaceNode, target: string) => {
-  e.preventDefault()
-
-  const after = hint?.after ?? false
-
-  clear()
-
-  const dropped = droppedConversation(e)
-
-  if (dropped?.kind !== "session" || dropped.host !== host) {
-    return
-  }
-
-  if (target === dropped.id) {
-    return
-  }
-
-  const shown = ordered(node)
-    .map(a => a.id)
-    .filter(id => id !== dropped.id)
-  const explicit = new Set(node.space.agents)
-  const rest = shown.slice(shown.indexOf(target) + (after ? 1 : 0))
-  const before = rest.find(id => explicit.has(id)) ?? null
-
-  await placeIn(host, node, dropped.id, before)
-}
 
 const materialize = async (host: string, node: SpaceNode, name = node.space.name) => {
   if (!node.auto) {
@@ -180,97 +140,33 @@ const materialize = async (host: string, node: SpaceNode, name = node.space.name
   return space?.id ?? null
 }
 
-const placeIn = async (host: string, node: SpaceNode, sessionId: string, before: string | null) => {
+const placeIn = async (host: string, node: SpaceNode, id: string, before: string | null) => {
   const view = hostById(host)
-  const row = tree.hosts
-    .find(h => h.id === host)
-    ?.spaces.flatMap(n => n.agents)
-    .find(a => a.id === sessionId)
-  const home = node.auto && folderKey(row?.item.cwd ?? "") === folderKey(node.space.folder)
+  const home = node.auto && folderKey(tree.hosts
+    .find(h => h.id === host)?.spaces.flatMap(n => n.agents).find(a => a.id === id)?.item.cwd ?? "") === folderKey(node.space.folder)
 
   if (home) {
-    return view?.place(sessionId, null, null)
+    await view?.place(id, null, null)
+    return
   }
 
   const space = await materialize(host, node)
 
   if (space) {
-    await view?.place(sessionId, space, before)
+    await view?.place(id, space, before)
   }
 }
-
-const spaceIdOf = async (host: string, node: SpaceNode) => {
-  if (!node.auto) {
-    return node.space.id
-  }
-
-  const view = hostById(host)
-  const created = await view?.createSpace(node.space.name, node.space.folder)
-
-  return created?.id ?? null
-}
-
-const draggedNode = (e: DragEvent) => {
-  try {
-    return z
-      .object({ host: z.string(), key: z.string() })
-      .parse(JSON.parse(e.dataTransfer?.getData(SPACE_MIME) ?? ""))
-  } catch {
-    return null
-  }
-}
-
-const dropOnSpace = async (e: DragEvent, host: string, node: SpaceNode, nodes: SpaceNode[]) => {
-  e.preventDefault()
-
-  const after = hint?.after ?? false
-
-  clear()
-
-  const view = hostById(host)
-  const dragged = draggedNode(e)
-
-  if (dragged) {
-    const moving = nodes.find(n => n.key === dragged.key)
-
-    if (dragged.host !== host || !moving || moving.key === node.key) {
-      return
-    }
-
-    const target = await spaceIdOf(host, node)
-    const id = await spaceIdOf(host, moving)
-
-    if (!target || !id) {
-      return
-    }
-
-    if (node.auto || moving.auto) {
-      await view?.refresh()
-    }
-
-    const order = (view?.state?.spaces ?? []).map(s => s.id).filter(s => s !== id)
-    const at = order.indexOf(target)
-
-    return view?.moveSpace(id, after ? (order[at + 1] ?? null) : target)
-  }
-
-  const dropped = droppedConversation(e)
-
-  if (dropped?.kind === "session" && dropped.host === host) {
-    await placeIn(host, node, dropped.id, null)
-  }
-}
-
 const startAgent = (host: string, node: SpaceNode) => {
   const space = node.space
+  const current = nav.target.kind === "harness" ? nav.target : null
 
   goPage("chat")
   openConversation(null)
   nav.space = node.auto ? null : { host, id: space.id }
 
   const harness =
-    nav.target.kind === "harness" && nav.target.host === host
-      ? nav.target.harness
+    current && current.host === host
+      ? current.harness
       : hostById(host)?.state?.harnesses.find(h => h.enabled)?.id
 
   if (harness) {
@@ -280,8 +176,8 @@ const startAgent = (host: string, node: SpaceNode) => {
       harness,
       cwd:
         space.folder ||
-        (nav.target.kind === "harness"
-          ? nav.target.cwd
+        (current
+          ? current.cwd
           : (hostById(host)?.state?.home ?? "")),
     }
   }
@@ -309,8 +205,6 @@ const save = async () => {
 const spaceMenu = (host: string, node: SpaceNode): MenuItem[] => {
   const view = hostById(host)
   const space = node.space
-  const ids = (view?.state?.spaces ?? []).map(s => s.id)
-  const at = ids.indexOf(space.id)
 
   const shared: MenuItem[] = [
     {
@@ -347,25 +241,32 @@ const spaceMenu = (host: string, node: SpaceNode): MenuItem[] => {
     },
   ]
 
+  const live = node.agents.filter(a => view?.state?.open.some(s => s.id === a.id))
+  const close: MenuItem[] =
+    live.length > 0
+      ? [
+          "separator",
+          {
+            label: m.space_close(),
+            icon: "lucide:circle-x",
+            run: () =>
+              attempt.run(async () => {
+                for (const row of live) {
+                  panes.forget(row.item.current)
+                  await view?.close(row.id)
+                }
+              }),
+          },
+        ]
+      : []
+
   if (node.auto) {
-    return shared
+    return [...shared, ...close]
   }
 
   return [
     ...shared,
-    "separator",
-    {
-      label: m.space_move_up(),
-      icon: "lucide:arrow-up",
-      disabled: at <= 0,
-      run: () => attempt.run(async () => view?.moveSpace(space.id, ids[at - 1] ?? null)),
-    },
-    {
-      label: m.space_move_down(),
-      icon: "lucide:arrow-down",
-      disabled: at === -1 || at >= ids.length - 1,
-      run: () => attempt.run(async () => view?.moveSpace(space.id, ids[at + 2] ?? null)),
-    },
+    ...close,
     "separator",
     {
       label: m.space_delete(),
@@ -406,15 +307,22 @@ const agentMenu = (host: string, node: SpaceNode, row: AgentRow): MenuItem[] => 
   ]
 }
 
-const railRows = $derived(
-  tree.hosts.flatMap(h =>
-    h.spaces.flatMap(n => n.agents),
-  ),
-)
+const railRows = $derived(sorted.map(e => e.row))
+
+const menuOf = (e: MouseEvent, entry: Entry) => {
+  const onSpace = e.target instanceof Element && !!e.target.closest("[data-space]")
+
+  contextMenu.show(
+    e,
+    onSpace
+      ? spaceMenu(entry.host.id, entry.node)
+      : agentMenu(entry.host.id, entry.node, entry.row),
+  )
+}
 </script>
 
 {#snippet status(state: Status, live: boolean, fresh = false)}
-  <span class="grid size-4 shrink-0 place-items-center" role="img" aria-label={STATUS_LABEL[state]()}>
+  <span class="grid size-4 shrink-0 place-items-center justify-items-end" role="img" aria-label={STATUS_LABEL[state]()}>
     {#if state === "waiting"}
       <span class="size-2 rounded-full bg-warning"></span>
     {:else if state === "running"}
@@ -490,126 +398,97 @@ const railRows = $derived(
   {@render editor()}
 </Modal>
 
-{#snippet agent(host: string, node: SpaceNode, row: AgentRow)}
-  {@const key = `${node.key}/${row.id}`}
-  <li class="relative">
-    {#if hint?.key === key}
-      <span
-        class={[
-          "pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-primary p-0",
-          hint.after ? "-bottom-0.5" : "-top-0.5",
-        ]}
-      ></span>
-    {/if}
+{#snippet entryRow(entry: Entry)}
+  {@const { host, node, row } = entry}
+  {@const active = activeKey === row.item.key}
+  {@const device = many && !host.local ? host.name : null}
+  <li class="min-w-0">
     <button
       type="button"
       class={[
-        "min-w-0 cursor-grab gap-2 ps-1.5 pe-1.5 active:cursor-grabbing",
-        activeKey === row.item.key && "menu-active",
-        activeKey !== row.item.key && clustered.has(row.item.key) && "bg-base-content/5",
+        "flex w-full min-w-0 cursor-grab flex-col gap-0.5 rounded-field px-2 py-1.5 text-start outline-none",
+        "transition-colors duration-140 active:cursor-grabbing",
+        active
+          ? "bg-primary/8"
+          : clustered.has(row.item.key)
+            ? "bg-base-content/5"
+            : "hover:bg-base-content/5 focus-visible:bg-base-content/5",
       ]}
       title={row.item.source}
       draggable="true"
       ondragstart={e => startDrag(e, row.item.current)}
-      ondragover={e =>
-        isConversationDrag(e) && node.space.agents.includes(row.id) && hintAt(e, key)}
-      ondragleave={clear}
-      ondrop={e => attempt.run(() => dropOnAgent(e, host, node, row.id))}
       onclick={() => openConversation(row.item.current)}
-      oncontextmenu={e => contextMenu.show(e, agentMenu(host, node, row))}
+      oncontextmenu={e => menuOf(e, entry)}
     >
-      <Icon icon={row.item.icon} class="size-4 shrink-0 opacity-80" />
-      <span class={["min-w-0 flex-1 truncate", row.status === "done" && "font-semibold"]}>
-        {row.item.title}
+      <span class="flex min-w-0 items-center gap-1.5 text-xs text-base-content/50">
+        <span data-space class="flex min-w-0 items-center gap-1.5" title={node.space.folder}>
+          <span class="size-2 shrink-0 rounded-full" style:background-color={colorOf(node.space)}></span>
+          <span class="min-w-0 truncate">{node.space.name}</span>
+        </span>
+        {#if device}
+          <span class="shrink-0" {@attach tooltip(() => [device], () => true)}>
+            <Icon icon="lucide:monitor" class="size-3" aria-label={device} />
+          </span>
+        {/if}
+        <span class="flex-1"></span>
+        {#if row.pinned}
+          <Icon icon="lucide:pin" class="size-3 shrink-0" aria-label={m.space_pinned()} />
+        {/if}
+        {#if openKeys.has(row.item.key) && !active}
+          <Icon icon="lucide:panel-right" class="size-3 shrink-0" aria-label={m.chat_open_elsewhere()} />
+        {/if}
+        {#if row.since}
+          <span class={["shrink-0 tabular-nums", row.status !== "idle" && "text-primary"]}>
+            {elapsed(row.since, now)}
+          </span>
+        {/if}
       </span>
-      {#if row.pinned}
-        <Icon icon="lucide:pin" class="size-3 shrink-0 opacity-50" aria-label={m.space_pinned()} />
-      {/if}
-      {#if openKeys.has(row.item.key) && activeKey !== row.item.key}
-        <Icon icon="lucide:panel-right" class="size-3.5 shrink-0 opacity-50" aria-label={m.chat_open_elsewhere()} />
-      {/if}
-      {#if row.since}
-        <span class="shrink-0 text-xs text-base-content/45 tabular-nums">{elapsed(row.since)}</span>
-      {/if}
-      {@render status(row.status, row.item.live)}
+      <span class="flex min-w-0 items-center gap-2 text-sm">
+        <span
+          class={[
+            "min-w-0 flex-1 truncate",
+            row.status === "done" && "font-semibold",
+            active && "text-primary",
+          ]}
+        >
+          {row.item.title}
+        </span>
+        {#if row.status === "idle"}
+          <Icon icon={row.item.icon} class="size-4 shrink-0 opacity-60" />
+        {:else}
+          {@render status(row.status, row.item.live)}
+        {/if}
+      </span>
     </button>
     {#if row.subagents.length > 0}
-      <div class="ms-4 flex flex-col items-stretch self-stretch py-0 ps-0 pe-1.5">
-        {#each row.subagents as sub (sub.id)}
-          {@const target = {
-            kind: "session" as const,
-            host,
-            id: row.id,
-            agent: { id: sub.id, description: sub.description },
-          }}
-          <button
-            type="button"
-            class={[
-              "flex min-w-0 cursor-pointer items-center gap-1.5 rounded-field text-start text-xs",
-              "transition-colors duration-140 hover:text-base-content",
-              activeKey === keyOf(target) ? "text-primary" : "text-base-content/60",
-            ]}
-            onclick={() => openConversation(target)}
-          >
-            <span class="mb-2.5 h-3.5 w-2.5 shrink-0 self-end rounded-es-md border-s border-b border-base-content/25"></span>
-            <Icon icon={row.item.icon} class="size-3.5 shrink-0 opacity-80" />
-            <span class="min-w-0 flex-1 truncate" title={sub.description}>{sub.description}</span>
-            <span class="loading loading-spinner loading-xs shrink-0 opacity-60"></span>
-          </button>
-        {/each}
+      <div class="flex w-full min-w-0 items-center gap-1 ps-3 pe-2">
+        <span class="mb-2.5 h-3 w-2 shrink-0 self-end rounded-es-md border-s border-b border-base-content/25"></span>
+        <div class="flex min-w-0 -space-x-2 overflow-hidden">
+          {#each row.subagents as sub (sub.id)}
+            {@const target = {
+              kind: "session" as const,
+              host: host.id,
+              id: row.id,
+              agent: { id: sub.id, description: sub.description },
+            }}
+            <button
+              type="button"
+              class={[
+                "relative grid size-6 cursor-pointer place-items-center rounded-full border-2 border-base-200",
+                "transition-colors duration-140 hover:z-10 hover:bg-base-content/25",
+                activeKey === keyOf(target) ? "bg-primary text-primary-content" : "bg-base-300 text-base-content/80",
+              ]}
+              aria-label={sub.description}
+              {@attach tooltip(() => [sub.description], () => true)}
+              onclick={() => openConversation(target)}
+            >
+              <Icon icon={row.item.icon} class="size-3.5 animate-breathe" />
+            </button>
+          {/each}
+        </div>
       </div>
     {/if}
   </li>
-{/snippet}
-
-{#snippet spaceHeader(host: string, node: SpaceNode, nodes: SpaceNode[])}
-  {@const open = !folded(node)}
-  <div class="relative">
-    {#if hint?.key === node.key}
-      <span
-        class={[
-          "pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-primary",
-          hint.after ? "-bottom-0.5" : "-top-0.5",
-        ]}
-      ></span>
-    {/if}
-    <button
-      type="button"
-      class={[
-        "group/space flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field ps-2 pe-9 text-sm",
-        "transition-colors duration-140 hover:bg-base-content/8",
-      ]}
-      aria-expanded={open}
-      aria-label={m.space_toggle({ name: node.space.name })}
-      title={node.space.folder}
-      draggable="true"
-      ondragstart={e => {
-        e.dataTransfer?.setData(SPACE_MIME, JSON.stringify({ host, key: node.key }))
-        e.dataTransfer?.setData("text/plain", "")
-      }}
-      ondragover={e => (draggedSpace(e) || isConversationDrag(e)) && hintAt(e, node.key)}
-      ondragleave={clear}
-      ondrop={e => attempt.run(async () => dropOnSpace(e, host, node, nodes))}
-      onclick={() => folds.set(node.key, open)}
-      oncontextmenu={e => contextMenu.show(e, spaceMenu(host, node))}
-    >
-      <span
-        class="grid size-5 shrink-0 place-items-center rounded-field text-xs leading-none font-semibold text-white"
-        style:background-color={colorOf(node.space)}
-      >
-        {[...node.space.name][0]?.toUpperCase()}
-      </span>
-      <span class="min-w-0 flex-1 truncate text-start font-medium">{node.space.name}</span>
-      {@render status(open ? "idle" : node.status, false)}
-    </button>
-    <IconButton
-      icon="lucide:plus"
-      label={m.space_session_menu()}
-      size="xs"
-      class="absolute inset-y-0 end-1.5 my-auto opacity-60 hover:opacity-100"
-      onclick={e => contextMenu.show(e, spaceMenu(host, node).slice(0, 2).reverse())}
-    />
-  </div>
 {/snippet}
 
 {#if rail}
@@ -644,7 +523,7 @@ const railRows = $derived(
   </ul>
 {:else}
   <div
-    class="flex flex-col gap-1 pb-2"
+    class="flex flex-col pb-2"
     role="presentation"
     onpointerenter={freeze}
     onpointerleave={() => (frozen = null)}
@@ -670,25 +549,35 @@ const railRows = $derived(
     {#if empty && !editing}
       <EmptyState icon="lucide:inbox" text={m.chat_none()} class="py-6" />
     {/if}
-    {#each shown as host (host.id)}
-      <section class="flex flex-col">
-        {#if many}
-          <h3 class="truncate px-4 pt-2 pb-1 text-xs text-base-content/50">{host.name}</h3>
-        {/if}
-        {#each host.spaces as node (node.key)}
-          <div class="px-1">
-            {@render spaceHeader(host.id, node, host.spaces)}
-          </div>
-          {#if !folded(node)}
-            <ul class="menu ms-6.5 w-auto gap-0.5 self-stretch border-s border-base-content/20 py-0 ps-0 pe-1">
-              {#each ordered(node) as row (row.id)}
-                {@render agent(host.id, node, row)}
-              {/each}
-            </ul>
-          {/if}
-        {/each}
-      </section>
-    {/each}
+    <ul class="flex flex-col gap-0.5 px-2">
+      {#each recent as entry (entry.row.item.key)}
+        {@render entryRow(entry)}
+      {/each}
+    </ul>
+    {#if settled.length > 0}
+      <button
+        type="button"
+        class={[
+          "mx-2 mt-2 flex h-7 cursor-pointer items-center gap-2 rounded-field px-2 text-xs text-base-content/50 outline-none",
+          "transition-colors duration-140 hover:bg-base-content/5 focus-visible:bg-base-content/5",
+        ]}
+        aria-expanded={showSettled}
+        onclick={() => (showSettled = !showSettled)}
+      >
+        <span class="min-w-0 flex-1 truncate text-start">{m.spaces_settled({ count: settled.length })}</span>
+        <Icon
+          icon="lucide:chevron-down"
+          class={["size-3.5 shrink-0 transition-transform duration-140", showSettled && "rotate-180"]}
+        />
+      </button>
+      {#if showSettled}
+        <ul class="flex flex-col gap-0.5 px-2">
+          {#each settled as entry (entry.row.item.key)}
+            {@render entryRow(entry)}
+          {/each}
+        </ul>
+      {/if}
+    {/if}
   </div>
 {/if}
 

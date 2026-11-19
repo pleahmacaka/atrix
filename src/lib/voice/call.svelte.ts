@@ -39,6 +39,28 @@ export const replyOf = (list: ChatItem[]) => {
     .join("\n\n")
 }
 
+const statusOf = (
+  hearing: boolean,
+  speaking: boolean,
+  thinking: boolean,
+  converting: boolean,
+  muted: boolean,
+) => {
+  if (hearing) {
+    return m.voice_listening()
+  }
+
+  if (speaking) {
+    return m.voice_speaking()
+  }
+
+  if (thinking) {
+    return converting ? m.voice_transcribing() : m.voice_thinking()
+  }
+
+  return muted ? m.voice_muted() : m.voice_listening()
+}
+
 export const callState = (running: boolean, items: ChatItem[]): CallState => {
   const thinking =
     !conversation.hearing &&
@@ -48,16 +70,14 @@ export const callState = (running: boolean, items: ChatItem[]): CallState => {
       conversation.holding ||
       conversation.transcribing > 0)
 
-  const status = conversation.hearing
-    ? m.voice_listening()
-    : voice.speaking
-      ? m.voice_speaking()
-      : thinking
-        ? m.voice_thinking()
-        : conversation.muted
-          ? m.voice_muted()
-          : m.voice_listening()
-
+  const converting = conversation.transcribing > 0 || conversation.holding
+  const status = statusOf(
+    conversation.hearing,
+    voice.speaking,
+    thinking,
+    converting,
+    conversation.muted,
+  )
   const asked = items.findLast((i): i is TextItem => i.type === "user")
 
   return {
@@ -93,6 +113,12 @@ const watchTheme = createSubscriber(update => {
   return () => observer.disconnect()
 })
 
+const inkOf = () => {
+  watchTheme()
+
+  return getComputedStyle(root).getPropertyValue("--color-primary").trim()
+}
+
 export const palette = {
   get dark() {
     watchTheme()
@@ -101,9 +127,7 @@ export const palette = {
   },
 
   get ink() {
-    watchTheme()
-
-    return getComputedStyle(root).getPropertyValue("--color-primary").trim()
+    return inkOf()
   },
 }
 

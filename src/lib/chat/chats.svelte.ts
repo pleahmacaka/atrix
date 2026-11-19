@@ -19,11 +19,6 @@ class Chats {
     return local.data.chats.toSorted((a, b) => b.at - a.at)
   }
 
-  remove = async (id: string) => {
-    local.data.chats = local.data.chats.filter(c => c.id !== id)
-    await local.save()
-  }
-
   find = (id: string) => local.data.chats.find(c => c.id === id)
 
   create = (gateway: string, model: string) => {
@@ -39,6 +34,11 @@ class Chats {
     })
 
     return id
+  }
+
+  remove = async (id: string) => {
+    local.data.chats = local.data.chats.filter(c => c.id !== id)
+    await local.save()
   }
 }
 

@@ -1,83 +1,138 @@
 <script lang="ts">
+import { untrack } from "svelte"
 import { on } from "svelte/events"
-import { addDays, dateValue, timeValue } from "#lib/calendar/calendar.svelte.ts"
-import type { CalendarEvent, EventInput } from "#lib/calendar/events.ts"
+import { dateKey, dateTimeKey } from "#lib/calendar/dates.ts"
+import { shiftable } from "#lib/calendar/occurrence.ts"
+import type { EventTag } from "#lib/calendar/store.ts"
+import { COLOR_KEYS, COLORS } from "#lib/calendar/tags.ts"
+import {
+  type CalendarEvent,
+  type Occurrence,
+  RECURRENCES,
+  type Recurrence,
+  SHIFTS,
+  type Shift,
+} from "#lib/calendar/types.ts"
 import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import TagPicker from "./TagPicker.svelte"
 
 let {
   event,
   day,
+  tags,
   busy,
   onsave,
   oncancel,
   ondelete,
+  oncreatetag,
+  onupdatetag,
+  onremovetag,
+  onnotesync,
 }: {
-  event: CalendarEvent | null
+  event: Occurrence | null
   day: Date
+  tags: EventTag[]
   busy: boolean
-  onsave: (input: EventInput) => void
+  onsave: (draft: CalendarEvent) => void
   oncancel: () => void
   ondelete?: () => void
+  oncreatetag: (name: string) => Promise<string | null>
+  onupdatetag: (tag: EventTag) => unknown
+  onremovetag: (tag: EventTag) => unknown
+  onnotesync?: (on: boolean) => void
 } = $props()
 
-const COLORS = [
-  { value: "", label: m.calendar_color_primary, tone: "radio-primary" },
-  { value: "success", label: m.calendar_color_success, tone: "radio-success" },
-  { value: "warning", label: m.calendar_color_warning, tone: "radio-warning" },
-  { value: "error", label: m.calendar_color_error, tone: "radio-error" },
-]
+const RECURRENCE_LABELS: Record<Recurrence, () => string> = {
+  none: m.calendar_recurrence_none,
+  daily: m.calendar_recurrence_daily,
+  weekdays: m.calendar_recurrence_weekdays,
+  weekly: m.calendar_recurrence_weekly,
+  monthly: m.calendar_recurrence_monthly,
+  yearly: m.calendar_recurrence_yearly,
+}
 
-const initial = () => {
-  if (!event) {
-    const start = addDays(day, 0)
+const SHIFT_LABELS: Record<Shift | "", () => string> = {
+  "": m.calendar_shift_none,
+  next: m.calendar_shift_next,
+  previous: m.calendar_shift_previous,
+}
 
-    start.setHours(9)
+const NEW_EVENT_HOUR = 9
 
-    const end = new Date(start)
+const blank = (): CalendarEvent => {
+  const start = new Date(day)
 
-    end.setHours(10)
+  start.setHours(NEW_EVENT_HOUR, 0, 0, 0)
 
-    return {
-      title: "",
-      allDay: false,
-      start: timeValue(start),
-      end: timeValue(end),
-      note: "",
-      color: "",
-    }
-  }
+  const end = new Date(start)
 
-  const start = new Date(event.start)
-  const end = new Date(event.end)
+  end.setHours(NEW_EVENT_HOUR + 1)
 
   return {
-    title: event.title,
-    allDay: event.allDay,
-    start: event.allDay ? dateValue(start) : timeValue(start),
-    end: event.allDay ? dateValue(addDays(end, -1)) : timeValue(end),
-    note: event.note,
-    color: event.color,
+    id: crypto.randomUUID(),
+    title: "",
+    notes: "",
+    start: dateTimeKey(start),
+    end: dateTimeKey(end),
+    allDay: false,
+    color: "",
+    recurrence: "none",
+    tags: [],
+    exdates: [],
+    until: null,
+    shift: null,
+    seriesId: null,
+    originalDate: null,
+    notesSync: false,
+    createdBy: "",
+    updatedAt: 0,
   }
 }
 
-const form = $state(initial())
+const base = untrack(() => event ?? blank())
 
-const toggleAllDay = (on: boolean) => {
-  form.allDay = on
-  form.start = on ? form.start.slice(0, 10) : `${form.start}T09:00`
-  form.end = on ? form.end.slice(0, 10) : `${form.end}T10:00`
+type Form = Pick<
+  CalendarEvent,
+  "title" | "allDay" | "start" | "end" | "notes" | "color" | "recurrence" | "tags"
+> & { until: string; shift: Shift | "" }
+
+const form = $state<Form>({
+  title: base.title,
+  allDay: base.allDay,
+  start: base.start,
+  end: base.end,
+  notes: base.notes,
+  color: base.color,
+  recurrence: base.recurrence,
+  until: base.until ?? "",
+  shift: base.shift ?? "",
+  tags: [...base.tags],
+})
+
+let notesSync = $state(untrack(() => event?.notesSync ?? false))
+
+const toggleAllDay = (allDay: boolean) => {
+  form.allDay = allDay
+  form.start = allDay ? form.start.slice(0, 10) : `${form.start}T09:00`
+  form.end = allDay ? form.end.slice(0, 10) : `${form.end}T10:00`
 }
 
 const submit = (e: SubmitEvent) => {
   e.preventDefault()
 
-  const end = form.allDay
-    ? dateValue(addDays(new Date(`${form.end}T00:00`), 1))
-    : form.end
+  const recurring = form.recurrence !== "none"
 
-  onsave({ ...form, end })
+  onsave({
+    ...base,
+    ...form,
+    title: form.title.trim(),
+    until: recurring && form.until ? form.until : null,
+    shift: recurring && shiftable(form.recurrence) && form.shift ? form.shift : null,
+  })
 }
+
+const today = dateKey(new Date())
 </script>
 
 <form
@@ -109,58 +164,122 @@ const submit = (e: SubmitEvent) => {
     />
     {m.calendar_all_day()}
   </label>
-  <div class="grid grid-cols-1 gap-2">
+  <label class="flex flex-col gap-1 text-xs text-base-content/60">
+    {m.calendar_start()}
+    <input
+      type={form.allDay ? "date" : "datetime-local"}
+      class="input input-sm w-full tabular-nums"
+      required
+      bind:value={form.start}
+    />
+  </label>
+  <label class="flex flex-col gap-1 text-xs text-base-content/60">
+    {m.calendar_end()}
+    <input
+      type={form.allDay ? "date" : "datetime-local"}
+      class="input input-sm w-full tabular-nums"
+      required
+      min={form.start}
+      bind:value={form.end}
+    />
+  </label>
+  <label class="flex flex-col gap-1 text-xs text-base-content/60">
+    {m.calendar_repeat()}
+    <select class="select select-sm w-full" bind:value={form.recurrence}>
+      {#each RECURRENCES as option (option)}
+        <option value={option}>{RECURRENCE_LABELS[option]()}</option>
+      {/each}
+    </select>
+  </label>
+  {#if form.recurrence !== "none"}
     <label class="flex flex-col gap-1 text-xs text-base-content/60">
-      {m.calendar_start()}
+      {m.calendar_until()}
       <input
-        type={form.allDay ? "date" : "datetime-local"}
+        type="date"
         class="input input-sm w-full tabular-nums"
-        required
-        bind:value={form.start}
+        min={form.start.slice(0, 10) || today}
+        bind:value={form.until}
       />
     </label>
-    <label class="flex flex-col gap-1 text-xs text-base-content/60">
-      {m.calendar_end()}
-      <input
-        type={form.allDay ? "date" : "datetime-local"}
-        class="input input-sm w-full tabular-nums"
-        required
-        min={form.start}
-        bind:value={form.end}
-      />
-    </label>
+    {#if shiftable(form.recurrence)}
+      <label class="flex flex-col gap-1 text-xs text-base-content/60">
+        {m.calendar_shift()}
+        <select class="select select-sm w-full" bind:value={form.shift}>
+          {#each ["", ...SHIFTS] as const as option (option)}
+            <option value={option}>{SHIFT_LABELS[option]()}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+  {/if}
+  <div class="flex flex-col gap-1 text-xs text-base-content/60">
+    {m.calendar_tags()}
+    <TagPicker
+      {tags}
+      bind:selected={form.tags}
+      oncreate={oncreatetag}
+      onupdate={onupdatetag}
+      onremove={onremovetag}
+    />
   </div>
   <textarea
     class="textarea textarea-sm w-full"
     rows="3"
     placeholder={m.calendar_note()}
     aria-label={m.calendar_note()}
-    bind:value={form.note}
+    bind:value={form.notes}
   ></textarea>
+  {#if event?.seriesDate && onnotesync}
+    <label class="flex cursor-pointer items-center gap-2 text-xs text-base-content/60">
+      <input
+        type="checkbox"
+        class="toggle toggle-xs toggle-primary"
+        bind:checked={notesSync}
+        onchange={() => onnotesync(notesSync)}
+      />
+      {m.calendar_notes_sync()}
+    </label>
+  {/if}
   <div
-    class="flex items-center gap-2"
+    class="flex flex-wrap items-center gap-2"
     role="radiogroup"
     aria-label={m.calendar_color()}
   >
-    {#each COLORS as color (color.value)}
+    {#each COLOR_KEYS as color (color)}
       <input
         type="radio"
-        name="color"
-        value={color.value}
-        aria-label={color.label()}
-        title={color.label()}
-        class={["radio radio-sm cursor-pointer", color.tone]}
+        name="event-color"
+        aria-label={COLORS[color].label()}
+        title={COLORS[color].label()}
+        class={[
+          "size-5 cursor-pointer appearance-none rounded-full ring-2 ring-offset-2 ring-offset-base-100",
+          "ring-transparent transition-shadow duration-140 hover:ring-base-content/25",
+          "checked:ring-base-content/70",
+          COLORS[color].chip,
+        ]}
+        value={color}
         bind:group={form.color}
       />
     {/each}
   </div>
   <div class="flex items-center gap-2 pt-1">
     {#if ondelete}
-      <ConfirmButton
-        label={m.common_delete()}
-        disabled={busy}
-        onconfirm={ondelete}
-      />
+      {#if event?.seriesDate}
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm text-error"
+          disabled={busy}
+          onclick={ondelete}
+        >
+          {m.common_delete()}
+        </button>
+      {:else}
+        <ConfirmButton
+          label={m.common_delete()}
+          disabled={busy}
+          onconfirm={ondelete}
+        />
+      {/if}
     {/if}
     <span class="flex-1"></span>
     <button type="button" class="btn btn-ghost btn-sm" onclick={oncancel}>

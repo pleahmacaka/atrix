@@ -111,10 +111,10 @@ const remove = () =>
   }}
 />
 {:else}
-<section class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6">
-  <div class="mx-auto flex w-full max-w-2xl flex-col gap-4">
+<section class="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6">
+  <div class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3">
     {#if !existing}
-      <div class="flex flex-col gap-2">
+      <div class="flex shrink-0 flex-col gap-2">
         <div class="flex items-center gap-2">
           <h3 class="min-w-0 flex-1 text-xs font-medium text-base-content/60">{m.agent_templates()}</h3>
           <button
@@ -128,11 +128,11 @@ const remove = () =>
             {m.builder_back()}
           </button>
         </div>
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-4">
           {#each TEMPLATES as template (template.id)}
             <button
               type="button"
-              class="flex cursor-pointer items-center gap-3 rounded-box border border-base-300 bg-base-100 p-3 text-start transition-colors duration-140 hover:bg-base-content/5"
+              class="flex cursor-pointer items-center gap-3 rounded-box border border-base-300 bg-base-100 p-3 text-start transition-colors hover:bg-base-content/5"
               onclick={() => {
                 draft = { id: null, ...fromTemplate(template) }
                 revision++
@@ -149,18 +149,19 @@ const remove = () =>
     {/if}
 
     <form
-      class="flex flex-col gap-2"
+      class="flex min-h-0 flex-1 flex-col gap-3"
       onsubmit={e => {
         e.preventDefault()
         save()
       }}
     >
-      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
         <IconInput
           icon="lucide:tag"
           label={m.agent_name()}
           placeholder={m.agent_name()}
           ghost={false}
+          class="w-56 max-sm:w-full"
           bind:value={draft.name}
         />
         <ProviderSelect
@@ -174,8 +175,6 @@ const remove = () =>
             draft.model = next?.kind === "gateway" ? next.model : ""
           }}
         />
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
         {#if provider?.kind === "gateway"}
           <ModelInput gateway={provider.gateway} bind:value={draft.model} />
         {:else if claude}
@@ -210,69 +209,73 @@ const remove = () =>
           />
         {/if}
       </div>
-      <div class="flex flex-col gap-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="min-w-0 flex-1 px-1 text-xs text-base-content/60">{m.agent_instructions()}</span>
-          {#if blocks.length}
-            <IconSelect
-              icon="lucide:file-plus"
-              label={m.insert_part()}
-              value=""
-              choices={blocks.map(p => ({
-                value: p.name,
-                name: p.name,
-                detail: p.kind === "instruction" ? m.instructions_title() : m.prompts_title(),
-                icon: PART_ICONS[p.kind ?? "prompt"],
-              }))}
-              onchange={include}
-            />
-          {/if}
-        </div>
-        <div class="rounded-box border border-base-300 bg-base-100 px-4 py-3">
-          {#key `${draft.id}:${revision}`}
-            <RichEditor
-              markdown={draft.instructions}
-              editable
-              compact
-              placeholder={m.agent_instructions_hint()}
-              variables={Object.keys(draft.variables ?? {})}
-              title={() => null}
-              open={() => {}}
-              onchange={text => {
-                draft.instructions = text
-              }}
-            />
-          {/key}
-        </div>
-      </div>
-      {#if custom.length}
-        <div class="flex flex-col gap-1">
-          <span class="px-1 text-xs text-base-content/60">{m.agent_variables()}</span>
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {#each custom as name (name)}
-              <div class="flex min-w-0 flex-col gap-0.5">
-                <span class="px-1 text-xs text-primary">{`{{${name}}}`}</span>
-                <IconInput
-                  icon="lucide:braces"
-                  label={name}
-                  placeholder={variableNamed(local.data.prompts, name)?.text ?? name}
-                  ghost={false}
-                  value={draft.variables?.[name] ?? ""}
-                  oninput={e => {
-                    const { [name]: _, ...rest } = draft.variables ?? {}
-                    const value = e.currentTarget.value
-                    const shared = !value && variableNamed(local.data.prompts, name)
-
-                    draft.variables = shared ? rest : { ...rest, [name]: value }
-                  }}
-                />
-              </div>
-            {/each}
+      <div class="flex min-h-0 flex-1 gap-3 max-lg:flex-col">
+        <div class="flex min-h-0 flex-1 flex-col gap-1">
+          <div class="flex shrink-0 flex-wrap items-center gap-2">
+            <span class="min-w-0 flex-1 px-1 text-xs text-base-content/60">{m.agent_instructions()}</span>
+            {#if blocks.length}
+              <IconSelect
+                icon="lucide:file-plus"
+                label={m.insert_part()}
+                value=""
+                choices={blocks.map(p => ({
+                  value: p.name,
+                  name: p.name,
+                  detail: p.kind === "instruction" ? m.instructions_title() : m.prompts_title(),
+                  icon: PART_ICONS[p.kind ?? "prompt"],
+                }))}
+                onchange={include}
+              />
+            {/if}
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto rounded-box border border-base-300 bg-base-100 px-4 py-3">
+            {#key `${draft.id}:${revision}`}
+              <RichEditor
+                markdown={draft.instructions}
+                editable
+                compact
+                placeholder={m.agent_instructions_hint()}
+                variables={Object.keys(draft.variables ?? {})}
+                title={() => null}
+                open={() => {}}
+                onchange={text => {
+                  draft.instructions = text
+                }}
+              />
+            {/key}
           </div>
         </div>
-      {/if}
-      <AgentDeps {provider} instructions={draft.instructions} bind:requires={draft.requires} />
-      <div class="flex items-center justify-end gap-2">
+        <aside class="flex min-h-0 shrink-0 flex-col gap-3 overflow-y-auto lg:w-80 max-lg:max-h-1/3">
+          {#if custom.length}
+            <div class="flex flex-col gap-1">
+              <span class="px-1 text-xs text-base-content/60">{m.agent_variables()}</span>
+              <div class="flex flex-col gap-2">
+                {#each custom as name (name)}
+                  <div class="flex min-w-0 flex-col gap-0.5">
+                    <span class="px-1 text-xs text-primary">{`{{${name}}}`}</span>
+                    <IconInput
+                      icon="lucide:braces"
+                      label={name}
+                      placeholder={variableNamed(local.data.prompts, name)?.text ?? name}
+                      ghost={false}
+                      value={draft.variables?.[name] ?? ""}
+                      oninput={e => {
+                        const { [name]: _, ...rest } = draft.variables ?? {}
+                        const value = e.currentTarget.value
+                        const shared = !value && variableNamed(local.data.prompts, name)
+
+                        draft.variables = shared ? rest : { ...rest, [name]: value }
+                      }}
+                    />
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          <AgentDeps {provider} instructions={draft.instructions} bind:requires={draft.requires} />
+        </aside>
+      </div>
+      <div class="flex shrink-0 items-center justify-end gap-2">
         {#if draft.id}
           <ConfirmButton label={m.common_delete()} labeled onconfirm={remove} />
         {/if}

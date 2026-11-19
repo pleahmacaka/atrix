@@ -16,9 +16,6 @@ import { describe, type Recent, titles } from "#lib/store/recent.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
 import { withKeys } from "#lib/store/shortcuts.ts"
 
-const win = () =>
-  import("@tauri-apps/api/window").then(w => w.getCurrentWindow())
-
 const info = $derived(describe(panes.active.current))
 
 const split = $derived(panes.leaves.length > 1)
@@ -59,6 +56,8 @@ const cwd = $derived(
 
 let renaming = $state(false)
 
+const win = () => import("@tauri-apps/api/window").then(w => w.getCurrentWindow())
+
 const rename = (current: Recent["current"], key: string, value: string) => {
   const title = value.trim()
 
@@ -89,12 +88,10 @@ const rename = (current: Recent["current"], key: string, value: string) => {
     />
   {/if}
   <div class="flex h-full min-w-0 flex-1 items-center" data-tauri-drag-region>
-    {#if nav.page !== "chat"}
-      {null}
-    {:else if info && renaming}
+    {#if nav.page === "chat" && info && renaming}
       {@const { key, current } = info}
       <input
-        class="input input-sm w-80 max-w-full min-w-0"
+        class="input input-sm w-full max-w-80 min-w-0"
         aria-label={m.menu_rename()}
         value={info.title}
         {@attach node => node.select()}
@@ -107,7 +104,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
           }
         }}
       />
-    {:else if info}
+    {:else if nav.page === "chat" && info}
       <button
         type="button"
         class="btn btn-ghost btn-sm max-w-full min-w-0 shrink justify-start font-normal"
@@ -121,7 +118,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
       </button>
       {#if cwd}
         <span
-          class="badge badge-soft badge-primary badge-sm ms-2 max-w-40 min-w-0 shrink-0 gap-1"
+          class="badge badge-soft badge-primary badge-sm ms-2 max-w-40 min-w-0 shrink gap-1"
           title={cwd}
         >
           <Icon

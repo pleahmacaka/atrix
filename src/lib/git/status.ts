@@ -2,8 +2,14 @@ export type Change = { path: string; index: string; worktree: string }
 
 export type Status = { branch: string; files: Change[] }
 
-const branchOf = (line: string) =>
-  line.slice(3).replace("No commits yet on ", "").split("...")[0].split(" [")[0]
+const branchOf = (header: string) =>
+  header
+    .slice(3)
+    .replace("No commits yet on ", "")
+    .split("...")[0]
+    .split(" [")[0]
+
+const isRename = (entry: string) => entry[0] === "R" || entry[0] === "C"
 
 export const parseStatus = (text: string): Status => {
   const parts = text.split("\0")
@@ -15,17 +21,12 @@ export const parseStatus = (text: string): Status => {
 
     if (entry.startsWith("## ")) {
       branch = branchOf(entry)
-      continue
-    }
+    } else if (entry.length >= 4) {
+      files.push({ path: entry.slice(3), index: entry[0], worktree: entry[1] })
 
-    if (entry.length < 4) {
-      continue
-    }
-
-    files.push({ path: entry.slice(3), index: entry[0], worktree: entry[1] })
-
-    if (entry[0] === "R" || entry[0] === "C") {
-      i++
+      if (isRename(entry)) {
+        i++
+      }
     }
   }
 

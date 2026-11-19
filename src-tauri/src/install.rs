@@ -1,6 +1,6 @@
 use std::env::consts::{ARCH, OS};
 use std::fs;
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::OnceLock;
@@ -51,13 +51,23 @@ struct Plan {
     env: Vec<(&'static str, PathBuf)>,
 }
 
+const DENIED: [&str; 5] = [
+    "eacces",
+    "eperm",
+    "erofs",
+    "permission denied",
+    "read-only file system",
+];
+
 fn user_tools() -> PathBuf {
     home().join(".local").join("share").join("acp")
 }
 
 fn npm_name(spec: &str) -> &str {
-    match spec.get(1..).and_then(|rest| rest.find('@')) {
-        Some(i) => &spec[..i + 1],
+    let scope = spec.get(1..).and_then(|rest| rest.find('@'));
+
+    match scope {
+        Some(at) => &spec[..at + 1],
         None => spec,
     }
 }
@@ -90,31 +100,39 @@ fn uv_env(scope: Scope, tools: &Path) -> Vec<(&'static str, PathBuf)> {
 }
 
 fn plan(source: &Source, scope: Scope, tools: &Path) -> Option<Plan> {
-    match source {
-        Source::Npm { package } => {
-            let target = match scope {
-                Scope::Atrix => vec!["--prefix".into(), tools.to_string_lossy().into_owned()],
-                Scope::Global => vec!["-g".into()],
-            };
-            let args = ["install".into()]
-                .into_iter()
-                .chain(target)
-                .chain(["--no-fund".into(), "--no-audit".into(), package.clone()])
-                .collect();
+    let package = match source {
+        Source::Npm { package } => package,
+        Source::Uv { package } => package,
+        Source::Binary { .. } => return None,
+    };
+    let npm = matches!(source, Source::Npm { .. });
 
-            Some(Plan {
-                program: "npm",
-                args,
-                env: Vec::new(),
-            })
-        }
-        Source::Uv { package } => Some(Plan {
-            program: "uv",
-            args: vec!["tool".into(), "install".into(), package.clone()],
-            env: uv_env(scope, tools),
-        }),
-        Source::Binary { .. } => None,
-    }
+    let (mut args, env) = if npm {
+        let target = match scope {
+            Scope::Atrix => vec!["--prefix".to_owned(), tools.to_string_lossy().into_owned()],
+            Scope::Global => vec!["-g".to_owned()],
+        };
+        let args = ["install".to_owned()]
+            .into_iter()
+            .chain(target)
+            .chain(["--no-fund".to_owned(), "--no-audit".to_owned()])
+            .collect();
+
+        (args, Vec::new())
+    } else {
+        (
+            vec!["tool".to_owned(), "install".to_owned()],
+            uv_env(scope, tools),
+        )
+    };
+
+    args.push(package.clone());
+
+    Some(Plan {
+        program: if npm { "npm" } else { "uv" },
+        args,
+        env,
+    })
 }
 
 fn removal(source: &Source, tools: &Path) -> Option<Plan> {
@@ -122,8 +140,8 @@ fn removal(source: &Source, tools: &Path) -> Option<Plan> {
         Source::Npm { package } => Some(Plan {
             program: "npm",
             args: vec![
-                "uninstall".into(),
-                "--prefix".into(),
+                "uninstall".to_owned(),
+                "--prefix".to_owned(),
                 tools.to_string_lossy().into_owned(),
                 npm_name(package).to_owned(),
             ],
@@ -132,8 +150,8 @@ fn removal(source: &Source, tools: &Path) -> Option<Plan> {
         Source::Uv { package } => Some(Plan {
             program: "uv",
             args: vec![
-                "tool".into(),
-                "uninstall".into(),
+                "tool".to_owned(),
+                "uninstall".to_owned(),
                 uv_name(package).to_owned(),
             ],
             env: uv_env(Scope::Atrix, tools),
@@ -150,9 +168,9 @@ fn relay<R: Read>(stream: Option<R>, channel: &Channel<String>) -> Vec<String> {
     BufReader::new(stream)
         .lines()
         .map_while(std::io::Result::ok)
-        .filter(|l| !l.trim().is_empty())
-        .inspect(|l| {
-            let _ = channel.send(l.clone());
+        .filter(|line| !line.trim().is_empty())
+        .inspect(|line| {
+            let _ = channel.send(line.clone());
         })
         .collect()
 }
@@ -160,15 +178,7 @@ fn relay<R: Read>(stream: Option<R>, channel: &Channel<String>) -> Vec<String> {
 fn denied(line: &str) -> bool {
     let line = line.to_lowercase();
 
-    [
-        "eacces",
-        "eperm",
-        "erofs",
-        "permission denied",
-        "read-only file system",
-    ]
-    .iter()
-    .any(|w| line.contains(w))
+    DENIED.iter().any(|word| line.contains(word))
 }
 
 fn run(plan: Plan, channel: &Channel<String>) -> Result<()> {
@@ -193,7 +203,7 @@ fn run(plan: Plan, channel: &Channel<String>) -> Result<()> {
         return Ok(());
     }
 
-    if lines.iter().any(|l| denied(l)) {
+    if lines.iter().any(|line| denied(line)) {
         return Err("install_permission".into());
     }
 
@@ -210,40 +220,55 @@ async fn download(url: &str, sha256: Option<&str>) -> Result<Vec<u8>> {
 
     let bytes = fetch::get(&fetch::client()?, url, "install_download").await?;
 
-    if let Some(expected) = sha256
-        && !fetch::sha256_hex(&bytes).eq_ignore_ascii_case(expected)
-    {
+    if sha256.is_some_and(|expected| !fetch::sha256_hex(&bytes).eq_ignore_ascii_case(expected)) {
         return Err("install_checksum".into());
     }
 
     Ok(bytes)
 }
 
+enum Archive {
+    Zip,
+    TarGz,
+    TarBz2,
+    Raw,
+}
+
+impl Archive {
+    fn of(url: &str) -> Self {
+        let name = url.split(['?', '#']).next().unwrap_or(url).to_lowercase();
+
+        if name.ends_with(".zip") {
+            Self::Zip
+        } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
+            Self::TarGz
+        } else if name.ends_with(".tar.bz2") {
+            Self::TarBz2
+        } else {
+            Self::Raw
+        }
+    }
+}
+
 fn unpack(url: &str, cmd: &str, bytes: &[u8], dir: &Path) -> Result<()> {
-    let name = url.split(['?', '#']).next().unwrap_or(url).to_lowercase();
     let invalid = |e: &dyn ToString| Error::code("install_archive_invalid", e.to_string());
 
-    if name.ends_with(".zip") {
-        return zip::ZipArchive::new(Cursor::new(bytes))
-            .and_then(|mut z| z.extract(dir))
-            .map_err(|e| invalid(&e));
-    }
-
-    if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
-        return tar::Archive::new(flate2::read::GzDecoder::new(bytes))
+    match Archive::of(url) {
+        Archive::Zip => zip::ZipArchive::new(std::io::Cursor::new(bytes))
+            .and_then(|mut zip| zip.extract(dir))
+            .map_err(|e| invalid(&e)),
+        Archive::TarGz => tar::Archive::new(flate2::read::GzDecoder::new(bytes))
             .unpack(dir)
-            .map_err(|e| invalid(&e));
-    }
-
-    if name.ends_with(".tar.bz2") {
-        return tar::Archive::new(bzip2::read::BzDecoder::new(bytes))
+            .map_err(|e| invalid(&e)),
+        Archive::TarBz2 => tar::Archive::new(bzip2::read::BzDecoder::new(bytes))
             .unpack(dir)
-            .map_err(|e| invalid(&e));
+            .map_err(|e| invalid(&e)),
+        Archive::Raw => {
+            let file = Path::new(cmd).file_name().ok_or_else(|| invalid(&cmd))?;
+
+            Ok(fs::write(dir.join(file), bytes)?)
+        }
     }
-
-    let file = Path::new(cmd).file_name().ok_or_else(|| invalid(&cmd))?;
-
-    Ok(fs::write(dir.join(file), bytes)?)
 }
 
 fn link(program: &Path) -> Result<()> {
@@ -259,17 +284,16 @@ fn link(program: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         let target = bin.join(&stem);
-        let _ = fs::remove_file(&target);
 
+        let _ = fs::remove_file(&target);
         std::os::unix::fs::symlink(program, target)?;
     }
 
     #[cfg(not(unix))]
-    {
-        let shim = format!("@\"{}\" %*\r\n", program.display());
-
-        fs::write(bin.join(format!("{stem}.cmd")), shim)?;
-    }
+    fs::write(
+        bin.join(format!("{stem}.cmd")),
+        format!("@\"{}\" %*\r\n", program.display()),
+    )?;
 
     Ok(())
 }
@@ -309,7 +333,7 @@ pub async fn tool_install(
     scope: Scope,
     channel: Channel<String>,
 ) -> Result<Option<String>> {
-    let worker = match source.clone() {
+    match source.clone() {
         Source::Binary {
             id,
             archive,
@@ -319,20 +343,18 @@ pub async fn tool_install(
             let _ = channel.send(archive.clone());
             let bytes = download(&archive, sha256.as_deref()).await?;
 
-            spawn_blocking(move || place(&id, &archive, &cmd, &bytes, scope))
+            spawn_blocking(move || place(&id, &archive, &cmd, &bytes, scope)).await??;
         }
-        other => {
-            let plan = plan(&other, scope, &tools_dir()).ok_or("install_unsupported")?;
+        plan_source => {
+            let plan = plan(&plan_source, scope, &tools_dir()).ok_or("install_unsupported")?;
 
             if scope == Scope::Atrix {
                 fs::create_dir_all(tools_dir())?;
             }
 
-            spawn_blocking(move || run(plan, &channel))
+            spawn_blocking(move || run(plan, &channel)).await??;
         }
-    };
-
-    worker.await??;
+    }
 
     let hint = scope == Scope::Global
         && !matches!(source, Source::Npm { .. })
@@ -343,16 +365,14 @@ pub async fn tool_install(
 
 #[tauri::command(async)]
 pub fn tool_uninstall(source: Source, channel: Channel<String>) -> Result<()> {
-    let tools = tools_dir();
-
     if let Source::Binary { id, .. } = &source {
-        fs::remove_dir_all(tools.join(safe(id)?))?;
+        fs::remove_dir_all(tools_dir().join(safe(id)?))?;
 
         return Ok(());
     }
 
     run(
-        removal(&source, &tools).ok_or("install_unsupported")?,
+        removal(&source, &tools_dir()).ok_or("install_unsupported")?,
         &channel,
     )
 }
@@ -383,15 +403,13 @@ fn uv_global() -> Option<&'static PathBuf> {
 }
 
 fn npm_bin(root: &Path, name: &str) -> Option<String> {
-    let manifest = fs::read(root.join(name).join("package.json")).ok()?;
-    let manifest: serde_json::Value = serde_json::from_slice(&manifest).ok()?;
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join(name).join("package.json")).ok()?).ok()?;
     let base = name.rsplit('/').next().unwrap_or(name);
 
     match manifest.get("bin")? {
-        serde_json::Value::String(_) => Some(base.to_owned()),
-        serde_json::Value::Object(bins) if bins.contains_key(base) => Some(base.to_owned()),
-        serde_json::Value::Object(bins) => bins.keys().next().cloned(),
-        _ => None,
+        serde_json::Value::Object(bins) if !bins.contains_key(base) => bins.keys().next().cloned(),
+        _ => Some(base.to_owned()),
     }
 }
 
@@ -403,12 +421,17 @@ fn uv_bin(root: &Path, name: &str) -> Option<PathBuf> {
     let named = |want: &str| {
         points
             .iter()
-            .find(|p| p.get("name").and_then(toml::Value::as_str) == Some(want))
+            .find(|point| point.get("name").and_then(toml::Value::as_str) == Some(want))
     };
     let short = name.split('-').next().unwrap_or(name);
     let only = points.first().filter(|_| points.len() == 1);
-    let point = named(name).or_else(|| named(short)).or(only)?;
-    let path = PathBuf::from(point.get("install-path")?.as_str()?);
+    let path = PathBuf::from(
+        named(name)
+            .or_else(|| named(short))
+            .or(only)?
+            .get("install-path")?
+            .as_str()?,
+    );
 
     path.is_file().then_some(path)
 }
@@ -428,15 +451,13 @@ fn find(source: &Source) -> Option<Found> {
             let name = npm_name(package);
             let modules = tools.join("node_modules");
             let local = npm_bin(&modules, name)
-                .and_then(|b| process::which_in(&b, modules.join(".bin").into_os_string()));
+                .and_then(|bin| process::which_in(&bin, modules.join(".bin").into_os_string()));
 
             if let Some(path) = local {
                 return Some(found(path, true));
             }
 
-            let bin = npm_bin(npm_global()?, name)?;
-
-            process::which(&bin).map(|p| found(p, false))
+            process::which(&npm_bin(npm_global()?, name)?).map(|path| found(path, false))
         }
         Source::Uv { package } => {
             let name = uv_name(package);
@@ -445,7 +466,7 @@ fn find(source: &Source) -> Option<Found> {
                 return Some(found(path, true));
             }
 
-            uv_bin(uv_global()?, name).map(|p| found(p, false))
+            uv_bin(uv_global()?, name).map(|path| found(path, false))
         }
         Source::Binary { id, cmd, .. } => [(tools, true), (user_tools(), false)]
             .into_iter()

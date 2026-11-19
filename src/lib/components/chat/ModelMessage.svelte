@@ -7,8 +7,8 @@ import { blocksOf } from "#lib/chat/blocks.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import Attachments from "./Attachments.svelte"
+import { BUBBLE } from "./bubble.ts"
 import { copyMenu } from "./copy.ts"
-import { BUBBLE } from "./labels.ts"
 import Markdown from "./Markdown.svelte"
 import ReplyActions from "./ReplyActions.svelte"
 import UiBlocks from "./UiBlocks.svelte"
@@ -49,7 +49,7 @@ const text = $derived(
   {/if}
   {#each message.parts as part, index (index)}
     {#if part.type === "text" && mine}
-      <div class={BUBBLE}>{part.text}</div>
+      <div class={BUBBLE}><Markdown text={part.text} look="bubble markdown" /></div>
     {:else if part.type === "text"}
       <Markdown text={part.text} />
     {:else if part.type === "reasoning" && part.text}

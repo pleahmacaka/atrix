@@ -8,7 +8,6 @@ import {
   PART_NAME,
   resolve,
 } from "#lib/agents/compose.ts"
-
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { matchChoice } from "#lib/chat/choices.ts"
 import { prime } from "#lib/chat/primer.ts"
@@ -50,13 +49,13 @@ export type Provider =
       model: string
     }
 
-export const providers = (): Provider[] => [
-  ...hostList().flatMap(host =>
+const harnessProviders = (): Provider[] =>
+  hostList().flatMap(host =>
     (host.view.state?.harnesses ?? [])
       .filter(h => h.enabled)
       .map(h => ({
         key: `harness:${host.id}:${h.id}`,
-        kind: "harness" as const,
+        kind: "harness",
         label: h.profile ?? h.name,
         detail: host.name,
         icon: brandIcon(h.base),
@@ -64,16 +63,22 @@ export const providers = (): Provider[] => [
         harness: h.id,
         base: h.base,
       })),
-  ),
-  ...activeGateways().map(g => ({
+  )
+
+const gatewayProviders = (): Provider[] =>
+  activeGateways().map(g => ({
     key: `gateway:${g.id}`,
-    kind: "gateway" as const,
+    kind: "gateway",
     label: g.name,
     detail: m.target_api(),
     icon: gatewayIcon(g),
     gateway: g.id,
     model: g.model,
-  })),
+  }))
+
+export const providers = (): Provider[] => [
+  ...harnessProviders(),
+  ...gatewayProviders(),
 ]
 
 export const providerOf = (agent: Pick<StoredAgent, "provider">) =>
@@ -130,16 +135,15 @@ export const TEMPLATES: Template[] = [
   },
 ]
 
+const matches = (provider: Provider, prefer: Template["prefer"]) =>
+  provider.kind === prefer &&
+  (provider.kind !== "harness" || provider.base === "claude-acp")
+
 export const fromTemplate = (
   template: Template,
 ): Omit<StoredAgent, "id" | "at"> => {
   const list = providers()
-  const provider =
-    list.find(
-      p =>
-        p.kind === template.prefer &&
-        (p.kind !== "harness" || p.base === "claude-acp"),
-    ) ?? list[0]
+  const provider = list.find(p => matches(p, template.prefer)) ?? list[0]
 
   return {
     name: template.name(),
@@ -271,30 +275,28 @@ export const inventoryOf = async (
   return { skills: config.skills, mcp: [BRIDGE_NAME, ...mcp] }
 }
 
-export const openAgent = async (
+const openChat = async (
   agent: StoredAgent,
-  cwd = agent.cwd,
-  { primed = true } = {},
-): Promise<Opened> => {
-  const provider = providerOf(agent)
+  provider: Extract<Provider, { kind: "gateway" }>,
+) => {
+  const id = chats.create(provider.gateway, agent.model || provider.model)
+  const stored = chats.find(id)
 
-  if (!provider) {
-    throw new Error(m.agent_provider_missing())
+  if (stored) {
+    stored.instructions = agentInstructions(agent, "")
+    stored.title = agent.name
+    await local.save()
   }
 
-  if (provider.kind === "gateway") {
-    const id = chats.create(provider.gateway, agent.model || provider.model)
-    const stored = chats.find(id)
+  return { kind: "chat", id } as const
+}
 
-    if (stored) {
-      stored.instructions = agentInstructions(agent, "")
-      stored.title = agent.name
-      await local.save()
-    }
-
-    return { kind: "chat", id }
-  }
-
+const openSession = async (
+  agent: StoredAgent,
+  provider: Extract<Provider, { kind: "harness" }>,
+  cwd: string,
+  primed: boolean,
+) => {
   const view = hostById(provider.host)
 
   if (!view) {
@@ -315,5 +317,21 @@ export const openAgent = async (
     prime(id, TAGS.agent, agentInstructions(agent, folder))
   }
 
-  return { kind: "session", host: provider.host, id }
+  return { kind: "session", host: provider.host, id } as const
+}
+
+export const openAgent = async (
+  agent: StoredAgent,
+  cwd = agent.cwd,
+  { primed = true } = {},
+): Promise<Opened> => {
+  const provider = providerOf(agent)
+
+  if (!provider) {
+    throw new Error(m.agent_provider_missing())
+  }
+
+  return provider.kind === "gateway"
+    ? openChat(agent, provider)
+    : openSession(agent, provider, cwd, primed)
 }

@@ -1,9 +1,11 @@
 <script lang="ts">
 import "../app.css"
 import "virtual:iconify-embed"
+import "#lib/store/chatWidth.svelte.ts"
 import Icon from "@iconify/svelte"
 import { invoke } from "@tauri-apps/api/core"
 import { onMount, type Snippet } from "svelte"
+import { startCalendarSync } from "#lib/calendar/android.svelte.ts"
 import { startChannels } from "#lib/channels/relay.svelte.ts"
 import Onboarding from "#lib/components/devices/Onboarding.svelte"
 import LockScreen from "#lib/components/lock/LockScreen.svelte"
@@ -29,6 +31,8 @@ import { migrateVoiceURL } from "#lib/store/speech.svelte.ts"
 let { children }: { children: Snippet } = $props()
 
 let failure = $state<string | null>(null)
+
+let headless = $state(false)
 
 const report = (e: unknown) => {
   failure = errorText(e)
@@ -66,6 +70,8 @@ onMount(async () => {
     invoke("tray_labels", { open: m.tray_open(), quit: m.shell_quit() }).catch(() => {})
   }
 
+  headless = desktop && (await invoke<boolean>("headless").catch(() => false))
+
   captureCallback()
 
   const loading = local.load()
@@ -91,6 +97,7 @@ onMount(async () => {
       : null
 
     await sync.start()
+    startCalendarSync()
 
     if (code) {
       await sync.connect(code)
@@ -109,7 +116,9 @@ onMount(async () => {
 })
 </script>
 
-{#if !overlay && !floating && client && sync.loaded && sync.peers.size === 0}
+{#if headless}
+  <main class="grid h-dvh place-items-center">{m.headless_running()}</main>
+{:else if !overlay && !floating && client && sync.loaded && sync.peers.size === 0}
   <Onboarding />
 {:else if overlay || local.ready}
   <div

@@ -25,11 +25,11 @@ let query = $state("")
 
 const sessions = $derived(
   recents().filter(
-    r =>
-      r.current.kind === "session" &&
-      r.current.host === host &&
-      !exclude.includes(r.current.id) &&
-      r.title.toLowerCase().includes(query.trim().toLowerCase()),
+    item =>
+      item.current.kind === "session" &&
+      item.current.host === host &&
+      !exclude.includes(item.current.id) &&
+      item.title.toLowerCase().includes(query.trim().toLowerCase()),
   ),
 )
 
@@ -86,3 +86,4 @@ const pick = (id: string) =>
     </ul>
   </div>
 </Modal>
+

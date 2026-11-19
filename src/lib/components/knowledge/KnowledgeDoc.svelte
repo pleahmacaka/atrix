@@ -65,11 +65,7 @@ const scope = $derived(
 )
 
 const saveState = $derived(
-  attempt.busy
-    ? m.knowledge_saving()
-    : !locked && !dirty
-      ? m.knowledge_saved()
-      : null,
+  attempt.busy ? m.knowledge_saving() : !locked && !dirty ? m.knowledge_saved() : null,
 )
 
 const crumbs = $derived(loaded?.key.split("/").slice(0, -1) ?? [])
@@ -92,9 +88,7 @@ const related = $derived.by(() => {
   return [...outgoing, ...incoming].filter(e => titleOf(e.to))
 })
 
-const hasHeadings = $derived(
-  !!draft && draft.body.split("\n").some(l => /^#{2,4} /.test(l)),
-)
+const hasHeadings = $derived(!!draft && draft.body.split("\n").some(l => /^#{2,4} /.test(l)))
 
 onMount(() => {
   attempt.run(load)
@@ -184,6 +178,34 @@ const revert = (version: Version) =>
   {/if}
 {/snippet}
 
+{#snippet metaRows()}
+  {#if loaded}
+    <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-base-content/70">
+      {#if loaded.meta.tags.length}
+        <span class="flex items-center gap-1.5" title={m.knowledge_tags()}>
+          <Icon icon="lucide:tag" class="size-4 text-base-content/40" />
+          {loaded.meta.tags.join(", ")}
+        </span>
+      {/if}
+      <span class="flex items-center gap-1.5" title={m.knowledge_scope()}>
+        <Icon
+          icon={loaded.meta.scope === "network" ? "lucide:globe" : "lucide:users"}
+          class="size-4 text-base-content/40"
+        />
+        {scope}
+      </span>
+      <span
+        class="flex min-w-0 items-center gap-1.5"
+        title="{actorDetail(loaded.meta.updated_by)}, {timeOf(loaded.meta.updated_at)}"
+      >
+        <Icon icon="lucide:user-pen" class="size-4 text-base-content/40" />
+        <span class="truncate">{actorName(loaded.meta.updated_by)}</span>
+        <span class="text-base-content/50">{timeAgo(loaded.meta.updated_at)}</span>
+      </span>
+    </div>
+  {/if}
+{/snippet}
+
 {#if loaded && draft}
   <div class="scroll-stable min-h-0 flex-1 overflow-y-auto">
     <div class="mx-auto flex max-w-6xl gap-8 px-4 py-6 sm:px-8 sm:py-8">
@@ -200,9 +222,7 @@ const revert = (version: Version) =>
 
         <div class="flex flex-wrap items-start justify-between gap-3">
           {#if locked}
-            <h1 class="min-w-0 text-2xl leading-tight font-bold tracking-tight">
-              {draft.title}
-            </h1>
+            <h1 class="min-w-0 text-2xl leading-tight font-bold tracking-tight">{draft.title}</h1>
           {:else}
             <input
               class={[
@@ -247,11 +267,7 @@ const revert = (version: Version) =>
               icon={locked ? "lucide:pencil" : "lucide:lock"}
               label={locked ? m.knowledge_unlock() : m.knowledge_lock()}
               tone={locked ? "primary" : "ghost"}
-              title={lossy
-                ? m.knowledge_lossy()
-                : locked
-                  ? m.knowledge_unlock()
-                  : m.knowledge_lock()}
+              title={lossy ? m.knowledge_lossy() : locked ? m.knowledge_unlock() : m.knowledge_lock()}
               aria-pressed={!locked}
               disabled={locked && lossy}
               onclick={() => {
@@ -262,34 +278,7 @@ const revert = (version: Version) =>
           </div>
         </div>
 
-        <div
-          class={[
-            "mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm",
-            "text-base-content/70",
-          ]}
-        >
-          {#if loaded.meta.tags.length}
-            <span class="flex items-center gap-1.5" title={m.knowledge_tags()}>
-              <Icon icon="lucide:tag" class="size-4 text-base-content/40" />
-              {loaded.meta.tags.join(", ")}
-            </span>
-          {/if}
-          <span class="flex items-center gap-1.5" title={m.knowledge_scope()}>
-            <Icon
-              icon={loaded.meta.scope === "network" ? "lucide:globe" : "lucide:users"}
-              class="size-4 text-base-content/40"
-            />
-            {scope}
-          </span>
-          <span
-            class="flex min-w-0 items-center gap-1.5"
-            title="{actorDetail(loaded.meta.updated_by)}, {timeOf(loaded.meta.updated_at)}"
-          >
-            <Icon icon="lucide:user-pen" class="size-4 text-base-content/40" />
-            <span class="truncate">{actorName(loaded.meta.updated_by)}</span>
-            <span class="text-base-content/50">{timeAgo(loaded.meta.updated_at)}</span>
-          </span>
-        </div>
+        {@render metaRows()}
 
         {#if loaded.meta.description}
           <p class="mt-2 text-sm text-base-content/60">{loaded.meta.description}</p>
@@ -327,7 +316,11 @@ const revert = (version: Version) =>
               mine={draft.body}
               theirs={conflict.body}
               busy={attempt.busy}
-              onsave={body => draft && conflict && write(conflict.etag, { ...draft, body })}
+              onsave={body => {
+                if (draft && conflict) {
+                  write(conflict.etag, { ...draft, body })
+                }
+              }}
               oncancel={() => attempt.run(load)}
             />
           {:else}

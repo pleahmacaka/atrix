@@ -8,9 +8,10 @@ import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
 import Modal from "#lib/components/ui/Modal.svelte"
-import Section from "#lib/components/ui/Section.svelte"
+import Segmented from "#lib/components/ui/Segmented.svelte"
+import Select from "#lib/components/ui/Select.svelte"
 import { autoDetect } from "#lib/harness/autoDetect.ts"
-import { type HostEntry, hostList } from "#lib/p2p/hosts.svelte.ts"
+import { type HostEntry, hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import type { Available, InstallScope } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { describeHarness } from "./descriptions.ts"
@@ -28,7 +29,35 @@ let query = $state("")
 
 let busy = $state<string | null>(null)
 
-let shown = $state<{ host: HostEntry; harness: Available } | null>(null)
+let tab = $state<"catalog" | "compare">("catalog")
+
+const TABS = [
+  { id: "catalog" as const, label: m.harness_available(), icon: "lucide:layout-grid" },
+  { id: "compare" as const, label: m.advisor_title(), icon: "lucide:chart-bar" },
+]
+
+type Offer = { host: HostEntry; harness: Available }
+
+const catalog = $derived.by(() => {
+  const offers = new Map<string, Offer[]>()
+  for (const host of hosts) {
+    for (const harness of host.view.state?.available ?? []) {
+      offers.set(harness.id, [...(offers.get(harness.id) ?? []), { host, harness }])
+    }
+  }
+
+  return [...offers.values()].toSorted((a, b) => a[0].harness.name.localeCompare(b[0].harness.name))
+})
+
+const primary = $derived(hosts.find(h => h.id === LOCAL) ?? hosts[0])
+
+const primaryAvailable = $derived(primary?.view.state?.available ?? [])
+
+let offers = $state<Offer[]>([])
+
+let pickedHost = $state("")
+
+const shown = $derived(offers.find(o => o.host.id === pickedHost) ?? offers[0] ?? null)
 
 let open = $state(false)
 
@@ -44,25 +73,27 @@ const SCOPES: { id: InstallScope; label: () => string; icon: string }[] = [
   { id: "global", label: m.harness_install_global, icon: "lucide:globe" },
 ]
 
-const matching = (available: Available[]) => {
+const matching = (list: Offer[][]) => {
   const needle = query.trim().toLowerCase()
 
   return needle
-    ? available.filter(a =>
+    ? list.filter(([{ harness: a }]) =>
         [a.id, a.name, describeHarness(a)].some(v => v.toLowerCase().includes(needle)),
       )
-    : available
+    : list
 }
 
 const missing = (available: Available[], requires: Available["requires"]) =>
   available.some(a => a.requires === requires)
+
+const keyOf = (host: HostEntry, harness: Available) => `${host.id}:${harness.id}`
 
 const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
   done = null
   open = false
 
   return attempt.run(async () => {
-    busy = harness.id
+    busy = keyOf(host, harness)
 
     try {
       const { pathHint } = await host.view.install(harness.id, scope)
@@ -76,8 +107,9 @@ const install = (host: HostEntry, harness: Available, scope: InstallScope) => {
   })
 }
 
-const show = (host: HostEntry, harness: Available) => {
-  shown = { host, harness }
+const show = (list: Offer[]) => {
+  offers = list
+  pickedHost = list[0]?.host.id ?? ""
   open = true
 }
 </script>
@@ -86,21 +118,28 @@ const show = (host: HostEntry, harness: Available) => {
   <div class="flex items-center gap-2">
     <IconButton icon="lucide:chevron-left" label={m.harness_back()} onclick={onback} />
     <IconInput
+      class={["min-w-0 flex-1", tab === "compare" && "invisible"]}
       icon="lucide:search"
       label={m.harness_search()}
       placeholder={m.harness_search()}
       type="search"
       ghost={false}
-      class="min-w-0 flex-1"
       bind:value={query}
     />
   </div>
 
-  <HarnessAdvisor />
+  <Segmented label={m.harness_browser()} items={TABS} value={tab} onpick={id => (tab = id)} />
 
-  {#each hosts as host (host.id)}
-    {@const available = host.view.state?.available ?? []}
-    {#if done?.host === host.id}
+  {#if tab === "compare"}
+    <HarnessAdvisor />
+  {:else if hosts.length === 0}
+    <EmptyState
+      icon="lucide:monitor-off"
+      title={m.harness_no_hosts_title()}
+      text={m.harness_no_hosts_text()}
+    />
+  {:else}
+    {#if done}
       <div role="status" class="alert alert-info alert-soft text-sm">
         <Icon icon="lucide:circle-check" class="size-4 self-start" />
         <div class="flex min-w-0 flex-col gap-2">
@@ -116,24 +155,26 @@ const show = (host: HostEntry, harness: Available) => {
         </div>
       </div>
     {/if}
-    <Section icon="lucide:download" title={hosts.length > 1 ? host.name : m.harness_available()}>
-      {#if missing(available, "node")}
+    <div class="flex flex-col gap-2">
+      {#if missing(primaryAvailable, "node")}
         <p class="py-2 text-sm text-base-content/60">{m.harness_requires_node_hint()}</p>
       {/if}
-      {#if missing(available, "uv")}
+      {#if missing(primaryAvailable, "uv")}
         <p class="py-2 text-sm text-base-content/60">{m.harness_requires_uv_hint()}</p>
       {/if}
       <ul class="grid grid-cols-1 gap-2 @lg:grid-cols-2">
-        {#each matching(available) as a (a.id)}
+        {#each matching(catalog) as list (list[0].harness.id)}
+          {@const a = list[0].harness}
+          {@const installing = list.find(o => busy === keyOf(o.host, o.harness))}
           <li class="min-w-0">
             <button
               type="button"
               class={[
                 "flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-box px-3 py-2.5",
                 "border border-base-300 bg-base-100 text-start",
-                "transition-colors duration-140 hover:bg-base-content/5",
+                "transition-colors hover:bg-base-content/5",
               ]}
-              onclick={() => show(host, a)}
+              onclick={() => show(list)}
             >
               <span class="grid size-9 shrink-0 place-items-center rounded-field bg-base-200">
                 <Icon icon={brandIcon(a.id)} class="size-5" />
@@ -141,7 +182,7 @@ const show = (host: HostEntry, harness: Available) => {
               <span class="flex min-w-0 flex-1 flex-col">
                 <span class="flex min-w-0 items-center gap-2">
                   <span class="min-w-0 truncate text-sm font-semibold">{a.name}</span>
-                  {#if busy === a.id}
+                  {#if installing}
                     <span class="loading loading-spinner loading-xs shrink-0"></span>
                   {:else if a.requires}
                     <span class="badge badge-ghost badge-xs shrink-0 whitespace-nowrap">
@@ -151,10 +192,10 @@ const show = (host: HostEntry, harness: Available) => {
                 </span>
                 <span
                   class="min-w-0 truncate text-xs text-base-content/60"
-                  title={busy === a.id ? host.view.installLog[a.id] : describeHarness(a)}
+                  title={installing ? installing.host.view.installLog[a.id] : describeHarness(a)}
                 >
-                  {busy === a.id
-                    ? (host.view.installLog[a.id] ?? m.harness_installing())
+                  {installing
+                    ? (installing.host.view.installLog[a.id] ?? m.harness_installing())
                     : describeHarness(a) || a.run}
                 </span>
               </span>
@@ -166,14 +207,8 @@ const show = (host: HostEntry, harness: Available) => {
           </li>
         {/each}
       </ul>
-    </Section>
-  {:else}
-    <EmptyState
-      icon="lucide:monitor-off"
-      title={m.harness_no_hosts_title()}
-      text={m.harness_no_hosts_text()}
-    />
-  {/each}
+    </div>
+  {/if}
 </div>
 <ErrorAlert message={attempt.failure} />
 
@@ -197,6 +232,14 @@ const show = (host: HostEntry, harness: Available) => {
       </div>
     </div>
     <div class="flex flex-col gap-3 px-5 pb-2">
+      {#if offers.length > 1}
+        <Select
+          class="w-full"
+          label={m.spaces_host()}
+          options={offers.map(o => ({ value: o.host.id, label: o.host.name }))}
+          bind:value={pickedHost}
+        />
+      {/if}
       <div class="flex flex-col gap-1">
         <span class="text-xs font-medium text-base-content/60">{m.harness_install_command()}</span>
         {@render command(harness.install)}

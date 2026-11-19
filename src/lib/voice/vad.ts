@@ -2,7 +2,7 @@ export type VadEvent = "rise" | "start" | "drop" | "end"
 
 const START_MS = 150
 
-const END_MS = 900
+const END_MS = 700
 
 const MAX_MS = 30000
 
@@ -34,10 +34,12 @@ export const loudness = (level: number) => {
   return Math.min(1, Math.max(0, (db + 60) / 45))
 }
 
+type State = "quiet" | "rising" | "speech"
+
 export class Vad {
   floor = MIN_LEVEL / FLOOR_RATIO
 
-  state: "quiet" | "rising" | "speech" = "quiet"
+  state: State = "quiet"
 
   #voiced = 0
 
@@ -47,57 +49,67 @@ export class Vad {
 
   #warm = 0
 
-  threshold = (gate = 1) => Math.max(MIN_LEVEL, this.floor * FLOOR_RATIO) * gate
-
-  reset = () => {
-    this.state = "quiet"
-  }
-
   step = (level: number, ms: number, gate = 1): VadEvent | undefined => {
     if (this.#warm < WARM_MS) {
       this.#warm += ms
       this.floor += (level - this.floor) * FALL_RATE
 
-      return
+      return undefined
     }
 
-    const on = this.threshold(gate)
+    const on = Math.max(MIN_LEVEL, this.floor * FLOOR_RATIO) * gate
     const hold = on * HOLD_RATIO
 
     if (this.state === "quiet") {
-      if (level > on) {
-        this.state = "rising"
-        this.#voiced = ms
-
-        return "rise"
-      }
-
-      const rate = level < this.floor ? FALL_RATE : RISE_RATE
-      this.floor += (level - this.floor) * rate
-
-      return
+      return this.#idle(level, ms, on)
     }
 
     if (this.state === "rising") {
-      if (level < hold) {
-        this.state = "quiet"
-
-        return "drop"
-      }
-
-      this.#voiced += ms
-
-      if (this.#voiced >= START_MS) {
-        this.state = "speech"
-        this.#length = this.#voiced
-        this.#silence = 0
-
-        return "start"
-      }
-
-      return
+      return this.#rise(level, ms, hold)
     }
 
+    return this.#speak(level, ms, hold)
+  }
+
+  reset = () => {
+    this.state = "quiet"
+  }
+
+  #idle = (level: number, ms: number, on: number): VadEvent | undefined => {
+    if (level > on) {
+      this.state = "rising"
+      this.#voiced = ms
+
+      return "rise"
+    }
+
+    const rate = level < this.floor ? FALL_RATE : RISE_RATE
+    this.floor += (level - this.floor) * rate
+
+    return undefined
+  }
+
+  #rise = (level: number, ms: number, hold: number): VadEvent | undefined => {
+    if (level < hold) {
+      this.state = "quiet"
+
+      return "drop"
+    }
+
+    this.#voiced += ms
+
+    if (this.#voiced < START_MS) {
+      return undefined
+    }
+
+    this.state = "speech"
+    this.#length = this.#voiced
+    this.#silence = 0
+
+    return "start"
+  }
+
+  #speak = (level: number, ms: number, hold: number): VadEvent | undefined => {
     this.#length += ms
     this.#silence = level < hold ? this.#silence + ms : 0
 
@@ -105,10 +117,12 @@ export class Vad {
       this.floor = Math.max(this.floor, level)
     }
 
-    if (this.#silence >= END_MS || this.#length >= MAX_MS) {
-      this.state = "quiet"
-
-      return "end"
+    if (this.#silence < END_MS && this.#length < MAX_MS) {
+      return undefined
     }
+
+    this.state = "quiet"
+
+    return "end"
   }
 }

@@ -20,22 +20,6 @@ struct Pty {
 #[derive(Default)]
 pub struct Ptys(Mutex<HashMap<String, Arc<Mutex<Pty>>>>);
 
-impl Ptys {
-    fn get(&self, id: &str) -> Result<Arc<Mutex<Pty>>> {
-        Ok(self.0.lock()?.get(id).cloned().ok_or("pty_closed")?)
-    }
-
-    pub fn kill_all(&self) {
-        if let Ok(mut map) = self.0.lock() {
-            for (_, pty) in map.drain() {
-                if let Ok(mut pty) = pty.lock() {
-                    let _ = pty.killer.kill();
-                }
-            }
-        }
-    }
-}
-
 fn size(cols: u16, rows: u16) -> PtySize {
     PtySize {
         rows,
@@ -70,6 +54,28 @@ fn relay(mut reader: Box<dyn Read + Send>, channel: Channel<InvokeResponseBody>)
     let _ = channel.send(InvokeResponseBody::Raw(Vec::new()));
 }
 
+impl Ptys {
+    fn get(&self, id: &str) -> Result<Arc<Mutex<Pty>>> {
+        self.0.lock()?.get(id).cloned().ok_or("pty_closed".into())
+    }
+
+    fn remove(&self, id: &str) -> Result<Option<Arc<Mutex<Pty>>>> {
+        Ok(self.0.lock()?.remove(id))
+    }
+
+    pub fn kill_all(&self) {
+        let Ok(mut map) = self.0.lock() else {
+            return;
+        };
+
+        for (_, pty) in map.drain() {
+            if let Ok(mut pty) = pty.lock() {
+                let _ = pty.killer.kill();
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub fn pty_open(
     app: AppHandle,
@@ -97,27 +103,22 @@ pub fn pty_open(
         .map_err(|e| e.to_string())?;
     let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-
-    drop(pair.slave);
-
     let pty = Pty {
         master: pair.master,
         writer,
         killer: child.clone_killer(),
     };
 
+    drop(pair.slave);
+
     if let Some(old) = ptys.0.lock()?.insert(id.clone(), Arc::new(Mutex::new(pty))) {
         let _ = old.lock()?.killer.kill();
     }
 
     thread::spawn(move || relay(reader, channel));
-    // ConPTY keeps the output pipe open until the master drops, so the reader never sees EOF on its own
     thread::spawn(move || {
         let _ = child.wait();
-
-        if let Ok(mut map) = app.state::<Ptys>().0.lock() {
-            map.remove(&id);
-        }
+        let _ = app.state::<Ptys>().remove(&id);
     });
 
     Ok(())
@@ -147,7 +148,7 @@ pub fn pty_resize(ptys: State<'_, Ptys>, id: String, cols: u16, rows: u16) -> Re
 
 #[tauri::command]
 pub fn pty_close(ptys: State<'_, Ptys>, id: String) -> Result<()> {
-    if let Some(pty) = ptys.0.lock()?.remove(&id) {
+    if let Some(pty) = ptys.remove(&id)? {
         pty.lock()?.killer.kill()?;
     }
 

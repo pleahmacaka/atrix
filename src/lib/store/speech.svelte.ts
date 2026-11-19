@@ -195,7 +195,11 @@ export const transcribeLocal = async (audio: Blob) => {
   const provider = providerFor("stt")
   const body = new FormData()
 
-  body.append("file", audio, "speech.webm")
+  body.append(
+    "file",
+    audio,
+    audio.type.includes("wav") ? "speech.wav" : "speech.webm",
+  )
 
   if (provider.kind === "openai") {
     body.append("model", provider.model)

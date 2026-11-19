@@ -38,28 +38,31 @@ class Apps {
 
   load = async () => {
     const host = hostOf()
-    const keys = host.apps.map(a => a.key)
-    const loaded = await Promise.all(keys.map(k => host.readObject(k)))
-    const apps: Record<string, LoadedApp> = {}
+    const stored = await Promise.all(host.apps.map(a => host.readObject(a.key)))
 
-    for (const stored of loaded) {
-      const parsed = stored ? appFile.safeParse(stored.value) : null
+    this.byKey = Object.fromEntries(
+      stored.flatMap(object => {
+        const parsed = object ? appFile.safeParse(object.value) : null
 
-      if (stored && parsed?.success) {
-        apps[stored.key] = {
-          ...parsed.data,
-          key: stored.key,
-          etag: stored.etag,
-        }
-      }
-    }
+        return object && parsed?.success
+          ? [
+              [
+                object.key,
+                { ...parsed.data, key: object.key, etag: object.etag },
+              ] as const,
+            ]
+          : []
+      }),
+    )
 
     const layout = await host.readObject(HOME_KEY)
     const saved = layout ? home.safeParse(layout.value) : null
 
     this.#etag = layout?.etag ?? null
-    this.byKey = apps
-    this.home = arrange(saved?.success ? saved.data : null, Object.keys(apps))
+    this.home = arrange(
+      saved?.success ? saved.data : null,
+      Object.keys(this.byKey),
+    )
   }
 
   arrangeTiles = async (tiles: Tile[]) => {
@@ -76,9 +79,8 @@ class Apps {
 
   save = async (title: string, blocks: Block[]) => {
     const key = appKeyOf(title)
-    const file = appFile.parse({ title, blocks })
 
-    await hostOf().writeObject(key, null, file)
+    await hostOf().writeObject(key, null, appFile.parse({ title, blocks }))
     await this.refresh()
 
     return key

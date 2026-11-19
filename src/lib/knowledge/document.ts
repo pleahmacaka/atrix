@@ -10,22 +10,24 @@ const ID = new RegExp(`^${ID_SOURCE}$`)
 
 const FENCE = "---"
 
+const FENCE_END = `\n${FENCE}\n`
+
 const WIKILINK = new RegExp(`\\[\\[(${ID_SOURCE})(?:\\|[^\\]]*)?\\]\\]`, "g")
+
+const name = z.string().min(1)
 
 export const docId = z.string().regex(ID)
 
-const known = z.string().min(1)
-
 export const actor = z.object({
   kind: z.enum(["agent", "human"]),
-  agent: known.optional(),
-  session: known.optional(),
-  user: known.optional(),
-  device: known,
-  harness: z.object({ name: known, version: known }).optional(),
-  model: z.object({ id: known, vendor: known }).optional(),
+  agent: name.optional(),
+  session: name.optional(),
+  user: name.optional(),
+  device: name,
+  harness: z.object({ name, version: name }).optional(),
+  model: z.object({ id: name, vendor: name }).optional(),
   route: z
-    .array(z.object({ kind: z.enum(["router", "provider"]), name: known }))
+    .array(z.object({ kind: z.enum(["router", "provider"]), name }))
     .optional(),
 })
 
@@ -34,25 +36,25 @@ export const scope = z.union([
   z.string().regex(/^p2p:[a-z0-9][a-z0-9-]*$/),
 ])
 
-export const link = z.object({ to: docId, rel: known })
+export const link = z.object({ to: docId, rel: name })
 
 export const editable = z.object({
-  title: known,
+  title: name,
   description: z.string().default(""),
-  tags: z.array(known).default([]),
+  tags: z.array(name).default([]),
   scope: scope.default("network"),
   links: z.array(link).default([]),
-  sources: z.array(known).optional(),
+  sources: z.array(name).optional(),
 })
 
 export const editablePatch = z
   .object({
-    title: editable.shape.title,
-    description: editable.shape.description.unwrap(),
-    tags: editable.shape.tags.unwrap(),
-    scope: editable.shape.scope.unwrap(),
-    links: editable.shape.links.unwrap(),
-    sources: editable.shape.sources.unwrap(),
+    title: name,
+    description: z.string(),
+    tags: z.array(name),
+    scope,
+    links: z.array(link),
+    sources: z.array(name),
   })
   .partial()
 
@@ -78,37 +80,29 @@ export const newId = () => `kg_${ulid()}`
 export const hashOf = (text: string) =>
   `blake3:${bytesToHex(blake3(utf8ToBytes(text)))}`
 
-const split = (text: string) => {
+export const parseDoc = (text: string): Doc => {
   const normalized = text.replaceAll("\r\n", "\n")
 
   if (!normalized.startsWith(`${FENCE}\n`)) {
     throw new Error("frontmatter_missing")
   }
 
-  const end = normalized.indexOf(`\n${FENCE}\n`, FENCE.length)
+  const end = normalized.indexOf(FENCE_END, FENCE.length)
 
   if (end === -1) {
     throw new Error("frontmatter_unclosed")
   }
 
-  return {
-    yaml: normalized.slice(FENCE.length + 1, end),
-    body: normalized.slice(end + FENCE.length + 2),
-  }
-}
+  const meta = frontmatter.parse(parse(normalized.slice(FENCE.length + 1, end)))
 
-export const parseDoc = (text: string): Doc => {
-  const { yaml, body } = split(text)
-
-  return { meta: frontmatter.parse(parse(yaml)), body }
+  return { meta, body: normalized.slice(end + FENCE_END.length) }
 }
 
 export const serializeDoc = ({ meta, body }: Doc) => {
   const same =
     JSON.stringify(meta.created_by) === JSON.stringify(meta.updated_by)
-  const shared = same ? { ...meta, updated_by: meta.created_by } : meta
 
-  return `${FENCE}\n${stringify(shared)}${FENCE}\n${body}`
+  return `${FENCE}\n${stringify({ ...meta, updated_by: same ? meta.created_by : meta.updated_by })}${FENCE}\n${body}`
 }
 
 const DATA_URI = /\bdata:[a-z]+\/[\w.+-]+[;,]/i
@@ -117,27 +111,25 @@ const BASE64_RUN = /[A-Za-z0-9+/=]{1000,}/
 
 const TEXT_CONTROLS = new Set(["\t", "\n", "\r", "\f", "\v"])
 
-const binaryByte = (text: string) =>
-  [...text].some(c => c < " " && !TEXT_CONTROLS.has(c))
-
-const EMBED = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g
-
-const REMOTE = /^https?:\/\//i
-
-const localEmbed = (text: string) =>
-  [...text.matchAll(EMBED)].some(e => !REMOTE.test(e[1]))
-
 const TEXT_ONLY = [
   "text_only: knowledge documents hold text only, without data: URIs, base64 blobs, binary bytes or embeds of local images and files.",
   "Put data and files in a datasource flagged for knowledge (ds_execute with knowledge: true), name it in `sources` and link to it.",
   "External https links, including to images hosted elsewhere, are fine.",
 ].join(" ")
 
+const hasBinaryByte = (text: string) =>
+  [...text].some(c => c < " " && !TEXT_CONTROLS.has(c))
+
+const hasLocalEmbed = (text: string) =>
+  [...text.matchAll(/!\[[^\]]*\]\(\s*<?([^)\s>]+)/g)].some(
+    ([, url]) => !/^https?:\/\//i.test(url),
+  )
+
 const isTextOnly = (text: string) =>
   !DATA_URI.test(text) &&
   !BASE64_RUN.test(text) &&
-  !binaryByte(text) &&
-  !localEmbed(text)
+  !hasBinaryByte(text) &&
+  !hasLocalEmbed(text)
 
 export const assertTextOnly = ({ meta, body }: Doc) => {
   if (!isTextOnly(JSON.stringify(meta)) || !isTextOnly(body)) {
@@ -146,10 +138,14 @@ export const assertTextOnly = ({ meta, body }: Doc) => {
 }
 
 export const linksOf = ({ meta, body }: Doc) => {
-  const all = [
-    ...meta.links,
-    ...[...body.matchAll(WIKILINK)].map(m => ({ to: m[1], rel: "mentions" })),
-  ]
+  const mentions = [...body.matchAll(WIKILINK)].map(([, to]) => ({
+    to,
+    rel: "mentions",
+  }))
 
-  return [...new Map(all.map(l => [`${l.to}:${l.rel}`, l])).values()]
+  return [
+    ...new Map(
+      [...meta.links, ...mentions].map(l => [`${l.to}:${l.rel}`, l]),
+    ).values(),
+  ]
 }

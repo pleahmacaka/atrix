@@ -1,7 +1,5 @@
-import { groups } from "#lib/chat/groups.svelte.ts"
 import { hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { SPACE_HUES, type Space } from "#lib/p2p/protocol.ts"
-import { CHAT_HOST } from "#lib/voice/chatCall.ts"
 import { type Recent, recents } from "./recent.ts"
 
 export type Status = "waiting" | "running" | "done" | "idle"
@@ -64,24 +62,24 @@ const folderSpace = (folder: string, fallback: string): Space => ({
   agents: [],
 })
 
+const nodeOf = (
+  key: string,
+  space: Space,
+  agents: AgentRow[],
+  auto: boolean,
+): SpaceNode => ({
+  key,
+  space,
+  auto,
+  agents,
+  status: urgent(agents.map(a => a.status)),
+})
+
 export const urgent = (statuses: Status[]): Status =>
   statuses.reduce<Status>((a, b) => (RANK[b] < RANK[a] ? b : a), "idle")
 
-const inGroups = () =>
-  new Set(
-    groups.list.flatMap(g =>
-      g.members.flatMap(p => (p.invited ? [`${p.host}:${p.id}`] : [])),
-    ),
-  )
-
 export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
-  const hidden = inGroups()
-  const all = recents().filter(
-    r =>
-      !hidden.has(
-        `${r.current.kind === "session" ? r.current.host : CHAT_HOST}:${r.current.id}`,
-      ),
-  )
+  const all = recents()
 
   const hosts = hostList().map(host => {
     const state = host.view.state
@@ -119,8 +117,13 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
       }
     }
 
+    const placed = new Set(spaces.flatMap(s => s.agents))
     const sessions = all.filter(
-      r => r.live && r.current.kind === "session" && r.current.host === host.id,
+      r =>
+        r.live &&
+        r.current.kind === "session" &&
+        r.current.host === host.id &&
+        (open.has(r.current.id) || placed.has(r.current.id)),
     )
     const byId = new Map(sessions.map(r => [r.current.id, r]))
     const taken = new Set([
@@ -144,13 +147,7 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
 
       const agents = pinnedFirst([...explicit, ...matched].map(rowOf))
 
-      return {
-        key: `${host.id}:${space.id}`,
-        space,
-        auto: false,
-        agents,
-        status: urgent(agents.map(a => a.status)),
-      }
+      return nodeOf(`${host.id}:${space.id}`, space, agents, false)
     })
 
     const claimed = new Set(nodes.flatMap(n => n.agents.map(a => a.id)))
@@ -159,16 +156,19 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
       r => folderKey(r.cwd ?? ""),
     )
 
-    for (const [key, items] of byFolder) {
+    const folders = [...byFolder].toSorted(([a], [b]) => a.localeCompare(b))
+
+    for (const [key, items] of folders) {
       const agents = pinnedFirst(items.map(rowOf))
 
-      nodes.push({
-        key: `${host.id}:folder:${key}`,
-        space: folderSpace(items[0]?.cwd ?? "", host.name),
-        auto: true,
-        agents,
-        status: urgent(agents.map(a => a.status)),
-      })
+      nodes.push(
+        nodeOf(
+          `${host.id}:folder:${key}`,
+          folderSpace(items[0]?.cwd ?? "", host.name),
+          agents,
+          true,
+        ),
+      )
     }
 
     return {

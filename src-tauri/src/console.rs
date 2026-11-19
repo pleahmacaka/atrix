@@ -299,6 +299,7 @@ mod imp {
             }
 
             thread::sleep(CLIPBOARD_RETRY);
+            clipboard = Clipboard::new().map_err(|e| Error::code("clipboard", e))?;
         }
 
         let mut paste = Vec::new();

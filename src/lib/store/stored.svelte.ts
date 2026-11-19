@@ -49,8 +49,6 @@ export class Stored<T> {
 
     try {
       persist(this.prefix + id, value, this.empty)
-    } catch {
-      return
-    }
+    } catch {}
   }
 }

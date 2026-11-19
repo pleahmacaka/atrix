@@ -21,22 +21,28 @@ pub fn user_bin() -> PathBuf {
 }
 
 fn system_path() -> Vec<PathBuf> {
-    env::split_paths(&env::var_os("PATH").unwrap_or_default()).collect()
+    let list = env::var_os("PATH").unwrap_or_default();
+
+    env::split_paths(&list).collect()
 }
 
 pub fn on_system_path(dir: &Path) -> bool {
-    system_path().contains(&dir.to_path_buf())
+    system_path().iter().any(|entry| entry == dir)
 }
 
 pub fn search_path() -> OsString {
     let tools = tools_dir();
-    let dirs = [
-        tools.join("bin"),
-        tools.join("node_modules").join(".bin"),
-        user_bin(),
-    ];
 
-    env::join_paths(dirs.into_iter().chain(system_path())).unwrap_or_default()
+    env::join_paths(
+        [
+            tools.join("bin"),
+            tools.join("node_modules").join(".bin"),
+            user_bin(),
+        ]
+        .into_iter()
+        .chain(system_path()),
+    )
+    .unwrap_or_default()
 }
 
 pub fn which_in(name: &str, paths: OsString) -> Option<PathBuf> {
@@ -48,10 +54,13 @@ pub fn which(name: &str) -> Option<PathBuf> {
 }
 
 pub fn command(name: &str) -> Result<Command> {
-    let program = which(name).ok_or_else(|| Error::code("command_not_found", name))?;
+    let paths = search_path();
+    let program =
+        which_in(name, paths.clone()).ok_or_else(|| Error::code("command_not_found", name))?;
+
     let mut command = platform::hidden(program);
 
-    command.env("PATH", search_path());
+    command.env("PATH", paths);
 
     Ok(command)
 }

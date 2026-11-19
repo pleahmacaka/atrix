@@ -469,7 +469,6 @@ $effect(() => {
   )
   let handle = 0
 
-  // Safari has no requestIdleCallback
   const idle: (callback: IdleRequestCallback) => number =
     "requestIdleCallback" in window
       ? callback => requestIdleCallback(callback)
@@ -1098,7 +1097,6 @@ $effect(() => {
 
     scene.add(probe)
 
-    // compileAsync creates programs synchronously; only completion is awaited
     const done = renderer.compileAsync(scene, camera.current)
 
     for (const [mesh, base] of swapped) {

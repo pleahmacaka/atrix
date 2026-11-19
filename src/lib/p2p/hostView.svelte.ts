@@ -20,12 +20,9 @@ import type {
   ProviderChoice,
   SessionView,
   Stroke,
-  SyncConfig,
 } from "./protocol.ts"
 
-// history replays can outrun the load reply over P2P, so a second snapshot catches late items
 const RESYNC_MS = 1500
-
 export class HostView {
   readonly instance = crypto.randomUUID()
 
@@ -57,13 +54,13 @@ export class HostView {
 
   taps = new Set<(event: HostEvent) => void>()
 
-  #asked = new Set<string>()
+  private asked = new Set<string>()
 
-  #fresh = new Set<string>()
+  private fresh = new Set<string>()
 
-  #sought = new Set<string>()
+  private sought = new Set<string>()
 
-  #listing = new Map<string, Promise<void>>()
+  private listing = new Map<string, Promise<void>>()
 
   constructor(
     readonly id: string,
@@ -72,7 +69,7 @@ export class HostView {
     get<Record<string, Listed[]>>(this.#cacheKey)
       .then(saved => {
         for (const [harness, list] of Object.entries(saved ?? {})) {
-          if (!this.#fresh.has(harness)) {
+          if (!this.fresh.has(harness)) {
             this.lists[harness] = list
           }
         }
@@ -137,14 +134,14 @@ export class HostView {
     }
 
     for (const h of state.harnesses) {
-      if (h.enabled && !this.#asked.has(h.id)) {
-        this.#asked.add(h.id)
+      if (h.enabled && !this.asked.has(h.id)) {
+        this.asked.add(h.id)
         this.lists[h.id] ??= []
         this.list(h.id).catch(() => {})
       }
 
       if (!h.enabled) {
-        this.#asked.delete(h.id)
+        this.asked.delete(h.id)
         delete this.lists[h.id]
       }
     }
@@ -155,7 +152,7 @@ export class HostView {
 
     if (fresh) {
       for (const e of state.external) {
-        this.#sought.add(e.id)
+        this.sought.add(e.id)
       }
     } else {
       this.#relist(state)
@@ -173,7 +170,7 @@ export class HostView {
     const known = new Set([
       ...state.open.map(s => s.id),
       ...Object.values(this.lists).flatMap(l => l.map(s => s.sessionId)),
-      ...this.#sought,
+      ...this.sought,
     ])
     const unseen = state.external.filter(e => !known.has(e.id))
 
@@ -182,7 +179,7 @@ export class HostView {
     }
 
     for (const e of unseen) {
-      this.#sought.add(e.id)
+      this.sought.add(e.id)
     }
 
     for (const h of state.harnesses) {
@@ -217,15 +214,15 @@ export class HostView {
       () => {},
     )
 
-    this.#listing.set(harness, settled)
+    this.listing.set(harness, settled)
 
     try {
       this.lists[harness] = await pending
-      this.#fresh.add(harness)
+      this.fresh.add(harness)
       set(this.#cacheKey, $state.snapshot(this.lists)).catch(() => {})
     } finally {
-      if (this.#listing.get(harness) === settled) {
-        this.#listing.delete(harness)
+      if (this.listing.get(harness) === settled) {
+        this.listing.delete(harness)
       }
     }
   }
@@ -236,7 +233,7 @@ export class HostView {
     }
 
     if (!this.#target(sessionId)) {
-      await Promise.all(this.#listing.values())
+      await Promise.all(this.listing.values())
     }
 
     const target = this.#target(sessionId)
@@ -247,7 +244,6 @@ export class HostView {
 
     await this.load(target.harness, sessionId, target.cwd)
   }
-
   create = async (harness: string, cwd: string) => {
     const view = await this.call({ op: "new", harness, cwd })
 
@@ -274,7 +270,6 @@ export class HostView {
         cwd,
         title,
       })
-
       this.views[view.id] = view
     } finally {
       this.loading.delete(sessionId)
@@ -527,13 +522,6 @@ export class HostView {
 
   dsExecute = (name: string, sql: string, params: unknown[] = []) =>
     this.call({ op: "ds.execute", name, sql, params })
-
-  dsSyncConfigs = () => this.call({ op: "ds.sync.get" })
-
-  dsSetSync = (name: string, config: SyncConfig | null) =>
-    this.call({ op: "ds.sync.set", name, config })
-
-  dsSync = (name: string) => this.call({ op: "ds.sync", name })
 
   dsSetKnowledge = (name: string, on: boolean) =>
     this.call({ op: "ds.knowledge.set", name, on })

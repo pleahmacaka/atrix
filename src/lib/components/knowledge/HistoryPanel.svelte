@@ -24,12 +24,12 @@ let {
   onrevert: (version: Version) => void
 } = $props()
 
-type Revision = Version & {
-  number: number
-  body: string
-  added: number
-  removed: number
-}
+type Revision = Version & { number: number; body: string; added: number; removed: number }
+
+const VIEWS = [
+  { id: "rendered" as const, label: m.knowledge_rendered(), icon: "lucide:eye" },
+  { id: "source" as const, label: m.knowledge_source(), icon: "lucide:code" },
+]
 
 const attempt = new Attempt()
 
@@ -39,12 +39,10 @@ let selected = $state<number | null>(null)
 
 let view = $state<"rendered" | "source">("rendered")
 
-const VIEWS = [
-  { id: "rendered" as const, label: m.knowledge_rendered(), icon: "lucide:eye" },
-  { id: "source" as const, label: m.knowledge_source(), icon: "lucide:code" },
-]
-
 const lineCount = (text: string) => text.split("\n").filter(Boolean).length
+
+const count = (parts: ReturnType<typeof diffLines>, kind: "added" | "removed") =>
+  parts.filter(p => p[kind]).reduce((n, p) => n + lineCount(p.value), 0)
 
 onMount(() =>
   attempt.run(async () => {
@@ -63,10 +61,8 @@ onMount(() =>
           ...v,
           number: i + 1,
           body: bodies[i],
-          added: parts.filter(p => p.added).reduce((n, p) => n + lineCount(p.value), 0),
-          removed: parts
-            .filter(p => p.removed)
-            .reduce((n, p) => n + lineCount(p.value), 0),
+          added: count(parts, "added"),
+          removed: count(parts, "removed"),
         }
       })
       .toReversed()
@@ -75,15 +71,9 @@ onMount(() =>
 
 const detail = $derived(revisions.find(r => r.number === selected) ?? null)
 
-const previous = $derived(
-  detail ? (revisions.find(r => r.number === detail.number - 1) ?? null) : null,
-)
+const previous = $derived(detail ? (revisions.find(r => r.number === detail.number - 1) ?? null) : null)
 
-const blocks = (text: string) =>
-  text
-    .split(/\n{2,}/)
-    .map(b => b.trim())
-    .filter(Boolean)
+const blocks = (text: string) => text.split(/\n{2,}/).map(b => b.trim()).filter(Boolean)
 
 const rendered = $derived(
   detail
@@ -96,16 +86,12 @@ const rendered = $derived(
     : [],
 )
 
-const source = $derived(
-  detail ? diffLines(previous?.body ?? "", detail.body) : [],
-)
+const source = $derived(detail ? diffLines(previous?.body ?? "", detail.body) : [])
 
 const clip = (text: string) => {
   const lines = text.split("\n")
 
-  return lines.length > 6
-    ? [...lines.slice(0, 2), "…", ...lines.slice(-3)].join("\n")
-    : text
+  return lines.length > 6 ? [...lines.slice(0, 2), "…", ...lines.slice(-3)].join("\n") : text
 }
 </script>
 
@@ -136,9 +122,7 @@ const clip = (text: string) => {
       <p class="mt-2 text-sm text-base-content/60">
         <span title={actorDetail(detail.actor)}>{actorName(detail.actor)}</span>,
         <time class="tabular-nums">{timeOf(detail.modified)}</time>,
-        {previous
-          ? m.knowledge_compare_prev({ number: previous.number })
-          : m.knowledge_first()}
+        {previous ? m.knowledge_compare_prev({ number: previous.number }) : m.knowledge_first()}
       </p>
     </div>
     {#if detail.etag !== etag && !detail.latest}
@@ -149,7 +133,7 @@ const clip = (text: string) => {
     {/if}
   </div>
   <div class="mt-6 flex">
-    <Segmented items={VIEWS} value={view} onpick={id => (view = id)} />
+    <Segmented label={m.common_view()} items={VIEWS} value={view} onpick={next => (view = next)} />
   </div>
   {#if view === "rendered"}
     <div class="mt-4 grid gap-2">
@@ -167,9 +151,7 @@ const clip = (text: string) => {
       {/each}
     </div>
   {:else}
-    <div
-      class="mt-4 overflow-hidden rounded-box border border-base-300 text-sm leading-relaxed"
-    >
+    <div class="mt-4 overflow-hidden rounded-box border border-base-300 text-sm leading-relaxed">
       {#each source as part, i (i)}
         <div
           class={[

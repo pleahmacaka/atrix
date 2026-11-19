@@ -1,28 +1,33 @@
 import { z } from "zod"
 import { logFailure } from "#lib/logging.ts"
-import { persist, persisted } from "#lib/store/stored.svelte.ts"
+import { Stored } from "#lib/store/stored.svelte.ts"
 import { TAGS, type Tag, tagged } from "./tags.ts"
 
 const PRIMED = "primed:"
 
 const LEGACY = "primer:"
 
-const primers = {
-  get: (id: string) => persisted(PRIMED + id, "", z.string()),
-  set: (id: string, value: string) => persist(PRIMED + id, value, ""),
+const primers = new Stored("", "", z.string())
+
+const setPrimer = (id: string, value: string) => {
+  try {
+    primers.set(PRIMED + id, value)
+  } catch (e) {
+    logFailure("primer store", e)
+  }
 }
 
 const migrate = () => {
   try {
-    const old = Object.keys(localStorage).filter(k => k.startsWith(LEGACY))
+    const legacy = Object.keys(localStorage).filter(k => k.startsWith(LEGACY))
 
-    for (const key of old) {
+    for (const key of legacy) {
       const body = z
         .string()
         .safeParse(JSON.parse(localStorage.getItem(key) ?? '""'))
 
       if (body.success && body.data) {
-        primers.set(key.slice(LEGACY.length), tagged(TAGS.agent, body.data))
+        setPrimer(key.slice(LEGACY.length), tagged(TAGS.agent, body.data))
       }
 
       localStorage.removeItem(key)
@@ -34,36 +39,28 @@ const migrate = () => {
 
 migrate()
 
-const store = (sessionId: string, value: string) => {
-  try {
-    primers.set(sessionId, value)
-  } catch (e) {
-    logFailure("primer store", e)
-  }
-}
-
-export const forgetPrimer = (sessionId: string) => store(sessionId, "")
+export const forgetPrimer = (sessionId: string) => setPrimer(sessionId, "")
 
 export const prime = (sessionId: string, tag: Tag, body: string) =>
-  store(sessionId, body ? tagged(tag, body) : "")
+  setPrimer(sessionId, body ? tagged(tag, body) : "")
 
 export const sendPrimed = async (
   sessionId: string,
   text: string,
   send: (text: string) => Promise<unknown>,
 ) => {
-  const primer = primers.get(sessionId)
+  const primer = primers.get(PRIMED + sessionId)
 
   if (!primer) {
     return send(text)
   }
 
-  store(sessionId, "")
+  setPrimer(sessionId, "")
 
   try {
     return await send(`${primer}\n\n${text}`)
   } catch (e) {
-    store(sessionId, primer)
+    setPrimer(sessionId, primer)
     throw e
   }
 }

@@ -119,9 +119,6 @@ const knownModels = $derived(
     onclick={() => attempt(() => host.attach(view.id))}
   >
     <ModelLabel name={view.model} />
-    {#if !elsewhere}
-      <Icon icon="lucide:chevron-down" class="size-3.5 shrink-0 opacity-60" />
-    {/if}
   </button>
 {:else if modelOption}
   <ModelEffort

@@ -1,12 +1,14 @@
 import { Channel } from "@tauri-apps/api/core"
 import { native } from "#lib/native.ts"
-import type {
-  Available,
-  HarnessInfo,
-  HarnessKind,
-  Installed,
-  InstallScope,
-  ProviderChoice,
+import {
+  type Available,
+  DEFAULT_PROVIDER,
+  type HarnessInfo,
+  type HarnessKind,
+  type Installed,
+  type InstallScope,
+  type ProviderChoice,
+  type ProviderSource,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { findGateway } from "#lib/store/gatewayCatalog.ts"
@@ -22,12 +24,18 @@ import {
 } from "./config.ts"
 import {
   detectHarnesses,
+  forgetRegistry,
   type Harness,
   type Installable,
   type Launch,
   type Source,
 } from "./harnesses.ts"
-import { servesKind, withProvider } from "./provider.ts"
+import {
+  type ProviderKind,
+  prepareLaunch,
+  providerKindOf,
+  servesKind,
+} from "./provider.ts"
 import {
   disabledHarnesses,
   providerChoices,
@@ -37,7 +45,7 @@ import {
 
 export type Entry = Omit<
   HarnessInfo,
-  "enabled" | "provider" | "providerActive"
+  "enabled" | "provider" | "providerSource" | "providerModel"
 > & {
   launch: Launch
   dir: string | null
@@ -46,13 +54,35 @@ export type Entry = Omit<
 
 export type RegistryEvents = {
   changed: () => void
-  release: (id: string) => Promise<unknown>
+  release: (id: string) => Promise<void>
   log: (harness: string, line: string) => void
 }
 
 const PROFILE = "profile:"
 
 const profileId = (profile: Profile) => `${PROFILE}${profile.id}`
+
+type Provided = {
+  kind: ProviderKind
+  gateway: NonNullable<ReturnType<typeof findGateway>>
+  model: string
+}
+
+const resolvePicked = (
+  entry: Entry | undefined,
+  picked: ProviderChoice | undefined,
+): Provided | null => {
+  if (picked?.source !== "gateway") {
+    return null
+  }
+
+  const kind = entry && providerKindOf(entry)
+  const gateway = findGateway(picked.gateway)
+
+  return kind && picked.model && gateway && servesKind(kind, gateway)
+    ? { kind, gateway, model: picked.model }
+    : null
+}
 
 export const mirrorKind = (entry: Entry | undefined): HarnessKind | null =>
   entry && !entry.profile ? entry.kind : null
@@ -103,7 +133,8 @@ export class Harnesses {
         ...h,
         enabled: !this.#disabled.has(h.id),
         provider: this.#providers[h.id] ?? null,
-        providerActive: this.providing(h.id),
+        providerSource: this.#sourceOf(h.id),
+        providerModel: this.#provided(h.id)?.model ?? null,
       }),
     )
 
@@ -121,9 +152,11 @@ export class Harnesses {
   }
 
   redetect = async (force = false) => {
-    await this.#detect(force)
-    await this.#build()
-    this.on.changed()
+    if (force) {
+      forgetRegistry()
+    }
+
+    await this.#refresh()
   }
 
   install = async (id: string, scope: InstallScope): Promise<Installed> => {
@@ -139,7 +172,8 @@ export class Harnesses {
       channel: this.#log(id),
     })
 
-    await this.redetect()
+    forgetRegistry()
+    await this.#refresh()
 
     return { pathHint }
   }
@@ -154,56 +188,93 @@ export class Harnesses {
     await this.on.release(id)
     await native("tool_uninstall", { source, channel: this.#log(id) })
     this.#forgetProvider(id)
-    await this.redetect()
+    forgetRegistry()
+    await this.#refresh()
 
     return null
   }
 
+  affectedBy = (changed: string) =>
+    changed === DEFAULT_PROVIDER
+      ? this.#entries
+          .filter(h => this.#sourceOf(h.id) === "default")
+          .map(h => h.id)
+      : [changed]
+
   usingGateway = (gateway: string) =>
     Object.entries(this.#providers)
-      .filter(([, picked]) => picked.gateway === gateway)
-      .map(([id]) => id)
+      .filter(
+        ([, picked]) =>
+          picked.source === "gateway" && picked.gateway === gateway,
+      )
+      .flatMap(([id]) => this.affectedBy(id))
 
   #forgetProvider = (id: string) => {
     this.#providers = saveProvider(id, null)
   }
 
-  #resolve = (id: string, picked: ProviderChoice | undefined) => {
-    const kind = this.find(id)?.kind
-    const gateway = picked && findGateway(picked.gateway)
+  #sourceOf = (id: string): ProviderSource => {
+    const own = this.#providers[id]
 
-    return kind && picked?.model && gateway && servesKind(kind, gateway)
-      ? { kind, gateway, model: picked.model }
-      : null
+    if (!own) {
+      return "default"
+    }
+
+    return own.source === "native" ? "native" : "own"
   }
 
-  #provided = (id: string) => this.#resolve(id, this.#providers[id])
+  #provided = (id: string) => {
+    switch (this.#sourceOf(id)) {
+      case "native":
+        return null
+      case "own":
+        return resolvePicked(this.find(id), this.#providers[id])
+      case "default":
+        return resolvePicked(this.find(id), this.#providers[DEFAULT_PROVIDER])
+    }
+  }
 
-  providing = (id: string) => this.#provided(id) !== null
+  defaultProvider = () => this.#providers[DEFAULT_PROVIDER] ?? null
 
   providedModel = (id: string) => this.#provided(id)?.model ?? null
 
-  launchOf = (id: string) => {
+  prepareLaunch = (id: string) => {
     const { launch } = this.entry(id)
     const provided = this.#provided(id)
 
     return provided
-      ? withProvider(provided.kind, launch, provided.gateway, provided.model)
-      : launch
+      ? prepareLaunch(
+          provided.kind,
+          launch,
+          provided.gateway,
+          provided.model,
+          this.#home,
+        )
+      : Promise.resolve(launch)
+  }
+
+  #valid = (id: string, picked: ProviderChoice) => {
+    if (id === DEFAULT_PROVIDER) {
+      return (
+        picked.source === "gateway" &&
+        !!findGateway(picked.gateway) &&
+        !!picked.model.trim()
+      )
+    }
+
+    this.entry(id)
+
+    return picked.source === "native" || !!resolvePicked(this.find(id), picked)
   }
 
   setProvider = (id: string, picked: ProviderChoice | null) => {
-    this.entry(id)
-
-    if (picked && !this.#resolve(id, picked)) {
+    if (picked && !this.#valid(id, picked)) {
       throw new Error(m.error_provider_invalid())
     }
 
-    const before = this.#providers[id]
-    const same =
-      before?.gateway === picked?.gateway && before?.model === picked?.model
-
-    if (same) {
+    if (
+      JSON.stringify(this.#providers[id] ?? null) === JSON.stringify(picked)
+    ) {
       return false
     }
 
@@ -285,18 +356,23 @@ export class Harnesses {
   #saveProfiles = async (profiles: Profile[]) => {
     this.#profiles = profiles
     await saveProfiles(this.#home, profiles)
-    await this.#build()
-    this.on.changed()
+    await this.#refresh()
   }
 
   #log = (harness: string) =>
     new Channel<string>(line => this.on.log(harness, line))
 
-  #detect = async (force = false) => {
-    const { harnesses, available } = await detectHarnesses(force)
+  #detect = async () => {
+    const { harnesses, available } = await detectHarnesses()
 
     this.#base = harnesses
     this.#available = available
+  }
+
+  #refresh = async () => {
+    await this.#detect()
+    await this.#build()
+    this.on.changed()
   }
 
   #build = async () => {

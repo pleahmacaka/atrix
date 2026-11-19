@@ -5,8 +5,8 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value as Json};
 use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, Manager, State};
@@ -15,48 +15,15 @@ use turso_parser::ast::{Cmd, Stmt};
 use turso_parser::parser::Parser;
 
 use crate::error::{Error, Result};
-use crate::secret;
 
 const EXTENSION: &str = "db";
 
-const SYNC_FILE: &str = "sync.json";
-
 const KNOWLEDGE_FILE: &str = "knowledge.json";
-
-const KEYRING_SERVICE: &str = "atrix-datasource";
 
 const NAME_LIMIT: usize = 64;
 
-#[derive(Clone, Default, Serialize, Deserialize)]
-pub struct SyncConfig {
-    url: String,
-    token: String,
-}
-
-#[derive(Default, Serialize, Deserialize)]
-struct StoredSync {
-    url: String,
-    #[serde(default, skip_serializing)]
-    token: String,
-}
-
-enum Handle {
-    Local(turso::Database),
-    Synced(turso::sync::Database),
-}
-
-impl Handle {
-    async fn connect(&self) -> Result<Connection> {
-        match self {
-            Handle::Local(db) => db.connect(),
-            Handle::Synced(db) => db.connect().await,
-        }
-        .map_err(failed)
-    }
-}
-
 #[derive(Default)]
-pub struct Datasources(Mutex<HashMap<String, Arc<Handle>>>);
+pub struct Datasources(Mutex<HashMap<String, Arc<turso::Database>>>);
 
 #[derive(Serialize)]
 pub struct Rows {
@@ -73,17 +40,6 @@ pub struct Executed {
 
 fn failed(e: impl Display) -> Error {
     Error::code("ds_failed", e)
-}
-
-fn token_of(name: &str) -> String {
-    secret::read(KEYRING_SERVICE, name)
-        .ok()
-        .flatten()
-        .unwrap_or_default()
-}
-
-fn store_token(name: &str, token: &str) -> Result<()> {
-    secret::write(KEYRING_SERVICE, name, token).map_err(failed)
 }
 
 fn root(app: &AppHandle) -> Result<PathBuf> {
@@ -134,76 +90,15 @@ fn write_json(app: &AppHandle, file: &str, value: &impl Serialize) -> Result<()>
     Ok(fs::write(root(app)?.join(file), text)?)
 }
 
-fn read_sync(app: &AppHandle) -> Result<HashMap<String, SyncConfig>> {
-    let stored: HashMap<String, StoredSync> = read_json(app, SYNC_FILE)?;
-    let legacy: Vec<_> = stored.iter().filter(|(_, s)| !s.token.is_empty()).collect();
-
-    for (name, sync) in &legacy {
-        store_token(name, &sync.token)?;
-    }
-
-    if !legacy.is_empty() {
-        write_json(app, SYNC_FILE, &stored)?;
-    }
-
-    Ok(stored
-        .into_iter()
-        .map(|(name, sync)| {
-            let token = token_of(&name);
-
-            (
-                name,
-                SyncConfig {
-                    url: sync.url,
-                    token,
-                },
-            )
-        })
-        .collect())
-}
-
-fn write_sync(app: &AppHandle, all: &HashMap<String, SyncConfig>) -> Result<()> {
-    let mut stored = HashMap::new();
-
-    for (name, sync) in all {
-        store_token(name, &sync.token)?;
-        stored.insert(
-            name.clone(),
-            StoredSync {
-                url: sync.url.clone(),
-                token: String::new(),
-            },
-        );
-    }
-
-    write_json(app, SYNC_FILE, &stored)
-}
-
 fn read_knowledge(app: &AppHandle) -> Result<BTreeSet<String>> {
     read_json(app, KNOWLEDGE_FILE)
 }
 
-async fn open(app: &AppHandle, name: &str) -> Result<Handle> {
-    let file = file_of(app, name)?;
-    let path = file.to_string_lossy();
-
-    if let Some(sync) = read_sync(app)?.remove(name) {
-        let db = turso::sync::Builder::new_remote(&path)
-            .with_remote_url(sync.url)
-            .with_auth_token(sync.token)
-            .build()
-            .await
-            .map_err(failed)?;
-
-        return Ok(Handle::Synced(db));
-    }
-
-    let db = turso::Builder::new_local(&path)
+async fn open(app: &AppHandle, name: &str) -> Result<turso::Database> {
+    turso::Builder::new_local(&file_of(app, name)?.to_string_lossy())
         .build()
         .await
-        .map_err(failed)?;
-
-    Ok(Handle::Local(db))
+        .map_err(failed)
 }
 
 async fn connect(app: &AppHandle, store: &Datasources, name: &str) -> Result<Connection> {
@@ -214,7 +109,7 @@ async fn connect(app: &AppHandle, store: &Datasources, name: &str) -> Result<Con
         open_dbs.insert(name.to_string(), Arc::new(open(app, name).await?));
     }
 
-    open_dbs[name].connect().await
+    open_dbs[name].connect().map_err(failed)
 }
 
 fn single(sql: &str) -> Result<&str> {
@@ -307,7 +202,7 @@ pub async fn ds_create(app: AppHandle, store: State<'_, Datasources>, name: Stri
 
     let handle = open(&app, &name).await?;
 
-    handle.connect().await?;
+    handle.connect().map_err(failed)?;
     store.0.lock().await.insert(name, Arc::new(handle));
 
     Ok(())
@@ -329,12 +224,6 @@ pub async fn ds_delete(app: AppHandle, store: State<'_, Datasources>, name: Stri
         if owned {
             fs::remove_file(&path)?;
         }
-    }
-
-    let mut all = read_sync(&app)?;
-
-    if all.remove(&name).is_some() {
-        write_sync(&app, &all)?;
     }
 
     let mut knowledge = read_knowledge(&app)?;
@@ -429,48 +318,4 @@ pub async fn ds_execute(
         changes,
         last_insert_rowid: conn.last_insert_rowid(),
     })
-}
-
-#[tauri::command(async)]
-pub fn ds_sync_get(app: AppHandle) -> Result<HashMap<String, SyncConfig>> {
-    read_sync(&app)
-}
-
-#[tauri::command]
-pub async fn ds_sync_set(
-    app: AppHandle,
-    store: State<'_, Datasources>,
-    name: String,
-    config: Option<SyncConfig>,
-) -> Result<()> {
-    checked(&name)?;
-
-    let mut all = read_sync(&app)?;
-
-    match config {
-        Some(c) if !c.url.trim().is_empty() => all.insert(name.clone(), c),
-        _ => {
-            store_token(&name, "")?;
-            all.remove(&name)
-        }
-    };
-
-    write_sync(&app, &all)?;
-    store.0.lock().await.remove(&name);
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn ds_sync(app: AppHandle, store: State<'_, Datasources>, name: String) -> Result<bool> {
-    connect(&app, &store, &name).await?;
-
-    let handle = store.0.lock().await.get(&name).cloned();
-
-    let Some(Handle::Synced(db)) = handle.as_deref() else {
-        return Err(Error::code("ds_sync_unset", name));
-    };
-
-    db.push().await.map_err(failed)?;
-    db.pull().await.map_err(failed)
 }

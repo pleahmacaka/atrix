@@ -27,22 +27,21 @@ let was = false
 
 $effect(() => {
   const now = view?.running ?? false
-  const items = view?.items ?? []
+  const reply = replyOf(view?.items ?? [])
 
   untrack(() => {
     if (!conversation.owner) {
       return
     }
 
-    if (now) {
-      conversation.replied()
+    if (now && !was) {
       voice.stopSpeaking()
-    } else if (was) {
-      conversation.replied()
+      voice.begin()
+    }
 
-      if (items.at(-1)?.type === "agent") {
-        voice.speak(replyOf(items))
-      }
+    if (now || was) {
+      conversation.replied()
+      voice.feed(reply, !now)
     }
   })
 

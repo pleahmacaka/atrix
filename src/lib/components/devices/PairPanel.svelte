@@ -4,6 +4,7 @@ import encodeQR from "qr"
 import { onDestroy } from "svelte"
 import { slide } from "svelte/transition"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
 import CopyButton from "#lib/components/ui/CopyButton.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -83,7 +84,7 @@ const status = (peer: Peer) =>
 </script>
 
 <div class="flex flex-col gap-6">
-  <div class="flex flex-col">
+  <Section>
     <SettingRow title={m.sync_issue()}>
       <IconButton
         icon={sync.pairing ? "lucide:refresh-cw" : "lucide:ticket-plus"}
@@ -96,7 +97,7 @@ const status = (peer: Peer) =>
     {#if sync.pairing && qr}
       <div
         transition:slide={{ duration: motion(140) }}
-        class="mb-3 flex flex-col items-center gap-3 rounded-box border border-base-300 p-4"
+        class="flex flex-col items-center gap-3 pb-4"
       >
         <img
           src={qr}
@@ -127,9 +128,11 @@ const status = (peer: Peer) =>
         </div>
       </div>
     {/if}
-  </div>
+  </Section>
   <Section icon="lucide:link" title={m.pair_join()}>
-    <JoinForm />
+    <div class="py-3">
+      <JoinForm />
+    </div>
   </Section>
   <Section icon="lucide:radio-tower" title={m.sync_devices()}>
     <ul class="flex flex-col gap-2 py-2 text-sm">
@@ -157,11 +160,12 @@ const status = (peer: Peer) =>
           >
             {status(peer)}
           </span>
-          <IconButton
+          <ConfirmButton
             icon="lucide:unlink"
             label={m.peer_unpair()}
-            size="xs"
-            onclick={() => attempt.run(() => sync.unpair(peer.id))}
+            confirm={m.peer_unpair_confirm({ name: peer.name })}
+            class="btn-xs"
+            onconfirm={() => attempt.run(() => sync.unpair(peer.id))}
           />
         </li>
       {:else}

@@ -18,53 +18,58 @@ pub enum GitOp {
     Push,
 }
 
-fn args(op: GitOp) -> (Vec<String>, bool) {
-    let owned = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    let with_files = |list: &[&str], files: Vec<String>| {
-        let mut all = owned(list);
+impl GitOp {
+    fn invocation(self) -> (Vec<String>, bool) {
+        match self {
+            Self::Status => (status(), false),
+            Self::Diff { file, staged } => {
+                let diff = if staged {
+                    vec!["diff".into(), "--no-color".into(), "--cached".into()]
+                } else {
+                    vec!["diff".into(), "--no-color".into()]
+                };
 
-        all.push("--".into());
-        all.extend(files);
-        all
-    };
-
-    match op {
-        GitOp::Status => (
-            owned(&[
-                "--no-optional-locks",
-                "status",
-                "--porcelain=v1",
-                "--branch",
-                "-z",
-                "--untracked-files=all",
-            ]),
-            false,
-        ),
-        GitOp::Diff { file, staged } => {
-            let list: &[&str] = if staged {
-                &["diff", "--no-color", "--cached"]
-            } else {
-                &["diff", "--no-color"]
-            };
-
-            (with_files(list, vec![file]), false)
-        }
-        GitOp::Untracked { file } => (
-            with_files(
-                &["diff", "--no-color", "--no-index"],
-                vec!["/dev/null".into(), file],
+                (paths(diff, [file]), false)
+            }
+            Self::Untracked { file } => (
+                paths(
+                    vec!["diff".into(), "--no-color".into(), "--no-index".into()],
+                    ["/dev/null".into(), file],
+                ),
+                true,
             ),
-            true,
-        ),
-        GitOp::Stage { files } => (with_files(&["add", "-A"], files), false),
-        GitOp::Unstage { files } => (with_files(&["reset", "-q"], files), false),
-        GitOp::Commit { message } => (owned(&["commit", "-m", &message]), false),
-        GitOp::Pull => (owned(&["pull", "--no-edit"]), false),
-        GitOp::Push => (owned(&["push"]), false),
+            Self::Stage { files } => (paths(vec!["add".into(), "-A".into()], files), false),
+            Self::Unstage { files } => (paths(vec!["reset".into(), "-q".into()], files), false),
+            Self::Commit { message } => (vec!["commit".into(), "-m".into(), message], false),
+            Self::Pull => (vec!["pull".into(), "--no-edit".into()], false),
+            Self::Push => (vec!["push".into()], false),
+        }
     }
 }
 
-fn git(dir: &str, args: &[String], differs_ok: bool) -> Result<String> {
+fn status() -> Vec<String> {
+    [
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "--branch",
+        "-z",
+        "--untracked-files=all",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+fn paths(command: Vec<String>, files: impl IntoIterator<Item = String>) -> Vec<String> {
+    command
+        .into_iter()
+        .chain(["--".into()])
+        .chain(files)
+        .collect()
+}
+
+fn run(dir: &str, args: &[String], differs_ok: bool) -> Result<String> {
     let output = process::command("git")?
         .args(["-c", "core.quotePath=false"])
         .args(args)
@@ -73,13 +78,13 @@ fn git(dir: &str, args: &[String], differs_ok: bool) -> Result<String> {
         .env("GIT_LITERAL_PATHSPECS", "1")
         .stdin(Stdio::null())
         .output()?;
-    // diff --no-index exits 1 whenever the files differ
-    let ok = output.status.success() || (differs_ok && output.status.code() == Some(1));
+    let differs = differs_ok && output.status.code() == Some(1);
 
-    if !ok {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        return Err(Error::code("git_failed", stderr.trim()));
+    if !output.status.success() && !differs {
+        return Err(Error::code(
+            "git_failed",
+            String::from_utf8_lossy(&output.stderr).trim(),
+        ));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
@@ -87,13 +92,12 @@ fn git(dir: &str, args: &[String], differs_ok: bool) -> Result<String> {
 
 #[tauri::command(async)]
 pub fn git_run(path: String, op: GitOp) -> Result<String> {
-    // status paths are repo-root relative, so every op runs from the root
-    let root = git(
+    let top = run(
         &path,
         &["rev-parse".into(), "--show-toplevel".into()],
         false,
     )?;
-    let (args, differs_ok) = args(op);
+    let (args, differs_ok) = op.invocation();
 
-    git(root.trim(), &args, differs_ok)
+    run(top.trim(), &args, differs_ok)
 }

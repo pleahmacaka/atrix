@@ -23,7 +23,6 @@ const toLinear = (mesh: Mesh) => {
 
   for (let i = 0; i < colors.count; i++) {
     color.fromBufferAttribute(colors, i)
-    // GLB colours hold sRGB viridis bytes, glTF reads them as linear
     color.convertSRGBToLinear()
     colors.setXYZ(i, color.r, color.g, color.b)
   }

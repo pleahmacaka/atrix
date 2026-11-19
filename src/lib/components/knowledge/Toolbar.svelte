@@ -10,6 +10,27 @@ let { editor, tick }: { editor: Editor; tick: number } = $props()
 
 type Item = { name: string; icon: string; label: () => string; run: () => void }
 
+const BLOCKS = [
+  { value: "p", label: m.editor_paragraph() },
+  { value: "2", label: m.editor_heading2() },
+  { value: "3", label: m.editor_heading3() },
+  { value: "4", label: m.editor_heading4() },
+]
+
+const MARKS: Item[] = [
+  { name: "bold", icon: "lucide:bold", label: m.editor_bold, run: () => chain().toggleBold().run() },
+  { name: "italic", icon: "lucide:italic", label: m.editor_italic, run: () => chain().toggleItalic().run() },
+  { name: "strike", icon: "lucide:strikethrough", label: m.editor_strike, run: () => chain().toggleStrike().run() },
+  { name: "code", icon: "lucide:code", label: m.editor_code, run: () => chain().toggleCode().run() },
+]
+
+const BLOCK_ITEMS: Item[] = [
+  { name: "bulletList", icon: "lucide:list", label: m.editor_bullets, run: () => chain().toggleBulletList().run() },
+  { name: "orderedList", icon: "lucide:list-ordered", label: m.editor_numbers, run: () => chain().toggleOrderedList().run() },
+  { name: "blockquote", icon: "lucide:text-quote", label: m.editor_quote, run: () => chain().toggleBlockquote().run() },
+  { name: "codeBlock", icon: "lucide:square-code", label: m.editor_code_block, run: () => chain().toggleCodeBlock().run() },
+]
+
 let linkOpen = $state(false)
 
 let linkUrl = $state("")
@@ -36,74 +57,11 @@ const history = $derived.by(() => {
 
 const chain = () => editor.chain().focus()
 
-const BLOCKS = [
-  { value: "p", label: m.editor_paragraph() },
-  { value: "2", label: m.editor_heading2() },
-  { value: "3", label: m.editor_heading3() },
-  { value: "4", label: m.editor_heading4() },
-]
-
-const MARKS: Item[] = [
-  {
-    name: "bold",
-    icon: "lucide:bold",
-    label: m.editor_bold,
-    run: () => chain().toggleBold().run(),
-  },
-  {
-    name: "italic",
-    icon: "lucide:italic",
-    label: m.editor_italic,
-    run: () => chain().toggleItalic().run(),
-  },
-  {
-    name: "strike",
-    icon: "lucide:strikethrough",
-    label: m.editor_strike,
-    run: () => chain().toggleStrike().run(),
-  },
-  {
-    name: "code",
-    icon: "lucide:code",
-    label: m.editor_code,
-    run: () => chain().toggleCode().run(),
-  },
-]
-
-const BLOCK_ITEMS: Item[] = [
-  {
-    name: "bulletList",
-    icon: "lucide:list",
-    label: m.editor_bullets,
-    run: () => chain().toggleBulletList().run(),
-  },
-  {
-    name: "orderedList",
-    icon: "lucide:list-ordered",
-    label: m.editor_numbers,
-    run: () => chain().toggleOrderedList().run(),
-  },
-  {
-    name: "blockquote",
-    icon: "lucide:text-quote",
-    label: m.editor_quote,
-    run: () => chain().toggleBlockquote().run(),
-  },
-  {
-    name: "codeBlock",
-    icon: "lucide:square-code",
-    label: m.editor_code_block,
-    run: () => chain().toggleCodeBlock().run(),
-  },
-]
-
 const setBlock = (value: string) => {
   if (value === "p") {
     chain().setParagraph().run()
   } else {
-    chain()
-      .setHeading({ level: Number(value) as 2 | 3 | 4 })
-      .run()
+    chain().setHeading({ level: Number(value) as 2 | 3 | 4 }).run()
   }
 }
 

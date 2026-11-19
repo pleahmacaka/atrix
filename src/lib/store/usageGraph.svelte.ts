@@ -118,7 +118,6 @@ export const scheduleSubmit = async (hours: number) => {
   try {
     await native("usage_autosubmit", { hours })
     settings.setTokscaleSubmit(hours)
-    submission.failure = null
 
     return true
   } catch (e) {

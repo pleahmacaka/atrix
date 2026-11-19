@@ -207,7 +207,7 @@ const commitRename = () => {
   <span
     class={[
       "grid size-16 place-items-center squircle border border-base-300 bg-raised",
-      "shadow-sm transition-transform duration-140 group-hover/tile:-translate-y-0.5",
+      "shadow-sm transition-transform group-hover/tile:-translate-y-0.5",
     ]}
   >
     <Icon {icon} class="size-7 text-primary" />
@@ -219,7 +219,7 @@ const commitRename = () => {
   <span
     class={[
       "grid size-16 grid-cols-2 grid-rows-2 gap-1 squircle border border-base-300 bg-raised p-2",
-      "shadow-sm transition-transform duration-140 group-hover/tile:-translate-y-0.5",
+      "shadow-sm transition-transform group-hover/tile:-translate-y-0.5",
     ]}
   >
     {#each tile.apps.slice(0, 4) as key (key)}

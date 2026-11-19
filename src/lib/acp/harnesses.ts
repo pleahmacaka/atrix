@@ -4,6 +4,7 @@ import { z } from "zod"
 import { logFailure } from "#lib/logging.ts"
 import type { Available } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { PI_BASE } from "./provider.ts"
 
 const REGISTRY =
   "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"
@@ -14,9 +15,10 @@ const REGISTRY_FRESH_MS = 5 * 60_000
 
 const REGISTRY_RETRY_MS = 30_000
 
-const BANNED = "antigravity"
+const SUFFIX = /-(acp|cli|code)$/
 
 const UNSUPPORTED = new Set([
+  "antigravity",
   "stakpak",
   "vtcode",
   "vt code",
@@ -29,9 +31,7 @@ const UNSUPPORTED = new Set([
 ])
 
 const supported = (e: Entry) =>
-  [e.id, e.name]
-    .map(v => v.toLowerCase())
-    .every(v => !v.includes(BANNED) && !UNSUPPORTED.has(v))
+  [e.id, e.name].map(v => v.toLowerCase()).every(v => !UNSUPPORTED.has(v))
 
 const runner = z.object({
   package: z.string(),
@@ -68,62 +68,70 @@ type Entry = z.infer<typeof entry> & {
   bins?: string[]
 }
 
-const npxOnly = (pkg: string, args: string[] = []) => ({
-  npx: { package: pkg, args, env: {} },
+const viaNpx = (packageName: string, args: string[] = []) => ({
+  npx: { package: packageName, args, env: {} },
+})
+
+const extra = (
+  id: string,
+  name: string,
+  website: string,
+  repository: string,
+  distribution: Entry["distribution"],
+  more: Pick<Entry, "bins" | "bridge"> = {},
+): Entry => ({
+  id,
+  name,
+  description: "",
+  version: "",
+  website,
+  repository,
+  distribution,
+  ...more,
 })
 
 const EXTRA: Entry[] = [
-  {
-    id: "deepseek-acp",
-    name: "DeepSeek Harness",
-    description: "",
-    version: "",
-    website: "https://github.com/deepseek-ai/deepseek-harness",
-    repository: "https://github.com/xintaofei/deepseek-acp",
-    distribution: npxOnly("deepseek-acp"),
-  },
-  {
-    id: "hermes-agent",
-    name: "Hermes Agent",
-    description: "",
-    version: "",
-    website: "https://hermes-agent.nousresearch.com",
-    repository: "https://github.com/NousResearch/hermes-agent",
-    distribution: {
-      uvx: { package: "hermes-agent[acp]", args: ["acp"], env: {} },
-    },
-  },
-  {
-    id: "oh-my-pi",
-    name: "Oh My Pi",
-    description: "",
-    version: "",
-    website: "https://omp.sh",
-    bins: ["omp"],
-    repository: "https://github.com/can1357/oh-my-pi",
-    distribution: npxOnly("@oh-my-pi/pi-coding-agent", ["acp"]),
-  },
-  {
-    id: "omo",
-    name: "OmO",
-    description: "",
-    version: "",
-    website: "https://omo.dev",
-    repository: "https://github.com/code-yeongyu/oh-my-openagent",
-    bridge: { package: "pi-acp", env: "PI_ACP_PI_COMMAND" },
-    distribution: npxOnly("omo-ai"),
-  },
-  {
-    id: "zcode-acp",
-    name: "ZCode",
-    description: "",
-    version: "",
-    website: "",
-    repository: "https://github.com/william0wang/zcode-acp",
-    bins: ["zcode-acp-server"],
-    distribution: npxOnly("zcode-acp-server"),
-  },
+  extra(
+    "deepseek-acp",
+    "DeepSeek Harness",
+    "https://github.com/deepseek-ai/deepseek-harness",
+    "https://github.com/xintaofei/deepseek-acp",
+    viaNpx("deepseek-acp"),
+  ),
+  extra(
+    "hermes-agent",
+    "Hermes Agent",
+    "https://hermes-agent.nousresearch.com",
+    "https://github.com/NousResearch/hermes-agent",
+    { uvx: { package: "hermes-agent[acp]", args: ["acp"], env: {} } },
+  ),
+  extra(
+    "oh-my-pi",
+    "Oh My Pi",
+    "https://omp.sh",
+    "https://github.com/can1357/oh-my-pi",
+    viaNpx("@oh-my-pi/pi-coding-agent", ["acp"]),
+    { bins: ["omp"] },
+  ),
+  extra(
+    "omo",
+    "OmO",
+    "https://omo.dev",
+    "https://github.com/code-yeongyu/oh-my-openagent",
+    viaNpx("omo-ai"),
+    { bridge: { package: "pi-acp", env: "PI_ACP_PI_COMMAND" } },
+  ),
+  extra(
+    "zcode-acp",
+    "ZCode",
+    "",
+    "https://github.com/william0wang/zcode-acp",
+    viaNpx("zcode-acp-server"),
+    { bins: ["zcode-acp-server"] },
+  ),
 ]
+
+const EXTRA_INDEX = new Map(EXTRA.map(e => [e.id, e]))
 
 const bridged = (e: Entry, launch: Launch): Launch =>
   e.bridge
@@ -134,21 +142,31 @@ const bridged = (e: Entry, launch: Launch): Launch =>
       }
     : launch
 
+const isWindows = (platform: string) => platform.startsWith("windows")
+
+const tailOf = (args: string[]) => (args.length ? ` ${args.join(" ")}` : "")
+
+const bridgeCommand = (
+  bridge: NonNullable<Entry["bridge"]>,
+  bin: string,
+  windows: boolean,
+) =>
+  windows
+    ? `$previous = $env:${bridge.env}; try { $env:${bridge.env}="${bin}"; npx -y ${bridge.package} } finally { $env:${bridge.env} = $previous }`
+    : `${bridge.env}=${bin} npx -y ${bridge.package}`
+
 const previewOf = (e: Entry, option: Option, platform: string) => {
   const { source } = option
-  const { args } = option.launch("")
-  const tail = args.length ? ` ${args.join(" ")}` : ""
-  const powershell = platform.startsWith("windows")
+  const tail = tailOf(option.launch("").args)
+  const windows = isWindows(platform)
 
   if (e.bridge && source.kind === "npm") {
     const bin = cliNames(e)[0]
 
     return {
       install: `npm install -g ${source.package}`,
-      run: powershell
-        ? `$previous = $env:${e.bridge.env}; try { $env:${e.bridge.env}="${bin}"; npx -y ${e.bridge.package} } finally { $env:${e.bridge.env} = $previous }`
-        : `${e.bridge.env}=${bin} npx -y ${e.bridge.package}`,
-      powershell,
+      run: bridgeCommand(e.bridge, bin, windows),
+      powershell: windows,
     }
   }
 
@@ -295,11 +313,7 @@ const preferred = (options: Option[], installed: Set<string>) => {
 
 const cliNames = ({ id, name, bins }: Entry) =>
   bins ?? [
-    ...new Set([
-      id,
-      id.replace(/-(acp|cli|code)$/, ""),
-      name.split(" ")[0].toLowerCase(),
-    ]),
+    ...new Set([id, id.replace(SUFFIX, ""), name.split(" ")[0].toLowerCase()]),
   ]
 
 const commandOf = (cmd: string) =>
@@ -356,7 +370,11 @@ const cachedRegistry = () => {
   }
 }
 
-let fresh: { until: number; agents: z.infer<typeof entry>[] } | null = null
+let fresh: { until: number; agents: Entry[] } | null = null
+
+export const forgetRegistry = () => {
+  fresh = null
+}
 
 const remember = (text: string) => {
   try {
@@ -400,36 +418,117 @@ const fetchRegistry = async () => {
   }
 }
 
-export const detectHarnesses = async (force = false) => {
-  if (force) {
-    fresh = null
-  }
+const withExtras = (agents: Entry[]): Entry[] => {
+  const listed = agents.map(entry => {
+    const extra = EXTRA_INDEX.get(entry.id)
+    const named: Entry = entry.id === PI_BASE ? { ...entry, name: "Pi" } : entry
 
-  const listed = await fetchRegistry()
-  const extraOf = (id: string) => EXTRA.find(e => e.id === id)
-  const agents = [
-    ...listed.map(l => {
-      const extra = extraOf(l.id)
-
-      return extra ? { ...l, bins: extra.bins, bridge: extra.bridge } : l
-    }),
-    ...EXTRA.filter(e => !listed.some(l => l.id === e.id)),
-  ].filter(supported)
-  const platform = await invoke<string>("tool_platform")
-  const options = agents.map(e => optionsOf(e, platform))
-  const found = await invoke<(Found | null)[]>("tool_find", {
-    sources: options.flat().map(o => o.source),
+    return extra ? { ...named, bins: extra.bins, bridge: extra.bridge } : named
   })
+  const known = new Set(agents.map(entry => entry.id))
+
+  return [...listed, ...EXTRA.filter(e => !known.has(e.id))]
+}
+
+const installedCommands = async (agents: Entry[], platform: string) => {
   const names = agents.flatMap(e => {
     const binary = binaryOf(e, platform)
 
     return [...cliNames(e), ...(binary ? [commandOf(binary.cmd)] : [])]
   })
-  const installed = new Set(
+
+  return new Set(
     await invoke<string[]>("installed_commands", {
       names: [...names, "npx", "uvx", "npm", "uv"],
     }),
   )
+}
+
+const offerOf = (
+  e: Entry,
+  option: Option,
+  platform: string,
+  installed: Set<string>,
+): Installable => {
+  const { kind } = option.source
+  const requires =
+    kind === "npm" && !installed.has("npm")
+      ? "node"
+      : kind === "uv" && !installed.has("uv")
+        ? "uv"
+        : null
+
+  return {
+    id: e.id,
+    name: e.name,
+    requires,
+    description: e.description,
+    version: e.version,
+    website: e.website,
+    repository: e.repository,
+    ...previewOf(e, option, platform),
+    source: option.source,
+  }
+}
+
+const harnessOf = (e: Entry, launch: Launch): Harness => ({
+  id: e.id,
+  name: e.name,
+  launch,
+  source: null,
+  local: false,
+  login: null,
+})
+
+const localHarnessOf = (e: Entry, option: Option, found: Found): Harness => ({
+  id: e.id,
+  name: e.name,
+  launch: bridged(e, option.launch(found.path)),
+  source: option.source,
+  local: found.local,
+  login: loginOf(e.id, found.path),
+})
+
+type Hit = { option: Option; found: Found | null }
+
+const itemOf = (
+  e: Entry,
+  hits: Hit[],
+  platform: string,
+  installed: Set<string>,
+): Harness | Installable | null => {
+  const hit = hits.find(h => h.found)
+
+  if (hit?.found) {
+    return localHarnessOf(e, hit.option, hit.found)
+  }
+
+  const binary = binaryOf(e, platform)
+  const present =
+    cliNames(e).some(n => installed.has(n)) ||
+    installed.has(commandOf(binary?.cmd ?? ""))
+  const launch = present ? pathLaunch(e, platform, installed) : null
+
+  if (launch) {
+    return harnessOf(e, launch)
+  }
+
+  const option = preferred(
+    hits.map(h => h.option),
+    installed,
+  )
+
+  return option ? offerOf(e, option, platform, installed) : null
+}
+
+export const detectHarnesses = async () => {
+  const agents = withExtras(await fetchRegistry()).filter(supported)
+  const platform = await invoke<string>("tool_platform")
+  const options = agents.map(e => optionsOf(e, platform))
+  const found = await invoke<(Found | null)[]>("tool_find", {
+    sources: options.flat().map(o => o.source),
+  })
+  const installed = await installedCommands(agents, platform)
 
   let cursor = 0
 
@@ -438,67 +537,16 @@ export const detectHarnesses = async (force = false) => {
 
   agents.forEach((e, i) => {
     const own = options[i]
-    const hits = own.map((o, j) => ({ o, hit: found[cursor + j] }))
-    const hit = hits.find(h => h.hit)
+    const hits = own.map((option, j) => ({ option, found: found[cursor + j] }))
+    const item = itemOf(e, hits, platform, installed)
 
     cursor += own.length
 
-    if (hit?.hit) {
-      harnesses.push({
-        id: e.id,
-        name: e.name,
-        launch: bridged(e, hit.o.launch(hit.hit.path)),
-        source: hit.o.source,
-        local: hit.hit.local,
-        login: loginOf(e.id, hit.hit.path),
-      })
-
-      return
+    if (item && "install" in item) {
+      available.push(item)
+    } else if (item) {
+      harnesses.push(item)
     }
-
-    const present =
-      cliNames(e).some(n => installed.has(n)) ||
-      installed.has(commandOf(binaryOf(e, platform)?.cmd ?? ""))
-    const launch = present ? pathLaunch(e, platform, installed) : null
-
-    if (launch) {
-      harnesses.push({
-        id: e.id,
-        name: e.name,
-        launch,
-        source: null,
-        local: false,
-        login: null,
-      })
-
-      return
-    }
-
-    const option = preferred(own, installed)
-
-    if (!option) {
-      return
-    }
-
-    const { kind } = option.source
-    const requires =
-      kind === "npm" && !installed.has("npm")
-        ? "node"
-        : kind === "uv" && !installed.has("uv")
-          ? "uv"
-          : null
-
-    available.push({
-      id: e.id,
-      name: e.name,
-      requires,
-      description: e.description,
-      version: e.version,
-      website: e.website,
-      repository: e.repository,
-      ...previewOf(e, option, platform),
-      source: option.source,
-    })
   })
 
   return { harnesses, available }

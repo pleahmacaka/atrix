@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 pub const FLAG: &str = "--mcp-stdio";
 
@@ -9,6 +9,40 @@ struct Reply {
     status: u16,
     session: Option<String>,
     body: String,
+}
+
+fn read_head(
+    reader: &mut BufReader<TcpStream>,
+) -> io::Result<(u16, Option<usize>, Option<String>)> {
+    let mut line = String::new();
+
+    reader.read_line(&mut line)?;
+
+    let status = line
+        .split(' ')
+        .nth(1)
+        .and_then(|code| code.parse().ok())
+        .unwrap_or(0);
+    let mut length = None;
+    let mut session = None;
+
+    loop {
+        line.clear();
+
+        if reader.read_line(&mut line)? == 0 || line.trim().is_empty() {
+            return Ok((status, length, session));
+        }
+
+        if let Some((key, value)) = line.split_once(':') {
+            let value = value.trim();
+
+            if key.eq_ignore_ascii_case("content-length") {
+                length = value.parse().ok();
+            } else if key.eq_ignore_ascii_case("mcp-session-id") {
+                session = Some(value.to_owned());
+            }
+        }
+    }
 }
 
 fn post(port: &str, token: &str, session: Option<&str>, body: &str) -> io::Result<Reply> {
@@ -27,46 +61,14 @@ fn post(port: &str, token: &str, session: Option<&str>, body: &str) -> io::Resul
     stream.write_all(body.as_bytes())?;
 
     let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-
-    reader.read_line(&mut line)?;
-
-    let status = line
-        .split(' ')
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    let mut length = None;
-    let mut session = None;
-
-    loop {
-        line.clear();
-
-        if reader.read_line(&mut line)? == 0 || line.trim().is_empty() {
-            break;
-        }
-
-        if let Some((key, value)) = line.split_once(':') {
-            let value = value.trim().to_owned();
-
-            if key.eq_ignore_ascii_case("content-length") {
-                length = value.parse::<usize>().ok();
-            } else if key.eq_ignore_ascii_case("mcp-session-id") {
-                session = Some(value);
-            }
-        }
-    }
-
+    let (status, length, session) = read_head(&mut reader)?;
     let mut bytes = Vec::new();
 
-    match length {
-        Some(n) => {
-            bytes.resize(n, 0);
-            reader.read_exact(&mut bytes)?;
-        }
-        None => {
-            reader.read_to_end(&mut bytes)?;
-        }
+    if let Some(length) = length {
+        bytes.resize(length, 0);
+        reader.read_exact(&mut bytes)?;
+    } else {
+        reader.read_to_end(&mut bytes)?;
     }
 
     Ok(Reply {
@@ -77,7 +79,7 @@ fn post(port: &str, token: &str, session: Option<&str>, body: &str) -> io::Resul
 }
 
 fn failure(id: &Value, message: String) -> String {
-    serde_json::json!({
+    json!({
         "jsonrpc": "2.0",
         "id": id,
         "error": { "code": -32603, "message": message },
@@ -88,7 +90,7 @@ fn failure(id: &Value, message: String) -> String {
 fn messages(body: &str) -> Vec<String> {
     let events: Vec<&str> = body
         .lines()
-        .filter_map(|l| l.strip_prefix("data:"))
+        .filter_map(|line| line.strip_prefix("data:"))
         .collect();
     let payloads = if events.is_empty() {
         vec![body]
@@ -98,15 +100,39 @@ fn messages(body: &str) -> Vec<String> {
 
     payloads
         .into_iter()
-        .filter_map(|p| serde_json::from_str::<Value>(p.trim()).ok())
-        .map(|v| v.to_string())
+        .filter_map(|payload| serde_json::from_str::<Value>(payload.trim()).ok())
+        .map(|value| value.to_string())
         .collect()
+}
+
+fn exchange(port: &str, token: &str, session: &mut Option<String>, line: &str) -> Vec<String> {
+    let id = serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|value| value.get("id").cloned());
+
+    match post(port, token, session.as_deref(), line) {
+        Ok(reply) if (200..300).contains(&reply.status) => {
+            if reply.session.is_some() {
+                *session = reply.session;
+            }
+
+            messages(&reply.body)
+        }
+        Ok(reply) => id
+            .map(|id| failure(&id, format!("atrix bridge returned {}", reply.status)))
+            .into_iter()
+            .collect(),
+        Err(e) => id
+            .map(|id| failure(&id, format!("atrix bridge unreachable: {e}")))
+            .into_iter()
+            .collect(),
+    }
 }
 
 pub fn run() {
     let port = std::env::var("ATRIX_MCP_PORT").unwrap_or_default();
     let token = std::env::var("ATRIX_MCP_TOKEN").unwrap_or_default();
-    let mut session: Option<String> = None;
+    let mut session = None;
     let mut out = io::stdout();
 
     for line in io::stdin().lock().lines() {
@@ -116,25 +142,7 @@ pub fn run() {
             continue;
         }
 
-        let id = serde_json::from_str::<Value>(&line)
-            .ok()
-            .and_then(|v| v.get("id").cloned());
-        let reply = post(&port, &token, session.as_deref(), &line);
-        let messages = match (reply, &id) {
-            (Ok(reply), _) if (200..300).contains(&reply.status) => {
-                session = reply.session.or(session);
-
-                messages(&reply.body)
-            }
-            (Ok(reply), Some(id)) => vec![failure(
-                id,
-                format!("atrix bridge returned {}", reply.status),
-            )],
-            (Err(e), Some(id)) => vec![failure(id, format!("atrix bridge unreachable: {e}"))],
-            _ => Vec::new(),
-        };
-
-        for message in messages {
+        for message in exchange(&port, &token, &mut session, &line) {
             let _ = writeln!(out, "{message}");
         }
 

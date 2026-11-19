@@ -52,25 +52,22 @@ const error = $derived(conversation.error ?? voice.error)
         }}
       />
     {:else}
+      {#if voice.recording && !voice.transcribing}
+        <span class="w-9 shrink-0 text-end text-xs font-medium text-error tabular-nums" role="timer">
+          {clock}
+        </span>
+      {/if}
       <IconButton
         icon={voice.recording ? "lucide:square" : "lucide:mic"}
         iconClass={voice.recording ? "size-3.5 animate-pulse" : "size-4"}
         {label}
         tone={voice.recording ? "error" : "ghost"}
         busy={voice.transcribing}
-        class="relative transition-colors duration-140"
+        class="transition-colors duration-140"
         aria-pressed={voice.recording}
         disabled={voice.transcribing || !!conversation.owner}
         onclick={() => voice.toggle(insert)}
-      >
-        {#if voice.recording && !voice.transcribing}
-          <span
-            class="badge badge-error badge-xs absolute -top-2 left-1/2 -translate-x-1/2 tabular-nums"
-          >
-            {clock}
-          </span>
-        {/if}
-      </IconButton>
+      />
     {/if}
   </div>
 {/if}

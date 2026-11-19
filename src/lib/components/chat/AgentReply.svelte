@@ -29,7 +29,11 @@ let {
 } = $props()
 </script>
 
-<article class="group flex min-w-0 flex-col gap-1" data-reply oncontextmenu={e => copyMenu(e, text)}>
+<article
+  class="group flex min-w-0 flex-col gap-1"
+  data-reply
+  oncontextmenu={e => copyMenu(e, text)}
+>
   {#each splitUi(text) as part, i (i)}
     {#if part.kind === "ui"}
       <UiBlocks blocks={part.blocks} {onAction} {onSave} />

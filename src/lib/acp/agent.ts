@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app"
 import { Channel } from "@tauri-apps/api/core"
 import { native } from "#lib/native.ts"
 import type {
+  Attachment,
   ConfigChoice,
   Listed,
   StoredAttachment,
@@ -86,6 +87,7 @@ export const connectAgent = async (
     clientCapabilities: {
       fs: { readTextFile: false, writeTextFile: false },
       terminal: false,
+      session: { notices: {} },
     },
     clientInfo: { name: "Atrix", version: await getVersion() },
   })
@@ -184,3 +186,29 @@ export const promptBlocks = (
   ...(text ? [{ type: "text" as const, text }] : []),
   ...attachments.map(a => attachmentBlock(conn, a)),
 ]
+
+export const storeAttachment = async (
+  a: Attachment,
+): Promise<StoredAttachment> => {
+  if (a.kind !== "file") {
+    return a
+  }
+
+  const path = await native<string>("save_attachment", {
+    name: a.name,
+    data: a.data,
+  })
+
+  return {
+    kind: "text",
+    name: a.name,
+    mimeType: "text/plain",
+    text: `Attached file ${a.name} is saved at ${path}`,
+  }
+}
+
+export const RESOURCE_NOT_FOUND = -32002
+
+export const CLAUDE_META = {
+  claudeCode: { options: { extraArgs: { chrome: null } } },
+}

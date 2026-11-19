@@ -4,7 +4,7 @@ import { isCheckbox } from "#lib/acp/claudeScreen.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import type { Stroke, TerminalDialog } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { CARD } from "./labels.ts"
+import { CARD } from "./card.ts"
 import Markdown from "./Markdown.svelte"
 
 let {

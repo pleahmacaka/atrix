@@ -18,6 +18,12 @@ type Draft =
   | { kind: "doc" | "folder" }
   | { kind: "rename"; from: string; canvas: boolean }
 
+const DRAFT_ICONS = {
+  doc: "lucide:file-plus",
+  folder: "lucide:folder-plus",
+  rename: "lucide:pencil",
+}
+
 const host = $derived(knowledgeHost())
 
 const status = $derived(host?.state?.knowledge)
@@ -29,12 +35,6 @@ const attempt = new Attempt()
 let draft = $state<Draft | null>(null)
 
 let path = $state("")
-
-const DRAFT_ICONS = {
-  doc: "lucide:file-plus",
-  folder: "lucide:folder-plus",
-  rename: "lucide:pencil",
-}
 
 const tree = $derived.by(() => {
   const root: Folder = { name: "", path: "", folders: [], docs: [] }
@@ -99,7 +99,6 @@ const begin = (next: Draft, value = "") => {
 
 const untouched = () => {
   const value = path.trim()
-
   const renaming = draft?.kind === "rename" && value === draft.from
 
   return !value || value.endsWith("/") || renaming
@@ -129,13 +128,7 @@ const createDoc = async (target: string) => {
 
   const saved = await host.createDoc(
     target,
-    {
-      title: titleFromPath(target),
-      description: "",
-      tags: [],
-      scope: "network",
-      links: [],
-    },
+    { title: titleFromPath(target), description: "", tags: [], scope: "network", links: [] },
     "",
   )
 
@@ -148,7 +141,6 @@ const createDoc = async (target: string) => {
 const submit = () =>
   attempt.run(async () => {
     const target = path.trim()
-
     const current = draft
 
     if (!host || !current || !target) {
@@ -161,11 +153,9 @@ const submit = () =>
       await host.createFolder(target)
       finish()
     } else if (current.kind === "rename") {
-      const { from, canvas } = current
+      await host.movePath(current.from, target)
 
-      await host.movePath(from, target)
-
-      if (canvas && nav.doc === from) {
+      if (current.canvas && nav.doc === current.from) {
         nav.doc = `${withoutExtension(target)}.canvas`
       }
 
@@ -188,11 +178,7 @@ const creationItems = (parent: string): MenuItem[] => {
   const prefix = parent ? `${parent}/` : ""
 
   return [
-    {
-      label: m.knowledge_new(),
-      icon: "lucide:file-plus",
-      run: () => begin({ kind: "doc" }, prefix),
-    },
+    { label: m.knowledge_new(), icon: "lucide:file-plus", run: () => begin({ kind: "doc" }, prefix) },
     {
       label: m.knowledge_new_folder(),
       icon: "lucide:folder-plus",
@@ -204,33 +190,28 @@ const creationItems = (parent: string): MenuItem[] => {
 const holds = (folder: Folder, id: string | null): boolean =>
   folder.docs.some(d => d.id === id) || folder.folders.some(f => holds(f, id))
 
-const folderMenu = (folder: Folder): MenuItem[] => {
-  const holdsOpen = holds(folder, nav.doc)
-
-  return [
-    ...creationItems(folder.path),
-    "separator",
-    {
-      label: m.menu_rename(),
-      icon: "lucide:pencil",
-      run: () =>
-        begin({ kind: "rename", from: folder.path, canvas: false }, folder.path),
-    },
-    {
-      label: m.menu_copy_path(),
-      icon: "lucide:copy",
-      run: () => copyPath(folder.path),
-    },
-    "separator",
-    {
-      label: m.common_delete(),
-      icon: "lucide:trash-2",
-      danger: true,
-      confirm: m.menu_confirm_delete(),
-      run: () => remove(folder.path, holdsOpen),
-    },
-  ]
-}
+const folderMenu = (folder: Folder): MenuItem[] => [
+  ...creationItems(folder.path),
+  "separator",
+  {
+    label: m.menu_rename(),
+    icon: "lucide:pencil",
+    run: () => begin({ kind: "rename", from: folder.path, canvas: false }, folder.path),
+  },
+  {
+    label: m.menu_copy_path(),
+    icon: "lucide:copy",
+    run: () => copyPath(folder.path),
+  },
+  "separator",
+  {
+    label: m.common_delete(),
+    icon: "lucide:trash-2",
+    danger: true,
+    confirm: m.menu_confirm_delete(),
+    run: () => remove(folder.path, holds(folder, nav.doc)),
+  },
+]
 
 const docMenu = (doc: Leaf): MenuItem[] => {
   const canvas = doc.key.endsWith(".canvas")
@@ -247,11 +228,7 @@ const docMenu = (doc: Leaf): MenuItem[] => {
     {
       label: m.menu_rename(),
       icon: "lucide:pencil",
-      run: () =>
-        begin(
-          { kind: "rename", from: doc.key, canvas },
-          withoutExtension(doc.key),
-        ),
+      run: () => begin({ kind: "rename", from: doc.key, canvas }, withoutExtension(doc.key)),
     },
     {
       label: m.menu_copy_path(),
@@ -329,9 +306,7 @@ const toggle = (folder: string) => {
     {#if draft}
       <DraftField
         icon={DRAFT_ICONS[draft.kind]}
-        label={draft.kind === "folder"
-          ? m.knowledge_folder_path()
-          : m.knowledge_path()}
+        label={draft.kind === "folder" ? m.knowledge_folder_path() : m.knowledge_path()}
         placeholder={draft.kind === "folder"
           ? m.knowledge_folder_path_hint()
           : m.knowledge_path_hint()}

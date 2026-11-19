@@ -22,31 +22,23 @@ const load = async () => {
   ids = await modelIds(gateway)
 }
 
+const choices = $derived(ids.map(id => ({ value: id, name: id, icon: modelIcon(id) })))
+
+const pick = (id: string) => {
+  value = id
+  onchange?.()
+}
+
 $effect(() => {
   load()
 })
 </script>
 
 {#if ids.length > 0}
-  <IconSelect
-    icon="lucide:cpu"
-    label={m.chat_model()}
-    {value}
-    choices={ids.map(id => ({ value: id, name: id, icon: modelIcon(id) }))}
-    onchange={id => {
-      value = id
-      onchange?.()
-    }}
-  />
+  <IconSelect icon="lucide:cpu" label={m.chat_model()} {value} {choices} onchange={pick} />
 {:else}
-<label class="input input-ghost input-sm w-60 min-w-0 max-sm:w-full" title={m.chat_model()}>
-  <Icon icon="lucide:cpu" class="size-4 shrink-0 opacity-60" />
-  <input
-    class="min-w-0 grow"
-    aria-label={m.chat_model()}
-    bind:value
-    onfocus={load}
-    {onchange}
-  />
-</label>
+  <label class="input input-ghost input-sm w-60 min-w-0 max-sm:w-full" title={m.chat_model()}>
+    <Icon icon="lucide:cpu" class="size-4 shrink-0 opacity-60" />
+    <input class="min-w-0 grow" aria-label={m.chat_model()} bind:value {onchange} onfocus={load} />
+  </label>
 {/if}
