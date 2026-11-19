@@ -617,9 +617,26 @@ const hostEvent = z.custom<HostEvent>(
     Object.hasOwn(EVENT_TYPES, value.type),
 )
 
+export const lockKinds = ["pin", "pattern"] as const
+
+export type LockKind = (typeof lockKinds)[number]
+
+const lockSecret = z.object({
+  kind: z.enum([...lockKinds, "none"]),
+  salt: z.string(),
+  hash: z.string(),
+  at: z.number(),
+})
+
+export type LockSecret = z.infer<typeof lockSecret>
+
 export const frame = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("event"), event: hostEvent }),
-  z.object({ kind: z.literal("gateways"), gateways: z.array(gateway) }),
+  z.object({
+    kind: z.literal("gateways"),
+    gateways: z.array(gateway),
+    lock: lockSecret.optional(),
+  }),
 ])
 
 export type Frame = z.infer<typeof frame>

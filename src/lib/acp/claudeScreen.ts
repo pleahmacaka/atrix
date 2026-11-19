@@ -22,10 +22,17 @@ const isTurn = (line: string) => {
   const trimmed = line.trimStart()
 
   return (
-    trimmed.startsWith("●") ||
-    (trimmed.startsWith(`${SELECTED} `) && optionOf(trimmed) === null)
+    line.startsWith("●") ||
+    (trimmed.startsWith(`${SELECTED} `) &&
+      trimmed.at(SELECTED.length + 1) !== " " &&
+      optionOf(trimmed) === null)
   )
 }
+
+const CHECKBOXES = ["[ ]", "[x]", "[X]", "[✓]", "[✔]"]
+
+export const isCheckbox = (label: string) =>
+  CHECKBOXES.some(box => label.startsWith(box))
 
 const COMMANDS = ["/model ", "/effort "]
 
@@ -74,7 +81,9 @@ export const claudeDialog = (screen: string[]): TerminalDialog | null => {
   const lines: string[] = []
   const options: TerminalDialog["options"] = []
 
-  body.forEach((l, i) => {
+  body.forEach((row, i) => {
+    const pointed = row.startsWith(SELECTED) && optionOf(row) === null
+    const l = pointed ? ` ${row.slice(SELECTED.length)}` : row
     const option = lastOption === -1 || i < first ? null : optionOf(l)
     const last = options.at(-1)
 

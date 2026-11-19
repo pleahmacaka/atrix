@@ -1,3 +1,4 @@
+import { lockKind, screen } from "#lib/lock/lock.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { goPage, nav, openConversation, openSettings } from "./nav.svelte.ts"
 import { panes, type Side } from "./panes.svelte.ts"
@@ -149,6 +150,10 @@ export const withKeys = (label: string, id: ShortcutId) =>
   `${label} (${keysOf(id)})`
 
 export const handleShortcut = (e: KeyboardEvent) => {
+  if (screen.locked && lockKind()) {
+    return
+  }
+
   const found = SHORTCUTS.find(s => s.matches(e))
 
   if (found) {

@@ -10,6 +10,7 @@ import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { updater } from "#lib/update/updater.svelte.ts"
+import LockSettings from "./LockSettings.svelte"
 import TokscaleSettings from "./TokscaleSettings.svelte"
 
 const version = desktop
@@ -64,6 +65,7 @@ const openDataFolder = async () => {
     <UpdateButton />
   </SettingRow>
   <ErrorAlert message={updater.failure} />
+  <LockSettings />
   <TokscaleSettings />
   <SettingRow title={m.device_data_folder()}>
     <IconButton

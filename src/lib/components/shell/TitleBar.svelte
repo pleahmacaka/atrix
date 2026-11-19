@@ -178,6 +178,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
     />
   {/if}
   {#if desktop}
+    <span class="mx-1.5 h-4 w-px shrink-0 bg-base-content/15" aria-hidden="true"></span>
     <div class="-me-1.5 flex h-full shrink-0 items-center self-stretch">
       <IconButton
         icon="lucide:minus"

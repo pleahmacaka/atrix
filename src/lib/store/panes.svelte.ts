@@ -9,6 +9,34 @@ const SIDES = "panes:sides"
 
 const SHARED = "panes:shared-input"
 
+const LAYOUT = "panes:layout"
+
+const currentSchema = z
+  .union([
+    z.object({ kind: z.literal("chat"), id: z.string() }),
+    z.object({ kind: z.literal("session"), host: z.string(), id: z.string() }),
+    z.object({ kind: z.literal("group"), id: z.string() }),
+  ])
+  .nullable()
+
+const nodeSchema: z.ZodType<Node> = z.lazy(() =>
+  z.union([
+    z.object({
+      kind: z.literal("leaf"),
+      id: z.string(),
+      current: currentSchema,
+    }),
+    z.object({
+      kind: z.literal("split"),
+      id: z.string(),
+      dir: z.enum(["row", "col"]),
+      ratio: z.number().min(0).max(1),
+      a: nodeSchema,
+      b: nodeSchema,
+    }),
+  ]),
+)
+
 export type Side = "left" | "right" | "top" | "bottom"
 
 export const SIDE_TABS = ["items", "git", "terminal"] as const
@@ -171,7 +199,7 @@ export const providePane = (id: () => string) => setContext(PANE, id)
 export const usePane = () => getContext<(() => string) | undefined>(PANE)
 
 class Panes {
-  root = $state<Node>(leaf())
+  root = $state<Node>(persisted(LAYOUT, leaf(), nodeSchema))
 
   focused = $state("")
 
@@ -200,7 +228,13 @@ class Panes {
   stashed = $state<Node[]>([])
 
   constructor() {
-    this.focused = this.root.id
+    this.focused = leavesOf(this.root)[0].id
+
+    $effect.root(() => {
+      $effect(() => {
+        localStorage.setItem(LAYOUT, JSON.stringify($state.snapshot(this.root)))
+      })
+    })
   }
 
   get leaves() {

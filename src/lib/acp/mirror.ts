@@ -11,6 +11,7 @@ import type {
   TerminalDialog,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { isCheckbox } from "./claudeScreen.ts"
 import type { Asked, ChatItem, Log, Picked } from "./items.ts"
 import { type Presence, SOURCES, type Source } from "./sources.ts"
 import { stepOf, turnPace, turnTokens, usagePace } from "./transcript.ts"
@@ -59,6 +60,9 @@ const askedDialog = (view: SessionView): TerminalDialog | null => {
     : null
 }
 
+const down = (count: number): Stroke[] =>
+  Array.from({ length: count }, () => ({ kind: "down" }))
+
 const strokesOf = ({ questions }: Asked, answers: Picked[]): Stroke[] => {
   const strokes = questions.flatMap((q, i): Stroke[] => {
     const { picks, text } = answers[i] ?? { picks: [] }
@@ -72,17 +76,30 @@ const strokesOf = ({ questions }: Asked, answers: Picked[]): Stroke[] => {
       ]
     }
 
-    if (!valid || (!q.multiSelect && picks.length !== 1)) {
+    const typed = text?.trim()
+
+    if (
+      !valid ||
+      (q.multiSelect ? picks.length === 0 && !typed : picks.length !== 1)
+    ) {
       throw new Error(m.chat_question_incomplete())
     }
 
-    return q.multiSelect
-      ? [
-          ...picks.map(p => ({ kind: "digit" as const, digit: p + 1 })),
-          { kind: "tab" },
-        ]
-      : [{ kind: "digit", digit: picks[0] + 1 }]
+    if (!q.multiSelect) {
+      return [{ kind: "digit", digit: picks[0] + 1 }]
+    }
+
+    const rows = q.options.length
+
+    return [
+      ...picks.map((p): Stroke => ({ kind: "digit", digit: p + 1 })),
+      ...(typed
+        ? [...down(rows), { kind: "text" as const, text: typed }, ...down(1)]
+        : down(rows + 1)),
+      { kind: "enter" },
+    ]
   })
+
   const instant = questions.length === 1 && !questions[0].multiSelect
 
   return instant ? strokes : [...strokes, { kind: "digit", digit: 1 }]
@@ -236,7 +253,10 @@ export class ExternalSessions {
       throw new Error(m.chat_terminal_no_dialog())
     }
 
-    const closes = strokes.some(s => CLOSING.has(s.kind))
+    const toggles = view?.dialog?.options.some(o => isCheckbox(o.label))
+    const closes = strokes.some(
+      s => CLOSING.has(s.kind) && !(toggles && s.kind === "digit"),
+    )
 
     this.#screens.delete(id)
 

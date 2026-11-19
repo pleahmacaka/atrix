@@ -53,5 +53,6 @@ const connect = (name: string) => {
         <MenuItem icon="lucide:database" label={m.chat_datasource_none()} disabled />
       {/each}
     {/if}
+    {@render composer.props.extras?.()}
   </div>
 </Popover>

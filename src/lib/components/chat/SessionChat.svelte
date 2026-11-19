@@ -27,6 +27,7 @@ import PermissionCard from "./PermissionCard.svelte"
 import QuestionCard from "./QuestionCard.svelte"
 import QueuedPrompts from "./QueuedPrompts.svelte"
 import RunningStatus from "./RunningStatus.svelte"
+import SessionExtras from "./SessionExtras.svelte"
 import SessionTools from "./SessionTools.svelte"
 import SidePanel from "./SidePanel.svelte"
 import TerminalDialog from "./TerminalDialog.svelte"
@@ -237,6 +238,9 @@ $effect(() => {
       >
         {#snippet tools()}
           <SessionTools {host} {view} {elsewhere} {attempt} {send} />
+        {/snippet}
+        {#snippet extras()}
+          <SessionExtras {host} {view} {elsewhere} {attempt} />
         {/snippet}
       </Composer>
     </div>

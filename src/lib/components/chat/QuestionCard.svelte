@@ -28,7 +28,9 @@ const instant = $derived(asked.questions.length === 1 && !asked.questions[0].mul
 const complete = $derived(
   answers.length === asked.questions.length &&
     asked.questions.every((q, i) =>
-      q.multiSelect ? answers[i].picks.length > 0 : answers[i].picks.length === 1 || !!answers[i].text?.trim(),
+      q.multiSelect
+        ? answers[i].picks.length > 0 || !!answers[i].text?.trim()
+        : answers[i].picks.length === 1 || !!answers[i].text?.trim(),
     ),
 )
 
@@ -89,13 +91,15 @@ const pick = (question: number, option: number) => {
             </span>
           </button>
         {/each}
-        {#if !question.multiSelect && answers[q]}
+        {#if answers[q]}
           <input
             class="input input-sm w-full"
             placeholder={m.chat_question_other()}
             bind:value={answers[q].text}
             oninput={() => {
-              answers[q].picks = []
+              if (!question.multiSelect) {
+                answers[q].picks = []
+              }
             }}
             onkeydown={e => {
               if (e.key === "Enter" && instant && answers[q].text?.trim()) {

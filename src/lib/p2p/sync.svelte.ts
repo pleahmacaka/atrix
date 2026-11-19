@@ -114,6 +114,7 @@ class Sync {
     this.#post(target, {
       kind: "gateways",
       gateways: $state.snapshot(local.data.gateways),
+      lock: $state.snapshot(local.data.lock),
     })
   }
 
@@ -204,8 +205,15 @@ class Sync {
     }
 
     const { changed, reached, stale } = mergeGateways(message.gateways)
+    const mine = local.data.lock
+    const theirs = message.lock
+    const newer = !!theirs && (!mine || theirs.at > mine.at)
 
-    if (changed) {
+    if (newer) {
+      local.data.lock = theirs
+    }
+
+    if (changed || newer) {
       await local.save()
     }
 
@@ -215,7 +223,7 @@ class Sync {
       )
     }
 
-    if (stale) {
+    if (stale || (!!mine && (!theirs || mine.at > theirs.at))) {
       this.shareAuth(from)
     }
   }

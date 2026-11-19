@@ -2,6 +2,7 @@ import { get, set } from "idb-keyval"
 import { z } from "zod"
 import type { ChatMessage } from "#lib/chat/live.svelte.ts"
 import type { Peer } from "#lib/p2p/net.ts"
+import type { LockSecret } from "#lib/p2p/protocol.ts"
 
 const STORE = "atrix"
 
@@ -113,6 +114,7 @@ export type StoredThread = {
 
 export type Contents = {
   gateways: Gateway[]
+  lock?: LockSecret
   net?: { key?: string; peers: Peer[] }
   chats: StoredChat[]
   groups: StoredGroup[]

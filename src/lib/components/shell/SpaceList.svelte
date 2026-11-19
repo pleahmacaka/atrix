@@ -30,6 +30,7 @@ import { Stored } from "#lib/store/stored.svelte.ts"
 import { unread } from "#lib/store/unread.svelte.ts"
 import { conversationMenu } from "./conversationMenu.ts"
 import FolderPicker from "./FolderPicker.svelte"
+import SessionPicker from "./SessionPicker.svelte"
 
 let { rail = false }: { rail?: boolean } = $props()
 
@@ -109,6 +110,8 @@ let editing = $state<{
   name: string
   folder: string
 } | null>(null)
+
+let adding = $state<{ host: string; node: SpaceNode } | null>(null)
 
 let hint = $state<{ key: string; after: boolean } | null>(null)
 
@@ -292,6 +295,13 @@ const spaceMenu = (host: string, node: SpaceNode): MenuItem[] => {
       icon: "lucide:square-pen",
       run: () => startAgent(host, node),
     },
+    {
+      label: m.space_add_session(),
+      icon: "lucide:list-plus",
+      run: () => {
+        adding = { host, node }
+      },
+    },
     "separator",
     {
       label: m.space_edit(),
@@ -434,6 +444,13 @@ const railRows = $derived(
     </form>
   {/if}
 {/snippet}
+
+<SessionPicker
+  host={adding?.host ?? null}
+  exclude={adding?.node.agents.map(a => a.id) ?? []}
+  onpick={id => (adding ? placeIn(adding.host, adding.node, id, null) : Promise.resolve())}
+  onclose={() => (adding = null)}
+/>
 
 <Modal
   bind:open={

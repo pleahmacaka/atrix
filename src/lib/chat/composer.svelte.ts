@@ -30,6 +30,7 @@ export type ComposerProps = {
   people?: (query: string) => Suggestion[]
   datasources?: string[]
   tools?: Snippet
+  extras?: Snippet
   side?: Snippet
   onSend: (text: string, files: File[]) => unknown
   onStop: () => void

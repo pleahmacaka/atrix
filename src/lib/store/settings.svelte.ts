@@ -17,6 +17,8 @@ export type UsageRing = "both" | "context" | "week"
 
 export const SUBMIT_HOURS = [1, 6, 24]
 
+export const LOCK_IDLE = [0, 5, 15, 30, 60]
+
 export const ACCENTS = [
   { id: "indigo", label: m.accent_indigo(), hue: 268 },
   { id: "blue", label: m.accent_blue(), hue: 245 },
@@ -108,6 +110,15 @@ class Settings {
   setTokscaleSubmit = (hours: number) => {
     this.tokscaleSubmit = hours
     localStorage.setItem("tokscale-submit", String(hours))
+  }
+
+  lockIdle = $state<number>(
+    LOCK_IDLE.find(m => m === Number(read("lock-idle", "30"))) ?? 30,
+  )
+
+  setLockIdle = (minutes: number) => {
+    this.lockIdle = minutes
+    localStorage.setItem("lock-idle", String(minutes))
   }
 
   setTokscale = (on: boolean) => {

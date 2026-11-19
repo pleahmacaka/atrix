@@ -4,7 +4,7 @@ import { chats } from "#lib/chat/chats.svelte.ts"
 import { paneComposers } from "#lib/chat/composer.svelte.ts"
 import GroupChat from "#lib/components/chat/GroupChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
-import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
+import { Attempt, errorText } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -77,7 +77,15 @@ $effect(() => {
   if (host && current?.kind === "session" && !host.views[current.id]) {
     const id = current.id
 
-    opening.run(() => host.open(id))
+    opening.run(() =>
+      host.open(id).catch((e: unknown) => {
+        if (errorText(e) !== m.error_session_not_found()) {
+          throw e
+        }
+
+        panes.open(null, leaf.id)
+      }),
+    )
   }
 })
 

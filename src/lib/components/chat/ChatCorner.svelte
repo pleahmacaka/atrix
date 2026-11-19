@@ -11,6 +11,8 @@ let {
   timeline = true,
 }: { plan: PlanEntry[]; agents: Subagent[]; timeline?: boolean } = $props()
 
+const STACK = 4
+
 let open = $state(false)
 
 let root = $state<HTMLElement>()
@@ -71,11 +73,27 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
         </span>
       {/if}
       {#if agents.length}
-        <span class="flex items-center gap-1 tabular-nums">
-          <Icon icon="lucide:bot" class="size-3.5 text-primary" />
-          {m.chat_subagents()}
-          <span class="loading loading-spinner size-3 text-primary"></span>
-          {agents.length}
+        <span class="flex items-center" role="img" aria-label={m.chat_subagents()}>
+          {#each agents.slice(0, STACK) as agent, i (agent.id)}
+            <span
+              class={[
+                "grid size-6 place-items-center rounded-full border-2 border-raised",
+                "bg-primary/15 text-xs font-semibold text-primary",
+                i > 0 && "-ms-2",
+              ]}
+              title={agent.description}
+            >
+              {[...agent.description.trim()][0]?.toUpperCase() ?? "•"}
+            </span>
+          {/each}
+          {#if agents.length > STACK}
+            <span
+              class="-ms-2 grid size-6 place-items-center rounded-full border-2 border-raised bg-primary text-xs font-semibold text-primary-content tabular-nums"
+            >
+              +{agents.length - STACK}
+            </span>
+          {/if}
+          <span class="loading loading-spinner ms-1.5 size-3 text-primary"></span>
         </span>
       {/if}
     </button>
@@ -84,7 +102,7 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
         "pointer-events-auto w-64 flex-col gap-3 rounded-box p-3",
         "border border-base-300 bg-raised text-xs shadow-lg",
         open ? "flex" : "hidden",
-        "@7xl:flex @7xl:border-transparent @7xl:bg-transparent @7xl:shadow-none",
+        "@7xl:flex @7xl:bg-raised/85 @7xl:shadow-sm",
       ]}
     >
       {#if plan.length}

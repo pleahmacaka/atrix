@@ -3,6 +3,7 @@ import Icon from "@iconify/svelte"
 import { z } from "zod"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
+import { screen } from "#lib/lock/lock.svelte.ts"
 import { floatSidebar } from "#lib/p2p/float.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
@@ -131,6 +132,13 @@ const pages = $derived([
     icon: SETTINGS_PAGE.icon,
     active: nav.settingsOpen,
     run: () => openSettings(nav.settingsTab),
+  },
+  {
+    id: "lock",
+    label: m.lock_now(),
+    icon: "lucide:lock",
+    active: false,
+    run: screen.lock,
   },
 ].toSorted((a, b) => rank(a.id) - rank(b.id)))
 

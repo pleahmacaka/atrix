@@ -176,6 +176,10 @@ const sizeOf = (bytes: number) =>
 const grow = (node: HTMLTextAreaElement) => {
   void composer.text
 
+  if (!node.checkVisibility()) {
+    return
+  }
+
   const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
   const from = node.offsetHeight
 

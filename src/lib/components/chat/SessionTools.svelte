@@ -1,12 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { handoff } from "#lib/chat/handoff.ts"
 import { olderModels } from "#lib/chat/versions.ts"
-import { brandIcon } from "#lib/components/harness/brands.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
-import IconSelect from "#lib/components/ui/IconSelect.svelte"
-import MenuItem from "#lib/components/ui/MenuItem.svelte"
-import { menuKeys } from "#lib/components/ui/menu.ts"
 import Popover from "#lib/components/ui/Popover.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { ConfigChoice, SessionView } from "#lib/p2p/protocol.ts"
@@ -16,8 +11,6 @@ import ModelEffort from "./ModelEffort.svelte"
 import ModelLabel from "./ModelLabel.svelte"
 import {
   efforts,
-  OPTION_ICONS,
-  PRIMARY,
   terminalChoices,
   terminalModel,
 } from "./models.ts"
@@ -36,13 +29,7 @@ let {
   send: (text: string) => void
 } = $props()
 
-const isPrimary = (option: ConfigChoice) => PRIMARY.includes(option.category ?? "")
-
 const configured = $derived(view.config.length > 0)
-
-const primary = $derived(view.config.filter(isPrimary))
-
-const secondary = $derived(view.config.filter(o => !isPrimary(o)))
 
 const info = $derived(host.state?.harnesses.find(h => h.id === view.harness))
 
@@ -51,6 +38,23 @@ const claude = $derived(info?.base === "claude-acp")
 const EFFORTS = efforts()
 
 let effort = $state("")
+
+const idle = () =>
+  new Promise<void>(resolve => {
+    const stop = $effect.root(() => {
+      $effect(() => {
+        if (!host.views[view.id]?.running) {
+          resolve()
+          queueMicrotask(() => stop())
+        }
+      })
+    })
+  })
+
+const command = async (text: string) => {
+  await idle()
+  send(text)
+}
 
 const modelOption = $derived(view.config.find(o => o.category === "model"))
 
@@ -66,12 +70,6 @@ const choicesOf = (option: ConfigChoice) => {
   }))
 }
 
-const others = $derived(
-  host.state?.harnesses.filter(h => h.enabled && h.id !== view.harness) ?? [],
-)
-
-let switching = $state(false)
-
 const knownModels = $derived(
   Object.values(host.views).flatMap(
     v => v?.config.filter(o => o.category === "model").flatMap(o => o.values) ?? [],
@@ -80,16 +78,6 @@ const knownModels = $derived(
 
 </script>
 
-{#snippet picker(option: ConfigChoice, ghost: boolean)}
-  <IconSelect
-    icon={OPTION_ICONS[option.category ?? ""] ?? "lucide:settings-2"}
-    label={option.name}
-    {ghost}
-    value={option.current}
-    choices={choicesOf(option)}
-    onchange={value => attempt(() => host.configure(view.id, option.id, value))}
-  />
-{/snippet}
 
 {#if !configured && claude && (elsewhere || view.model)}
   <ModelEffort
@@ -99,7 +87,7 @@ const knownModels = $derived(
     {effort}
     title={view.model}
     onmodel={alias =>
-      elsewhere ? send(`/model ${alias}`) : attempt(() => host.configure(view.id, "model", alias))}
+      elsewhere ? command(`/model ${alias}`) : attempt(() => host.configure(view.id, "model", alias))}
     oneffort={level => {
       const before = effort
 
@@ -110,7 +98,7 @@ const knownModels = $derived(
       }
 
       if (elsewhere) {
-        send(`/effort ${level}`)
+        command(`/effort ${level}`)
       } else {
         attempt(() => host.configure(view.id, "thought_level", level)).then(
           ok => {
@@ -148,25 +136,6 @@ const knownModels = $derived(
       effortOption && attempt(() => host.configure(view.id, effortOption.id, value))}
   />
 {/if}
-{#if others.length > 0 && !elsewhere}
-  <Popover label={m.chat_switch_harness()} placement="top-start" width="w-64" bind:open={switching}>
-    {#snippet trigger(p)}
-      <IconButton icon="lucide:arrow-left-right" label={m.chat_switch_harness()} {...p} />
-    {/snippet}
-    <div role="menu" tabindex="-1" class="flex max-h-80 flex-col overflow-y-auto" {@attach menuKeys}>
-      {#each others as harness (harness.id)}
-        <MenuItem
-          icon={brandIcon(harness.base)}
-          label={harness.name}
-          onclick={() => {
-            switching = false
-            attempt(() => handoff(host, view, harness.id))
-          }}
-        />
-      {/each}
-    </div>
-  </Popover>
-{/if}
 {#if view.shells?.length}
   {@const shells = view.shells}
   <Popover
@@ -196,28 +165,6 @@ const knownModels = $derived(
         </div>
       </div>
     {/each}
-  </Popover>
-{/if}
-{#each primary.filter(o => o !== modelOption && o !== effortOption) as option (option.id)}
-  {@render picker(option, true)}
-{/each}
-{#if secondary.length > 0}
-  <Popover label={m.chat_options()} placement="top-start" width="w-80" sheet>
-    {#snippet trigger(p)}
-      <IconButton
-        icon="lucide:sliders-horizontal"
-        label={m.chat_options()}
-        {...p}
-      />
-    {/snippet}
-    <div class="flex flex-col gap-3 p-3">
-      {#each secondary as option (option.id)}
-        <div class="flex items-center gap-3">
-          <span class="min-w-0 flex-1 truncate" title={option.name}>{option.name}</span>
-          {@render picker(option, false)}
-        </div>
-      {/each}
-    </div>
   </Popover>
 {/if}
 <ContextRing {view} {claude} />

@@ -6,11 +6,14 @@ import { invoke } from "@tauri-apps/api/core"
 import { onMount, type Snippet } from "svelte"
 import { startChannels } from "#lib/channels/relay.svelte.ts"
 import Onboarding from "#lib/components/devices/Onboarding.svelte"
+import LockScreen from "#lib/components/lock/LockScreen.svelte"
+import LockSetup from "#lib/components/lock/LockSetup.svelte"
 import { errorText } from "#lib/components/ui/attempt.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { startTitleTips } from "#lib/components/ui/tooltip.ts"
 import UpdatePrompt from "#lib/components/update/UpdatePrompt.svelte"
 import { startExternalLinks } from "#lib/links.ts"
+import { lockKind, screen } from "#lib/lock/lock.svelte.ts"
 import { startLogging } from "#lib/logging.ts"
 import { startLocalHost } from "#lib/p2p/hosts.svelte.ts"
 import { sync } from "#lib/p2p/sync.svelte.ts"
@@ -40,6 +43,7 @@ document.documentElement.lang = currentLocale()
 if (!overlay) {
   if (!floating) {
     startLogging()
+    screen.watch()
   }
 
   startAppearance()
@@ -108,7 +112,19 @@ onMount(async () => {
 {#if !overlay && !floating && client && sync.loaded && sync.peers.size === 0}
   <Onboarding />
 {:else if overlay || local.ready}
-  {@render children()}
+  <div
+    class="lock-blur contents"
+    inert={screen.locked && !!lockKind()}
+    data-locked={(screen.locked && !!lockKind()) || undefined}
+  >
+    {@render children()}
+  </div>
+  {#if !overlay}
+    <LockScreen />
+  {/if}
+  {#if !overlay && !floating}
+    <LockSetup />
+  {/if}
 {:else}
   <main class="grid h-dvh place-items-center">
     <span class="loading loading-spinner opacity-60"></span>
