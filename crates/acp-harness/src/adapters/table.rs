@@ -158,6 +158,8 @@ pub(super) const ADAPTERS: &[Adapter] = &[
             },
         ],
         meta: r#"{"claudeCode":{"options":{"extraArgs":{"chrome":null}}}}"#,
+        // session HTTP MCP servers make the first turn wait up to MCP_TIMEOUT for every pending global server
+        env: &[("CLAUDE_CODE_MCP_STARTUP_WAIT_MS", "1000")],
         vendor: Some("anthropic"),
         transcript: Some("claude"),
         ..BASE
