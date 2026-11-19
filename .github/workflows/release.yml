@@ -76,3 +76,55 @@ jobs:
           generateReleaseNotes: true
           releaseDraft: false
           prerelease: false
+
+  android:
+    needs: [version, windows]
+    if: needs.version.outputs.released == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: |
+          rustup toolchain install
+          rustup target add aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          shared-key: atrix-android
+          cache-on-failure: true
+
+      - run: bun install --frozen-lockfile
+
+      - name: Write signing key
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.jks"
+            echo "storePassword=$ANDROID_STORE_PASSWORD"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+          } > src-tauri/gen/android/key.properties
+
+      - name: Build APK
+        run: NDK_HOME="$ANDROID_NDK_LATEST_HOME" bun run tauri android build --apk --target aarch64
+
+      - name: Upload APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "Atrix_${VERSION}_android-arm64.apk"
+          gh release upload "$VERSION" "Atrix_${VERSION}_android-arm64.apk" --clobber --repo "$GITHUB_REPOSITORY"

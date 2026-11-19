@@ -6,8 +6,11 @@ import GroupChat from "#lib/components/chat/GroupChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import { Attempt, errorText } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { desktop } from "#lib/platform.ts"
 import { attention } from "#lib/store/attention.svelte.ts"
 import {
   droppedConversation,
@@ -23,6 +26,7 @@ import {
   type Side,
 } from "#lib/store/panes.svelte.ts"
 import { describe } from "#lib/store/recent.ts"
+import { withKeys } from "#lib/store/shortcuts.ts"
 import { markRead } from "#lib/store/unread.svelte.ts"
 import Start from "./Start.svelte"
 
@@ -208,7 +212,7 @@ const HINTS: Record<Zone, string> = {
 
 <section
   class={[
-    "relative flex min-h-0 min-w-0 flex-1 flex-col",
+    "group/pane relative flex min-h-0 min-w-0 flex-1 flex-col",
     split && [
       "overflow-hidden border transition-colors duration-140",
       focused ? "border-primary/40" : "border-transparent",
@@ -242,6 +246,46 @@ const HINTS: Record<Zone, string> = {
     >
       <Icon icon={info?.icon ?? "lucide:square-pen"} class="size-4 shrink-0 opacity-70" />
       <span class="min-w-0 flex-1 truncate">{info?.title ?? m.chat_new()}</span>
+      <div
+        class={[
+          "-me-2 flex shrink-0 items-center opacity-0 transition-opacity duration-140",
+          "group-hover/pane:opacity-100 focus-within:opacity-100",
+        ]}
+      >
+        {#if desktop && current?.kind === "session" && !floating.has(keyOf(current))}
+          {@const target = current}
+          <IconButton
+            icon="lucide:picture-in-picture-2"
+            label={m.float_out()}
+            size="xs"
+            onclick={() => floatOut(target, info?.title ?? "")}
+          />
+        {:else if desktop && current?.kind === "chat" && !floating.has(current.id)}
+          {@const target = current}
+          <IconButton
+            icon="lucide:picture-in-picture-2"
+            label={m.float_out()}
+            size="xs"
+            onclick={() => floatChat(target.id, info?.title ?? "")}
+          />
+        {/if}
+        {#if current?.kind === "session" || current?.kind === "chat"}
+          <IconButton
+            icon={panes.hasSide(leaf.id) ? "lucide:panel-right-close" : "lucide:panel-right-open"}
+            label={m.shell_side_panel()}
+            aria-pressed={panes.hasSide(leaf.id)}
+            size="xs"
+            onclick={() => panes.toggleSide(leaf.id)}
+          />
+        {/if}
+        <IconButton
+          icon="lucide:x"
+          label={m.shell_close_pane()}
+          title={withKeys(m.shell_close_pane(), "closePane")}
+          size="xs"
+          onclick={() => panes.close(leaf.id)}
+        />
+      </div>
     </header>
   {/if}
 
