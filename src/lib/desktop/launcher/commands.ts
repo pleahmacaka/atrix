@@ -1,7 +1,7 @@
 import { tr } from "@atrix/i18n"
-import type { Result } from "@atrix/launcher-core"
+import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import { loadDevice, type TerminalApp } from "@atrix/settings"
-import { newWindow as newTerminalWindow } from "@atrix/terminal/windows"
+import { newWindow as newTerminalWindow } from "#lib/terminal/app/windows.ts"
 import { emit } from "@tauri-apps/api/event"
 import { exit } from "@tauri-apps/plugin-process"
 import {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MobileApp } from "@atrix/files"
+  import { MobileApp } from "#lib/files/index.ts"
 </script>
 
 <MobileApp />

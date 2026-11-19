@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { kindLabel, type Result } from "@atrix/launcher-core"
+  import { kindLabel, type Result } from "#lib/desktop/launcher/core/index.ts"
   import { rootRem } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"

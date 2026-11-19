@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { registerFilesMessages } from "@atrix/files"
+  import { registerFilesMessages } from "#lib/files/index.ts"
   import { Toasts } from "@atrix/ui"
 
   let { children } = $props()

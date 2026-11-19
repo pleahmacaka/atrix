@@ -6,8 +6,8 @@ members = [
   "crates/calendar-sync",
   "crates/window-kit",
   "crates/is-screen-sharing",
-  "packages/files/plugin",
-  "packages/terminal/plugin",
+  "crates/files",
+  "crates/terminal",
   "packages/sync/p2p",
   "apps/installer/src-tauri",
 ]

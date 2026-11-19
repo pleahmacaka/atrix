@@ -1,13 +1,13 @@
 import { dueLabel, eventFromTodo, quickTodo } from "@atrix/data"
 import { currentLocale, tr } from "@atrix/i18n"
-import type { Result } from "@atrix/launcher-core"
+import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import {
   convert,
   evaluate,
   formatNumber,
   matchEmoji,
   plainNumber,
-} from "@atrix/launcher-core"
+} from "#lib/desktop/launcher/core/index.ts"
 import type { WebSearchEngine } from "@atrix/settings"
 import { events } from "#lib/desktop/data/index.js"
 import { toggleDockPin } from "../dock/dock.svelte"

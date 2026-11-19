@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ViewerApp } from "@atrix/files"
+  import { ViewerApp } from "#lib/files/index.ts"
 </script>
 
 <ViewerApp />

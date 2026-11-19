@@ -1,4 +1,4 @@
-export * from "@atrix/launcher-core"
+export * from "#lib/desktop/launcher/core/index.ts"
 export * from "./commands"
 export * from "./frecency"
 export * from "./handlers"

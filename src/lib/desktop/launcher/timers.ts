@@ -1,5 +1,5 @@
 import { currentLocale, tr } from "@atrix/i18n"
-import type { TimerKind } from "@atrix/launcher-core"
+import type { TimerKind } from "#lib/desktop/launcher/core/index.ts"
 import { emit, listen } from "@tauri-apps/api/event"
 import {
   isPermissionGranted,

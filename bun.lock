@@ -9,23 +9,24 @@
         "@ai-sdk/openai-compatible": "^3.0.90",
         "@ai-sdk/svelte": "^5.0.169",
         "@atrix/data": "workspace:*",
-        "@atrix/files": "workspace:*",
         "@atrix/i18n": "workspace:*",
-        "@atrix/launcher-core": "workspace:*",
         "@atrix/live-editor": "workspace:*",
         "@atrix/markdown": "workspace:*",
         "@atrix/settings": "workspace:*",
         "@atrix/sync": "workspace:*",
-        "@atrix/terminal": "workspace:*",
         "@atrix/ui": "workspace:*",
+        "@azurity/pure-nerd-font": "^3.0.5",
         "@dimforge/rapier3d-compat": "^0.21.0",
+        "@e965/xlsx": "^0.20.3",
         "@fabianlars/tauri-plugin-oauth": "^2.1.0",
         "@floating-ui/dom": "^1.8.0",
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "@gltf-transform/core": "^4.5.1",
         "@iconify/svelte": "^5.2.4",
         "@modelcontextprotocol/server": "^2.4.0",
+        "@mujoco/mujoco": "^3.15.0",
         "@noble/hashes": "^2.4.0",
+        "@rhwp/core": "^0.8.7",
         "@ssgoi/svelte": "^7.5.1",
         "@tanstack/svelte-query": "^6.4.1",
         "@tauri-apps/api": "^2.12.4",
@@ -61,13 +62,18 @@
         "d3-zoom": "^3.0.1",
         "date-holidays": "^3.39.2",
         "diff": "^9.0.0",
+        "docx-preview": "^0.4.1",
         "dompurify": "^3.4.17",
         "drizzle-orm": "^0.45.4",
+        "effect": "^4.0.3",
+        "es-hangul": "^2.4.0",
         "es-toolkit": "^1.53.2",
         "fflate": "^0.8.3",
         "ghostty-web": "0.4.0-next.20.g1858a59",
         "idb-keyval": "^6.3.0",
+        "jszip": "^3.10.2",
         "marked": "^18.2.0",
+        "occt-import-js": "^0.0.23",
         "pretendard": "^1.3.9",
         "qr": "^0.7.2",
         "rrule": "^2.8.1",
@@ -149,50 +155,6 @@
         "typescript": "^6.0.3",
       },
     },
-    "packages/doc-preview": {
-      "name": "@atrix/doc-preview",
-      "version": "0.0.0",
-      "dependencies": {
-        "@e965/xlsx": "^0.20.3",
-        "@rhwp/core": "^0.8.7",
-        "docx-preview": "^0.4.1",
-        "jszip": "^3.10.2",
-      },
-      "devDependencies": {
-        "@types/bun": "^1.4.2",
-        "typescript": "^6.0.3",
-        "vite": "^8.3.4",
-      },
-    },
-    "packages/files": {
-      "name": "@atrix/files",
-      "version": "0.0.0",
-      "dependencies": {
-        "@atrix/doc-preview": "workspace:*",
-        "@atrix/i18n": "workspace:*",
-        "@atrix/markdown": "workspace:*",
-        "@atrix/model-viewer": "workspace:*",
-        "@atrix/settings": "workspace:*",
-        "@atrix/terminal": "workspace:*",
-        "@atrix/ui": "workspace:*",
-        "@iconify/svelte": "^5.2.2",
-        "@tauri-apps/api": "^2.12.3",
-        "@tauri-apps/plugin-barcode-scanner": "^2.5.2",
-        "@tauri-apps/plugin-clipboard-manager": "^2.4.2",
-        "@tauri-apps/plugin-dialog": "^2.8.2",
-        "effect": "^4.0.3",
-        "es-toolkit": "^1.52.0",
-        "svelte-i18n": "^4.0.1",
-      },
-      "devDependencies": {
-        "svelte-check": "^4.7.6",
-        "typescript": "^6.0.3",
-        "vite": "^8.3.4",
-      },
-      "peerDependencies": {
-        "svelte": "^5.57.2",
-      },
-    },
     "packages/i18n": {
       "name": "@atrix/i18n",
       "version": "0.0.0",
@@ -202,17 +164,6 @@
       "peerDependencies": {
         "svelte": "^5.57.2",
         "svelte-i18n": "^4.0.1",
-      },
-    },
-    "packages/launcher-core": {
-      "name": "@atrix/launcher-core",
-      "version": "0.0.0",
-      "dependencies": {
-        "@atrix/i18n": "workspace:*",
-        "es-hangul": "^2.4.0",
-      },
-      "devDependencies": {
-        "typescript": "^6.0.3",
       },
     },
     "packages/live-editor": {
@@ -246,28 +197,6 @@
         "typescript": "^6.0.3",
       },
     },
-    "packages/model-viewer": {
-      "name": "@atrix/model-viewer",
-      "version": "0.0.0",
-      "dependencies": {
-        "@mujoco/mujoco": "^3.15.0",
-        "@threlte/core": "^8.6.1",
-        "@threlte/extras": "^9.22.0",
-        "axios": "^1.20.0",
-        "occt-import-js": "^0.0.23",
-        "three": "^0.187.0",
-      },
-      "devDependencies": {
-        "@types/three": "^0.187.0",
-        "svelte": "^5.57.2",
-        "svelte-check": "^4.7.6",
-        "typescript": "^6.0.3",
-        "vite": "^8.3.4",
-      },
-      "peerDependencies": {
-        "@iconify/svelte": "^5.2.2",
-      },
-    },
     "packages/settings": {
       "name": "@atrix/settings",
       "version": "0.0.0",
@@ -288,32 +217,6 @@
       "version": "0.0.0",
       "devDependencies": {
         "typescript": "^6.0.3",
-      },
-    },
-    "packages/terminal": {
-      "name": "@atrix/terminal",
-      "version": "0.0.0",
-      "dependencies": {
-        "@atrix/markdown": "workspace:*",
-        "@atrix/settings": "workspace:*",
-        "@atrix/ui": "workspace:*",
-        "@azurity/pure-nerd-font": "^3.0.5",
-        "@fontsource-variable/jetbrains-mono": "^5.3.0",
-        "@iconify/svelte": "^5.2.2",
-        "@tauri-apps/api": "^2.12.3",
-        "es-toolkit": "^1.52.0",
-        "ghostty-web": "0.4.0-next.20.g1858a59",
-        "pretendard": "^1.3.9",
-        "svelte-i18n": "^4.0.1",
-      },
-      "devDependencies": {
-        "svelte-check": "^4.7.6",
-        "typescript": "^6.0.3",
-        "vite": "^8.3.4",
-      },
-      "peerDependencies": {
-        "@tauri-apps/plugin-clipboard-manager": "^2.4.2",
-        "svelte": "^5.57.2",
       },
     },
     "packages/ui": {
@@ -360,25 +263,15 @@
 
     "@atrix/data": ["@atrix/data@workspace:packages/data"],
 
-    "@atrix/doc-preview": ["@atrix/doc-preview@workspace:packages/doc-preview"],
-
-    "@atrix/files": ["@atrix/files@workspace:packages/files"],
-
     "@atrix/i18n": ["@atrix/i18n@workspace:packages/i18n"],
-
-    "@atrix/launcher-core": ["@atrix/launcher-core@workspace:packages/launcher-core"],
 
     "@atrix/live-editor": ["@atrix/live-editor@workspace:packages/live-editor"],
 
     "@atrix/markdown": ["@atrix/markdown@workspace:packages/markdown"],
 
-    "@atrix/model-viewer": ["@atrix/model-viewer@workspace:packages/model-viewer"],
-
     "@atrix/settings": ["@atrix/settings@workspace:packages/settings"],
 
     "@atrix/sync": ["@atrix/sync@workspace:packages/sync"],
-
-    "@atrix/terminal": ["@atrix/terminal@workspace:packages/terminal"],
 
     "@atrix/ui": ["@atrix/ui@workspace:packages/ui"],
 

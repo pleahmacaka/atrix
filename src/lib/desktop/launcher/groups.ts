@@ -1,11 +1,11 @@
-import type { Result, ResultGroup, ResultKind } from "@atrix/launcher-core"
+import type { Result, ResultGroup, ResultKind } from "#lib/desktop/launcher/core/index.ts"
 import {
   groupResults,
   looksLikeMath,
   openTarget,
   type Route,
   rank,
-} from "@atrix/launcher-core"
+} from "#lib/desktop/launcher/core/index.ts"
 import type { Profile } from "@atrix/settings"
 import type { AppEntry } from "#lib/desktop/native/apps.js"
 import type { ClipEntry } from "#lib/desktop/native/clipboard.js"

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { registerTerminalMessages, TerminalApp } from "@atrix/terminal"
+  import { registerTerminalMessages, TerminalApp } from "#lib/terminal/index.ts"
 
   registerTerminalMessages()
 </script>

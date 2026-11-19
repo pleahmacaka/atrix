@@ -1,5 +1,5 @@
-import type { Result, SecondaryAction } from "@atrix/launcher-core"
-import { parseQuery, type Route } from "@atrix/launcher-core"
+import type { Result, SecondaryAction } from "#lib/desktop/launcher/core/index.ts"
+import { parseQuery, type Route } from "#lib/desktop/launcher/core/index.ts"
 import {
   type DeviceSettings,
   defaultDevice,
