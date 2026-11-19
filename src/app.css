@@ -319,17 +319,17 @@ summary {
 }
 
 :root {
-  --graph-1: #79b8ff;
-  --graph-2: #388bfd;
-  --graph-3: #1f6feb;
-  --graph-4: #0d419d;
+  --graph-1: #bfdbfe;
+  --graph-2: #60a5fa;
+  --graph-3: #2563eb;
+  --graph-4: #1e40af;
 }
 
 [data-theme="atrix-dark"] {
-  --graph-1: #4069b2;
-  --graph-2: #1f6feb;
-  --graph-3: #388bfd;
-  --graph-4: #79b8ff;
+  --graph-1: #1d4ed8;
+  --graph-2: #3b82f6;
+  --graph-3: #60a5fa;
+  --graph-4: #bfdbfe;
 }
 
 .modal[open] {
