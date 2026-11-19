@@ -9,7 +9,12 @@ import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { attention } from "#lib/store/attention.svelte.ts"
-import { droppedConversation, isConversationDrag, startDrag } from "#lib/store/drag.ts"
+import {
+  droppedConversation,
+  isConversationDrag,
+  isNewChatDrag,
+  startDrag,
+} from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
 import {
   type Leaf,
@@ -129,7 +134,7 @@ const over = (e: DragEvent & { currentTarget: HTMLElement }) => {
     return
   }
 
-  if (!isConversationDrag(e)) {
+  if (!isConversationDrag(e) && !isNewChatDrag(e)) {
     return
   }
 
@@ -142,6 +147,18 @@ const drop = (e: DragEvent) => {
   const dropped = droppedConversation(e)
 
   zone = null
+
+  if (target && isNewChatDrag(e)) {
+    e.preventDefault()
+
+    if (target === "center") {
+      panes.open(null, leaf.id)
+    } else {
+      panes.split(leaf.id, target, null)
+    }
+
+    return
+  }
 
   if (hasFiles(e)) {
     e.preventDefault()

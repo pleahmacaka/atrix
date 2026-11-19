@@ -6,6 +6,7 @@ import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { floatSidebar } from "#lib/p2p/float.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
+import { startNewChatDrag } from "#lib/store/drag.ts"
 import { goPage, nav, openConversation, openSettings } from "#lib/store/nav.svelte.ts"
 import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
@@ -20,6 +21,7 @@ type Action = {
   icon: string
   shortcut?: ShortcutId
   pressed?: boolean
+  drag?: (e: DragEvent) => void
   run: () => void
 }
 
@@ -28,6 +30,7 @@ const chatActions = (): Action[] => [
     label: m.chat_new(),
     icon: "lucide:square-pen",
     shortcut: "new",
+    drag: startNewChatDrag,
     run: () => {
       goPage("chat")
       openConversation(null)
@@ -172,6 +175,8 @@ const hintOf = (action: Action) =>
     aria-label={action.label}
     aria-pressed={action.pressed}
     {@attach tooltip(() => hintOf(action), () => rail)}
+    draggable={!!action.drag}
+    ondragstart={action.drag}
     onclick={action.run}
   >
     <Icon icon={action.icon} class="size-4 shrink-0" />

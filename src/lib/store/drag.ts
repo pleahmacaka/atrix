@@ -11,6 +11,20 @@ export const startDrag = (e: DragEvent, current: NonNullable<Current>) => {
   }
 }
 
+const NEW_MIME = "application/x-atrix-new-chat"
+
+export const startNewChatDrag = (e: DragEvent) => {
+  e.dataTransfer?.setData(NEW_MIME, "1")
+  e.dataTransfer?.setData("text/plain", "")
+
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "copy"
+  }
+}
+
+export const isNewChatDrag = (e: DragEvent) =>
+  !!e.dataTransfer?.types.includes(NEW_MIME)
+
 export const isConversationDrag = (e: DragEvent) =>
   !!e.dataTransfer?.types.includes(MIME)
 
