@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { tick } from "svelte"
 import AppearanceTab from "#lib/components/settings/AppearanceTab.svelte"
 import DesktopComponents from "#lib/components/settings/DesktopComponents.svelte"
+import DesktopDevices from "#lib/components/settings/DesktopDevices.svelte"
 import DesktopDock from "#lib/components/settings/DesktopDock.svelte"
 import DesktopLauncher from "#lib/components/settings/DesktopLauncher.svelte"
 import DesktopTray from "#lib/components/settings/DesktopTray.svelte"
@@ -19,7 +20,7 @@ import { startAppearance } from "#lib/store/appearance.svelte.ts"
 
 const OPENED = "desktop-settings:open"
 
-const SHARED: DesktopPage[] = ["general", "appearance"]
+const SHARED: DesktopPage[] = ["general", "appearance", "devices"]
 
 const DOCKED: DesktopPage[] = ["topbar", "tray"]
 
@@ -100,6 +101,8 @@ $effect(() => {
           <DesktopComponents />
         {:else if current.id === "appearance"}
           <AppearanceTab client={false} />
+        {:else if current.id === "devices"}
+          <DesktopDevices />
         {:else if device && launcher}
           {#if current.id === "dock" || current.id === "topbar" || current.id === "panel"}
             <DesktopDock {device} page={current.id} />

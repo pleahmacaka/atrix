@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "desktop_settings_title": "Atrix DE settings",
+  "desktop_devices_waiting": "Waiting for the device network",
   "desktop_components": "Components",
   "desktop_component_agent": "Use Atrix AI",
   "desktop_component_shell": "Desktop shell",

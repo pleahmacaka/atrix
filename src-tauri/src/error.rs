@@ -48,6 +48,7 @@ plain!(
     tauri::Error,
     tauri_plugin_http::reqwest::Error,
     zip::result::ZipError,
+    acp_harness::Error,
     Box<dyn std::error::Error + Send + Sync>,
 );
 

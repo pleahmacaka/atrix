@@ -14,6 +14,7 @@ export type Components = {
 export type DesktopPage =
   | "general"
   | "appearance"
+  | "devices"
   | "dock"
   | "topbar"
   | "panel"
@@ -23,6 +24,7 @@ export type DesktopPage =
 export type DesktopSection =
   | "components"
   | "appearance"
+  | "devices"
   | "dock"
   | "topbar"
   | "panel"
@@ -39,6 +41,11 @@ export const DESKTOP_PAGES: {
 }[] = [
   { id: "general", label: m.settings_general(), icon: "lucide:settings" },
   { id: "appearance", label: m.settings_appearance(), icon: "lucide:palette" },
+  {
+    id: "devices",
+    label: m.shell_page_devices(),
+    icon: "lucide:monitor-smartphone",
+  },
   { id: "dock", label: m.desktop_dock(), icon: "lucide:panel-bottom" },
   { id: "topbar", label: m.desktop_topbar(), icon: "lucide:panel-top" },
   { id: "panel", label: m.desktop_panel(), icon: "lucide:calendar" },
@@ -63,6 +70,12 @@ export const DESKTOP_SECTIONS: {
     page: "appearance",
     label: m.settings_appearance(),
     icon: "lucide:palette",
+  },
+  {
+    id: "devices",
+    page: "devices",
+    label: m.shell_page_devices(),
+    icon: "lucide:monitor-smartphone",
   },
   {
     id: "dock",

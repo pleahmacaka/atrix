@@ -110,7 +110,7 @@ pub fn resolve(agent: &Agent, cache: &Path) -> Result<Resolution> {
     let npx = distribution
         .npx
         .as_ref()
-        .and_then(|p| runner("npx", &["-y"], p));
+        .and_then(|p| runner("npx", &["-y", "--prefer-offline"], p));
     let uvx = distribution
         .uvx
         .as_ref()

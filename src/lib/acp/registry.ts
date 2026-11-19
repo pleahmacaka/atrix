@@ -2,43 +2,35 @@ import { Channel } from "@tauri-apps/api/core"
 import { native } from "#lib/native.ts"
 import {
   type Available,
+  type Composition,
   DEFAULT_PROVIDER,
   type HarnessInfo,
   type HarnessKind,
-  type Installed,
-  type InstallScope,
   type ProviderChoice,
   type ProviderSource,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { findGateway } from "#lib/store/gatewayCatalog.ts"
 import {
-  createProfileDir,
-  envFor,
-  KINDS,
   loadProfiles,
   type Profile,
   profileDir,
+  profileHome,
   saveProfiles,
-  type Target,
 } from "./config.ts"
 import {
-  detectHarnesses,
-  forgetRegistry,
-  type Harness,
-  type Installable,
-  type Launch,
-  type Source,
+  installHarness,
+  listHarnesses,
+  type Spec,
+  uninstallHarness,
 } from "./harnesses.ts"
+import { type Provider, providerFor } from "./provider.ts"
 import {
-  type ProviderKind,
-  prepareLaunch,
-  providerKindOf,
-  servesKind,
-} from "./provider.ts"
-import {
+  agentCompositions,
+  type Composed,
   disabledHarnesses,
   providerChoices,
+  saveAgentComposition,
   saveDisabled,
   saveProvider,
 } from "./saved.ts"
@@ -46,11 +38,7 @@ import {
 export type Entry = Omit<
   HarnessInfo,
   "enabled" | "provider" | "providerSource" | "providerModel"
-> & {
-  launch: Launch
-  dir: string | null
-  source: Source | null
-}
+>
 
 export type RegistryEvents = {
   changed: () => void
@@ -60,39 +48,45 @@ export type RegistryEvents = {
 
 const PROFILE = "profile:"
 
+const AGENT = "agent:"
+
 const profileId = (profile: Profile) => `${PROFILE}${profile.id}`
 
-type Provided = {
-  kind: ProviderKind
-  gateway: NonNullable<ReturnType<typeof findGateway>>
-  model: string
-}
+export const agentHarness = (agent: string) => `${AGENT}${agent}`
 
-const resolvePicked = (
-  entry: Entry | undefined,
-  picked: ProviderChoice | undefined,
-): Provided | null => {
-  if (picked?.source !== "gateway") {
-    return null
-  }
-
-  const kind = entry && providerKindOf(entry)
-  const gateway = findGateway(picked.gateway)
-
-  return kind && picked.model && gateway && servesKind(kind, gateway)
-    ? { kind, gateway, model: picked.model }
-    : null
-}
+type Provided = { provider: Provider; model: string }
 
 export const mirrorKind = (entry: Entry | undefined): HarnessKind | null =>
   entry && !entry.profile ? entry.kind : null
 
+const entryOf = (listed: Available): Entry => ({
+  id: listed.id,
+  name: listed.name,
+  base: listed.id,
+  kind: listed.transcript,
+  vendor: listed.vendor,
+  profile: null,
+  local: listed.local,
+  login: listed.login,
+})
+
+const specItems = (composition: Composition) => ({
+  skills: composition.skills.map(s =>
+    s.source === "atrix"
+      ? { source: s.source, name: s.name, content: s.content }
+      : { source: s.source, dir: s.dir },
+  ),
+  tools: composition.tools.map(t =>
+    t.source === "atrix"
+      ? { source: t.source, server: t.server }
+      : { source: t.source, path: t.path, name: t.name },
+  ),
+})
+
 export class Harnesses {
   #home = ""
 
-  #base: Harness[] = []
-
-  #available: Installable[] = []
+  #listing: Available[] = []
 
   #profiles: Profile[] = []
 
@@ -102,18 +96,22 @@ export class Harnesses {
 
   #providers = providerChoices()
 
+  #agents = agentCompositions()
+
   constructor(private readonly on: RegistryEvents) {}
 
   start = async (home: string) => {
     this.#home = home
-    await this.#detect().catch(() => {})
     this.#profiles = await loadProfiles(home).catch(() => [])
-    await this.#build()
+    await this.#list(false).catch(() => {})
+    this.#build()
+    this.#refresh(true).catch(() => {})
   }
 
   all = (): readonly Entry[] => this.#entries
 
-  find = (id: string) => this.#entries.find(h => h.id === id)
+  find = (id: string): Entry | undefined =>
+    this.#entries.find(h => h.id === id) ?? this.#extra(id)
 
   entry = (id: string) => {
     const entry = this.find(id)
@@ -128,144 +126,129 @@ export class Harnesses {
   disabled = (id: string) => this.#disabled.has(id)
 
   infos = (): HarnessInfo[] =>
-    this.#entries.map(
-      ({ launch: _launch, dir: _dir, source: _source, ...h }) => ({
-        ...h,
-        enabled: !this.#disabled.has(h.id),
-        provider: this.#providers[h.id] ?? null,
-        providerSource: this.#sourceOf(h.id),
-        providerModel: this.#provided(h.id)?.model ?? null,
-      }),
-    )
+    this.#entries.map(h => ({
+      ...h,
+      enabled: !this.#disabled.has(h.id),
+      provider: this.#providers[h.id] ?? null,
+      providerSource: this.#sourceOf(h.id),
+      providerModel: this.#provided(h.id)?.model ?? null,
+    }))
 
-  installable = (): Available[] =>
-    this.#available.map(({ source: _source, ...a }) => a)
+  installable = (): Available[] => this.#listing
 
-  target = (id: string): Target => {
-    const { kind, dir } = this.entry(id)
+  redetect = (force = false) => this.#refresh(force)
 
-    if (!kind) {
-      throw new Error(m.error_harness_no_config())
-    }
-
-    return { kind, home: this.#home, dir }
-  }
-
-  redetect = async (force = false) => {
-    if (force) {
-      forgetRegistry()
-    }
-
-    await this.#refresh()
-  }
-
-  install = async (id: string, scope: InstallScope): Promise<Installed> => {
-    const target = this.#available.find(a => a.id === id)
-
-    if (!target) {
-      throw new Error(m.error_harness_not_found())
-    }
-
-    const pathHint = await native<string | null>("tool_install", {
-      source: target.source,
-      scope,
-      channel: this.#log(id),
-    })
-
-    forgetRegistry()
-    await this.#refresh()
-
-    return { pathHint }
-  }
-
-  uninstall = async (id: string) => {
-    const { source, local } = this.entry(id)
-
-    if (!source || !local) {
-      throw new Error(m.error_harness_not_local())
-    }
-
-    await this.on.release(id)
-    await native("tool_uninstall", { source, channel: this.#log(id) })
-    this.#forgetProvider(id)
-    forgetRegistry()
-    await this.#refresh()
+  install = async (id: string) => {
+    await installHarness(id, this.#log(id))
+    await this.#refresh(false)
 
     return null
   }
 
-  affectedBy = (changed: string) =>
-    changed === DEFAULT_PROVIDER
-      ? this.#entries
-          .filter(h => this.#sourceOf(h.id) === "default")
-          .map(h => h.id)
-      : [changed]
+  uninstall = async (id: string) => {
+    const { local, profile } = this.entry(id)
 
-  usingGateway = (gateway: string) =>
-    Object.entries(this.#providers)
-      .filter(
-        ([, picked]) =>
-          picked.source === "gateway" && picked.gateway === gateway,
-      )
-      .flatMap(([id]) => this.affectedBy(id))
+    if (!local || profile) {
+      throw new Error(m.error_harness_not_local())
+    }
 
-  #forgetProvider = (id: string) => {
+    await this.on.release(id)
+    await uninstallHarness(id, this.#log(id))
     this.#providers = saveProvider(id, null)
+    await this.#refresh(false)
+
+    return null
   }
 
-  #sourceOf = (id: string): ProviderSource => {
-    const own = this.#providers[id]
+  compose = (agent: string, name: string, composition: Composition) => {
+    const next: Composed = { name, composition }
+    const same =
+      JSON.stringify(this.#agents[agent] ?? null) === JSON.stringify(next)
 
-    if (!own) {
-      return "default"
+    if (!same) {
+      this.#agents = saveAgentComposition(agent, next)
     }
 
-    return own.source === "native" ? "native" : "own"
+    return !same
   }
 
-  #provided = (id: string) => {
-    switch (this.#sourceOf(id)) {
-      case "native":
-        return null
-      case "own":
-        return resolvePicked(this.find(id), this.#providers[id])
-      case "default":
-        return resolvePicked(this.find(id), this.#providers[DEFAULT_PROVIDER])
+  spec = (id: string): Spec => {
+    const agent = this.#agentOf(id)
+
+    if (agent) {
+      const { composition } = agent
+      const provided = this.#agentProvided(agent)
+
+      return {
+        harness: composition.harness,
+        home: `homes/${id.replace(":", "-")}`,
+        carry: true,
+        native: false,
+        cwd: composition.cwd,
+        provider: provided?.provider ?? null,
+        model: provided?.model ?? composition.model,
+        instructions: composition.instructions,
+        ...specItems(composition),
+      }
     }
+
+    const entry = this.entry(id)
+    const provided = this.#provided(id)
+    const profile = entry.profile ? id.slice(PROFILE.length) : null
+
+    return {
+      harness: entry.base,
+      home: profile ? profileHome(profile) : `homes/${entry.base}`,
+      carry: !profile,
+      native: !profile,
+      cwd: null,
+      provider: provided?.provider ?? null,
+      model: provided?.model ?? null,
+      instructions: null,
+      skills: [],
+      tools: [],
+    }
+  }
+
+  providedModel = (id: string) => {
+    const agent = this.#agentOf(id)
+
+    return (agent ? this.#agentProvided(agent) : this.#provided(id))?.model
+  }
+
+  affectedBy = (changed: string) => {
+    const direct =
+      changed === DEFAULT_PROVIDER
+        ? this.#entries
+            .filter(h => this.#sourceOf(h.id) === "default")
+            .map(h => h.id)
+        : [changed]
+    const inheriting = Object.entries(this.#agents)
+      .filter(
+        ([, a]) =>
+          !a.composition.provider &&
+          (changed === DEFAULT_PROVIDER || a.composition.harness === changed),
+      )
+      .map(([id]) => agentHarness(id))
+
+    return [...direct, ...inheriting]
+  }
+
+  usingGateway = (gateway: string) => {
+    const uses = (picked: ProviderChoice | null | undefined) =>
+      picked?.source === "gateway" && picked.gateway === gateway
+
+    return [
+      ...Object.entries(this.#providers)
+        .filter(([, picked]) => uses(picked))
+        .flatMap(([id]) => this.affectedBy(id)),
+      ...Object.entries(this.#agents)
+        .filter(([, a]) => uses(a.composition.provider))
+        .map(([id]) => agentHarness(id)),
+    ]
   }
 
   defaultProvider = () => this.#providers[DEFAULT_PROVIDER] ?? null
-
-  providedModel = (id: string) => this.#provided(id)?.model ?? null
-
-  prepareLaunch = (id: string) => {
-    const { launch } = this.entry(id)
-    const provided = this.#provided(id)
-
-    return provided
-      ? prepareLaunch(
-          provided.kind,
-          launch,
-          provided.gateway,
-          provided.model,
-          this.#home,
-        )
-      : Promise.resolve(launch)
-  }
-
-  #valid = (id: string, picked: ProviderChoice) => {
-    if (id === DEFAULT_PROVIDER) {
-      return (
-        picked.source === "gateway" &&
-        !!findGateway(picked.gateway) &&
-        !!picked.model.trim()
-      )
-    }
-
-    this.entry(id)
-
-    return picked.source === "native" || !!resolvePicked(this.find(id), picked)
-  }
 
   setProvider = (id: string, picked: ProviderChoice | null) => {
     if (picked && !this.#valid(id, picked)) {
@@ -300,119 +283,142 @@ export class Harnesses {
     return null
   }
 
-  createProfile = async (harness: string, name: string, fork: boolean) => {
-    const base = this.entry(harness)
-    const trimmed = name.trim()
-
-    if (!base.kind || base.profile) {
-      throw new Error(m.error_harness_no_profiles())
-    }
-
-    if (!trimmed) {
-      throw new Error(m.error_profile_name())
-    }
-
-    const profile = { id: crypto.randomUUID(), base: base.id, name: trimmed }
-
-    const dir = await profileDir(this.#home, profile.id)
-    const skipped = await createProfileDir(
-      base.kind,
-      this.#home,
-      dir,
-      fork,
-    ).catch(async (e: unknown) => {
-      await native("remove_path", { path: dir })
-      throw e
-    })
-
-    await this.#saveProfiles([...this.#profiles, profile])
-
-    const created = this.infos().find(h => h.id === profileId(profile))
-
-    if (!created) {
-      throw new Error(`unknown_harness: ${profileId(profile)}`)
-    }
-
-    return { harness: created, skipped }
-  }
-
   removeProfile = async (harness: string) => {
-    const { dir, profile } = this.entry(harness)
+    const { profile } = this.entry(harness)
 
-    if (!profile || !dir) {
+    if (!profile) {
       throw new Error(m.error_global_delete())
     }
 
     await this.on.release(harness)
-    await native("remove_path", { path: dir })
-    await this.#saveProfiles(
-      this.#profiles.filter(p => profileId(p) !== harness),
-    )
-    this.#forgetProvider(harness)
+    await native("remove_path", {
+      path: await profileDir(this.#home, harness.slice(PROFILE.length)),
+    })
+    this.#profiles = this.#profiles.filter(p => profileId(p) !== harness)
+    await saveProfiles(this.#home, this.#profiles)
+    this.#providers = saveProvider(harness, null)
+    await this.#refresh(false)
 
     return null
   }
 
-  #saveProfiles = async (profiles: Profile[]) => {
-    this.#profiles = profiles
-    await saveProfiles(this.#home, profiles)
-    await this.#refresh()
+  #agentOf = (id: string) =>
+    id.startsWith(AGENT) ? this.#agents[id.slice(AGENT.length)] : undefined
+
+  #extra = (id: string): Entry | undefined => {
+    const agent = this.#agentOf(id)
+
+    if (agent) {
+      const base = this.#listing.find(l => l.id === agent.composition.harness)
+
+      return {
+        id,
+        name: agent.name,
+        base: agent.composition.harness,
+        kind: null,
+        vendor: base?.vendor ?? null,
+        profile: null,
+        local: false,
+        login: null,
+      }
+    }
+
+    const listed = this.#listing.find(l => l.id === id && l.state !== "missing")
+
+    return listed && entryOf(listed)
+  }
+
+  #resolve = (
+    base: string,
+    picked: ProviderChoice | null | undefined,
+  ): Provided | null => {
+    if (picked?.source !== "gateway" || !picked.model) {
+      return null
+    }
+
+    const gateway = findGateway(picked.gateway)
+    const wires = this.#listing.find(l => l.id === base)?.wires ?? []
+    const provider = gateway && providerFor(gateway, wires)
+
+    return provider ? { provider, model: picked.model } : null
+  }
+
+  #sourceOf = (id: string): ProviderSource => {
+    const own = this.#providers[id]
+
+    if (!own) {
+      return "default"
+    }
+
+    return own.source === "native" ? "native" : "own"
+  }
+
+  #provided = (id: string) => {
+    const base = this.find(id)?.base ?? id
+
+    switch (this.#sourceOf(id)) {
+      case "native":
+        return null
+      case "own":
+        return this.#resolve(base, this.#providers[id])
+      case "default":
+        return this.#resolve(base, this.#providers[DEFAULT_PROVIDER])
+    }
+  }
+
+  #agentProvided = ({ composition }: Composed) =>
+    composition.provider
+      ? this.#resolve(composition.harness, composition.provider)
+      : this.#provided(composition.harness)
+
+  #valid = (id: string, picked: ProviderChoice) => {
+    if (id === DEFAULT_PROVIDER) {
+      return (
+        picked.source === "gateway" &&
+        !!findGateway(picked.gateway) &&
+        !!picked.model.trim()
+      )
+    }
+
+    return (
+      picked.source === "native" || !!this.#resolve(this.entry(id).base, picked)
+    )
   }
 
   #log = (harness: string) =>
     new Channel<string>(line => this.on.log(harness, line))
 
-  #detect = async () => {
-    const { harnesses, available } = await detectHarnesses()
-
-    this.#base = harnesses
-    this.#available = available
+  #list = async (refresh: boolean) => {
+    this.#listing = await listHarnesses(refresh)
   }
 
-  #refresh = async () => {
-    await this.#detect()
-    await this.#build()
+  #refresh = async (force: boolean) => {
+    await this.#list(force)
+    this.#build()
     this.on.changed()
   }
 
-  #build = async () => {
-    const base: Entry[] = this.#base.map(h => ({
-      ...h,
-      base: h.id,
-      kind: KINDS[h.id] ?? null,
-      profile: null,
-      dir: null,
-    }))
-    const profiles = await Promise.all(
-      this.#profiles.flatMap(p => {
-        const parent = base.find(b => b.id === p.base)
-        const kind = parent?.kind
+  #build = () => {
+    const base = this.#listing.filter(l => l.state === "installed").map(entryOf)
+    const profiles = this.#profiles.flatMap(p => {
+      const listed = this.#listing.find(
+        l => l.id === p.base && l.state !== "missing",
+      )
+      const parent = listed && entryOf(listed)
 
-        if (!parent || !kind) {
-          return []
-        }
-
-        return [
-          profileDir(this.#home, p.id).then(
-            (dir): Entry => ({
+      return parent
+        ? [
+            {
+              ...parent,
               id: profileId(p),
               name: `${parent.name} (${p.name})`,
-              base: parent.id,
-              kind,
               profile: p.name,
               local: false,
               login: null,
-              source: null,
-              dir,
-              launch: {
-                ...parent.launch,
-                env: { ...parent.launch.env, ...envFor(kind, dir) },
-              },
-            }),
-          ),
-        ]
-      }),
-    )
+            },
+          ]
+        : []
+    })
 
     this.#entries = [...base, ...profiles]
   }

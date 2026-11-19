@@ -5,7 +5,7 @@ use std::process::Command;
 
 use serde_json::{Map, Value, json};
 
-use crate::adapters::{self, Adapter, Home, Mcp, Prompt, Skills, Source, Stdio, Transport};
+use crate::adapters::{self, Adapter, Carry, Home, Mcp, Prompt, Skills, Source, Stdio, Transport};
 use crate::compose::{Composition, Isolation, McpServer, McpTransport, SkillBody, SkillSource};
 use crate::files::Desired;
 use crate::install::Invocation;
@@ -83,6 +83,7 @@ pub fn materialize(composition: &Composition, run: &Invocation, base: &Path) -> 
     }
 
     let base = std::path::absolute(base)?;
+    let native = composition.isolation == Isolation::Native && reaches_native(composition, adapter);
 
     fs::create_dir_all(&base)?;
 
@@ -90,8 +91,8 @@ pub fn materialize(composition: &Composition, run: &Invocation, base: &Path) -> 
         composition,
         adapter,
         config: match adapter.home {
-            Home::Redirect { config, .. } => Some(PathBuf::from(config)),
-            Home::Unavailable | Home::Unknown => None,
+            Home::Redirect { config, .. } if !native => Some(PathBuf::from(config)),
+            Home::Redirect { .. } | Home::Unavailable | Home::Unknown => None,
         },
         launch: Launch {
             command: run.command.clone(),
@@ -106,6 +107,8 @@ pub fn materialize(composition: &Composition, run: &Invocation, base: &Path) -> 
     };
 
     build.home(&base)?;
+    build.carry(&base)?;
+    build.meta()?;
     build.provider()?;
     build.skills()?;
     build.tools()?;
@@ -118,6 +121,53 @@ pub fn materialize(composition: &Composition, run: &Invocation, base: &Path) -> 
         session: build.session,
         skipped: build.skipped,
     })
+}
+
+fn reaches_native(composition: &Composition, adapter: &Adapter) -> bool {
+    let tools = composition.tools.is_empty() || matches!(adapter.mcp, Mcp::Session { .. });
+    let instructions = composition.instructions.is_none()
+        || matches!(
+            adapter.prompt,
+            Prompt::Session { .. } | Prompt::Meta { .. } | Prompt::Flag(_)
+        );
+
+    composition.provider.is_none() && composition.skills.is_empty() && tools && instructions
+}
+
+fn seed(from: &Path, to: &Path) -> Result<()> {
+    let newer = match (fs::metadata(from), fs::metadata(to)) {
+        (Ok(source), Ok(target)) => source.modified()? > target.modified()?,
+        (Ok(source), Err(_)) => source.is_file(),
+        (Err(_), _) => false,
+    };
+
+    if newer {
+        if let Some(dir) = to.parent() {
+            fs::create_dir_all(dir)?;
+        }
+
+        fs::copy(from, to)?;
+    }
+
+    Ok(())
+}
+
+fn link(from: &Path, to: &Path) -> Result<()> {
+    if !from.is_dir() || fs::symlink_metadata(to).is_ok() {
+        return Ok(());
+    }
+
+    if let Some(dir) = to.parent() {
+        fs::create_dir_all(dir)?;
+    }
+
+    #[cfg(windows)]
+    junction::create(from, to)?;
+
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(from, to)?;
+
+    Ok(())
 }
 
 fn path_env(path: &Path) -> String {
@@ -144,6 +194,7 @@ impl Build<'_> {
     fn home(&mut self, base: &Path) -> Result<()> {
         let adapter = self.adapter;
         let os_home = self.os_home();
+        let redirect = self.config.is_some();
         let launch = &mut self.launch;
 
         launch
@@ -156,7 +207,7 @@ impl Build<'_> {
                 .map(|(k, v)| (k.to_string(), v.to_string())),
         );
 
-        if let Home::Redirect { vars, .. } = adapter.home {
+        if redirect && let Home::Redirect { vars, .. } = adapter.home {
             for (var, sub) in vars {
                 let dir = if sub.is_empty() {
                     base.to_path_buf()
@@ -174,6 +225,39 @@ impl Build<'_> {
                 launch.env.insert(var.to_owned(), path_env(base));
             }
         }
+
+        Ok(())
+    }
+
+    fn carry(&self, base: &Path) -> Result<()> {
+        let (Some(config), Some(home)) = (&self.config, std::env::home_dir()) else {
+            return Ok(());
+        };
+
+        if !self.composition.carry {
+            return Ok(());
+        }
+
+        for carry in self.adapter.carry {
+            match *carry {
+                Carry::Seed { from, to } => seed(&home.join(from), &base.join(config).join(to))?,
+                Carry::Link { from, to } => link(&home.join(from), &base.join(config).join(to))?,
+            }
+        }
+
+        Ok(())
+    }
+
+    fn meta(&mut self) -> Result<()> {
+        if self.adapter.meta.is_empty() {
+            return Ok(());
+        }
+
+        let Value::Object(meta) = serde_json::from_str(self.adapter.meta)? else {
+            return Ok(());
+        };
+
+        self.session.meta.extend(meta);
 
         Ok(())
     }

@@ -20,7 +20,7 @@ import {
   reply,
 } from "./protocol.ts"
 
-const PAIR_MINUTES = 5
+export const PAIR_MINUTES = 5
 
 const parseRequest = (data: string) => {
   const parsed = hostRequest.safeParse(JSON.parse(data))

@@ -567,7 +567,7 @@ fn hermes(plan: &mut ProviderPlan, t: &Target) -> Result<()> {
 }
 
 fn pi(plan: &mut ProviderPlan, t: &Target) -> Result<()> {
-    let mut model = json!({ "id": t.model });
+    let mut model = json!({ "id": t.model, "input": ["text", "image"] });
 
     if let Some(limit) = t.provider.context_window {
         model["contextWindow"] = json!(limit);
@@ -584,16 +584,30 @@ fn pi(plan: &mut ProviderPlan, t: &Target) -> Result<()> {
         provider["headers"] = t.headers();
     }
 
+    if t.provider.wire == WireApi::OpenAiChat {
+        provider["compat"] = json!({
+            "supportsDeveloperRole": false,
+            "supportsReasoningEffort": false,
+            "supportsStore": false,
+        });
+    }
+
     let models = json!({ "providers": keyed(ID, provider) });
     let settings = json!({
         "defaultProvider": ID,
         "defaultModel": t.model,
         "quietStartup": true,
+        "enableInstallTelemetry": false,
     });
 
     plan.secret(KEY_ENV, t.key());
     plan.file("models.json", pretty(&models)?, t.file_kind());
     plan.file("settings.json", pretty(&settings)?, FileKind::Plain);
+    plan.file(
+        "extensions/acp-harness.js",
+        include_str!("pi_extension.js").to_owned(),
+        FileKind::Plain,
+    );
 
     Ok(())
 }

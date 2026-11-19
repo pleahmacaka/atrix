@@ -75,6 +75,9 @@ const FOLLOWED: Record<string, (raw: string) => void> = {
   "usage-ring": raw => {
     settings.usageRing = RINGS.find(r => r === raw) ?? "both"
   },
+  "device-name": raw => {
+    settings.deviceName = raw
+  },
 }
 
 export const followSettings = (e: StorageEvent) => {

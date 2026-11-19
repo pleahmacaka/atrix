@@ -22,7 +22,6 @@ import { SESSION_BUSY, SESSION_GONE } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { actorFor } from "./actor.ts"
 import {
-  CLAUDE_META,
   type Conn,
   choicesOf,
   connectAgent,
@@ -55,6 +54,7 @@ import {
 } from "./sessionConfig.ts"
 import { rememberClaudeCommands, SOURCES } from "./sources.ts"
 import { Subagents } from "./subagents.ts"
+import { timed } from "./timing.ts"
 import type { Reachable } from "./tools.ts"
 
 type Live = SessionView & {
@@ -79,6 +79,13 @@ export type SessionDeps = {
 const TITLE_LIMIT = 60
 
 const CANCELLED = { outcome: { outcome: "cancelled" as const } }
+
+const FIRST = new Set([
+  "agent_message_chunk",
+  "agent_thought_chunk",
+  "tool_call",
+  "plan",
+])
 
 const viewOf = ({
   conn: _conn,
@@ -108,6 +115,8 @@ export class Sessions {
   #early = new Map<string, Command[]>()
 
   #usage = new Map<string, number>()
+
+  #asked = new Map<string, number>()
 
   #harnesses: Harnesses
 
@@ -201,6 +210,14 @@ export class Sessions {
     }
   }
 
+  warm = async (harness: string) => {
+    const { done } = await this.#acquire(harness)
+
+    done()
+
+    return null
+  }
+
   list = async (harness: string): Promise<Listed[]> => {
     const { conn, done } = await this.#acquire(harness)
 
@@ -256,11 +273,15 @@ export class Sessions {
 
     try {
       const { token, servers } = this.deps.bridge.declare(conn.http)
+      const params = conn.session.newSession
+      const creating = performance.now()
       const created = await conn.agent.request(acp.methods.agent.session.new, {
+        ...params,
         cwd,
-        mcpServers: servers,
-        _meta: CLAUDE_META,
+        mcpServers: [...params.mcpServers, ...servers],
       })
+
+      timed("session/new", creating, harness)
 
       return await this.#opened(conn, harness, cwd, token, created)
     } finally {
@@ -280,7 +301,9 @@ export class Sessions {
     this.deps.bridge.bind(token, created.sessionId)
 
     session.config = choicesOf(created.configOptions ?? [])
+    session.skipped = [...conn.skipped, ...conn.session.skipped]
     await this.#restore(session)
+    await this.#compose(session)
     keep({ harness, sessionId: session.id, cwd, title: session.title })
     this.deps.changed()
 
@@ -410,6 +433,7 @@ export class Sessions {
 
     const since = Date.now()
 
+    this.#asked.set(sessionId, performance.now())
     this.#patch(session, {
       running: true,
       since,
@@ -702,15 +726,11 @@ export class Sessions {
     }
 
     const pinned = this.#harnesses.providedModel(id)
-    const conn = await connectAgent(
-      key,
-      await this.#harnesses.prepareLaunch(id),
-      {
-        update: this.#update,
-        permission: this.#permission,
-        closed,
-      },
-    )
+    const conn = await connectAgent(key, this.#harnesses.spec(id), {
+      update: this.#update,
+      permission: this.#permission,
+      closed,
+    })
 
     if (pinned) {
       this.#pinned.set(conn, pinned)
@@ -780,6 +800,7 @@ export class Sessions {
   ) => {
     const { conn, id, cwd } = session
     const { token, servers } = this.deps.bridge.declare(conn.http)
+    const params = conn.session.newSession
 
     this.deps.bridge.bind(token, id)
     session.replaying = true
@@ -788,8 +809,8 @@ export class Sessions {
       const attached = await conn.agent.request(method, {
         sessionId: id,
         cwd,
-        mcpServers: servers,
-        _meta: CLAUDE_META,
+        mcpServers: [...params.mcpServers, ...servers],
+        ...(params._meta && { _meta: params._meta }),
       })
 
       session.config = choicesOf(attached.configOptions ?? [])
@@ -928,6 +949,35 @@ export class Sessions {
     }
   }
 
+  #compose = async (session: Live) => {
+    const wanted = session.conn.session.model
+
+    if (!wanted || session.pinned) {
+      return
+    }
+
+    const option = session.config.find(o =>
+      wanted.configId ? o.id === wanted.configId : o.category === "model",
+    )
+    const value = option && newestMatch(option.values, wanted.value)
+
+    if (!option || !value || value === option.current) {
+      return
+    }
+
+    const result = await session.conn.agent
+      .request(acp.methods.agent.session.setConfigOption, {
+        sessionId: session.id,
+        configId: option.id,
+        value,
+      })
+      .catch(() => null)
+
+    if (result) {
+      this.#patch(session, { config: choicesOf(result.configOptions) })
+    }
+  }
+
   #update = (sessionId: string, update: acp.SessionUpdate) => {
     const session = this.#live.get(sessionId)
 
@@ -953,6 +1003,13 @@ export class Sessions {
 
     if (!session) {
       return
+    }
+
+    const asked = this.#asked.get(sessionId)
+
+    if (asked !== undefined && FIRST.has(update.sessionUpdate)) {
+      this.#asked.delete(sessionId)
+      timed("first chunk", asked, sessionId)
     }
 
     if (update.sessionUpdate === "usage_update") {

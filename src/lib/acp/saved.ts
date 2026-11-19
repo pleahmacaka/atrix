@@ -1,8 +1,14 @@
 import { z } from "zod"
-import { type ProviderChoice, providerChoice } from "#lib/p2p/protocol.ts"
+import {
+  composition,
+  type ProviderChoice,
+  providerChoice,
+} from "#lib/p2p/protocol.ts"
 import { persist, persisted } from "#lib/store/stored.svelte.ts"
 
 const OPTIONS = "harness-options"
+
+const AGENTS = "agent-compositions"
 
 const SESSIONS = "kept-sessions"
 
@@ -141,6 +147,23 @@ export const saveProvider = (
   const next = picked ? { ...rest, [harness]: picked } : rest
 
   persist(PROVIDERS, next, {})
+
+  return next
+}
+
+const composedSchema = z.record(
+  z.string(),
+  z.object({ name: z.string(), composition }),
+)
+
+export type Composed = z.infer<typeof composedSchema>[string]
+
+export const agentCompositions = () => persisted(AGENTS, {}, composedSchema)
+
+export const saveAgentComposition = (agent: string, composed: Composed) => {
+  const next = { ...agentCompositions(), [agent]: composed }
+
+  persist(AGENTS, next, {})
 
   return next
 }

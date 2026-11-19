@@ -7,10 +7,17 @@ import type {
   Attachment,
   ConfigChoice,
   Listed,
+  Skipped,
   StoredAttachment,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import type { Launch } from "./harnesses.ts"
+import {
+  type HarnessSession,
+  type Spec,
+  sessionOf,
+  spawnHarness,
+} from "./harnesses.ts"
+import { timed } from "./timing.ts"
 
 type Frame = { type: "message"; message: acp.AnyMessage } | { type: "exit" }
 
@@ -23,6 +30,8 @@ export type Conn = {
   image: boolean
   embedded: boolean
   http: boolean
+  session: HarnessSession
+  skipped: Skipped[]
 }
 
 export type AgentEvents = {
@@ -36,9 +45,17 @@ export type AgentEvents = {
 
 const LIST_PAGES = 20
 
+let version: Promise<string> | null = null
+
+const versionOf = () => {
+  version ??= getVersion()
+
+  return version
+}
+
 const MISSING_CWD = "`cwd` does not exist"
 
-const spawnAgent = async (key: string, launch: Launch): Promise<acp.Stream> => {
+const spawnAgent = async (key: string, spec: Spec) => {
   let reader: ReadableStreamDefaultController<acp.AnyMessage> | undefined
 
   const readable = new ReadableStream<acp.AnyMessage>({
@@ -60,16 +77,22 @@ const spawnAgent = async (key: string, launch: Launch): Promise<acp.Stream> => {
     write: message => native("agent_send", { key, message }),
   })
 
-  await native("agent_spawn", { key, launch, channel })
+  const skipped = await spawnHarness(key, spec, channel)
+  const stream: acp.Stream = { readable, writable }
 
-  return { readable, writable }
+  return { stream, skipped }
 }
 
 export const connectAgent = async (
   key: string,
-  launch: Launch,
+  spec: Spec,
   on: AgentEvents,
 ): Promise<Conn> => {
+  const spawning = performance.now()
+  const { stream, skipped } = await spawnAgent(key, spec)
+
+  timed("start", spawning, key)
+
   const connection = acp
     .client({ name: "Atrix" })
     .onNotification(acp.methods.client.session.update, ({ params }) =>
@@ -79,10 +102,11 @@ export const connectAgent = async (
       acp.methods.client.session.requestPermission,
       ({ params, signal }) => on.permission(params, signal),
     )
-    .connect(await spawnAgent(key, launch))
+    .connect(stream)
 
   connection.closed.finally(on.closed)
 
+  const initializing = performance.now()
   const init = await connection.agent.request(acp.methods.agent.initialize, {
     protocolVersion: acp.PROTOCOL_VERSION,
     clientCapabilities: {
@@ -90,9 +114,11 @@ export const connectAgent = async (
       terminal: false,
       session: { notices: {} },
     },
-    clientInfo: { name: "Atrix", version: await getVersion() },
+    clientInfo: { name: "Atrix", version: await versionOf() },
   })
   const caps = init.agentCapabilities
+
+  timed("initialize", initializing, key)
 
   return {
     agent: connection.agent,
@@ -105,6 +131,8 @@ export const connectAgent = async (
     image: !!caps?.promptCapabilities?.image,
     embedded: !!caps?.promptCapabilities?.embeddedContext,
     http: !!caps?.mcpCapabilities?.http,
+    session: await sessionOf(key, caps ?? {}),
+    skipped,
   }
 }
 
@@ -209,7 +237,3 @@ export const storeAttachment = async (
 }
 
 export const RESOURCE_NOT_FOUND = -32002
-
-export const CLAUDE_META = {
-  claudeCode: { options: { extraArgs: { chrome: null } } },
-}

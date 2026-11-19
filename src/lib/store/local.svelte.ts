@@ -2,7 +2,7 @@ import { get, set } from "idb-keyval"
 import { z } from "zod"
 import type { ChatMessage } from "#lib/chat/live.svelte.ts"
 import type { Peer } from "#lib/p2p/net.ts"
-import type { LockSecret } from "#lib/p2p/protocol.ts"
+import type { LockSecret, SkillRef, ToolRef } from "#lib/p2p/protocol.ts"
 
 const STORE = "atrix"
 
@@ -59,6 +59,9 @@ export type StoredAgent = {
   instructions: string
   variables?: Record<string, string>
   requires?: Requires
+  gateway?: string
+  skills?: SkillRef[]
+  tools?: ToolRef[]
   cwd: string
   at: number
 }

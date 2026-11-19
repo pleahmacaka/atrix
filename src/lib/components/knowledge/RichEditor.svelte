@@ -130,11 +130,12 @@ $effect(() => {
   {#if editor && editable}
     <div
       class={[
-        "sticky top-0 z-20 -mx-2 mb-6 flex flex-wrap items-center gap-1",
-        "rounded-box border border-base-300 bg-raised p-1.5",
+        "sticky top-0 z-20 -mx-2 flex items-center gap-1",
+        "rounded-box border border-base-300 bg-raised",
+        compact ? "mb-3 flex-nowrap p-1" : "mb-6 flex-wrap p-1.5",
       ]}
     >
-      <Toolbar {editor} {tick} />
+      <Toolbar {editor} {tick} {compact} />
     </div>
   {/if}
   {#if notice}

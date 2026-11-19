@@ -1,6 +1,6 @@
 use super::{
-    Adapter, Auth, AuthMethod, Home, Mcp, ModelSelect, Prompt, Skills, Source, Status, Stdio,
-    Transport,
+    Adapter, Auth, AuthMethod, Carry, Home, Mcp, ModelSelect, Prompt, Skills, Source, Status,
+    Stdio, Transport,
 };
 use crate::provider::{Mapping, ProviderSupport};
 
@@ -43,6 +43,10 @@ const BASE: Adapter = Adapter {
     prompt: Prompt::Unknown,
     model: ModelSelect::ConfigCategory,
     auth: Auth::Unknown,
+    carry: &[],
+    meta: "",
+    vendor: None,
+    transcript: None,
     args: &[],
     env: &[],
 };
@@ -143,6 +147,19 @@ pub(super) const ADAPTERS: &[Adapter] = &[
             AuthMethod::Terminal(&["--cli", "auth", "login", "--claudeai"]),
             AuthMethod::Terminal(&["--cli", "auth", "login", "--console"]),
         ]),
+        carry: &[
+            Carry::Seed {
+                from: ".claude/.credentials.json",
+                to: ".credentials.json",
+            },
+            Carry::Link {
+                from: ".claude/projects",
+                to: "projects",
+            },
+        ],
+        meta: r#"{"claudeCode":{"options":{"extraArgs":{"chrome":null}}}}"#,
+        vendor: Some("anthropic"),
+        transcript: Some("claude"),
         ..BASE
     },
     Adapter {
@@ -187,6 +204,18 @@ pub(super) const ADAPTERS: &[Adapter] = &[
             AuthMethod::Env("CODEX_API_KEY"),
             AuthMethod::Env("OPENAI_API_KEY"),
         ]),
+        carry: &[
+            Carry::Seed {
+                from: ".codex/auth.json",
+                to: "auth.json",
+            },
+            Carry::Link {
+                from: ".codex/sessions",
+                to: "sessions",
+            },
+        ],
+        vendor: Some("openai"),
+        transcript: Some("codex"),
         ..BASE
     },
     Adapter {
@@ -520,6 +549,16 @@ pub(super) const ADAPTERS: &[Adapter] = &[
         mcp: Mcp::ServersJson("mcp.json"),
         prompt: Prompt::File("APPEND_SYSTEM.md"),
         auth: Auth::Known(&[AuthMethod::Terminal(&["--terminal-login"])]),
+        carry: &[
+            Carry::Seed {
+                from: ".pi/agent/auth.json",
+                to: "auth.json",
+            },
+            Carry::Link {
+                from: ".pi/agent/sessions",
+                to: "sessions",
+            },
+        ],
         ..BASE
     },
     Adapter {

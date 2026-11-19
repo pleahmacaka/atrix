@@ -1,9 +1,9 @@
 <script lang="ts">
 import { untrack } from "svelte"
-import { type ProviderKind, servesKind } from "#lib/acp/provider.ts"
+import { providerFor } from "#lib/acp/provider.ts"
 import Select from "#lib/components/ui/Select.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import { DEFAULT_PROVIDER, type HarnessInfo, type ProviderChoice } from "#lib/p2p/protocol.ts"
+import { DEFAULT_PROVIDER, type HarnessInfo, type ProviderChoice, type Wire } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { activeGateways, findGateway } from "#lib/store/gatewayCatalog.ts"
 import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
@@ -11,13 +11,13 @@ import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
 let {
   host,
   harness = null,
-  kind = null,
+  wires = null,
   run,
   apply,
 }: {
   host: HostView
   harness?: HarnessInfo | null
-  kind?: ProviderKind | null
+  wires?: Wire[] | null
   run: (work: () => Promise<unknown>) => void
   apply: (choice: ProviderChoice | null) => Promise<unknown>
 } = $props()
@@ -47,9 +47,9 @@ const fallback = $derived(host.state?.defaultProvider ?? null)
 
 const fallbackGateway = $derived(fallback?.source === "gateway" ? findGateway(fallback.gateway) : undefined)
 
-const usable = $derived(!!fallbackGateway && !!kind && servesKind(kind, fallbackGateway))
+const usable = $derived(!!fallbackGateway && !!wires && !!providerFor(fallbackGateway, wires))
 
-const gateways = $derived(activeGateways().filter(g => !harness || (kind && servesKind(kind, g))))
+const gateways = $derived(activeGateways().filter(g => !wires || !!providerFor(g, wires)))
 
 const picked = $derived(gateways.find(g => g.id === gateway))
 
@@ -108,6 +108,3 @@ const save = () => run(() => apply(choice()))
     {m.common_save()}
   </button>
 </form>
-{#if harness && picked && kind === "claude"}
-  <p class="w-full text-end text-xs text-warning">{m.harness_provider_browser()}</p>
-{/if}

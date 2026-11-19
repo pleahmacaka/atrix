@@ -8,6 +8,10 @@ import { m } from "#lib/paraglide/messages.js"
 import { mobileApp } from "#lib/platform.ts"
 import Scanner from "./Scanner.svelte"
 
+let {
+  connect: join = sync.connect,
+}: { connect?: (code: string) => Promise<void> } = $props()
+
 const attempt = new Attempt()
 
 let code = $state("")
@@ -16,7 +20,7 @@ let scanning = $state(false)
 
 const connect = (value: string) =>
   attempt.run(async () => {
-    await sync.connect(value)
+    await join(value)
     code = ""
   })
 </script>

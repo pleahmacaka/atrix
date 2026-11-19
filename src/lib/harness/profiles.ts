@@ -53,23 +53,3 @@ export const onEveryCopy = async (
 
 export const removeProfileEverywhere = (h: ProfileKey) =>
   onEveryCopy(profileCopies(h), (view, id) => view.removeProfile(id))
-
-export const createProfileEverywhere = (
-  origin: HostView,
-  base: string,
-  name: string,
-  fork: boolean,
-) =>
-  fanOut(
-    [
-      { view: origin, id: base },
-      ...hostList()
-        .filter(
-          host =>
-            host.view !== origin &&
-            harnessesOf(host).some(x => x.id === base && !x.profile),
-        )
-        .map(host => ({ view: host.view, id: base })),
-    ],
-    (view, id) => view.createProfile(id, name, fork),
-  )

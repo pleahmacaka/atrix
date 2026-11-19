@@ -1,12 +1,14 @@
 <script lang="ts">
 import type { Editor } from "@tiptap/core"
+import { onMount } from "svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
 import Popover from "#lib/components/ui/Popover.svelte"
 import Select from "#lib/components/ui/Select.svelte"
 import Separator from "#lib/components/ui/Separator.svelte"
 import { m } from "#lib/paraglide/messages.js"
 
-let { editor, tick }: { editor: Editor; tick: number } = $props()
+let { editor, tick, compact = false }: { editor: Editor; tick: number; compact?: boolean } = $props()
 
 type Item = { name: string; icon: string; label: () => string; run: () => void }
 
@@ -31,9 +33,29 @@ const BLOCK_ITEMS: Item[] = [
   { name: "codeBlock", icon: "lucide:square-code", label: m.editor_code_block, run: () => chain().toggleCodeBlock().run() },
 ]
 
+const ALL_REM = 36
+
+const MARKS_REM = 28
+
 let linkOpen = $state(false)
 
+let moreOpen = $state(false)
+
 let linkUrl = $state("")
+
+let width = $state(0)
+
+let rem = $state(16)
+
+onMount(() => {
+  rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || rem
+})
+
+const fold = $derived(!compact || width === 0 ? 0 : width / rem >= ALL_REM ? 0 : width / rem >= MARKS_REM ? 1 : 2)
+
+const shownMarks = $derived(fold >= 2 ? MARKS.slice(0, 2) : MARKS)
+
+const folded = $derived([...(fold >= 2 ? MARKS.slice(2) : []), ...(fold >= 1 ? BLOCK_ITEMS : [])])
 
 const is = $derived.by(() => {
   void tick
@@ -83,66 +105,100 @@ const applyLink = () => {
   <IconButton
     icon={entry.icon}
     label={entry.label()}
-    class={[is(entry.name) && "btn-active"]}
+    class={["shrink-0", is(entry.name) && "btn-active"]}
     aria-pressed={is(entry.name)}
     onclick={entry.run}
   />
 {/snippet}
 
-<Select
-  options={BLOCKS}
-  value={block}
-  label={m.editor_block()}
-  class="select-sm select-ghost w-28"
-  onchange={setBlock}
-/>
-<Separator vertical />
-{#each MARKS as mark (mark.name)}
-  {@render item(mark)}
-{/each}
-<Popover label={m.editor_link()} width="w-80" sheet bind:open={linkOpen}>
-  {#snippet trigger(p)}
-    <IconButton
-      {...p}
-      icon="lucide:link"
-      label={m.editor_link()}
-      class={[is("link") && "btn-active"]}
-      onclick={() => {
-        linkUrl = editor.getAttributes("link").href ?? ""
+{#snippet tools()}
+  <Select
+    options={BLOCKS}
+    value={block}
+    label={m.editor_block()}
+    class={["select-sm select-ghost", compact ? "w-24 shrink-0" : "w-28"]}
+    onchange={setBlock}
+  />
+  <Separator vertical />
+  {#each shownMarks as mark (mark.name)}
+    {@render item(mark)}
+  {/each}
+  <Popover label={m.editor_link()} width="w-80" sheet bind:open={linkOpen}>
+    {#snippet trigger(p)}
+      <IconButton
+        {...p}
+        icon="lucide:link"
+        label={m.editor_link()}
+        class={["shrink-0", is("link") && "btn-active"]}
+        onclick={() => {
+          linkUrl = editor.getAttributes("link").href ?? ""
+        }}
+      />
+    {/snippet}
+    <form
+      class="flex gap-1"
+      onsubmit={e => {
+        e.preventDefault()
+        applyLink()
       }}
-    />
-  {/snippet}
-  <form
-    class="flex gap-1"
-    onsubmit={e => {
-      e.preventDefault()
-      applyLink()
-    }}
-  >
-    <input
-      class="input input-sm min-w-0 flex-1"
-      aria-label={m.editor_link()}
-      placeholder={m.editor_link_hint()}
-      data-autofocus
-      bind:value={linkUrl}
-    />
-    <IconButton type="submit" icon="lucide:check" label={m.editor_apply()} tone="primary" />
-  </form>
-</Popover>
-<Separator vertical />
-{#each BLOCK_ITEMS as entry (entry.name)}
-  {@render item(entry)}
-{/each}
-<Separator vertical />
-<IconButton
-  icon="lucide:undo-2"
-  label={m.editor_undo()}
-  disabled={!history.undo}
-  onclick={() => chain().undo().run()}
-/>
-<IconButton
-  icon="lucide:redo-2"
-  label={m.editor_redo()}
-  disabled={!history.redo}
-  onclick={() => chain().redo().run()}
-/>
+    >
+      <input
+        class="input input-sm min-w-0 flex-1"
+        aria-label={m.editor_link()}
+        placeholder={m.editor_link_hint()}
+        data-autofocus
+        bind:value={linkUrl}
+      />
+      <IconButton type="submit" icon="lucide:check" label={m.editor_apply()} tone="primary" />
+    </form>
+  </Popover>
+  {#if fold < 1}
+    <Separator vertical />
+    {#each BLOCK_ITEMS as entry (entry.name)}
+      {@render item(entry)}
+    {/each}
+  {/if}
+  {#if folded.length}
+    <Popover label={m.editor_more()} placement="bottom-end" bind:open={moreOpen}>
+      {#snippet trigger(p)}
+        <IconButton {...p} icon="lucide:ellipsis" label={m.editor_more()} class="shrink-0" />
+      {/snippet}
+      <div class="flex w-48 flex-col" role="menu" aria-label={m.editor_more()}>
+        {#each folded as entry (entry.name)}
+          <MenuItem
+            icon={entry.icon}
+            label={entry.label()}
+            checked={is(entry.name)}
+            onclick={() => {
+              entry.run()
+              moreOpen = false
+            }}
+          />
+        {/each}
+      </div>
+    </Popover>
+  {/if}
+  <Separator vertical class={[compact && "ms-auto"]} />
+  <IconButton
+    icon="lucide:undo-2"
+    label={m.editor_undo()}
+    class="shrink-0"
+    disabled={!history.undo}
+    onclick={() => chain().undo().run()}
+  />
+  <IconButton
+    icon="lucide:redo-2"
+    label={m.editor_redo()}
+    class="shrink-0"
+    disabled={!history.redo}
+    onclick={() => chain().redo().run()}
+  />
+{/snippet}
+
+{#if compact}
+  <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-1" bind:clientWidth={width}>
+    {@render tools()}
+  </div>
+{:else}
+  {@render tools()}
+{/if}

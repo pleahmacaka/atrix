@@ -10,3 +10,4 @@ pub mod registry;
 pub mod session;
 
 pub use error::{Error, Result};
+pub use reqwest;

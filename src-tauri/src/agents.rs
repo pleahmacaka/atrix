@@ -1,24 +1,18 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::process::{ChildStdin, Stdio};
+use std::process::{ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use acp_harness::session::SessionPlan;
 use process_wrap::std::ChildWrapper;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use tauri::State;
 use tauri::ipc::Channel;
 
 use crate::error::Result;
-use crate::{platform, process};
-
-#[derive(Deserialize)]
-pub struct Launch {
-    command: String,
-    args: Vec<String>,
-    env: HashMap<String, String>,
-}
+use crate::platform;
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -30,6 +24,7 @@ pub enum Frame {
 struct Agent {
     child: Mutex<Box<dyn ChildWrapper>>,
     stdin: Mutex<ChildStdin>,
+    plan: SessionPlan,
 }
 
 impl Agent {
@@ -57,6 +52,42 @@ impl Agents {
             agent.kill();
         }
     }
+
+    pub fn plan(&self, key: &str) -> Option<SessionPlan> {
+        self.get(key).map(|agent| agent.plan.clone())
+    }
+
+    pub fn spawn(
+        &self,
+        key: String,
+        mut command: Command,
+        plan: SessionPlan,
+        channel: Channel<Frame>,
+    ) -> Result<()> {
+        self.remove(&key);
+
+        command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+
+        let mut child = platform::tree(command).spawn()?;
+        let stdin = child.stdin().take().ok_or("stdin unavailable")?;
+        let stdout = child.stdout().take().ok_or("stdout unavailable")?;
+
+        self.0.lock().unwrap().insert(
+            key,
+            Arc::new(Agent {
+                child: Mutex::new(child),
+                stdin: Mutex::new(stdin),
+                plan,
+            }),
+        );
+
+        thread::spawn(move || relay(BufReader::new(stdout), channel));
+
+        Ok(())
+    }
 }
 
 fn relay(stdout: impl BufRead, channel: Channel<Frame>) {
@@ -67,41 +98,6 @@ fn relay(stdout: impl BufRead, channel: Channel<Frame>) {
     }
 
     let _ = channel.send(Frame::Exit);
-}
-
-#[tauri::command]
-pub fn agent_spawn(
-    agents: State<'_, Agents>,
-    key: String,
-    launch: Launch,
-    channel: Channel<Frame>,
-) -> Result<()> {
-    agents.remove(&key);
-
-    let mut command = process::command(&launch.command)?;
-
-    command
-        .args(&launch.args)
-        .envs(&launch.env)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-
-    let mut child = platform::tree(command).spawn()?;
-    let stdin = child.stdin().take().ok_or("stdin unavailable")?;
-    let stdout = child.stdout().take().ok_or("stdout unavailable")?;
-
-    agents.0.lock().unwrap().insert(
-        key,
-        Arc::new(Agent {
-            child: Mutex::new(child),
-            stdin: Mutex::new(stdin),
-        }),
-    );
-
-    thread::spawn(move || relay(BufReader::new(stdout), channel));
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -122,12 +118,4 @@ pub fn agent_send(agents: State<'_, Agents>, key: String, message: Value) -> Res
 #[tauri::command]
 pub fn agent_close(agents: State<'_, Agents>, key: String) {
     agents.remove(&key);
-}
-
-#[tauri::command(async)]
-pub fn installed_commands(names: Vec<String>) -> Vec<String> {
-    names
-        .into_iter()
-        .filter(|n| process::which(n).is_some())
-        .collect()
 }

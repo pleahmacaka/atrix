@@ -1,6 +1,6 @@
 # Atrix
 
-Atrix ships as two installable products built from one Tauri 2 app. Atrix DE is a complete desktop environment on its own: the Windows shell (dock, top bar, launcher, panel, notification center), the file explorer and the terminal. Atrix AI is the desktop and web client for coding-agent harnesses (Claude Agent, Codex and others) over ACP plus every AI-native feature: paired devices drive a desktop's harnesses over P2P, and sessions share a markdown knowledge graph and message each other through Atrix. DE features that depend on Atrix AI (the launcher's Atrix group, knowledge links, device pairing) stay hidden while Atrix AI is off.
+Atrix ships as two installable products built from one Tauri 2 app. Atrix DE is a complete desktop environment on its own: the Windows shell (dock, top bar, launcher, panel, notification center), the file explorer and the terminal. Atrix AI is the desktop and web client for coding-agent harnesses (Claude Agent, Codex and others) over ACP plus every AI-native feature: paired devices drive a desktop's harnesses over P2P, and sessions share a markdown knowledge graph and message each other through Atrix. DE features that depend on Atrix AI (the launcher's Atrix group and knowledge links) stay hidden while Atrix AI is off; device pairing for file sharing lives in both Atrix DE settings and Atrix AI settings.
 
 ## Stack
 

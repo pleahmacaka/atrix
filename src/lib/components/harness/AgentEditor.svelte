@@ -1,18 +1,21 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { untrack } from "svelte"
+import { providerFor } from "#lib/acp/provider.ts"
 import {
   agents,
   fromTemplate,
+  NATIVE,
   openAgent,
   prompts,
   providerOf,
   providers,
   TEMPLATES,
+  warmAgent,
 } from "#lib/agents/agents.svelte.ts"
 import { PART_ICONS, variableNamed } from "#lib/agents/compose.ts"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
-import { efforts, terminalChoices } from "#lib/components/chat/models.ts"
+import { efforts } from "#lib/components/chat/models.ts"
 import AgentBuilder from "#lib/components/harness/AgentBuilder.svelte"
 import AgentDeps from "#lib/components/harness/AgentDeps.svelte"
 import ProviderSelect from "#lib/components/harness/ProviderSelect.svelte"
@@ -23,13 +26,18 @@ import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
+import { hoverTip } from "#lib/components/ui/tooltip.ts"
 import { BUILTIN_VARIABLES, variablesIn } from "#lib/knowledge/variable.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { activeGateways, findGateway } from "#lib/store/gatewayCatalog.ts"
+import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
 import { local, type StoredAgent } from "#lib/store/local.svelte.ts"
 import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
 
 type Draft = Omit<StoredAgent, "id" | "at"> & { id: string | null }
+
+const INHERIT = ""
 
 const attempt = new Attempt()
 
@@ -46,8 +54,14 @@ let revision = $state(0)
 $effect(() => {
   const agent = existing
 
-  draft = agent ? { ...agent, requires: agent.requires ?? {} } : untrack(blank)
+  draft = agent
+    ? { ...agent, requires: agent.requires ?? {}, skills: agent.skills ?? [], tools: agent.tools ?? [] }
+    : untrack(blank)
   manual = false
+
+  if (agent) {
+    untrack(() => warmAgent(agent)).catch(() => {})
+  }
 })
 
 const building = $derived(!existing && !manual)
@@ -65,9 +79,22 @@ const custom = $derived(
 
 const options = $derived(providers())
 
-const provider = $derived(options.find(p => p.key === draft.provider))
+const provider = $derived(providerOf(draft))
 
-const claude = $derived(provider?.kind === "harness" && provider.base === "claude-acp")
+const harness = $derived(provider?.kind === "harness" ? provider : null)
+
+const host = $derived(harness ? hostById(harness.host) : undefined)
+
+const listing = $derived(host?.state?.available.find(a => a.id === harness?.harness))
+
+const gateways = $derived(
+  activeGateways().filter(g => !!listing && !!providerFor(g, listing.wires)),
+)
+
+const viaGateway = $derived(
+  draft.gateway && draft.gateway !== NATIVE ? findGateway(draft.gateway) : undefined,
+)
+
 
 const save = () =>
   attempt.run(async () => {
@@ -156,61 +183,94 @@ const remove = () =>
       }}
     >
       <div class="flex shrink-0 flex-wrap items-center gap-2">
-        <IconInput
-          icon="lucide:tag"
-          label={m.agent_name()}
-          placeholder={m.agent_name()}
-          ghost={false}
-          class="w-56 max-sm:w-full"
-          bind:value={draft.name}
-        />
-        <ProviderSelect
-          {options}
-          label={m.agent_provider()}
-          value={draft.provider}
-          onchange={key => {
-            const next = options.find(p => p.key === key)
+        <div class="max-sm:w-full" {@attach hoverTip(() => m.agent_name_tip(), "bottom-start")}>
+          <IconInput
+            icon="lucide:tag"
+            label={m.agent_name()}
+            placeholder={m.agent_name()}
+            ghost={false}
+            class="w-44 max-sm:w-full"
+            bind:value={draft.name}
+          />
+        </div>
+        <div class="max-sm:w-full" {@attach hoverTip(() => m.agent_harness_tip(), "bottom-start")}>
+          <ProviderSelect
+            {options}
+            label={m.agent_provider_harness()}
+            value={provider?.key ?? draft.provider}
+            onchange={key => {
+              const next = options.find(p => p.key === key)
 
-            draft.provider = key
-            draft.model = next?.kind === "gateway" ? next.model : ""
-          }}
-        />
-        {#if provider?.kind === "gateway"}
-          <ModelInput gateway={provider.gateway} bind:value={draft.model} />
-        {:else if claude}
-          <IconSelect
-            icon="lucide:cpu"
-            label={m.chat_model()}
-            ghost={false}
-            value={draft.model}
-            choices={terminalChoices(undefined, [])}
-            onchange={value => {
-              draft.model = value
+              draft.provider = key
+              draft.gateway = undefined
+              draft.model = next?.kind === "gateway" ? next.model : ""
             }}
           />
+        </div>
+        {#if harness && gateways.length}
+          <div {@attach hoverTip(() => m.harness_provider_tip(), "bottom-start")}>
+            <IconSelect
+              icon={viaGateway ? gatewayIcon(viaGateway) : "lucide:plug"}
+              label={m.agent_provider()}
+              ghost={false}
+              class="w-40"
+              value={draft.gateway ?? INHERIT}
+              choices={[
+                { value: INHERIT, name: m.harness_provider_inherit(), icon: "lucide:arrow-down-to-line" },
+                { value: NATIVE, name: m.harness_provider_native(), icon: "lucide:house" },
+                ...gateways.map(g => ({ value: g.id, name: g.name, icon: gatewayIcon(g) })),
+              ]}
+              onchange={value => {
+                const gateway = findGateway(value)
+
+                draft.gateway = value || undefined
+                draft.model = gateway?.model ?? ""
+              }}
+            />
+          </div>
         {/if}
-        {#if provider?.kind === "harness"}
-          <IconSelect
-            icon="lucide:brain"
-            label={m.chat_effort()}
-            ghost={false}
-            value={draft.effort}
-            choices={efforts()}
-            onchange={value => {
-              draft.effort = value
-            }}
-          />
-          <FolderPicker
-            host={hostById(provider.host)}
-            value={draft.cwd || hostById(provider.host)?.state?.home || ""}
-            onpick={cwd => {
-              draft.cwd = cwd
-            }}
-          />
+        <div {@attach hoverTip(() => m.agent_model_tip(), "bottom-start")}>
+          {#if provider?.kind === "gateway"}
+            <ModelInput gateway={provider.gateway} bind:value={draft.model} />
+          {:else if viaGateway}
+            <ModelInput gateway={viaGateway.id} bind:value={draft.model} />
+          {:else if harness}
+            <IconInput
+              icon="lucide:cpu"
+              label={m.chat_model()}
+              placeholder={m.agent_model_default()}
+              ghost={false}
+              class="w-40"
+              bind:value={draft.model}
+            />
+          {/if}
+        </div>
+        {#if harness}
+          <div {@attach hoverTip(() => m.agent_effort_tip(), "bottom-start")}>
+            <IconSelect
+              icon="lucide:brain"
+              label={m.chat_effort()}
+              ghost={false}
+              value={draft.effort}
+              choices={efforts()}
+              onchange={value => {
+                draft.effort = value
+              }}
+            />
+          </div>
+          <div class="min-w-0" {@attach hoverTip(() => m.agent_folder_tip(), "bottom-start")}>
+            <FolderPicker
+              {host}
+              value={draft.cwd || host?.state?.home || ""}
+              onpick={cwd => {
+                draft.cwd = cwd
+              }}
+            />
+          </div>
         {/if}
       </div>
       <div class="flex min-h-0 flex-1 gap-3 max-lg:flex-col">
-        <div class="flex min-h-0 flex-1 flex-col gap-1">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
           <div class="flex shrink-0 flex-wrap items-center gap-2">
             <span class="min-w-0 flex-1 px-1 text-xs text-base-content/60">{m.agent_instructions()}</span>
             {#if blocks.length}
@@ -272,7 +332,14 @@ const remove = () =>
               </div>
             </div>
           {/if}
-          <AgentDeps {provider} instructions={draft.instructions} bind:requires={draft.requires} />
+          <AgentDeps
+            {provider}
+            cwd={draft.cwd}
+            instructions={draft.instructions}
+            requires={draft.requires}
+            bind:skills={draft.skills}
+            bind:tools={draft.tools}
+          />
         </aside>
       </div>
       <div class="flex shrink-0 items-center justify-end gap-2">
@@ -282,7 +349,7 @@ const remove = () =>
         <button
           type="button"
           class="btn btn-sm"
-          disabled={attempt.busy || !draft.name.trim() || !providerOf(draft)}
+          disabled={attempt.busy || !draft.name.trim() || !provider}
           onclick={start}
         >
           <Icon icon="lucide:message-square-plus" class="size-4" />

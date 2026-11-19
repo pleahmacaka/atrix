@@ -54,7 +54,9 @@ const start = () =>
     }
 
     const brief = builderBrief(
-      options.map(p => ({ key: p.key, kind: p.kind, label: p.label })),
+      options
+        .filter(p => p.kind === "gateway" || p.state === "installed")
+        .map(p => ({ key: p.key, kind: p.kind, label: p.label })),
       local.data.prompts,
     )
 

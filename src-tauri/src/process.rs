@@ -1,6 +1,6 @@
 use std::env;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 use crate::error::{Error, Result};
@@ -24,10 +24,6 @@ fn system_path() -> Vec<PathBuf> {
     let list = env::var_os("PATH").unwrap_or_default();
 
     env::split_paths(&list).collect()
-}
-
-pub fn on_system_path(dir: &Path) -> bool {
-    system_path().iter().any(|entry| entry == dir)
 }
 
 pub fn search_path() -> OsString {

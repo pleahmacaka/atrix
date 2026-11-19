@@ -234,3 +234,22 @@ fn vendor_locked_harness_refuses_a_provider() {
 
     assert!(matches!(result, Err(Error::ProviderUnsupported { .. })));
 }
+
+#[test]
+fn native_runs_in_real_home_until_an_item_needs_isolation() {
+    let base = tempfile::tempdir().unwrap();
+    let mut composition = Composition::new("claude-acp", "/work");
+
+    composition.isolation = Isolation::Native;
+
+    let native = prepare(&composition, &base);
+
+    assert!(!native.launch.env.contains_key("CLAUDE_CONFIG_DIR"));
+
+    composition.skills = vec![skill("review")];
+
+    let isolated = prepare(&composition, &base);
+
+    assert!(isolated.launch.env.contains_key("CLAUDE_CONFIG_DIR"));
+    assert!(isolated.skipped.is_empty());
+}

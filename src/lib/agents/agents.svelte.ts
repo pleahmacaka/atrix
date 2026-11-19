@@ -1,10 +1,8 @@
-import { BRIDGE_NAME } from "#lib/acp/toolNames.ts"
 import {
   blockNamed,
   dependenciesOf,
   expand,
   kindOf,
-  mcpNamesOf,
   PART_NAME,
   resolve,
 } from "#lib/agents/compose.ts"
@@ -15,7 +13,11 @@ import { TAGS } from "#lib/chat/tags.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import type { Skill } from "#lib/p2p/protocol.ts"
+import type {
+  Composition,
+  Presence,
+  ProviderChoice,
+} from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { activeGateways } from "#lib/store/gatewayCatalog.ts"
@@ -38,6 +40,7 @@ export type Provider =
       host: string
       harness: string
       base: string
+      state: Presence
     }
   | {
       key: string
@@ -51,17 +54,18 @@ export type Provider =
 
 const harnessProviders = (): Provider[] =>
   hostList().flatMap(host =>
-    (host.view.state?.harnesses ?? [])
-      .filter(h => h.enabled)
-      .map(h => ({
-        key: `harness:${host.id}:${h.id}`,
+    (host.view.state?.available ?? [])
+      .filter(a => a.state !== "missing")
+      .map(a => ({
+        key: `harness:${host.id}:${a.id}`,
         kind: "harness",
-        label: h.profile ?? h.name,
+        label: a.name,
         detail: host.name,
-        icon: brandIcon(h.base),
+        icon: brandIcon(a.id),
         host: host.id,
-        harness: h.id,
-        base: h.base,
+        harness: a.id,
+        base: a.id,
+        state: a.state,
       })),
   )
 
@@ -81,8 +85,26 @@ export const providers = (): Provider[] => [
   ...gatewayProviders(),
 ]
 
-export const providerOf = (agent: Pick<StoredAgent, "provider">) =>
-  providers().find(p => p.key === agent.provider)
+const legacyProvider = (list: Provider[], key: string) => {
+  const [kind, host, ...rest] = key.split(":")
+  const id = rest.join(":")
+  const base =
+    kind === "harness" &&
+    hostById(host)?.state?.harnesses.find(h => h.id === id)?.base
+
+  return base ? list.find(p => p.key === `harness:${host}:${base}`) : undefined
+}
+
+export const providerOf = (agent: Pick<StoredAgent, "provider">) => {
+  const list = providers()
+
+  return (
+    list.find(p => p.key === agent.provider) ??
+    legacyProvider(list, agent.provider)
+  )
+}
+
+export const NATIVE = "native"
 
 export type Template = {
   id: string
@@ -137,13 +159,15 @@ export const TEMPLATES: Template[] = [
 
 const matches = (provider: Provider, prefer: Template["prefer"]) =>
   provider.kind === prefer &&
-  (provider.kind !== "harness" || provider.base === "claude-acp")
+  (provider.kind !== "harness" || provider.state === "installed")
 
 export const fromTemplate = (
   template: Template,
 ): Omit<StoredAgent, "id" | "at"> => {
   const list = providers()
-  const provider = list.find(p => matches(p, template.prefer)) ?? list[0]
+  const provider =
+    list.find(p => matches(p, template.prefer)) ??
+    list.find(p => p.kind === "gateway" || p.state === "installed")
 
   return {
     name: template.name(),
@@ -153,6 +177,8 @@ export const fromTemplate = (
     instructions: template.instructions,
     variables: template.variables(),
     requires: {},
+    skills: [],
+    tools: [],
     cwd: "",
   }
 }
@@ -232,19 +258,14 @@ export const prompts = new Prompts()
 
 const configure = async (view: HostView, id: string, agent: StoredAgent) => {
   const config = view.views[id]?.config ?? []
-  const wants: [string, string][] = [
-    ["model", agent.model],
-    ["thought_level", agent.effort],
-  ]
+  const option = config.find(o => o.category === "thought_level")
+  const value =
+    option && agent.effort
+      ? matchChoice(option.values, agent.effort)
+      : undefined
 
-  for (const [category, wanted] of wants) {
-    const option = config.find(o => o.category === category)
-    const value =
-      option && wanted ? matchChoice(option.values, wanted) : undefined
-
-    if (option && value && value !== option.current) {
-      await view.configure(id, option.id, value)
-    }
+  if (option && value && value !== option.current) {
+    await view.configure(id, option.id, value)
   }
 }
 
@@ -266,21 +287,29 @@ export const dependencies = (
   agent: Pick<StoredAgent, "instructions" | "requires">,
 ) => dependenciesOf(local.data.prompts, agent)
 
-export type Inventory = { skills: Skill[]; mcp: string[] }
+const providerChoiceOf = (agent: StoredAgent): ProviderChoice | null => {
+  if (agent.gateway === NATIVE) {
+    return { source: "native" }
+  }
 
-export const inventoryOf = async (
-  view: HostView,
-  harness: string,
-): Promise<Inventory> => {
-  const config = await view.readHarness(harness)
-  const mcp = config.docs.flatMap(doc =>
-    doc.id === "mcp" || (doc.format === "toml" && doc.id === "settings")
-      ? mcpNamesOf(doc)
-      : [],
-  )
-
-  return { skills: config.skills, mcp: [BRIDGE_NAME, ...mcp] }
+  return agent.gateway
+    ? { source: "gateway", gateway: agent.gateway, model: agent.model }
+    : null
 }
+
+export const compositionOf = (
+  agent: StoredAgent,
+  harness: string,
+  cwd: string,
+): Composition => ({
+  harness,
+  provider: providerChoiceOf(agent),
+  model: agent.model || null,
+  skills: agent.skills ?? [],
+  tools: agent.tools ?? [],
+  instructions: agentInstructions(agent, cwd) || null,
+  cwd: cwd || null,
+})
 
 const openChat = async (
   agent: StoredAgent,
@@ -298,6 +327,25 @@ const openChat = async (
   return { kind: "chat", id } as const
 }
 
+const composeOn = async (
+  view: HostView,
+  agent: StoredAgent,
+  harness: string,
+  folder: string,
+) => view.compose(agent.id, agent.name, compositionOf(agent, harness, folder))
+
+export const warmAgent = async (agent: StoredAgent) => {
+  const provider = providerOf(agent)
+  const view =
+    provider?.kind === "harness" ? hostById(provider.host) : undefined
+
+  if (provider?.kind === "harness" && view) {
+    const folder = agent.cwd || view.state?.home || ""
+
+    await view.warm(await composeOn(view, agent, provider.harness, folder))
+  }
+}
+
 const openSession = async (
   agent: StoredAgent,
   provider: Extract<Provider, { kind: "harness" }>,
@@ -311,7 +359,8 @@ const openSession = async (
   }
 
   const folder = cwd || view.state?.home || ""
-  const id = await view.create(provider.harness, folder)
+  const harness = await composeOn(view, agent, provider.harness, folder)
+  const id = await view.create(harness, folder)
 
   try {
     await configure(view, id, agent)
@@ -320,7 +369,9 @@ const openSession = async (
     throw e
   }
 
-  if (primed) {
+  const skipped = view.views[id]?.skipped ?? []
+
+  if (primed && skipped.some(s => s.item === "instructions")) {
     prime(id, TAGS.agent, agentInstructions(agent, folder))
   }
 

@@ -2,7 +2,7 @@
   import Icon from "@iconify/svelte"
   import { open } from "@tauri-apps/plugin-dialog"
   import {
-    agentLaunched,
+    openDesktopSettings,
     openMainSettings,
   } from "#lib/components/settings/desktopSettings.ts"
   import EmptyState from "#lib/components/ui/EmptyState.svelte"
@@ -13,6 +13,7 @@
   import SettingRow from "#lib/components/ui/SettingRow.svelte"
   import { toast } from "#lib/files/store/toast.svelte.ts"
   import { m } from "#lib/paraglide/messages.js"
+  import { desktop } from "#lib/platform.ts"
   import BrowseAsks from "./BrowseAsks.svelte"
   import { shareError } from "./errors"
   import RemoteBrowser from "./RemoteBrowser.svelte"
@@ -27,13 +28,9 @@
 
   let browsing = $state<Member | null>(null)
 
-  let agent = $state(false)
-
-  $effect(() => {
-    agentLaunched().then(on => {
-      agent = on
-    })
-  })
+  const pair = () =>
+    (desktop ? openDesktopSettings("devices") : openMainSettings("devices"))
+      .catch(() => undefined)
 
   const browse = $derived(share.state.browse)
 
@@ -71,7 +68,7 @@
   <button
     type="button"
     class="btn btn-ghost btn-xs"
-    onclick={() => openMainSettings("devices").catch(() => undefined)}
+    onclick={pair}
   >
     <Icon icon="lucide:link" class="size-3.5" />
     {m.files_devices_pair()}
@@ -88,7 +85,7 @@
   <Section
     icon="lucide:monitor-smartphone"
     title={m.files_devices_paired()}
-    actions={agent ? pairAction : undefined}
+    actions={pairAction}
   >
     {#if share.state.devices.length === 0}
       <EmptyState icon="lucide:wifi-off" text={m.files_devices_none()} />

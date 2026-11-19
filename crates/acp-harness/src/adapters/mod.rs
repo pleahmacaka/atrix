@@ -26,9 +26,29 @@ pub struct Adapter {
 
     pub auth: Auth,
 
+    pub carry: &'static [Carry],
+
+    pub meta: &'static str,
+
+    pub vendor: Option<&'static str>,
+
+    pub transcript: Option<&'static str>,
+
     pub args: &'static [&'static str],
 
     pub env: &'static [(&'static str, &'static str)],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Carry {
+    Seed {
+        from: &'static str,
+        to: &'static str,
+    },
+    Link {
+        from: &'static str,
+        to: &'static str,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

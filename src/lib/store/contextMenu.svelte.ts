@@ -50,6 +50,19 @@ class ContextMenu {
     this.current = { x: e.clientX, y: e.clientY, items }
   }
 
+  drop = (e: MouseEvent, items: MenuItem[]) => {
+    const anchor =
+      e.currentTarget instanceof Element
+        ? e.currentTarget.getBoundingClientRect()
+        : null
+
+    this.show(e, items)
+
+    if (anchor && this.current) {
+      this.current = { ...this.current, x: anchor.left, y: anchor.bottom }
+    }
+  }
+
   close = () => {
     if (!this.current) {
       return

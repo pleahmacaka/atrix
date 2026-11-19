@@ -10,11 +10,11 @@ import type {
   Attachment,
   CanvasEntry,
   Change,
+  Composition,
   Entry,
   HostCall,
   HostEvent,
   HostState,
-  InstallScope,
   KgPatch,
   Listed,
   ProviderChoice,
@@ -381,25 +381,18 @@ export class HostView {
 
   detect = (force = false) => this.call({ op: "harness.detect", force })
 
-  install = (harness: string, scope: InstallScope) =>
-    this.call({ op: "harness.install", harness, scope })
+  install = (harness: string) => this.call({ op: "harness.install", harness })
 
   uninstall = (harness: string) =>
     this.call({ op: "harness.uninstall", harness })
 
-  readHarness = (harness: string) => this.call({ op: "harness.read", harness })
+  warm = (harness: string) => this.call({ op: "harness.warm", harness })
 
-  writeDoc = (harness: string, doc: string, content: string) =>
-    this.call({ op: "harness.write", harness, doc, content })
+  globalItems = (project: string | null) =>
+    this.call({ op: "harness.global", project })
 
-  writeSkill = (harness: string, name: string, content: string) =>
-    this.call({ op: "skill.write", harness, name, content })
-
-  removeSkill = (harness: string, name: string) =>
-    this.call({ op: "skill.remove", harness, name })
-
-  createProfile = (harness: string, name: string, fork: boolean) =>
-    this.call({ op: "profile.create", harness, name, fork })
+  compose = (agent: string, name: string, composition: Composition) =>
+    this.call({ op: "agent.compose", agent, name, composition })
 
   removeProfile = (harness: string) =>
     this.call({ op: "profile.remove", harness })

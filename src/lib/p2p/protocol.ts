@@ -58,6 +58,7 @@ export type HarnessInfo = {
   name: string
   base: string
   kind: HarnessKind | null
+  vendor: string | null
   profile: string | null
   enabled: boolean
   local: boolean
@@ -67,35 +68,107 @@ export type HarnessInfo = {
   providerModel: string | null
 }
 
-const installScope = z.enum(["atrix", "global"])
+export type Wire =
+  | "open-ai-chat"
+  | "open-ai-responses"
+  | "anthropic-messages"
+  | "google-gen-ai"
 
-export type InstallScope = z.infer<typeof installScope>
+export type Presence = "installed" | "runner" | "download" | "missing"
 
 export type Available = {
   id: string
   name: string
-  requires: "node" | "uv" | null
-  description: string
   version: string
-  website: string
-  repository: string
-  install: string
-  run: string
-  powershell?: boolean
+  description: string
+  website: string | null
+  repository: string | null
+  state: Presence
+  local: boolean
+  requires: "node" | "uv" | null
+  wires: Wire[]
+  skills: boolean
+  login: string | null
+  vendor: string | null
+  transcript: HarnessKind | null
 }
 
-export type Installed = { pathHint: string | null }
+const scope = z.enum(["user", "project"])
 
-export type ConfigDoc = {
-  id: string
-  file: string
-  format: "markdown" | "json" | "toml"
-  content: string
-}
+const globalSkill = z.object({
+  name: z.string(),
+  dir: z.string(),
+  owner: z.string(),
+  scope,
+})
 
-export type Skill = { name: string; content: string }
+const globalTool = z.object({
+  name: z.string(),
+  kind: z.enum(["stdio", "http", "sse"]),
+  target: z.string(),
+  owner: z.string(),
+  scope,
+  path: z.string(),
+})
 
-export type HarnessConfig = { dir: string; docs: ConfigDoc[]; skills: Skill[] }
+export type GlobalSkill = z.infer<typeof globalSkill>
+
+export type GlobalTool = z.infer<typeof globalTool>
+
+export type GlobalItems = { skills: GlobalSkill[]; tools: GlobalTool[] }
+
+const pairs = z.record(z.string(), z.string())
+
+export const mcpServer = z.object({
+  name: z.string().trim().min(1),
+  transport: z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("stdio"),
+      command: z.string().trim().min(1),
+      args: z.array(z.string()),
+      env: pairs,
+    }),
+    z.object({
+      type: z.enum(["http", "sse"]),
+      url: z.string().trim().min(1),
+      headers: pairs,
+    }),
+  ]),
+})
+
+export type McpServer = z.infer<typeof mcpServer>
+
+const skillRef = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("atrix"),
+    name: z.string(),
+    content: z.string(),
+  }),
+  globalSkill.extend({ source: z.literal("global") }),
+])
+
+const toolRef = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("atrix"), server: mcpServer }),
+  globalTool.extend({ source: z.literal("global") }),
+])
+
+export type SkillRef = z.infer<typeof skillRef>
+
+export type ToolRef = z.infer<typeof toolRef>
+
+export const composition = z.object({
+  harness: z.string(),
+  provider: providerChoice.nullable(),
+  model: z.string().nullable(),
+  skills: z.array(skillRef),
+  tools: z.array(toolRef),
+  instructions: z.string().nullable(),
+  cwd: z.string().nullable(),
+})
+
+export type Composition = z.infer<typeof composition>
+
+export type Skipped = { item: string; name: string | null; reason: string }
 
 export type OpenSession = {
   id: string
@@ -167,6 +240,7 @@ export type Limit = {
 export type ContextUse = { used: number; size: number }
 
 export type SessionView = OpenSession & {
+  skipped?: Skipped[]
   items: ChatItem[]
   ask: Ask | null
   asked?: Asked | null
@@ -432,24 +506,14 @@ export const hostRequest = z.discriminatedUnion("op", [
     provider: providerChoice.nullable(),
   }),
   request("harness.detect", { force: z.boolean().optional() }),
-  request("harness.install", { ...harness, scope: installScope }),
+  request("harness.install", harness),
   request("harness.uninstall", harness),
-  request("harness.read", harness),
-  request("harness.write", {
-    ...harness,
-    doc: z.string(),
-    content: z.string(),
-  }),
-  request("skill.write", {
-    ...harness,
+  request("harness.global", { project: z.string().nullable() }),
+  request("harness.warm", harness),
+  request("agent.compose", {
+    agent: z.string(),
     name: z.string(),
-    content: z.string(),
-  }),
-  request("skill.remove", { ...harness, name: z.string() }),
-  request("profile.create", {
-    ...harness,
-    name: z.string(),
-    fork: z.boolean(),
+    composition,
   }),
   request("profile.remove", harness),
   request("kg.list", {}),
@@ -552,13 +616,11 @@ export type Answers = {
   "harness.toggle": null
   "harness.provider": null
   "harness.detect": null
-  "harness.install": Installed
+  "harness.install": null
   "harness.uninstall": null
-  "harness.read": HarnessConfig
-  "harness.write": null
-  "skill.write": null
-  "skill.remove": null
-  "profile.create": { harness: HarnessInfo; skipped: string[] }
+  "harness.global": GlobalItems
+  "harness.warm": null
+  "agent.compose": string
   "profile.remove": null
   "kg.list": Entry[]
   "kg.canvases": CanvasEntry[]

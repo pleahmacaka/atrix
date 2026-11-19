@@ -11,7 +11,6 @@ import {
 } from "#lib/p2p/protocol.ts"
 import { synthesizeLocal, transcribeLocal } from "#lib/store/speech.svelte.ts"
 import { Bridge } from "./bridge.ts"
-import { readConfig, removeSkill, writeDoc, writeSkill } from "./config.ts"
 import {
   appsDesk,
   calendarDesk,
@@ -19,9 +18,10 @@ import {
   Datasources,
   knowledgeDesk,
 } from "./desks.ts"
+import { globalItems } from "./harnesses.ts"
 import { Mailroom, type Network } from "./mailroom.ts"
 import { ExternalSessions } from "./mirror.ts"
-import { Harnesses } from "./registry.ts"
+import { agentHarness, Harnesses } from "./registry.ts"
 import { isClosed } from "./saved.ts"
 import { Sessions } from "./sessions.ts"
 import { Spaces } from "./spaces.ts"
@@ -237,26 +237,19 @@ export class Host {
 
       return null
     },
-    "harness.install": r => this.#harnesses.install(r.harness, r.scope),
+    "harness.install": r => this.#harnesses.install(r.harness),
     "harness.uninstall": r => this.#harnesses.uninstall(r.harness),
-    "harness.read": r => readConfig(this.#harnesses.target(r.harness)),
-    "harness.write": async r => {
-      await writeDoc(this.#harnesses.target(r.harness), r.doc, r.content)
+    "harness.global": r => globalItems(r.project),
+    "harness.warm": r => this.#sessions.warm(r.harness),
+    "agent.compose": async r => {
+      const harness = agentHarness(r.agent)
 
-      return null
-    },
-    "skill.write": async r => {
-      await writeSkill(this.#harnesses.target(r.harness), r.name, r.content)
+      if (this.#harnesses.compose(r.agent, r.name, r.composition)) {
+        this.#sessions.retire(harness)
+      }
 
-      return null
+      return harness
     },
-    "skill.remove": async r => {
-      await removeSkill(this.#harnesses.target(r.harness), r.name)
-
-      return null
-    },
-    "profile.create": r =>
-      this.#harnesses.createProfile(r.harness, r.name, r.fork),
     "profile.remove": r => this.#harnesses.removeProfile(r.harness),
     "space.create": async r => {
       const space = await this.#spaces.create(r.name, r.folder, r.color)

@@ -1,15 +1,18 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { tick } from "svelte"
+import { tick, untrack } from "svelte"
+import { fade } from "svelte/transition"
 import {
   agentHost,
   agents,
   type Opened,
   openAgent,
+  warmAgent,
 } from "#lib/agents/agents.svelte.ts"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { matchChoice } from "#lib/chat/choices.ts"
 import { sendPrimed } from "#lib/chat/primer.ts"
+import { BUBBLE } from "#lib/components/chat/bubble.ts"
 import Composer from "#lib/components/chat/Composer.svelte"
 import ModelEffort from "#lib/components/chat/ModelEffort.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
@@ -40,6 +43,8 @@ import { AGENT, agentKey, GATEWAY, gatewayKey, harnessKey, targetsOf } from "./t
 
 const attempt = new Attempt()
 
+let pending = $state<string | null>(null)
+
 const hosts = $derived(hostList())
 
 const options = $derived(targetsOf(hosts))
@@ -55,6 +60,24 @@ const keyOf = (target: Target) => {
 }
 
 const targetKey = $derived(keyOf(nav.target))
+
+const warm = (target: Target) => {
+  if (target.kind === "agent") {
+    const agent = agents.find(target.id)
+
+    return agent ? warmAgent(agent) : Promise.resolve()
+  }
+
+  return target.kind === "harness"
+    ? hostById(target.host)?.warm(target.harness)
+    : Promise.resolve()
+}
+
+$effect(() => {
+  if (targetKey) {
+    untrack(() => warm(nav.target))?.catch((e: unknown) => logFailure("target warm", e))
+  }
+})
 
 const hostOf = (target: Target) => {
   if (target.kind === "model") {
@@ -289,8 +312,13 @@ const sendChat = async (id: string, text: string, files: File[]) => {
   })
 }
 
-const send = (text: string, files: File[]) =>
-  attempt.run(async () => {
+const send = (text: string, files: File[]) => {
+  pending = text
+
+  return attempt.run(() => deliver(text, files)).finally(() => (pending = null))
+}
+
+const deliver = async (text: string, files: File[]) => {
     const opened = await begin(nav.target)
 
     if (opened.kind === "chat") {
@@ -314,7 +342,7 @@ const send = (text: string, files: File[]) =>
     await sendPrimed(opened.id, text, primed =>
       view.prompt(opened.id, primed, attachments),
     )
-  })
+}
 
 const spaceName = $derived.by(() => {
   const space = nav.space
@@ -332,13 +360,33 @@ const folderHost = $derived(hostOf(nav.target))
 </script>
 
 <div class="flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-24">
-  <p class="text-2xl font-medium text-base-content/80">{m.chat_prompt()}</p>
+  <div class="relative flex w-full max-w-2xl justify-center px-4 sm:px-8">
+    <p class={["text-2xl font-medium text-base-content/80 transition-opacity duration-140", pending && "opacity-0"]}>
+      {m.chat_prompt()}
+    </p>
+    {#if pending}
+      <div class="absolute inset-x-4 bottom-0 flex flex-col items-end gap-2 sm:inset-x-8" transition:fade={{ duration: 140 }}>
+        <p class={[BUBBLE, "line-clamp-6 text-sm whitespace-pre-wrap"]}>{pending}</p>
+        <p class="flex items-center gap-2 text-xs text-base-content/50">
+          <span class="loading loading-xs loading-dots"></span>
+          {m.chat_starting()}
+        </p>
+      </div>
+    {/if}
+  </div>
   <div class="relative w-full">
     {#if spaceName && folderHost && folderHost === nav.space?.host}
-      <div class="mx-auto mb-2 flex max-w-2xl items-center gap-2 px-4 text-sm text-base-content/70 sm:px-8">
-        <Icon icon="lucide:layers" class="size-4 shrink-0" />
-        <span class="min-w-0 flex-1 truncate">{m.space_target({ name: spaceName })}</span>
-        <IconButton icon="lucide:x" label={m.common_cancel()} size="xs" onclick={() => (nav.space = null)} />
+      <div class="mx-auto mb-2 flex max-w-2xl px-4 sm:px-8">
+        <div
+          class={[
+            "flex max-w-full min-w-0 items-center gap-1.5 rounded-field bg-base-200 py-0.5 ps-2.5 pe-0.5",
+            "text-sm text-base-content/70",
+          ]}
+        >
+          <Icon icon="lucide:layers" class="size-3.5 shrink-0" />
+          <span class="min-w-0 truncate">{m.space_target({ name: spaceName })}</span>
+          <IconButton icon="lucide:x" label={m.common_cancel()} size="xs" onclick={() => (nav.space = null)} />
+        </div>
       </div>
     {/if}
     <div class="mx-auto max-w-2xl px-4 sm:px-8">

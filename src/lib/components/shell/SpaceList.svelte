@@ -213,23 +213,27 @@ const save = async () => {
   editing = null
 }
 
+const addMenu = (host: string, node: SpaceNode): MenuItem[] => [
+  {
+    label: m.space_new_agent(),
+    icon: "lucide:square-pen",
+    run: () => startAgent(host, node),
+  },
+  {
+    label: m.space_add_session(),
+    icon: "lucide:list-plus",
+    run: () => {
+      adding = { host, node }
+    },
+  },
+]
+
 const spaceMenu = (host: string, node: SpaceNode): MenuItem[] => {
   const view = hostById(host)
   const space = node.space
 
   const shared: MenuItem[] = [
-    {
-      label: m.space_new_agent(),
-      icon: "lucide:square-pen",
-      run: () => startAgent(host, node),
-    },
-    {
-      label: m.space_add_session(),
-      icon: "lucide:list-plus",
-      run: () => {
-        adding = { host, node }
-      },
-    },
+    ...addMenu(host, node),
     "separator",
     {
       label: m.space_edit(),
@@ -593,7 +597,8 @@ const menuOf = (e: MouseEvent, entry: Entry) => {
               "hover:bg-base-content/5 focus-visible:bg-base-content/5",
             ]}
             title={node.space.folder}
-            onclick={() => startAgent(host.id, node)}
+            aria-haspopup="menu"
+            onclick={e => contextMenu.drop(e, addMenu(host.id, node))}
             oncontextmenu={e => contextMenu.show(e, spaceMenu(host.id, node))}
           >
             <span class="size-2 shrink-0 rounded-full" style:background-color={colorOf(node.space)}></span>

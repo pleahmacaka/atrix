@@ -15,6 +15,8 @@ use crate::platform;
 
 const HEADLESS_PAIR_MINUTES: u64 = 10;
 
+const ROSTER_EVENT: &str = "net-roster";
+
 type Sink = Arc<Mutex<Option<Channel<Event>>>>;
 
 #[derive(Default)]
@@ -75,6 +77,10 @@ fn forward(app: AppHandle, mut events: UnboundedReceiver<Event>, sink: Sink, ros
             if let Event::Peers { peers } = &event {
                 save_peers(&roster, peers);
                 let _ = app.emit("share-changed", ());
+            }
+
+            if matches!(event, Event::Peers { .. } | Event::Paired { .. }) {
+                let _ = app.emit(ROSTER_EVENT, &event);
             }
 
             deliver(&sink, event);
@@ -155,6 +161,11 @@ pub async fn net_start(
         .await?;
 
     Ok(node.id())
+}
+
+#[tauri::command]
+pub fn net_roster(net: State<'_, Net>) -> Option<Vec<Member>> {
+    net.node.get().map(Node::peers)
 }
 
 #[tauri::command]

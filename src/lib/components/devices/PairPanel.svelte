@@ -16,6 +16,9 @@ import type { Peer } from "#lib/p2p/net.ts"
 import { sync } from "#lib/p2p/sync.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import JoinForm from "./JoinForm.svelte"
+import type { PairSource } from "./roster.svelte.ts"
+
+let { source = sync }: { source?: PairSource } = $props()
 
 const QR_SCALE = 8
 
@@ -30,7 +33,7 @@ const timer = setInterval(() => {
 onDestroy(() => clearInterval(timer))
 
 const remaining = $derived.by(() => {
-  const left = Math.max(0, (sync.pairing?.expires ?? now) - now)
+  const left = Math.max(0, (source.pairing?.expires ?? now) - now)
   const total = Math.floor(left / 1000)
   const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -38,14 +41,14 @@ const remaining = $derived.by(() => {
 })
 
 $effect(() => {
-  if (sync.pairing && sync.pairing.expires <= now) {
-    sync.closePairing()
+  if (source.pairing && source.pairing.expires <= now) {
+    source.closePairing()
   }
 })
 
 const qr = $derived(
-  sync.pairing
-    ? encodeQR(sync.pairing.code, "data-url", { scale: QR_SCALE })
+  source.pairing
+    ? encodeQR(source.pairing.code, "data-url", { scale: QR_SCALE })
     : null,
 )
 
@@ -70,7 +73,7 @@ const stamp = new Intl.DateTimeFormat(undefined, {
 })
 
 const peers = $derived(
-  [...sync.peers.values()].toSorted(
+  [...source.peers.values()].toSorted(
     (a, b) => Number(b.online) - Number(a.online) || b.seen - a.seen,
   ),
 )
@@ -85,16 +88,16 @@ const status = (peer: Peer) =>
 
 <div class="flex flex-col gap-6">
   <Section>
-    <SettingRow title={m.sync_issue()}>
+    <SettingRow title={m.sync_issue()} tip={m.sync_issue_tip()}>
       <IconButton
-        icon={sync.pairing ? "lucide:refresh-cw" : "lucide:ticket-plus"}
-        label={sync.pairing ? m.sync_reissue() : m.sync_issue_button()}
+        icon={source.pairing ? "lucide:refresh-cw" : "lucide:ticket-plus"}
+        label={source.pairing ? m.sync_reissue() : m.sync_issue_button()}
         tone="primary"
         disabled={attempt.busy}
-        onclick={() => attempt.run(() => sync.issue())}
+        onclick={() => attempt.run(() => source.issue())}
       />
     </SettingRow>
-    {#if sync.pairing && qr}
+    {#if source.pairing && qr}
       <div
         transition:slide={{ duration: motion(140) }}
         class="flex flex-col items-center gap-3 pb-4"
@@ -108,9 +111,9 @@ const status = (peer: Peer) =>
           <code
             class="min-w-0 flex-1 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs break-all select-all"
           >
-            {sync.pairing.code}
+            {source.pairing.code}
           </code>
-          <CopyButton text={sync.pairing.code} />
+          <CopyButton text={source.pairing.code} />
         </div>
         <div
           class="flex w-full items-center gap-2 text-xs text-base-content/60"
@@ -123,7 +126,7 @@ const status = (peer: Peer) =>
             icon="lucide:trash-2"
             label={m.sync_discard()}
             size="xs"
-            onclick={() => sync.closePairing()}
+            onclick={() => source.closePairing()}
           />
         </div>
       </div>
@@ -131,7 +134,7 @@ const status = (peer: Peer) =>
   </Section>
   <Section icon="lucide:link" title={m.pair_join()}>
     <div class="py-3">
-      <JoinForm />
+      <JoinForm connect={source.connect} />
     </div>
   </Section>
   <Section icon="lucide:radio-tower" title={m.sync_devices()}>
@@ -165,7 +168,7 @@ const status = (peer: Peer) =>
             label={m.peer_unpair()}
             confirm={m.peer_unpair_confirm({ name: peer.name })}
             class="btn-xs"
-            onconfirm={() => attempt.run(() => sync.unpair(peer.id))}
+            onconfirm={() => attempt.run(() => source.unpair(peer.id))}
           />
         </li>
       {:else}

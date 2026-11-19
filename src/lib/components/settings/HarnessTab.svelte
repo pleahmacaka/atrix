@@ -1,6 +1,5 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { providerKindOf } from "#lib/acp/provider.ts"
 import HarnessBrowser from "#lib/components/harness/browser/HarnessBrowser.svelte"
 import HarnessPage from "#lib/components/harness/HarnessPage.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
@@ -31,8 +30,6 @@ let busy = $state<string | null>(null)
 let browsing = $state(false)
 
 let selected = $state<{ host: HostEntry; id: string } | null>(null)
-
-let notice = $state<string | null>(null)
 
 const local = $derived(hosts.find(host => host.id === LOCAL))
 
@@ -77,7 +74,6 @@ const toggle = (host: HostEntry, harness: HarnessInfo) =>
 
 const open = (host: HostEntry, id: string) => {
   selected = { host, id }
-  notice = null
 }
 </script>
 
@@ -91,17 +87,13 @@ const open = (host: HostEntry, id: string) => {
     <div>
       <IconButton icon="lucide:chevron-left" label={m.harness_back()} onclick={() => (selected = null)} />
     </div>
-    {#if notice}
-      <div role="status" class="alert alert-warning alert-soft text-sm">{notice}</div>
-    {/if}
     {#if harness}
-      {@const kind = providerKindOf(harness)}
+      {@const wires = host.view.state?.available.find(a => a.id === harness.base)?.wires ?? []}
       <HarnessPage
         host={host.view}
         harnessId={harness.id}
-        onSelect={(id, message) => {
+        onSelect={id => {
           selected = id ? { host, id } : null
-          notice = message ?? null
         }}
       >
         {#snippet extra()}
@@ -122,12 +114,12 @@ const open = (host: HostEntry, id: string) => {
           <div class="px-4 pb-4 sm:px-6">
             <div class="rounded-box border border-base-300 bg-base-100 px-4">
               <SettingRow icon="lucide:plug" title={m.harness_provider()} tip={m.harness_provider_tip()}>
-                {#if kind}
+                {#if wires.length}
                   {#key `${host.id}:${harness.id}`}
                     <ProviderPicker
                       host={host.view}
                       harness={harness}
-                      {kind}
+                      {wires}
                       run={work => working(harness.id, work)}
                       apply={choice =>
                         onEveryCopy(copiesOf(host.view, harness), (view, id) => view.setProvider(id, choice))}

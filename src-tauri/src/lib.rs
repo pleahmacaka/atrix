@@ -11,6 +11,7 @@ mod fetch;
 mod files;
 mod float;
 mod git;
+mod harness;
 mod install;
 mod kg;
 mod launch;
@@ -213,11 +214,10 @@ pub fn run() {
         .manage(kg::Store::default())
         .manage(net::Net::default())
         .manage(datasource::Datasources::default())
+        .manage(harness::Harnesses::default())
         .invoke_handler(desktop::handler![
-            agents::agent_spawn,
             agents::agent_send,
             agents::agent_close,
-            agents::installed_commands,
             bridge::bridge_start,
             bridge::bridge_reply,
             channels::channel_start,
@@ -255,14 +255,17 @@ pub fn run() {
             files::browse_dirs,
             files::git_remote,
             git::git_run,
-            install::tool_install,
-            install::tool_uninstall,
-            install::tool_find,
-            install::tool_platform,
+            harness::harness_list,
+            harness::harness_install,
+            harness::harness_uninstall,
+            harness::harness_global,
+            harness::harness_spawn,
+            harness::harness_session,
             kg::kg_start,
             launch::startup_pair_code,
             launch::headless,
             net::net_start,
+            net::net_roster,
             net::net_info,
             net::net_send,
             net::net_request,

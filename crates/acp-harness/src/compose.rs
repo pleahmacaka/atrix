@@ -15,6 +15,8 @@ pub struct Composition {
 
     pub isolation: Isolation,
 
+    pub carry: bool,
+
     pub provider: Option<Provider>,
 
     pub model: Option<String>,
@@ -43,6 +45,7 @@ pub enum Isolation {
     #[default]
     ConfigHome,
     ConfigAndOsHome,
+    Native,
 }
 
 #[derive(Clone, Debug)]

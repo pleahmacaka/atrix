@@ -41,6 +41,12 @@ export const messageOf = (raw: unknown) => {
     case "install_unsupported":
     case "install_name_invalid":
       return m.error_install_failed({ detail })
+    case "harness_missing":
+      return m.error_harness_missing({ name: detail })
+    case "unknown_harness":
+      return m.error_harness_not_found()
+    case "harness_not_local":
+      return m.error_harness_not_local()
     case "kg_store_timeout":
       return m.error_store_timeout()
     case "ds_failed":
