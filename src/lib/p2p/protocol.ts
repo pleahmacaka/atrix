@@ -393,6 +393,7 @@ export const hostRequest = z.discriminatedUnion("op", [
     ...session,
     cwd: z.string(),
     title: z.string().optional(),
+    reopen: z.boolean().optional(),
   }),
   request("prompt", {
     ...session,

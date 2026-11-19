@@ -26,7 +26,7 @@ const sessionText = async (host: string, id: string) => {
 
   const opened = !!view.views[id]
 
-  await view.open(id)
+  await view.open(id, true)
 
   const text = transcriptOf(view.views[id]?.items ?? [])
 

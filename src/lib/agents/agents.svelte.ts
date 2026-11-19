@@ -186,6 +186,13 @@ class Agents {
 
 export const agents = new Agents()
 
+export const agentHost = (id: string) => {
+  const agent = agents.find(id)
+  const provider = agent ? providerOf(agent) : undefined
+
+  return provider?.kind === "harness" ? provider.host : null
+}
+
 export const PROMPT_NAME = PART_NAME
 
 class Prompts {

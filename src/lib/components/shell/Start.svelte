@@ -1,8 +1,15 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { tick } from "svelte"
+import {
+  agentHost,
+  agents,
+  type Opened,
+  openAgent,
+} from "#lib/agents/agents.svelte.ts"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { matchChoice } from "#lib/chat/choices.ts"
+import { sendPrimed } from "#lib/chat/primer.ts"
 import Composer from "#lib/components/chat/Composer.svelte"
 import ModelEffort from "#lib/components/chat/ModelEffort.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
@@ -29,7 +36,7 @@ import { panes, usePane } from "#lib/store/panes.svelte.ts"
 import { CHAT_HOST } from "#lib/voice/chatCall.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import FolderPicker from "./FolderPicker.svelte"
-import { GATEWAY, gatewayKey, harnessKey, targetsOf } from "./targets.ts"
+import { AGENT, agentKey, GATEWAY, gatewayKey, harnessKey, targetsOf } from "./targets.ts"
 
 const attempt = new Attempt()
 
@@ -37,14 +44,50 @@ const hosts = $derived(hostList())
 
 const options = $derived(targetsOf(hosts))
 
-const targetKey = $derived(
-  nav.target.kind === "model"
-    ? gatewayKey(nav.target.gateway)
-    : harnessKey(nav.target.host, nav.target.harness),
-)
+const keyOf = (target: Target) => {
+  if (target.kind === "model") {
+    return gatewayKey(target.gateway)
+  }
+
+  return target.kind === "agent"
+    ? agentKey(target.id)
+    : harnessKey(target.host, target.harness)
+}
+
+const targetKey = $derived(keyOf(nav.target))
+
+const hostOf = (target: Target) => {
+  if (target.kind === "model") {
+    return null
+  }
+
+  return target.kind === "agent" ? agentHost(target.id) : target.host
+}
+
+const cwdOn = (host: string | null) => {
+  const target = nav.target
+
+  if (!host) {
+    return ""
+  }
+
+  return target.kind !== "model" && hostOf(target) === host
+    ? target.cwd
+    : (hostById(host)?.state?.home ?? "")
+}
 
 const choose = (key: string) => {
   const [first, second] = key.split("\n")
+
+  if (first === AGENT) {
+    nav.target = {
+      kind: "agent",
+      id: second,
+      cwd: agents.find(second)?.cwd || cwdOn(agentHost(second)),
+    }
+
+    return
+  }
 
   if (first === GATEWAY) {
     nav.target = {
@@ -63,7 +106,7 @@ const choose = (key: string) => {
     kind: "harness",
     host: first,
     harness: second,
-    cwd: hostById(first)?.state?.home ?? "",
+    cwd: cwdOn(first),
   }
 }
 
@@ -142,7 +185,21 @@ const glide = (current: Current) => {
   }
 }
 
-const startSession = async (target: Extract<Target, { kind: "harness" }>) => {
+const placeInSpace = async (host: string, id: string) => {
+  const space = nav.space
+
+  nav.space = null
+
+  if (space?.host === host) {
+    await hostById(host)
+      ?.place(id, space.id, null)
+      .catch((e: unknown) => logFailure("space place", e))
+  }
+}
+
+const startSession = async (
+  target: Extract<Target, { kind: "harness" }>,
+): Promise<Opened> => {
   const view = hostById(target.host)
 
   if (!view) {
@@ -150,15 +207,8 @@ const startSession = async (target: Extract<Target, { kind: "harness" }>) => {
   }
 
   const id = await view.create(target.harness, target.cwd.trim())
-  const space = nav.space
 
-  nav.space = null
-
-  if (space?.host === target.host) {
-    await view
-      .place(id, space.id, null)
-      .catch((e: unknown) => logFailure("space place", e))
-  }
+  await placeInSpace(target.host, id)
 
   for (const option of presets) {
     const value = pickOf(option)
@@ -183,56 +233,87 @@ const startSession = async (target: Extract<Target, { kind: "harness" }>) => {
     }
   }
 
-  glide({ kind: "session", host: target.host, id })
+  return { kind: "session", host: target.host, id }
+}
 
-  return { view, id }
+const startAgent = async (
+  target: Extract<Target, { kind: "agent" }>,
+): Promise<Opened> => {
+  const agent = agents.find(target.id)
+
+  if (!agent) {
+    throw new Error(m.agent_missing())
+  }
+
+  const opened = await openAgent(agent, target.cwd.trim())
+
+  if (opened.kind === "session") {
+    await placeInSpace(opened.host, opened.id)
+  }
+
+  return opened
+}
+
+const begin = async (target: Target): Promise<Opened> => {
+  if (target.kind === "model") {
+    return { kind: "chat", id: chats.create(target.gateway, target.model) }
+  }
+
+  return target.kind === "agent" ? startAgent(target) : startSession(target)
 }
 
 const call = () =>
   attempt.run(async () => {
-    const target = nav.target
+    const opened = await begin(nav.target)
 
-    if (target.kind === "model") {
-      const id = chats.create(target.gateway, target.model)
-
-      glide({ kind: "chat", id })
-      conversation.start(id, CHAT_HOST)
-
-      return
-    }
-
-    const { id } = await startSession(target)
-
-    conversation.start(id, target.host)
+    glide(opened)
+    conversation.start(
+      opened.id,
+      opened.kind === "chat" ? CHAT_HOST : opened.host,
+    )
   })
+
+const sendChat = async (id: string, text: string, files: File[]) => {
+  const stored = chats.find(id)
+
+  if (!stored) {
+    return
+  }
+
+  const { chatFor } = await import("#lib/chat/live.svelte.ts")
+  const { toFilePart } = await import("#lib/chat/attachments.ts")
+
+  chatFor(stored).sendMessage({
+    text,
+    files: await Promise.all(files.map(file => toFilePart(file))),
+  })
+}
 
 const send = (text: string, files: File[]) =>
   attempt.run(async () => {
-    const target = nav.target
+    const opened = await begin(nav.target)
 
-    if (target.kind === "model") {
-      const id = chats.create(target.gateway, target.model)
-      const stored = chats.find(id)
-      const { chatFor } = await import("#lib/chat/live.svelte.ts")
-
-      if (stored) {
-        const { toFilePart } = await import("#lib/chat/attachments.ts")
-
-        chatFor(stored).sendMessage({
-          text,
-          files: await Promise.all(files.map(file => toFilePart(file))),
-        })
-      }
-
-      glide({ kind: "chat", id })
+    if (opened.kind === "chat") {
+      await sendChat(opened.id, text, files)
+      glide(opened)
 
       return
     }
 
-    const { view, id } = await startSession(target)
-    const { toAttachment } = await import("#lib/chat/attachments.ts")
+    const view = hostById(opened.host)
 
-    await view.prompt(id, text, await Promise.all(files.map(toAttachment)))
+    if (!view) {
+      throw new Error(m.chat_no_device())
+    }
+
+    glide(opened)
+
+    const { toAttachment } = await import("#lib/chat/attachments.ts")
+    const attachments = await Promise.all(files.map(toAttachment))
+
+    await sendPrimed(opened.id, text, primed =>
+      view.prompt(opened.id, primed, attachments),
+    )
   })
 
 const spaceName = $derived.by(() => {
@@ -246,12 +327,14 @@ const spaceName = $derived.by(() => {
 const ready = $derived(
   nav.target.kind === "model" ? !!findGateway(nav.target.gateway) : true,
 )
+
+const folderHost = $derived(hostOf(nav.target))
 </script>
 
 <div class="flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-24">
   <p class="text-2xl font-medium text-base-content/80">{m.chat_prompt()}</p>
   <div class="relative w-full">
-    {#if spaceName && nav.target.kind === "harness" && nav.target.host === nav.space?.host}
+    {#if spaceName && folderHost && folderHost === nav.space?.host}
       <div class="mx-auto mb-2 flex max-w-2xl items-center gap-2 px-4 text-sm text-base-content/70 sm:px-8">
         <Icon icon="lucide:layers" class="size-4 shrink-0" />
         <span class="min-w-0 flex-1 truncate">{m.space_target({ name: spaceName })}</span>
@@ -290,7 +373,7 @@ const ready = $derived(
               label: o.label,
               icon: o.icon,
               group: o.group,
-              detail: o.badge,
+              detail: o.badge?.label,
             }))}
             value={targetKey}
             onchange={choose}
@@ -299,7 +382,7 @@ const ready = $derived(
               <span class="flex min-w-0 items-center gap-1.5">
                 <span class="truncate">{chosen.label}</span>
                 {#if chosen.badge}
-                  <span class="badge badge-soft badge-xs">{chosen.badge}</span>
+                  <span class="badge badge-soft badge-xs">{chosen.badge.label}</span>
                 {/if}
               </span>
             {/snippet}
@@ -310,6 +393,10 @@ const ready = $derived(
             gateway={nav.target.gateway}
             bind:value={nav.target.model}
           />
+        {:else if nav.target.kind === "agent"}
+          {#if folderHost}
+            <FolderPicker host={hostById(folderHost)} bind:value={nav.target.cwd} />
+          {/if}
         {:else}
           <FolderPicker
             host={hostById(nav.target.host)}

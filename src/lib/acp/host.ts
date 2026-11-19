@@ -2,11 +2,12 @@ import { homeDir } from "@tauri-apps/api/path"
 import { Knowledge } from "#lib/knowledge/service.ts"
 import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
-import type {
-  Handlers,
-  HostCall,
-  HostEvent,
-  HostState,
+import {
+  type Handlers,
+  type HostCall,
+  type HostEvent,
+  type HostState,
+  SESSION_GONE,
 } from "#lib/p2p/protocol.ts"
 import { synthesizeLocal, transcribeLocal } from "#lib/store/speech.svelte.ts"
 import { Bridge } from "./bridge.ts"
@@ -21,6 +22,7 @@ import {
 import { Mailroom, type Network } from "./mailroom.ts"
 import { ExternalSessions } from "./mirror.ts"
 import { Harnesses } from "./registry.ts"
+import { isClosed } from "./saved.ts"
 import { Sessions } from "./sessions.ts"
 import { Spaces } from "./spaces.ts"
 import { atrixTools } from "./tools.ts"
@@ -170,8 +172,13 @@ export class Host {
     "git.run": r => native("git_run", { path: r.path, op: r.action }),
     list: r => this.#sessions.list(r.harness),
     new: r => this.#sessions.create(r.harness, r.cwd),
-    load: r =>
-      this.#sessions.load(r.harness, r.sessionId, r.cwd, r.title ?? ""),
+    load: r => {
+      if (!r.reopen && isClosed(r.sessionId)) {
+        throw new Error(SESSION_GONE)
+      }
+
+      return this.#sessions.load(r.harness, r.sessionId, r.cwd, r.title ?? "")
+    },
     prompt: r => this.#sessions.prompt(r.sessionId, r.text, r.attachments),
     cancel: r => this.#sessions.cancel(r.sessionId),
     close: r => this.#sessions.close(r.sessionId),

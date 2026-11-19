@@ -17,4 +17,9 @@ const INJECTED = new RegExp(
   "g",
 )
 
+const UNCLOSED = new RegExp(`<(${Object.values(TAGS).join("|")})>[\\s\\S]*$`)
+
 export const withoutInjected = (text: string) => text.replaceAll(INJECTED, "")
+
+export const plainTitle = (text: string) =>
+  withoutInjected(text).replace(UNCLOSED, "").trim()

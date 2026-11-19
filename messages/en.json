@@ -69,6 +69,7 @@
   "agent_provider_harness": "Harnesses",
   "agent_provider_gateway": "API providers",
   "agent_provider_missing": "Provider not found. Check providers in settings.",
+  "agent_missing": "Agent not found. Check the agent list.",
   "agent_instructions": "Instructions",
   "agent_instructions_hint": "Describe the role and rules this agent follows.",
   "agent_start_chat": "Start chat",

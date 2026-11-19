@@ -35,3 +35,23 @@ const platformName = () => {
 }
 
 export const platform = platformName()
+
+const androidModel = () => {
+  const model = agent
+    .split("Android")[1]
+    ?.split(";")[1]
+    ?.split(")")[0]
+    ?.split(" Build/")[0]
+    ?.trim()
+
+  return model && model !== "K" ? model : "Android"
+}
+
+export const mobileName =
+  platform === "android"
+    ? androidModel()
+    : platform === "ios"
+      ? /iPad/.test(agent)
+        ? "iPad"
+        : "iPhone"
+      : null

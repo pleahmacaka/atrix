@@ -10,6 +10,10 @@ const DISABLED = "disabled-harnesses"
 
 const PROVIDERS = "harness-providers"
 
+const CLOSED = "closed-sessions"
+
+const CLOSED_LIMIT = 500
+
 const optionsSchema = z.record(z.string(), z.record(z.string(), z.string()))
 
 const keptSchema = z.object({
@@ -76,8 +80,19 @@ const keptOf = (sessionId: string) =>
 const without = (sessionId: string) =>
   kept().filter(k => k.sessionId !== sessionId)
 
+const closedIds = () => persisted(CLOSED, [], z.array(z.string()))
+
+const saveClosed = (ids: string[]) =>
+  persist(CLOSED, ids.slice(-CLOSED_LIMIT), [])
+
+export const isClosed = (sessionId: string) => closedIds().includes(sessionId)
+
 export const keep = (session: Kept) => {
   const known = keptOf(session.sessionId)
+
+  if (isClosed(session.sessionId)) {
+    saveClosed(closedIds().filter(id => id !== session.sessionId))
+  }
 
   saveKept([
     ...without(session.sessionId),
@@ -96,6 +111,11 @@ export const rename = (sessionId: string, title: string) => {
 }
 
 export const forget = (sessionId: string) => saveKept(without(sessionId))
+
+export const bury = (sessionId: string) => {
+  forget(sessionId)
+  saveClosed([...closedIds().filter(id => id !== sessionId), sessionId])
+}
 
 const legacyChoice = z
   .object({ gateway: z.string(), model: z.string() })

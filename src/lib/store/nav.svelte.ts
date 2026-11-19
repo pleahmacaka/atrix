@@ -1,14 +1,7 @@
 import { panes } from "./panes.svelte.ts"
 import { shell } from "./shell.svelte.ts"
 
-export type Page =
-  | "chat"
-  | "knowledge"
-  | "data"
-  | "calendar"
-  | "agent"
-  | "devices"
-  | "apps"
+export type Page = "chat" | "knowledge" | "data" | "calendar" | "agent" | "apps"
 
 export type SettingsTab =
   | "general"
@@ -20,6 +13,7 @@ export type SettingsTab =
   | "calendar"
   | "shortcuts"
   | "security"
+  | "devices"
 
 export type Current =
   | { kind: "chat"; id: string }
@@ -34,6 +28,7 @@ export type Current =
 export type Target =
   | { kind: "model"; gateway: string; model: string }
   | { kind: "harness"; host: string; harness: string; cwd: string }
+  | { kind: "agent"; id: string; cwd: string }
 
 export const nav = $state<{
   page: Page

@@ -2,7 +2,6 @@
 import AppsHome from "#lib/components/apps/AppsHome.svelte"
 import CalendarView from "#lib/components/calendar/CalendarView.svelte"
 import TableView from "#lib/components/datasource/TableView.svelte"
-import DevicesView from "#lib/components/devices/DevicesView.svelte"
 import AgentEditor from "#lib/components/harness/AgentEditor.svelte"
 import PromptEditor from "#lib/components/harness/PromptEditor.svelte"
 import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
@@ -71,7 +70,7 @@ const sharedInput = $derived(panes.shared && panes.leaves.length > 1)
     {:else}
       {@render noHost()}
     {/if}
-  {:else if nav.page === "data"}
+  {:else}
     {#if !local}
       {@render noHost()}
     {:else if nav.table}
@@ -86,8 +85,6 @@ const sharedInput = $derived(panes.shared && panes.leaves.length > 1)
         centered
       />
     {/if}
-  {:else}
-    <DevicesView />
   {/if}
 </section>
 

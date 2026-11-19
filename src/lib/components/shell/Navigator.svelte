@@ -1,7 +1,6 @@
 <script lang="ts">
 import UpcomingList from "#lib/components/calendar/UpcomingList.svelte"
 import DatasourceList from "#lib/components/datasource/DatasourceList.svelte"
-import DeviceList from "#lib/components/devices/DeviceList.svelte"
 import AgentList from "#lib/components/harness/AgentList.svelte"
 import KnowledgeTree from "#lib/components/knowledge/KnowledgeTree.svelte"
 import SpaceList from "#lib/components/shell/SpaceList.svelte"
@@ -71,18 +70,18 @@ const edges = (node: HTMLElement) => {
       <AgentList />
     {:else if page.id === "knowledge"}
       <KnowledgeTree />
-    {:else if page.id === "devices"}
-      <DeviceList />
     {:else if page.id === "calendar" && hosts.length > 0}
       <UpcomingList {hosts} />
-    {:else if !local}
-      <EmptyState
-        icon="lucide:monitor-off"
-        title={m.local_host_none_title()}
-        text={m.local_host_none_text()}
-      />
     {:else if page.id === "data"}
-      <DatasourceList host={local} bind:selected={nav.table} />
+      {#if local}
+        <DatasourceList host={local} bind:selected={nav.table} />
+      {:else}
+        <EmptyState
+          icon="lucide:monitor-off"
+          title={m.local_host_none_title()}
+          text={m.local_host_none_text()}
+        />
+      {/if}
     {/if}
   </div>
 {/if}

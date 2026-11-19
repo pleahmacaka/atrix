@@ -6,7 +6,6 @@ const GAPPED: Partial<Record<Page, true>> = {
   apps: true,
   knowledge: true,
   data: true,
-  devices: true,
   calendar: true,
   agent: true,
 }

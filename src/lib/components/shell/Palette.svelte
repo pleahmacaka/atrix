@@ -87,7 +87,7 @@ const enter = (target: Drill) =>
 
 const load = (target: Drill, sessionId: string, cwd: string) =>
   attempt.run(async () => {
-    await hostById(target.host)?.load(target.harness, sessionId, cwd)
+    await hostById(target.host)?.load(target.harness, sessionId, cwd, true)
     openConversation({ kind: "session", host: target.host, id: sessionId })
     close()
   })

@@ -38,7 +38,7 @@ const pick = (id: string) =>
     const view = host ? hostById(host) : null
 
     if (view && !view.views[id]) {
-      await view.open(id)
+      await view.open(id, true)
     }
 
     await onpick(id)

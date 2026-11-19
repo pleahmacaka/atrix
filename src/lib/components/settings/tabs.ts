@@ -1,4 +1,5 @@
 import type { Component } from "svelte"
+import PairPanel from "#lib/components/devices/PairPanel.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import type { SettingsTab } from "#lib/store/nav.svelte.ts"
@@ -75,5 +76,11 @@ export const SETTINGS_TABS: {
     label: m.settings_security(),
     icon: "lucide:shield",
     body: SecurityTab,
+  },
+  {
+    id: "devices",
+    label: m.shell_page_devices(),
+    icon: "lucide:monitor-smartphone",
+    body: PairPanel,
   },
 ]

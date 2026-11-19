@@ -9,6 +9,7 @@ import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
+import { isGoneError } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { attention } from "#lib/store/attention.svelte.ts"
@@ -101,7 +102,7 @@ $effect(() => {
 
   opening.run(() =>
     host.open(id).catch((e: unknown) => {
-      if (errorText(e) !== m.error_session_not_found()) {
+      if (!isGoneError(e) && errorText(e) !== m.error_session_not_found()) {
         throw e
       }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { agentHost } from "#lib/agents/agents.svelte.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -10,6 +11,7 @@ import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { SPACE_HUES, type Space } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { baseName } from "#lib/path.ts"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import { startDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
@@ -79,7 +81,15 @@ const freeze = () => {
   frozen = new Map(sorted.map((e, i) => [e.row.item.key, i]))
 }
 
-const empty = $derived(entries.length === 0)
+const vacant = $derived(
+  shown.flatMap(host =>
+    host.spaces
+      .filter(node => !node.auto && node.agents.length === 0)
+      .map(node => ({ host, node })),
+  ),
+)
+
+const empty = $derived(entries.length === 0 && vacant.length === 0)
 
 const activeKey = $derived(panes.active.current ? keyOf(panes.active.current) : null)
 
@@ -158,27 +168,28 @@ const placeIn = async (host: string, node: SpaceNode, id: string, before: string
 }
 const startAgent = (host: string, node: SpaceNode) => {
   const space = node.space
-  const current = nav.target.kind === "harness" ? nav.target : null
+  const target = nav.target
 
   goPage("chat")
   openConversation(null)
   nav.space = node.auto ? null : { host, id: space.id }
 
+  if (target.kind === "agent" && agentHost(target.id) === host) {
+    nav.target = { ...target, cwd: space.folder || target.cwd }
+
+    return
+  }
+
+  const current = target.kind === "harness" && target.host === host ? target : null
   const harness =
-    current && current.host === host
-      ? current.harness
-      : hostById(host)?.state?.harnesses.find(h => h.enabled)?.id
+    current?.harness ?? hostById(host)?.state?.harnesses.find(h => h.enabled)?.id
 
   if (harness) {
     nav.target = {
       kind: "harness",
       host,
       harness,
-      cwd:
-        space.folder ||
-        (current
-          ? current.cwd
-          : (hostById(host)?.state?.home ?? "")),
+      cwd: space.folder || current?.cwd || (hostById(host)?.state?.home ?? ""),
     }
   }
 }
@@ -363,7 +374,26 @@ const menuOf = (e: MouseEvent, entry: Entry) => {
           bind:value={editing.host}
         />
       {/if}
-      <FolderPicker host={view} bind:value={editing.folder} class="w-full justify-start" />
+      <FolderPicker
+        host={view}
+        bind:value={
+          () => editing?.folder ?? "",
+          folder => {
+            if (!editing) {
+              return
+            }
+
+            const named = editing.name.trim()
+
+            if (!named || named === baseName(editing.folder)) {
+              editing.name = baseName(folder)
+            }
+
+            editing.folder = folder
+          }
+        }
+        class="w-full justify-start"
+      />
       <div class="flex justify-end gap-2">
         <button type="button" class="btn btn-ghost btn-sm" onclick={() => (editing = null)}>
           {m.common_cancel()}
@@ -552,6 +582,25 @@ const menuOf = (e: MouseEvent, entry: Entry) => {
     <ul class="flex flex-col gap-0.5 px-2">
       {#each recent as entry (entry.row.item.key)}
         {@render entryRow(entry)}
+      {/each}
+      {#each vacant as { host, node } (`${host.id}:${node.space.id}`)}
+        <li class="min-w-0">
+          <button
+            type="button"
+            class={[
+              "flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-field px-2 py-1.5 text-start outline-none",
+              "text-xs text-base-content/50 transition-colors duration-140",
+              "hover:bg-base-content/5 focus-visible:bg-base-content/5",
+            ]}
+            title={node.space.folder}
+            onclick={() => startAgent(host.id, node)}
+            oncontextmenu={e => contextMenu.show(e, spaceMenu(host.id, node))}
+          >
+            <span class="size-2 shrink-0 rounded-full" style:background-color={colorOf(node.space)}></span>
+            <span class="min-w-0 flex-1 truncate">{node.space.name}</span>
+            <Icon icon="lucide:plus" class="size-3.5 shrink-0" />
+          </button>
+        </li>
       {/each}
     </ul>
     {#if settled.length > 0}

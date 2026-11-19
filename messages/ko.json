@@ -69,6 +69,7 @@
   "agent_provider_harness": "하네스",
   "agent_provider_gateway": "API 공급자",
   "agent_provider_missing": "공급자를 찾을 수 없습니다. 설정에서 공급자를 확인하세요.",
+  "agent_missing": "에이전트를 찾을 수 없습니다. 에이전트 목록을 확인하세요.",
   "agent_instructions": "지침",
   "agent_instructions_hint": "이 에이전트가 따를 역할과 규칙을 적으세요.",
   "agent_start_chat": "대화 시작",

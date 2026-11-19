@@ -25,9 +25,4 @@ export const PAGES: PageInfo[] = [
   { id: "agent", label: m.shell_page_agent, icon: "lucide:contact-round" },
   { id: "knowledge", label: m.shell_page_knowledge, icon: "lucide:library" },
   { id: "data", label: m.shell_page_data, icon: "lucide:database" },
-  {
-    id: "devices",
-    label: m.shell_page_devices,
-    icon: "lucide:monitor-smartphone",
-  },
 ]

@@ -1,5 +1,5 @@
 import { m } from "#lib/paraglide/messages.js"
-import { desktop } from "#lib/platform.ts"
+import { desktop, mobileName } from "#lib/platform.ts"
 
 export type Theme = "system" | "light" | "dark"
 
@@ -82,7 +82,9 @@ class Settings {
   deviceName = $state<string>(
     read(
       "device-name",
-      desktop ? m.device_default_desktop() : m.device_default_browser(),
+      desktop
+        ? m.device_default_desktop()
+        : (mobileName ?? m.device_default_browser()),
     ),
   )
 

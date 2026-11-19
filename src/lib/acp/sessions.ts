@@ -3,7 +3,7 @@ import { homeDir } from "@tauri-apps/api/path"
 import { announceAsk } from "#lib/channels/askNotice.ts"
 import type { Block } from "#lib/chat/blocks.ts"
 import { matchChoice } from "#lib/chat/choices.ts"
-import { withoutInjected } from "#lib/chat/tags.ts"
+import { plainTitle } from "#lib/chat/tags.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
 import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
@@ -37,6 +37,7 @@ import { applyUpdate, type Picked, shownInTurn } from "./items.ts"
 import type { ExternalSessions } from "./mirror.ts"
 import { type Harnesses, mirrorKind } from "./registry.ts"
 import {
+  bury,
   forget,
   isNamed,
   keep,
@@ -301,7 +302,7 @@ export class Sessions {
     }
 
     const source = mirrorKind(this.#harnesses.entry(harness))
-    const title = () => this.#title(harness, sessionId) || hint
+    const title = () => plainTitle(this.#title(harness, sessionId) || hint)
     const mirrored =
       !!this.#external.get(sessionId) || this.#external.live(sessionId)
 
@@ -342,6 +343,10 @@ export class Sessions {
       throw folderError(e, cwd)
     }
 
+    if (this.#live.get(sessionId) !== session) {
+      return structuredClone(viewOf(session))
+    }
+
     keep({ harness, sessionId, cwd, title: session.title })
     this.deps.changed()
 
@@ -350,6 +355,10 @@ export class Sessions {
 
   revive = async () => {
     for (const k of kept()) {
+      if (!kept().some(saved => saved.sessionId === k.sessionId)) {
+        continue
+      }
+
       try {
         await this.load(k.harness, k.sessionId, k.cwd, k.title)
       } catch (e) {
@@ -405,7 +414,7 @@ export class Sessions {
       running: true,
       since,
       ...(!session.title && {
-        title: withoutInjected(text).trim().slice(0, TITLE_LIMIT),
+        title: plainTitle(text).slice(0, TITLE_LIMIT),
       }),
     })
 
@@ -465,7 +474,7 @@ export class Sessions {
     const session = this.#live.get(sessionId)
 
     this.#external.drop(sessionId)
-    forget(sessionId)
+    bury(sessionId)
     this.#usage.delete(sessionId)
     this.#subagents.forget(sessionId)
     this.deps.closed(sessionId)
@@ -956,8 +965,10 @@ export class Sessions {
     if (update.sessionUpdate === "config_option_update") {
       this.#patch(session, { config: choicesOf(update.configOptions) })
     } else if (update.sessionUpdate === "session_info_update") {
-      if (update.title && !isNamed(sessionId)) {
-        this.#patch(session, { title: update.title })
+      const title = plainTitle(update.title ?? "")
+
+      if (title && !isNamed(sessionId)) {
+        this.#patch(session, { title })
       }
     } else {
       this.#apply(session, update)

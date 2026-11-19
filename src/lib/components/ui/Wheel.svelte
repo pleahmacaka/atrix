@@ -8,7 +8,7 @@ type Item = {
   icon: string
   label: string
   group: string
-  badge?: string
+  badge?: { icon: string; label: string }
 }
 
 let {
@@ -38,7 +38,7 @@ const index = $derived(
 
 const current = $derived(items[index])
 
-const SLOT_REM = 2.5
+const SLOT_REM = 2.25
 
 let open = $state(false)
 
@@ -169,7 +169,7 @@ const keydown = (e: KeyboardEvent) => {
         ? "z-20 cursor-ns-resize border-primary shadow-lg"
         : "h-full cursor-pointer border-base-300 focus-visible:border-primary",
     ]}
-    style:height={open ? `calc(100% + ${SLOT_REM * 2 - 0.5}rem)` : undefined}
+    style:height={open ? `calc(100% + ${SLOT_REM * 2}rem)` : undefined}
     role="listbox"
     tabindex="0"
     aria-label={label}
@@ -192,7 +192,7 @@ const keydown = (e: KeyboardEvent) => {
   >
     {#if open}
       <span
-        class="pointer-events-none absolute top-1/2 left-1/2 size-10 -translate-1/2 rounded-full bg-primary/12"
+        class="pointer-events-none absolute inset-x-0.5 top-1/2 aspect-square -translate-y-1/2 rounded-full bg-primary/12"
       ></span>
     {/if}
     <div class={["absolute inset-0", open && "fade-y"]}>
@@ -204,7 +204,7 @@ const keydown = (e: KeyboardEvent) => {
           aria-selected={slot.offset === 0}
           aria-label={slot.item.label}
           class={[
-            "absolute left-1/2 grid size-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer",
+            "absolute inset-x-0 grid aspect-square -translate-y-1/2 cursor-pointer",
             "place-items-center rounded-full transition-top-opacity duration-140",
             "motion-reduce:transition-none",
             slot.offset === 0 ? "text-primary" : "opacity-45 hover:opacity-80",
@@ -235,9 +235,9 @@ const keydown = (e: KeyboardEvent) => {
           {#if slot.item.badge}
             <span
               class="absolute right-0.5 bottom-0.5 grid size-4 place-items-center rounded-full bg-base-300"
-              title={slot.item.badge}
+              title={slot.item.badge.label}
             >
-              <Icon icon="lucide:plug" class="size-2.5" />
+              <Icon icon={slot.item.badge.icon} class="size-2.5" />
             </span>
           {/if}
         </div>

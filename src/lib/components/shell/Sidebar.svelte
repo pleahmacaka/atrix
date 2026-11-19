@@ -76,7 +76,6 @@ const PAGE_ACTIONS: Record<Page, Action[]> = {
   ],
   calendar: [],
   data: [],
-  devices: [],
   knowledge: [],
 }
 
@@ -135,7 +134,7 @@ type Layout = Record<Zone, string[]>
 
 const DEFAULT_LAYOUT: Layout = {
   top: ["search", "apps"],
-  bottom: ["chat", "agent", "knowledge", "data", "devices", "calendar", "lock", "settings"],
+  bottom: ["chat", "agent", "knowledge", "data", "calendar", "lock", "settings"],
 }
 
 const layouts = new Stored(

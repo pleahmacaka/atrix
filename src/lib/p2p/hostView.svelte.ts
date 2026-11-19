@@ -127,6 +127,14 @@ export class HostView {
       !!this.state?.boot && !!state.boot && this.state.boot !== state.boot
     const ready = state.knowledge.ready && !this.state?.knowledge.ready
 
+    if (!restarted) {
+      const open = new Set(state.open.map(o => o.id))
+
+      for (const gone of this.state?.open.filter(o => !open.has(o.id)) ?? []) {
+        delete this.views[gone.id]
+      }
+    }
+
     this.state = state
 
     if (ready) {
@@ -227,7 +235,7 @@ export class HostView {
     }
   }
 
-  open = async (sessionId: string) => {
+  open = async (sessionId: string, reopen = false) => {
     if (this.views[sessionId]) {
       return
     }
@@ -242,7 +250,7 @@ export class HostView {
       throw new Error(m.error_session_not_found())
     }
 
-    await this.load(target.harness, sessionId, target.cwd)
+    await this.load(target.harness, sessionId, target.cwd, reopen)
   }
   create = async (harness: string, cwd: string) => {
     const view = await this.call({ op: "new", harness, cwd })
@@ -252,7 +260,12 @@ export class HostView {
     return view.id
   }
 
-  load = async (harness: string, sessionId: string, cwd: string) => {
+  load = async (
+    harness: string,
+    sessionId: string,
+    cwd: string,
+    reopen = false,
+  ) => {
     if (this.views[sessionId]) {
       return
     }
@@ -269,6 +282,7 @@ export class HostView {
         sessionId,
         cwd,
         title,
+        reopen,
       })
       this.views[view.id] = view
     } finally {

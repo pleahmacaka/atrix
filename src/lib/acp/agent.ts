@@ -1,6 +1,7 @@
 import * as acp from "@agentclientprotocol/sdk"
 import { getVersion } from "@tauri-apps/api/app"
 import { Channel } from "@tauri-apps/api/core"
+import { plainTitle } from "#lib/chat/tags.ts"
 import { native } from "#lib/native.ts"
 import type {
   Attachment,
@@ -128,7 +129,7 @@ export const listSessions = async (conn: Conn): Promise<Listed[]> => {
   return sessions.map(s => ({
     sessionId: s.sessionId,
     cwd: s.cwd,
-    title: s.title ?? "",
+    title: plainTitle(s.title ?? ""),
     updatedAt: s.updatedAt ?? null,
   }))
 }
