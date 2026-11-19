@@ -13,11 +13,12 @@ import { openThread, startThread, threadsOf } from "#lib/chat/threads.svelte.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import { isGoneError, type Subagent } from "#lib/p2p/protocol.ts"
+import { isGoneError } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import PcbSide from "#lib/pcb/PcbSide.svelte"
 import { openConversation } from "#lib/store/nav.svelte.ts"
 import { panes, usePane } from "#lib/store/panes.svelte.ts"
+import { describe } from "#lib/store/recent.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import AgentReply from "./AgentReply.svelte"
 import ChatCorner from "./ChatCorner.svelte"
@@ -30,7 +31,6 @@ import RunningStatus from "./RunningStatus.svelte"
 import SessionExtras from "./SessionExtras.svelte"
 import SessionTools from "./SessionTools.svelte"
 import SidePanel from "./SidePanel.svelte"
-import SubagentChat from "./SubagentChat.svelte"
 import TerminalDialog from "./TerminalDialog.svelte"
 import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
@@ -86,8 +86,6 @@ const agents = $derived(
 const plan = $derived(
   view?.items.findLast(i => i.type === "plan")?.entries ?? [],
 )
-
-let viewing = $state<Subagent | null>(null)
 
 const cornered = $derived(plan.length > 0 || (view?.agents?.length ?? 0) > 0)
 
@@ -234,7 +232,16 @@ $effect(() => {
             {plan}
             {agents}
             timeline={hasTimeline(turns)}
-            onAgent={view?.external ? a => (viewing = a) : undefined}
+            icon={describe({ kind: "session", host: host.id, id: sessionId })?.icon}
+            onAgent={view?.external
+              ? a =>
+                  openConversation({
+                    kind: "session",
+                    host: host.id,
+                    id: sessionId,
+                    agent: { id: a.id, description: a.description },
+                  })
+              : undefined}
           />
         </div>
       {/if}
@@ -270,7 +277,6 @@ $effect(() => {
     {/if}
     <PcbSide cwd={view.cwd} />
   </div>
-  <SubagentChat {host} {sessionId} agent={viewing} onclose={() => (viewing = null)} />
 {:else}
   <div class="grid flex-1 place-items-center">
     <span class="loading loading-spinner opacity-60"></span>

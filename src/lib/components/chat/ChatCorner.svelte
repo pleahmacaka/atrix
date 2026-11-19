@@ -9,8 +9,10 @@ let {
   plan,
   agents,
   timeline = true,
+  icon = "lucide:bot",
   onAgent,
 }: {
+  icon?: string
   plan: PlanEntry[]
   agents: Subagent[]
   timeline?: boolean
@@ -83,18 +85,17 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
           {#each agents.slice(0, STACK) as agent, i (agent.id)}
             <span
               class={[
-                "grid size-6 place-items-center rounded-full border-2 border-raised",
-                "bg-primary/15 text-xs font-semibold text-primary",
-                i > 0 && "-ms-2",
+                "grid size-6 place-items-center rounded-full border-2 border-raised bg-base-200",
+                i > 0 && "-ms-1.5",
               ]}
               title={agent.description}
             >
-              {[...agent.description.trim()][0]?.toUpperCase() ?? "•"}
+              <Icon {icon} class="size-3.5" />
             </span>
           {/each}
           {#if agents.length > STACK}
             <span
-              class="-ms-2 grid size-6 place-items-center rounded-full border-2 border-raised bg-primary text-xs font-semibold text-primary-content tabular-nums"
+              class="-ms-1.5 grid size-6 place-items-center rounded-full border-2 border-raised bg-primary text-xs font-semibold text-primary-content tabular-nums"
             >
               +{agents.length - STACK}
             </span>

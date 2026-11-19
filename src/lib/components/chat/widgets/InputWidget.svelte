@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { SvelteMap } from "svelte/reactivity"
 import { useComposer } from "#lib/chat/composer.svelte.ts"
 import {
   conversations,
@@ -11,6 +12,7 @@ import {
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import ImageViewer, { type Viewed } from "#lib/components/ui/ImageViewer.svelte"
 import Listbox, { type ListGroup } from "#lib/components/ui/Listbox.svelte"
+import Modal from "#lib/components/ui/Modal.svelte"
 import type { Command } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
@@ -164,6 +166,17 @@ const keydown = (e: KeyboardEvent) => {
     return
   }
 
+  if (e.key === "ArrowUp" && onRecall && !composer.text.trim()) {
+    e.preventDefault()
+    onRecall()
+      .then(texts => {
+        composer.text = texts.join("\n\n")
+      })
+      .catch(() => {})
+
+    return
+  }
+
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault()
     composer.submit()
@@ -210,6 +223,30 @@ const grow = (node: HTMLTextAreaElement) => {
 
 let zoomed = $state<Viewed | null>(null)
 
+let zoomedFile: File | null = null
+
+let reading = $state<{ name: string; text: string } | null>(null)
+
+const TEXT_TYPES = [".txt", ".md", ".json", ".csv", ".log", ".yaml", ".yml"]
+
+const isText = (file: File) =>
+  file.type.startsWith("text/") || TEXT_TYPES.some(ext => file.name.toLowerCase().endsWith(ext))
+
+const texts = new SvelteMap<File, string>()
+
+$effect(() => {
+  for (const file of composer.files) {
+    if (isText(file) && !texts.has(file)) {
+      file
+        .text()
+        .then(text => texts.set(file, text))
+        .catch(() => {})
+    }
+  }
+})
+
+const extensionOf = (name: string) => name.split(".").at(-1)?.toUpperCase() ?? ""
+
 const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
 </script>
 
@@ -251,13 +288,13 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
   {#if composer.files.length}
     <ul
       class={[
-        "flex flex-wrap gap-2",
+        "flex flex-wrap gap-2.5",
         composer.floating
           ? [
               "absolute bottom-full left-0 z-10 mb-2 max-w-full p-1.5",
               "rounded-box border border-base-300 bg-raised shadow-lg",
             ]
-          : "px-1 pt-1",
+          : "px-1.5 pt-1.5 pb-1",
       ]}
       aria-label={m.attach_list()}
     >
@@ -265,9 +302,8 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
         {@const preview = composer.previews.get(file)}
         <li
           class={[
-            "group/chip relative flex h-16 items-center gap-2 overflow-hidden",
-            "island",
-            preview ? "w-16" : "max-w-64 ps-3 pe-10",
+            "group/chip relative flex h-16 shrink-0 overflow-hidden rounded-box border border-base-300 bg-base-200",
+            isText(file) ? "w-32" : "w-16",
           ]}
           title={file.name}
         >
@@ -277,18 +313,34 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
               class="size-full cursor-zoom-in"
               aria-label={m.attach_zoom({ name: file.name })}
               onclick={() => {
+                zoomedFile = file
                 zoomed = { url: preview, name: file.name }
               }}
             >
               <img src={preview} alt={file.name} class="size-full object-cover" />
             </button>
-          {:else}
-            <Icon icon="lucide:file-text" class="size-5 shrink-0 opacity-70" />
-            <div class="flex min-w-0 flex-col">
-              <span class="truncate text-sm">{file.name}</span>
-              <span class="text-xs text-base-content/60 tabular-nums">
-                {sizeOf(file.size)}
+          {:else if isText(file)}
+            <button
+              type="button"
+              class="flex size-full cursor-zoom-in flex-col justify-center gap-0.5 px-2.5 text-start"
+              aria-label={m.attach_view({ name: file.name })}
+              onclick={() => {
+                reading = { name: file.name, text: texts.get(file) ?? "" }
+              }}
+            >
+              <span class="flex items-center gap-1 text-xs font-medium">
+                <Icon icon="lucide:clipboard-paste" class="size-3.5 shrink-0 opacity-70" />
+                <span class="truncate">{m.attach_pasted()}</span>
               </span>
+              <span class="text-xs text-base-content/60 tabular-nums">
+                {m.attach_chars({ count: (texts.get(file) ?? "").length.toLocaleString() })}
+              </span>
+            </button>
+          {:else}
+            <div class="flex size-full flex-col items-center justify-center gap-0.5">
+              <Icon icon="lucide:file" class="size-5 shrink-0 opacity-70" />
+              <span class="max-w-full truncate px-1 text-xs font-semibold">{extensionOf(file.name)}</span>
+              <span class="text-xs text-base-content/60 tabular-nums">{sizeOf(file.size)}</span>
             </div>
           {/if}
           <button
@@ -371,4 +423,31 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
     {/if}
   {/snippet}
 </Listbox>
-<ImageViewer bind:image={zoomed} />
+<ImageViewer
+  bind:image={zoomed}
+  onEdit={edited => {
+    if (zoomedFile) {
+      const dot = zoomedFile.name.lastIndexOf(".")
+      const name = (dot > 0 ? zoomedFile.name.slice(0, dot) : zoomedFile.name) || "image"
+
+      composer.replace(zoomedFile, new File([edited], `${name}.png`, { type: "image/png" }))
+    }
+  }}
+/>
+<Modal
+  bind:open={
+    () => reading !== null,
+    open => {
+      if (!open) {
+        reading = null
+      }
+    }
+  }
+  label={reading?.name ?? ""}
+  class="flex max-h-dvh max-w-2xl flex-col"
+>
+  <h2 class="truncate px-5 pt-4 pb-2 font-semibold">{reading?.name}</h2>
+  <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+    <p class="text-sm break-words whitespace-pre-wrap">{reading?.text}</p>
+  </div>
+</Modal>

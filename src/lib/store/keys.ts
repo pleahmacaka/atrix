@@ -5,4 +5,4 @@ export const keyOf = (current: NonNullable<Current>) =>
     ? current.id
     : current.kind === "group"
       ? `group:${current.id}`
-      : `${current.host}:${current.id}`
+      : `${current.host}:${current.id}${current.agent ? `#${current.agent.id}` : ""}`

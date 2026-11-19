@@ -105,5 +105,15 @@ export const recents = (): Recent[] =>
     .map(r => ({ ...r, title: titles.get(r.key) || r.title }))
     .toSorted((a, b) => b.at - a.at)
 
-export const describe = (current: Current) =>
-  current ? recents().find(r => r.key === keyOf(current)) : undefined
+export const describe = (current: Current) => {
+  if (current?.kind === "session" && current.agent) {
+    const { agent, ...session } = current
+    const base = recents().find(r => r.key === keyOf(session))
+
+    return base
+      ? { ...base, key: keyOf(current), title: agent.description, current }
+      : undefined
+  }
+
+  return current ? recents().find(r => r.key === keyOf(current)) : undefined
+}

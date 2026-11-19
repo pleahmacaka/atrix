@@ -1127,5 +1127,15 @@
   "chat_agent_missing": "The subagent is not in the terminal list. Try again in a moment.",
   "chat_agent_message": "Message the subagent",
   "space_session_menu": "Add session",
-  "chat_loading_history": "Loading history"
+  "chat_loading_history": "Loading history",
+  "chat_agent_back": "Main chat",
+  "image_pen": "Pen",
+  "image_rect": "Rectangle",
+  "image_text": "Text",
+  "image_color": "Color",
+  "image_width": "Thickness",
+  "image_annotate": "Annotate image",
+  "attach_view": "View {name}",
+  "attach_pasted": "Pasted text",
+  "attach_chars": "{count} chars"
 }

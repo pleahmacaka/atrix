@@ -21,7 +21,12 @@ export type SettingsTab =
 
 export type Current =
   | { kind: "chat"; id: string }
-  | { kind: "session"; host: string; id: string }
+  | {
+      kind: "session"
+      host: string
+      id: string
+      agent?: { id: string; description: string }
+    }
   | { kind: "group"; id: string }
   | null
 

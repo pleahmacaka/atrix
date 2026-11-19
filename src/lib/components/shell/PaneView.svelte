@@ -4,6 +4,7 @@ import { chats } from "#lib/chat/chats.svelte.ts"
 import { paneComposers } from "#lib/chat/composer.svelte.ts"
 import GroupChat from "#lib/components/chat/GroupChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
+import SubagentChat from "#lib/components/chat/SubagentChat.svelte"
 import { Attempt, errorText } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
@@ -299,6 +300,14 @@ const HINTS: Record<Zone, string> = {
     <div class="grid flex-1 place-items-center p-6">
       <ErrorAlert message={opening.failure} />
     </div>
+  {:else if host && current?.kind === "session" && current.agent}
+    {@const main = { kind: "session" as const, host: current.host, id: current.id }}
+    <SubagentChat
+      {host}
+      sessionId={current.id}
+      agent={current.agent}
+      onback={() => panes.open(main, leaf.id)}
+    />
   {:else if host && current?.kind === "session"}
     <SessionChat {host} sessionId={current.id} />
   {:else if current?.kind === "group"}

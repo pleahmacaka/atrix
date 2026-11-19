@@ -220,6 +220,21 @@ export class Composer {
     return true
   }
 
+  replace = (file: File, next: File) => {
+    const url = this.previews.get(file)
+
+    if (url) {
+      URL.revokeObjectURL(url)
+      this.previews.delete(file)
+    }
+
+    if (isImage(next)) {
+      this.previews.set(next, URL.createObjectURL(next))
+    }
+
+    this.files = this.files.map(f => (f === file ? next : f))
+  }
+
   remove = (file: File) => {
     const url = this.previews.get(file)
 

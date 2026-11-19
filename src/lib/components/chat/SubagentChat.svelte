@@ -4,10 +4,9 @@ import type { ChatItem } from "#lib/acp/items.ts"
 import { segmentsOf } from "#lib/chat/session.ts"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
-import Modal from "#lib/components/ui/Modal.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import type { Subagent } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import Composer from "./Composer.svelte"
 import Markdown from "./Markdown.svelte"
 import ThoughtNote from "./ThoughtNote.svelte"
 import ToolGroup from "./ToolGroup.svelte"
@@ -17,19 +16,17 @@ let {
   host,
   sessionId,
   agent,
-  onclose,
+  onback,
 }: {
   host: HostView
   sessionId: string
-  agent: Subagent | null
-  onclose: () => void
+  agent: { id: string; description: string }
+  onback: () => void
 } = $props()
 
 const POLL_MS = 2000
 
 let items = $state<ChatItem[]>([])
-
-let text = $state("")
 
 const loading = new Attempt()
 
@@ -39,11 +36,9 @@ const segments = $derived(segmentsOf(items))
 
 const typing = $derived(host.elsewhere(sessionId))
 
-$effect(() => {
-  if (!agent) {
-    return
-  }
+const parent = $derived(host.views[sessionId]?.title ?? "")
 
+$effect(() => {
   const id = agent.id
   const pull = () =>
     loading.run(async () => {
@@ -60,33 +55,21 @@ $effect(() => {
   }
 })
 
-const send = () => {
-  const message = text.trim()
-
-  if (!agent || !message) {
-    return
-  }
-
-  const { description } = agent
-
-  text = ""
+const send = (text: string) =>
   sending.run(async () => {
-    await host.messageAgent(sessionId, description, message)
+    await host.messageAgent(sessionId, agent.description, text)
   })
-}
 </script>
 
-<Modal
-  bind:open={() => agent !== null, open => !open && onclose()}
-  label={agent?.description ?? m.chat_subagents()}
-  class="flex max-h-dvh max-w-2xl flex-col"
->
-  <header class="flex items-center gap-2 px-5 pt-4 pb-2">
-    <Icon icon="lucide:bot" class="size-4 shrink-0 text-primary" />
-    <h2 class="min-w-0 flex-1 truncate font-semibold">{agent?.description}</h2>
-  </header>
-  <div class="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-5">
-    <div class="flex flex-col gap-4 py-3">
+<div class="flex min-h-0 flex-1 flex-col">
+  <div class="flex min-w-0 items-center gap-2 px-3 py-1.5">
+    <button type="button" class="btn btn-ghost btn-sm min-w-0 gap-1.5 font-normal" onclick={onback}>
+      <Icon icon="lucide:arrow-left" class="size-4 shrink-0" />
+      <span class="min-w-0 truncate">{parent || m.chat_agent_back()}</span>
+    </button>
+  </div>
+  <div class="scroll-stable flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
+    <div class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-3 pt-2 pb-2">
       {#each segments as segment, i (segment.key)}
         {#if segment.kind === "activity"}
           <ToolGroup items={segment.items} latest={i === segments.length - 1} />
@@ -98,38 +81,16 @@ const send = () => {
           <ThoughtNote text={segment.item.text} />
         {/if}
       {/each}
+      <ErrorAlert message={loading.failure ?? sending.failure} />
     </div>
   </div>
-  <ErrorAlert message={loading.failure ?? sending.failure} />
   {#if typing}
-    <form
-      class="flex items-end gap-2 px-5 pt-2 pb-4"
-      onsubmit={e => {
-        e.preventDefault()
-        send()
-      }}
-    >
-      <textarea
-        bind:value={text}
-        rows="1"
-        class="textarea min-h-0 flex-1 resize-none"
-        placeholder={m.chat_agent_message()}
-        aria-label={m.chat_agent_message()}
-        onkeydown={e => {
-          if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-            e.preventDefault()
-            send()
-          }
-        }}
-      ></textarea>
-      <button
-        type="submit"
-        class="btn btn-primary btn-circle btn-sm"
-        aria-label={m.chat_send()}
-        disabled={!text.trim() || sending.busy}
-      >
-        <Icon icon="lucide:arrow-up" class="size-4" />
-      </button>
-    </form>
+    <Composer
+      draft={`${sessionId}#${agent.id}`}
+      placeholder={m.chat_agent_message()}
+      busy={sending.busy}
+      onSend={send}
+      onStop={() => {}}
+    />
   {/if}
-</Modal>
+</div>

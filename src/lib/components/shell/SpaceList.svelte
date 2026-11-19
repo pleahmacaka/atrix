@@ -536,12 +536,26 @@ const railRows = $derived(
     {#if row.subagents.length > 0}
       <div class="ms-4 flex flex-col items-stretch self-stretch py-0 ps-0 pe-1.5">
         {#each row.subagents as sub (sub.id)}
-          <div class="flex min-w-0 items-center gap-1.5 text-xs text-base-content/60">
+          {@const target = {
+            kind: "session" as const,
+            host,
+            id: row.id,
+            agent: { id: sub.id, description: sub.description },
+          }}
+          <button
+            type="button"
+            class={[
+              "flex min-w-0 cursor-pointer items-center gap-1.5 rounded-field text-start text-xs",
+              "transition-colors duration-140 hover:text-base-content",
+              activeKey === keyOf(target) ? "text-primary" : "text-base-content/60",
+            ]}
+            onclick={() => openConversation(target)}
+          >
             <span class="mb-2.5 h-3.5 w-2.5 shrink-0 self-end rounded-es-md border-s border-b border-base-content/25"></span>
             <Icon icon={row.item.icon} class="size-3.5 shrink-0 opacity-80" />
             <span class="min-w-0 flex-1 truncate" title={sub.description}>{sub.description}</span>
             <span class="loading loading-spinner loading-xs shrink-0 opacity-60"></span>
-          </div>
+          </button>
         {/each}
       </div>
     {/if}

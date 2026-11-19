@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computePosition, flip, offset, shift } from "@floating-ui/dom"
+import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom"
 import Icon from "@iconify/svelte"
 import { quoteInto, quoteTarget } from "#lib/chat/quote.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -10,7 +10,11 @@ let pick = $state<{ draft: string; text: string } | null>(null)
 
 const rem = () => Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
 
+let stop: (() => void) | null = null
+
 const hide = () => {
+  stop?.()
+  stop = null
   pick = null
   button?.hidePopover()
 }
@@ -38,17 +42,27 @@ const read = async () => {
   pick = { draft, text }
   button.showPopover()
 
-  const { x, y } = await computePosition(
-    { getBoundingClientRect: () => range.getBoundingClientRect() },
-    button,
-    {
+  const start = range.startContainer
+  const anchor = {
+    getBoundingClientRect: () => range.getBoundingClientRect(),
+    contextElement: start instanceof Element ? start : (start.parentElement ?? undefined),
+  }
+  const place = async () => {
+    if (!button) {
+      return
+    }
+
+    const { x, y } = await computePosition(anchor, button, {
       strategy: "fixed",
       placement: "top",
       middleware: [offset(rem() * 0.5), flip(), shift({ padding: rem() * 0.5 })],
-    },
-  )
+    })
 
-  Object.assign(button.style, { left: `${x / rem()}rem`, top: `${y / rem()}rem` })
+    Object.assign(button.style, { left: `${x / rem()}rem`, top: `${y / rem()}rem` })
+  }
+
+  stop?.()
+  stop = autoUpdate(anchor, button, place)
 }
 
 const reply = () => {
@@ -89,15 +103,25 @@ $effect(() => {
 
   window.addEventListener("pointerdown", away, true)
   window.addEventListener("pointerup", later)
-  window.addEventListener("keyup", read)
-  window.addEventListener("scroll", hide, true)
+  const key = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      hide()
+    } else if (e.shiftKey || e.key === "Shift") {
+      read()
+    }
+  }
+
+  const blur = () => hide()
+
+  window.addEventListener("keyup", key)
+  window.addEventListener("blur", blur)
   document.addEventListener("selectionchange", changed)
 
   return () => {
     window.removeEventListener("pointerdown", away, true)
     window.removeEventListener("pointerup", later)
-    window.removeEventListener("keyup", read)
-    window.removeEventListener("scroll", hide, true)
+    window.removeEventListener("keyup", key)
+    window.removeEventListener("blur", blur)
     document.removeEventListener("selectionchange", changed)
   }
 })

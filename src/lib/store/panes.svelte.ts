@@ -14,7 +14,12 @@ const LAYOUT = "panes:layout"
 const currentSchema = z
   .union([
     z.object({ kind: z.literal("chat"), id: z.string() }),
-    z.object({ kind: z.literal("session"), host: z.string(), id: z.string() }),
+    z.object({
+      kind: z.literal("session"),
+      host: z.string(),
+      id: z.string(),
+      agent: z.object({ id: z.string(), description: z.string() }).optional(),
+    }),
     z.object({ kind: z.literal("group"), id: z.string() }),
   ])
   .nullable()
