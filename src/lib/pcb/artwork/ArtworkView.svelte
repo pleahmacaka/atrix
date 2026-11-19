@@ -466,7 +466,7 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
           <div
             class={[
               "pointer-events-none absolute flex items-center gap-2 rounded-field",
-              "bg-base-100/90 translate-3 px-2 py-1 text-xs shadow-sm",
+              "bg-raised translate-3 px-2 py-1 text-xs shadow-sm",
             ]}
             style:left={rem(tip.x)}
             style:top={rem(tip.y)}
@@ -483,7 +483,7 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
           <div
             class={[
               "absolute bottom-2 left-2 flex items-center gap-2 rounded-box",
-              "bg-base-100/80 py-1 pr-1 pl-2 text-xs backdrop-blur-sm",
+              "bg-raised py-1 pr-1 pl-2 text-xs",
             ]}
           >
             <span class="size-2 rounded-full" style:background-color={palette.net(routing.pinnedNet)}></span>

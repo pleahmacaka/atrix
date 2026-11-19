@@ -254,7 +254,7 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
             type="button"
             class={[
               "btn btn-circle btn-xs absolute top-0.5 right-0.5 size-5 border-0",
-              "bg-base-100/80 backdrop-blur",
+              "border border-base-300 bg-raised shadow-sm",
             ]}
             aria-label={m.chat_remove_attachment({ name: file.name })}
             title={m.chat_remove_attachment({ name: file.name })}

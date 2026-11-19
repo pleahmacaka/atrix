@@ -5,15 +5,12 @@ import { getLocale } from "#lib/paraglide/runtime.js"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { usageGraph } from "#lib/store/usageGraph.svelte.ts"
 
-const BLUES = [
-  "",
-  "oklch(86% 0.08 235)",
-  "oklch(79% 0.13 237)",
-  "oklch(73% 0.17 240)",
-  "oklch(68% 0.2 244)",
-]
+const GRADES = ["", "var(--graph-1)", "var(--graph-2)", "var(--graph-3)", "var(--graph-4)"]
 
-const compact = new Intl.NumberFormat(getLocale(), { notation: "compact" })
+const compact = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
 
 const dated = new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium" })
 
@@ -30,7 +27,7 @@ $effect(() => {
       {#each usageGraph.days as day (day.date)}
         <span
           class={["aspect-square rounded-xs", day.level === 0 && "bg-base-content/8"]}
-          style:background-color={day.level ? BLUES[day.level] : undefined}
+          style:background-color={day.level ? GRADES[day.level] : undefined}
           title={m.usage_day({
             date: dated.format(new Date(`${day.date}T00:00:00`)),
             tokens: compact.format(day.tokens),

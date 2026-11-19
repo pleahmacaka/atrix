@@ -176,7 +176,7 @@ const knownModels = $derived(
     sheet
   >
     {#snippet trigger(p)}
-      <button {...p} type="button" class="btn btn-ghost btn-sm font-normal">
+      <button {...p} type="button" class="btn btn-ghost btn-xs font-normal">
         <Icon icon="lucide:square-terminal" class="size-4 opacity-60" />
         {m.chat_shells({ count: shells.length })}
       </button>

@@ -55,9 +55,9 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
       bind:this={toggle}
       type="button"
       class={[
-        "pointer-events-auto flex cursor-pointer items-center gap-2 rounded-full px-2.5 py-1",
-        "bg-base-100/80 text-xs text-base-content/70 backdrop-blur-sm",
-        "transition-colors duration-140 hover:bg-base-content/8 @7xl:hidden",
+        "pointer-events-auto flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5",
+        "border border-base-300 bg-raised text-xs font-medium text-base-content shadow-md",
+        "transition-colors duration-140 hover:border-primary/50 @7xl:hidden",
       ]}
       aria-expanded={open}
       onclick={() => {
@@ -72,6 +72,8 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
       {/if}
       {#if agents.length}
         <span class="flex items-center gap-1 tabular-nums">
+          <Icon icon="lucide:bot" class="size-3.5 text-primary" />
+          {m.chat_subagents()}
           <span class="loading loading-spinner size-3 text-primary"></span>
           {agents.length}
         </span>
@@ -79,10 +81,10 @@ const visible = $derived(plan.length > 0 || agents.length > 0)
     </button>
     <div
       class={[
-        "pointer-events-auto w-56 flex-col gap-3 rounded-box p-3",
-        "bg-base-100/85 text-xs backdrop-blur-sm",
+        "pointer-events-auto w-64 flex-col gap-3 rounded-box p-3",
+        "border border-base-300 bg-raised text-xs shadow-lg",
         open ? "flex" : "hidden",
-        "@7xl:flex @7xl:bg-transparent @7xl:backdrop-blur-none",
+        "@7xl:flex @7xl:border-transparent @7xl:bg-transparent @7xl:shadow-none",
       ]}
     >
       {#if plan.length}

@@ -457,7 +457,7 @@ const railRows = $derived(
     {#if hint?.key === key}
       <span
         class={[
-          "pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-primary",
+          "pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-primary p-0",
           hint.after ? "-bottom-0.5" : "-top-0.5",
         ]}
       ></span>
@@ -465,7 +465,7 @@ const railRows = $derived(
     <button
       type="button"
       class={[
-        "min-w-0 cursor-grab gap-2 ps-7 pe-1.5 active:cursor-grabbing",
+        "min-w-0 cursor-grab gap-2 ps-1.5 pe-1.5 active:cursor-grabbing",
         activeKey === row.item.key && "menu-active",
         activeKey !== row.item.key && clustered.has(row.item.key) && "bg-base-content/5",
       ]}
@@ -495,9 +495,10 @@ const railRows = $derived(
       {@render status(row.status, row.item.live)}
     </button>
     {#if row.subagents.length > 0}
-      <div class="ms-9 flex flex-col items-stretch self-stretch border-s border-base-content/10 py-0 ps-2 pe-1.5">
+      <div class="ms-4 flex flex-col items-stretch self-stretch py-0 ps-0 pe-1.5">
         {#each row.subagents as sub (sub.id)}
-          <div class="flex min-w-0 items-center gap-2 py-0.5 text-xs text-base-content/60">
+          <div class="flex min-w-0 items-center gap-1.5 text-xs text-base-content/60">
+            <span class="mb-2.5 h-3.5 w-2.5 shrink-0 self-end rounded-es-md border-s border-b border-base-content/25"></span>
             <Icon icon="lucide:bot" class="size-3.5 shrink-0" />
             <span class="min-w-0 flex-1 truncate" title={sub.description}>{sub.description}</span>
             <span class="loading loading-spinner loading-xs shrink-0 opacity-60"></span>
@@ -645,7 +646,7 @@ const railRows = $derived(
             {@render spaceHeader(host.id, node, host.spaces)}
           </div>
           {#if !folded(node)}
-            <ul class="menu w-full gap-0.5 py-0 ps-2 pe-1">
+            <ul class="menu ms-6.5 w-auto gap-0.5 self-stretch border-s border-base-content/20 py-0 ps-0 pe-1">
               {#each ordered(node) as row (row.id)}
                 {@render agent(host.id, node, row)}
               {/each}

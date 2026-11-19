@@ -106,7 +106,7 @@ const toRadians = (rotation: number[] | undefined) =>
         {#if o.label}
           <HTML position={[0, Math.abs(size[1]) / 2 + frame.radius * 0.06, 0]} center>
             <span
-              class="block max-w-40 truncate rounded-field bg-base-100/80 px-1.5 py-0.5 text-xs"
+              class="block max-w-40 truncate rounded-field bg-raised px-1.5 py-0.5 text-xs shadow-sm"
               title={o.label}
             >
               {o.label}

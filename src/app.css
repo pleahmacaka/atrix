@@ -318,6 +318,20 @@ summary {
   }
 }
 
+:root {
+  --graph-1: #79b8ff;
+  --graph-2: #388bfd;
+  --graph-3: #1f6feb;
+  --graph-4: #0d419d;
+}
+
+[data-theme="atrix-dark"] {
+  --graph-1: #4069b2;
+  --graph-2: #1f6feb;
+  --graph-3: #388bfd;
+  --graph-4: #79b8ff;
+}
+
 .modal[open] {
   background-color: oklch(0% 0 0 / 0.2);
 }
@@ -469,6 +483,10 @@ summary {
 
 .chat-column {
   max-width: calc(48rem / var(--content-scale, 1));
+}
+
+.chat-column > [data-reply]:last-child [data-reveal] {
+  opacity: 1;
 }
 
 @container (width >= 80rem) {

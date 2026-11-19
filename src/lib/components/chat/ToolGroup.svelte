@@ -1,6 +1,8 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { cubicOut } from "svelte/easing"
 import { SvelteSet } from "svelte/reactivity"
+import { slide } from "svelte/transition"
 import type { ThoughtItem, ToolItem } from "#lib/acp/items.ts"
 import { type JsonToken, jsonTokens, splitJson } from "#lib/chat/json.ts"
 import { plainText } from "#lib/chat/plain.ts"
@@ -117,6 +119,13 @@ const TONES: Record<JsonToken["kind"], string> = {
   plain: "text-base-content/60",
 }
 
+const wipe = (_: Element) => ({
+  duration: 200,
+  easing: cubicOut,
+  css: (t: number) =>
+    `clip-path: inset(0 ${(1 - t) * 100}% 0 0); opacity: ${0.4 + 0.6 * t}`,
+})
+
 const live = (tool: ToolItem) =>
   latest && tool.status !== "completed" && tool.status !== "failed"
 
@@ -208,6 +217,7 @@ const summary = $derived.by(() => {
     open={open || going || opened.has(item.id)}
   >
     <summary
+      in:wipe
       {@attach intent(item.id)}
       class={[
         "flex cursor-pointer list-none items-center gap-1.5 text-xs",
@@ -241,6 +251,7 @@ const summary = $derived.by(() => {
       {@const big = wide.has(item.id)}
       {@const { json, rest } = splitJson(unfence(item.detail), going)}
       <pre
+        in:slide={{ duration: 180, easing: cubicOut }}
         class={[
           "mt-1.5 overflow-auto border-s-2 bg-base-content/5 py-2.5 ps-3.5 pe-3",
           "font-mono text-xs leading-relaxed break-all whitespace-pre-wrap",
@@ -311,6 +322,7 @@ const summary = $derived.by(() => {
 {:else if tools.length > 0 || notes}
   <details class="group/tools my-1" open={latest}>
     <summary
+      in:wipe
       class={[
         "badge badge-soft h-auto cursor-pointer list-none gap-1.5 py-1",
         failed && !running && "badge-error",
@@ -345,6 +357,7 @@ const summary = $derived.by(() => {
           {@const item = row.item}
           {#if item.text.trim()}
             <li
+              in:wipe
               class={[
                 "line-clamp-4 flex gap-1.5 text-xs",
                 "text-base-content/50",

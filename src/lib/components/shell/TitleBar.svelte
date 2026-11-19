@@ -75,7 +75,7 @@ const rename = (current: Recent["current"], key: string, value: string) => {
 </script>
 
 <header
-  class="flex h-10 min-w-0 shrink-0 items-center gap-1 px-1.5 select-none"
+  class="flex h-8 min-w-0 shrink-0 items-center gap-1 px-1.5 select-none"
   data-tauri-drag-region
 >
   {#if trigger}

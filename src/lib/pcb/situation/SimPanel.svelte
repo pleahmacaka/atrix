@@ -79,8 +79,8 @@ const tick = (t: number) => {
       {#if captionAt(scene, time)}
         <p
           class={[
-            "absolute inset-x-2 top-2 mx-auto w-fit max-w-md rounded-box bg-base-100/85",
-            "px-4 py-2 text-center text-sm backdrop-blur",
+            "absolute inset-x-2 top-2 mx-auto w-fit max-w-md rounded-box border border-base-300 bg-raised",
+            "px-4 py-2 text-center text-sm shadow-lg",
           ]}
         >
           {captionAt(scene, time)}
@@ -89,8 +89,8 @@ const tick = (t: number) => {
 
       <div
         class={[
-          "absolute inset-x-2 bottom-2 flex items-center gap-2 rounded-box bg-base-100/85",
-          "p-2 backdrop-blur",
+          "absolute inset-x-2 bottom-2 flex items-center gap-2 rounded-box border border-base-300 bg-raised",
+          "p-2 shadow-lg",
         ]}
       >
         <IconButton

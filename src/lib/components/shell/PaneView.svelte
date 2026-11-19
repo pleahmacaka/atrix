@@ -9,7 +9,7 @@ import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { attention } from "#lib/store/attention.svelte.ts"
-import { droppedConversation, isConversationDrag } from "#lib/store/drag.ts"
+import { droppedConversation, isConversationDrag, startDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
 import {
   type Leaf,
@@ -95,6 +95,30 @@ const zoneOf = (e: DragEvent & { currentTarget: HTMLElement }): Zone => {
   return distance < EDGE && panes.canSplit(leaf.id, side) ? side : "center"
 }
 
+const focusInput = (e: PointerEvent) => {
+  const target = e.target instanceof Element ? e.target : null
+
+  if (
+    !split ||
+    !panes.shared ||
+    !document.getSelection()?.isCollapsed ||
+    target?.closest("a, button, input, textarea, select, [contenteditable], summary, [role=button]")
+  ) {
+    return
+  }
+
+  requestAnimationFrame(() => panes.inputSlot?.querySelector("textarea")?.focus())
+}
+
+const PANE_MIME = "application/x-atrix-pane"
+
+const grab = (e: DragEvent) => {
+  if (current) {
+    startDrag(e, current)
+    e.dataTransfer?.setData(PANE_MIME, leaf.id)
+  }
+}
+
 const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
 
 const over = (e: DragEvent & { currentTarget: HTMLElement }) => {
@@ -132,10 +156,19 @@ const drop = (e: DragEvent) => {
 
   e.preventDefault()
 
-  if (target === "center") {
+  const source = e.dataTransfer?.getData(PANE_MIME)
+
+  if (source === leaf.id) {
+    return
+  }
+
+  if (source && target === "center") {
+    panes.open(current, source)
     panes.open(dropped, leaf.id)
-  } else {
-    panes.split(leaf.id, target, dropped)
+  } else if (target === "center") {
+    panes.open(dropped, leaf.id)
+  } else if (panes.split(leaf.id, target, dropped) && source) {
+    panes.close(source)
   }
 }
 
@@ -157,6 +190,7 @@ const HINTS: Record<Zone, string> = {
   data-find-root={focused || undefined}
   data-pane={leaf.id}
   onpointerdowncapture={() => panes.focus(leaf.id)}
+  onpointerup={focusInput}
   ondragover={over}
   ondragleave={e => {
     if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) {
@@ -168,10 +202,15 @@ const HINTS: Record<Zone, string> = {
   {#if split}
     <header
       class={[
-        "flex h-9 shrink-0 items-center gap-2 px-3",
+        "flex h-8 shrink-0 cursor-grab items-center gap-2 px-3 active:cursor-grabbing",
         "text-xs font-semibold transition-colors duration-140",
         focused ? "bg-primary/8 text-primary" : "bg-base-content/4 text-base-content/55",
       ]}
+      role="toolbar"
+      tabindex="-1"
+      aria-label={info?.title ?? m.chat_new()}
+      draggable={!!current}
+      ondragstart={grab}
     >
       <Icon icon={info?.icon ?? "lucide:square-pen"} class="size-4 shrink-0 opacity-70" />
       <span class="min-w-0 flex-1 truncate">{info?.title ?? m.chat_new()}</span>

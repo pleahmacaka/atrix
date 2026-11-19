@@ -506,7 +506,7 @@ const ready = $derived(
       {/snippet}
     </Composer>
     <ErrorAlert message={attempt.failure} />
-    <div class="absolute inset-x-0 top-full pt-6">
+    <div class="absolute inset-x-0 top-full pt-14">
       <UsageGraph />
     </div>
   </div>

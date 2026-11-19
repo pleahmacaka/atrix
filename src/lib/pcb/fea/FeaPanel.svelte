@@ -76,8 +76,8 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
 
       <div
         class={[
-          "absolute top-2 left-2 flex flex-col gap-2 rounded-box bg-base-100/85 p-2",
-          "text-xs backdrop-blur",
+          "absolute top-2 left-2 flex flex-col gap-2 rounded-box border border-base-300 bg-raised p-2",
+          "text-xs shadow-lg",
         ]}
       >
         <div class="flex items-center gap-2">

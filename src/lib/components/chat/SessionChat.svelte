@@ -73,6 +73,14 @@ const turns = $derived(turnsOf(view?.items ?? []))
 
 const queued = $derived(view?.queued ?? [])
 
+const agents = $derived(
+  view?.agents?.length
+    ? view.agents
+    : (host.state?.open
+        .find(s => s.id === sessionId)
+        ?.subagents.map(a => ({ ...a, step: "" })) ?? []),
+)
+
 const plan = $derived(
   view?.items.findLast(i => i.type === "plan")?.entries ?? [],
 )
@@ -134,12 +142,12 @@ $effect(() => {
         <div class="@container relative flex min-h-0 flex-1 flex-col">
           <div
             bind:this={scroller}
-            class="scroll-centered flex min-h-0 flex-1 flex-col-reverse overflow-y-auto"
+            class="scroll-stable flex min-h-0 flex-1 flex-col-reverse overflow-y-auto"
             {@attach pinToggles}
             {@attach stickBottom}
           >
             <div
-              class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-4 pt-6 pb-2"
+              class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-3 pt-6 pb-2"
               data-cornered={cornered || undefined}
               data-quote={sessionId}
             >
@@ -212,7 +220,7 @@ $effect(() => {
             </div>
           </div>
           <ChatTimeline {scroller} {turns} />
-          <ChatCorner {plan} agents={view.agents ?? []} timeline={hasTimeline(turns)} />
+          <ChatCorner {plan} agents={agents} timeline={hasTimeline(turns)} />
         </div>
       {/if}
       <Composer

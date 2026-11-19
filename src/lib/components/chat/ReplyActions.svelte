@@ -28,7 +28,7 @@ const rate = $derived(
 )
 </script>
 
-<div class={["flex items-center gap-1", REVEAL]}>
+<div class={["flex items-center gap-1", REVEAL]} data-reveal>
   <CopyButton {text} />
   <SpeakButton {text} />
   {#if onReply}
