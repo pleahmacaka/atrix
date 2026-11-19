@@ -9,15 +9,24 @@ import Sidebar from "#lib/components/shell/Sidebar.svelte"
 import Workspace from "#lib/components/shell/Workspace.svelte"
 import ContextMenu from "#lib/components/ui/ContextMenu.svelte"
 import { trackPointer } from "#lib/components/ui/pointer.ts"
-import { floating, SIDEBAR } from "#lib/p2p/float.svelte.ts"
+import { logFailure } from "#lib/logging.ts"
+import { floating, floatNew, SIDEBAR } from "#lib/p2p/float.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { desktop } from "#lib/platform.ts"
 import { handleContextMenu } from "#lib/store/contextMenu.svelte.ts"
+import { onNewChatFloat } from "#lib/store/drag.ts"
 import { settings } from "#lib/store/settings.svelte.ts"
 import { RAIL_REM, shell } from "#lib/store/shell.svelte.ts"
 import { handleShortcut } from "#lib/store/shortcuts.ts"
 
 const FOCUSABLE =
   "button:not(:disabled), [href], input:not(:disabled), select, textarea, [tabindex]:not([tabindex='-1'])"
+
+if (desktop) {
+  onNewChatFloat(() => {
+    floatNew(m.chat_new()).catch(e => logFailure("float new chat", e))
+  })
+}
 
 const keydown = (e: KeyboardEvent) => {
   handleShortcut(e)

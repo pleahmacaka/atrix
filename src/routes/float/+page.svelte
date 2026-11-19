@@ -1,14 +1,16 @@
 <script lang="ts">
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import ModelChat from "#lib/components/chat/ModelChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import FloatSidebar from "#lib/components/shell/FloatSidebar.svelte"
+import Start from "#lib/components/shell/Start.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
-import { RemoteChat, remoteHost } from "#lib/p2p/float.svelte.ts"
-import { LOCAL } from "#lib/p2p/hosts.svelte.ts"
+import { askNav, type HostEntry, RemoteChat, RemoteHosts, remoteHost } from "#lib/p2p/float.svelte.ts"
+import { hostById, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { panes } from "#lib/store/panes.svelte.ts"
 
@@ -16,13 +18,21 @@ const query = new URLSearchParams(location.search)
 
 const sidebar = query.has("sidebar")
 
+const fresh = query.has("new")
+
 const hostId = query.get("host") ?? LOCAL
 
 const sessionId = query.get("id") ?? ""
 
 const chatId = query.get("chat")
 
-const remote = sidebar ? null : remoteHost(hostId)
+const remote = sidebar || fresh ? null : remoteHost(hostId)
+
+const remotes = fresh ? new RemoteHosts() : null
+
+const started = $derived(fresh && panes.active.current?.kind === "session" ? panes.active.current : null)
+
+const startedHost = $derived(started ? hostById(started.host) : undefined)
 
 const host = remote?.view
 
@@ -32,10 +42,17 @@ const stored = $derived(chatId ? chats.find(chatId) : undefined)
 
 const opening = new Attempt()
 
-const title = $derived(stored?.title ?? host?.views[sessionId]?.title ?? "")
+const title = $derived(
+  stored?.title ??
+    host?.views[sessionId]?.title ??
+    (started ? startedHost?.views[started.id]?.title : null) ??
+    (fresh ? m.chat_new() : ""),
+)
 
 if (chatId) {
   panes.open({ kind: "chat", id: chatId })
+} else if (fresh) {
+  panes.open(null)
 } else if (!sidebar) {
   panes.open({ kind: "session", host: hostId, id: sessionId })
 }
@@ -48,6 +65,23 @@ const pin = async () => {
   await win.setAlwaysOnTop(!pinned)
   pinned = !pinned
 }
+
+$effect(() => {
+  if (!remotes) {
+    return
+  }
+
+  const stop = getCurrentWebviewWindow().listen<HostEntry[]>("float:hosts", ({ payload }) =>
+    remotes.connect(payload),
+  )
+
+  stop.then(() => askNav()).catch(() => {})
+
+  return () => {
+    stop.then(f => f())
+    remotes.stop()
+  }
+})
 
 $effect(() => {
   if (!remote) {
@@ -103,7 +137,13 @@ $effect(() => {
         onclick={() => win.close()}
       />
     </header>
-    {#if chat && stored}
+    {#if fresh}
+      {#if started && startedHost?.views[started.id]}
+        <SessionChat host={startedHost} sessionId={started.id} />
+      {:else}
+        <Start />
+      {/if}
+    {:else if chat && stored}
       <ModelChat {stored} remote={chat} />
     {:else if opening.failure}
       <div class="grid flex-1 place-items-center p-6">

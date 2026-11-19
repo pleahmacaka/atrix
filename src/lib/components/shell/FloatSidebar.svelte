@@ -6,70 +6,19 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import { logFailure } from "#lib/logging.ts"
 import {
   askNav,
-  eventsOf,
   type NavFrame,
   navSignature,
   navState,
-  remoteHost,
+  RemoteHosts,
   sendNav,
 } from "#lib/p2p/float.svelte.ts"
-import { adoptLocal, adoptRemotes, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { handleContextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { nav } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import Sidebar from "./Sidebar.svelte"
 
-type Remote = ReturnType<typeof remoteHost>
-
-const remotes = new Map<string, Remote & { instance: string }>()
-
-let adoptedKey = ""
-
-const connect = (hosts: NavFrame["hosts"]) => {
-  const wanted = new Set(hosts.map(h => h.id))
-  const instances = new Map(hosts.map(h => [h.id, h.instance]))
-
-  for (const [id, remote] of remotes) {
-    if (!wanted.has(id) || instances.get(id) !== remote.instance) {
-      remote.stop()
-      remotes.delete(id)
-
-      if (id === LOCAL) {
-        adoptLocal(null)
-      }
-    }
-  }
-
-  for (const { id, instance } of hosts) {
-    if (remotes.has(id)) {
-      continue
-    }
-
-    const remote = { ...remoteHost(id, eventsOf(id)), instance }
-
-    remotes.set(id, remote)
-    remote.ready
-      .then(() => remote.view.refresh())
-      .catch(e => logFailure("float host refresh", e))
-
-    if (id === LOCAL) {
-      adoptLocal(remote.view)
-    }
-  }
-
-  const entries = hosts.flatMap(({ id, name }) => {
-    const remote = id === LOCAL ? undefined : remotes.get(id)
-
-    return remote ? [{ id, name, view: remote.view }] : []
-  })
-  const key = JSON.stringify(entries.map(e => [e.id, e.name, e.view.instance]))
-
-  if (key !== adoptedKey) {
-    adoptedKey = key
-    adoptRemotes(entries)
-  }
-}
+const remotes = new RemoteHosts()
 
 const win = getCurrentWindow()
 
@@ -113,7 +62,7 @@ const frameOf = (): NavFrame => ({ ...navState(), hosts: [] })
 
 $effect(() => {
   const stop = getCurrentWebviewWindow().listen<NavFrame>("float:nav", ({ payload }) => {
-    connect(payload.hosts)
+    remotes.connect(payload.hosts)
 
     if (payload.origin !== origin) {
       origin = payload.origin
@@ -139,13 +88,7 @@ $effect(() => {
   return () => {
     stop.then(f => f())
 
-    for (const remote of remotes.values()) {
-      remote.stop()
-    }
-
-    remotes.clear()
-    adoptLocal(null)
-    adoptRemotes([])
+    remotes.stop()
   }
 })
 

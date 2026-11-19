@@ -54,6 +54,10 @@ $effect(() => {
     drill = null
     active = 0
     attempt.failure = null
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+
     dialog?.showModal()
     focusInput()
     requestAnimationFrame(focusInput)

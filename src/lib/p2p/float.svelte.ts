@@ -24,7 +24,13 @@ import {
   type SettingsTab,
 } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
-import { hostById, hostList } from "./hosts.svelte.ts"
+import {
+  adoptLocal,
+  adoptRemotes,
+  hostById,
+  hostList,
+  LOCAL,
+} from "./hosts.svelte.ts"
 import { HostView } from "./hostView.svelte.ts"
 import {
   type Answers,
@@ -76,7 +82,110 @@ export type NavFrame = {
   hosts: { id: string; name: string; instance: string }[]
 }
 
+export type HostEntry = NavFrame["hosts"][number]
+
 export const eventsOf = (host: string) => `float:event:${host}`
+
+const hostEntries = (): HostEntry[] =>
+  hostList().map(h => ({ id: h.id, name: h.name, instance: h.view.instance }))
+
+const tapHosts = (label: string, keep: (event: HostEvent) => boolean) => {
+  const hostIds = $derived(
+    hostList()
+      .map(h => `${h.id}#${h.view.instance}`)
+      .join(" "),
+  )
+
+  $effect(() => {
+    void hostIds
+
+    const taps = untrack(hostList).map(({ id, view }) => {
+      const tap = (event: HostEvent) => {
+        if (keep(event)) {
+          emitTo(label, eventsOf(id), event).catch(e =>
+            logFailure("float event", e),
+          )
+        }
+      }
+
+      view.taps.add(tap)
+
+      return () => view.taps.delete(tap)
+    })
+
+    return () => {
+      for (const untap of taps) {
+        untap()
+      }
+    }
+  })
+}
+
+export class RemoteHosts {
+  #remotes = new Map<
+    string,
+    ReturnType<typeof remoteHost> & { instance: string }
+  >()
+
+  #adopted = ""
+
+  connect = (hosts: HostEntry[]) => {
+    const wanted = new Set(hosts.map(h => h.id))
+    const instances = new Map(hosts.map(h => [h.id, h.instance]))
+
+    for (const [id, remote] of this.#remotes) {
+      if (!wanted.has(id) || instances.get(id) !== remote.instance) {
+        remote.stop()
+        this.#remotes.delete(id)
+
+        if (id === LOCAL) {
+          adoptLocal(null)
+        }
+      }
+    }
+
+    for (const { id, instance } of hosts) {
+      if (this.#remotes.has(id)) {
+        continue
+      }
+
+      const remote = { ...remoteHost(id, eventsOf(id)), instance }
+
+      this.#remotes.set(id, remote)
+      remote.ready
+        .then(() => remote.view.refresh())
+        .catch(e => logFailure("float host refresh", e))
+
+      if (id === LOCAL) {
+        adoptLocal(remote.view)
+      }
+    }
+
+    const entries = hosts.flatMap(({ id, name }) => {
+      const remote = id === LOCAL ? undefined : this.#remotes.get(id)
+
+      return remote ? [{ id, name, view: remote.view }] : []
+    })
+    const key = JSON.stringify(
+      entries.map(e => [e.id, e.name, e.view.instance]),
+    )
+
+    if (key !== this.#adopted) {
+      this.#adopted = key
+      adoptRemotes(entries)
+    }
+  }
+
+  stop = () => {
+    for (const remote of this.#remotes.values()) {
+      remote.stop()
+    }
+
+    this.#remotes.clear()
+    adoptLocal(null)
+    adoptRemotes([])
+  }
+}
 
 const concerns = (event: HostEvent, id: string) => {
   switch (event.type) {
@@ -263,14 +372,7 @@ export const navState = (): Omit<NavFrame, "hosts"> => ({
   origin: ORIGIN,
 })
 
-const navFrame = (): NavFrame => ({
-  ...navState(),
-  hosts: hostList().map(h => ({
-    id: h.id,
-    name: h.name,
-    instance: h.view.instance,
-  })),
-})
+const navFrame = (): NavFrame => ({ ...navState(), hosts: hostEntries() })
 
 export const floatSidebar = async (title: string) => {
   if (!floating.has(SIDEBAR)) {
@@ -298,36 +400,8 @@ export const floatSidebar = async (title: string) => {
         },
       )
 
-      const hostIds = $derived(
-        hostList()
-          .map(h => `${h.id}#${h.view.instance}`)
-          .join(" "),
-      )
-
-      $effect(() => {
-        void hostIds
-
-        const taps = untrack(hostList).map(({ id, view }) => {
-          const tap = (event: HostEvent) => {
-            // the sidebar never renders chat items, and updates are per-token stream traffic
-            if (event.type !== "update") {
-              emitTo(label, eventsOf(id), event).catch(e =>
-                logFailure("float event", e),
-              )
-            }
-          }
-
-          view.taps.add(tap)
-
-          return () => view.taps.delete(tap)
-        })
-
-        return () => {
-          for (const untap of taps) {
-            untap()
-          }
-        }
-      })
+      // the sidebar never renders chat items, and updates are per-token stream traffic
+      tapHosts(label, event => event.type !== "update")
 
       return () => {
         ready.then(f => f())
@@ -410,6 +484,35 @@ export const floatOut = async (session: Session, title: string) => {
 
       return () => view.taps.delete(tap)
     },
+  )
+}
+
+export const floatNew = async (title: string) => {
+  await openWindow(`new:${crypto.randomUUID()}`, { new: "1" }, title, label =>
+    $effect.root(() => {
+      const emit = () => {
+        emitTo(label, "float:hosts", hostEntries()).catch(e =>
+          logFailure("float hosts", e),
+        )
+      }
+
+      $effect(emit)
+
+      const ready = getCurrentWebviewWindow().listen<string>(
+        "float:ready",
+        ({ payload }) => {
+          if (payload === label) {
+            emit()
+          }
+        },
+      )
+
+      tapHosts(label, () => true)
+
+      return () => {
+        ready.then(f => f())
+      }
+    }),
   )
 }
 

@@ -59,6 +59,7 @@ $effect(() => {
   class="lock-veil fixed inset-0 m-0 size-full max-h-none max-w-none bg-transparent p-0"
   aria-label={m.lock_title()}
   oncancel={e => e.preventDefault()}
+  onclose={() => shown && dialog?.showModal()}
 >
   {#if shown}
     <div

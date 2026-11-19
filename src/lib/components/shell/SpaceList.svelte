@@ -514,7 +514,7 @@ const railRows = $derived(
         {#each row.subagents as sub (sub.id)}
           <div class="flex min-w-0 items-center gap-1.5 text-xs text-base-content/60">
             <span class="mb-2.5 h-3.5 w-2.5 shrink-0 self-end rounded-es-md border-s border-b border-base-content/25"></span>
-            <Icon icon="lucide:bot" class="size-3.5 shrink-0" />
+            <Icon icon={row.item.icon} class="size-3.5 shrink-0 opacity-80" />
             <span class="min-w-0 flex-1 truncate" title={sub.description}>{sub.description}</span>
             <span class="loading loading-spinner loading-xs shrink-0 opacity-60"></span>
           </div>
