@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="atrix_node_channel">Device connection</string>
+  <string name="atrix_node_title">Atrix Files is connected</string>
+  <string name="atrix_node_text">Paired devices can browse this phone.</string>
+</resources>

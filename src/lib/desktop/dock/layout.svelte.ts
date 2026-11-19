@@ -1,0 +1,452 @@
+import {
+  type DeviceSettings,
+  type DockWidget,
+  defaultDevice,
+  updateDevice,
+} from "@atrix/settings"
+import { emit } from "@tauri-apps/api/event"
+import { cubicOut } from "svelte/easing"
+import { Tween } from "svelte/motion"
+import { SvelteMap } from "svelte/reactivity"
+import { newId } from "#lib/data/index.js"
+import * as native from "#lib/native/index.js"
+import { barHeightFor } from "./bar"
+import { MAGNIFY_BOOST } from "./DockItem.svelte"
+import { type DockGroup, dock, groupWindows, resolvePins } from "./dock.svelte"
+import { DockOrdering, isDockPinned, moveGroup } from "./order"
+import { rem, rootFontSize } from "./rem.svelte"
+
+const STRIP = 6
+const GROW_SLOTS = 6
+const ISLAND_PADDING = 24
+
+export const TOPBAR_H = 34
+
+export type MenuBox = {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+export class DockLayout {
+  constructor(private surface: "taskbar" | "topbar" = "taskbar") {}
+
+  device = $state<DeviceSettings>(defaultDevice)
+
+  collapsed = $state(false)
+
+  dockHidden = $state(false)
+
+  maximized = $state(false)
+
+  claims = new SvelteMap<string, MenuBox>()
+
+  pointerX = $state<number | null>(null)
+
+  magnet = new Tween(0, {
+    duration: () =>
+      document.documentElement.dataset.motion === "false" ? 0 : 140,
+    easing: cubicOut,
+  })
+
+  inside = $state(false)
+
+  scrubbing = $state(false)
+
+  navWidth = $state(0)
+
+  leadWidth = $state(0)
+
+  trailWidth = $state(0)
+
+  dragPath = $state<string | null>(null)
+
+  dropPath = $state<string | null>(null)
+
+  dropBefore = $state(true)
+
+  mac = $derived(this.device.dockStyle === "mac")
+
+  packed = $derived(this.mac && this.device.dockIslands)
+
+  centered = $derived(!this.packed && this.device.dockAlign === "center")
+
+  desktop = $derived(this.mac && this.device.dockDesktop)
+
+  edgeOnly = $derived(
+    this.device.dockEdgeOnly === "always" ||
+      (this.device.dockEdgeOnly === "maximized" && this.maximized),
+  )
+
+  hideSystemTaskbar = $derived(
+    this.device.hideSystemTaskbar && this.device.onboarded,
+  )
+
+  hidden = $derived(new Set(this.device.hiddenApps))
+
+  spotPlacement = $derived<"up" | "down">(
+    this.device.dockEdge === "top" ? "down" : "up",
+  )
+
+  slotWidth = $derived(this.device.dockIconSize + 20)
+
+  barHeight = $derived(
+    barHeightFor(this.device.dockHeight, this.device.dockIslands),
+  )
+
+  launcherShown = $derived(
+    this.device.showLauncherButton && this.device.features.launcher,
+  )
+
+  launcherIsland = $derived(this.launcherShown && this.device.dockIslands)
+
+  chrome = $derived(
+    (this.mac ? 34 : 24) +
+      (this.launcherShown ? this.device.dockIconSize + 20 : 0) +
+      (this.launcherShown &&
+      this.device.dockSeparators &&
+      !this.device.dockIslands
+        ? 25
+        : 0) +
+      (this.device.dockIslands
+        ? ISLAND_PADDING * (this.launcherIsland ? 2 : 1) +
+          (this.device.dockIslandGap - 4) * this.device.dockWidgets.length +
+          (this.launcherIsland ? this.device.dockIslandGap : 0)
+        : 0),
+  )
+
+  spacerWidth = $derived(
+    this.device.dockWidgets.reduce(
+      (sum, widget) => sum + (widget.kind === "spacer" ? widget.size : 0),
+      0,
+    ),
+  )
+
+  sides = $derived(
+    this.centered
+      ? 2 * Math.max(this.leadWidth, this.trailWidth)
+      : this.leadWidth + this.trailWidth,
+  )
+
+  roomForIcons = $derived(
+    Math.max(0, this.navWidth - this.sides - this.spacerWidth - this.chrome),
+  )
+
+  fits = $derived.by(() => {
+    if (this.navWidth === 0) {
+      return Number.POSITIVE_INFINITY
+    }
+
+    return Math.floor(this.roomForIcons / this.slotWidth)
+  })
+
+  groups = $derived(
+    this.ordered(
+      groupWindows(
+        dock.pinned,
+        resolvePins(this.device.pinnedApps, dock.apps),
+        dock.windows,
+      ).filter(g => !(this.hidden.has(g.path) && g.windows.length === 0)),
+    ),
+  )
+
+  maxDockWidth = $derived(
+    Math.max(
+      360,
+      (typeof window === "undefined" ? 1920 : window.screen.width) - 160,
+    ),
+  )
+
+  naturalWidth = $derived(
+    this.sides +
+      this.spacerWidth +
+      this.chrome +
+      this.groups.length * this.slotWidth,
+  )
+
+  pinnedCount = $derived(
+    this.groups.filter(g => isDockPinned(g, this.hidden)).length,
+  )
+
+  runningCount = $derived(this.groups.length - this.pinnedCount)
+
+  dockWidth = $derived.by(() => {
+    if (this.mac) {
+      const limit = this.device.dockWidth * (1 + this.device.dockGrowth)
+
+      return Math.min(
+        this.maxDockWidth,
+        limit,
+        Math.max(this.naturalWidth, this.device.dockWidth),
+      )
+    }
+
+    const visible = this.pinnedCount + Math.min(this.runningCount, GROW_SLOTS)
+    const needed =
+      this.sides + this.spacerWidth + this.chrome + visible * this.slotWidth
+
+    return Math.min(this.maxDockWidth, Math.max(this.device.dockWidth, needed))
+  })
+
+  shown = $derived(
+    this.groups.length <= this.fits
+      ? this.groups
+      : this.groups.slice(0, Math.max(1, this.fits - 1)),
+  )
+
+  spilled = $derived(this.groups.slice(this.shown.length))
+
+  menuBox = $derived.by((): MenuBox | null => {
+    let box: MenuBox | null = null
+
+    for (const rect of this.claims.values()) {
+      box = box
+        ? {
+            left: Math.min(box.left, rect.left),
+            top: Math.min(box.top, rect.top),
+            right: Math.max(box.right, rect.right),
+            bottom: Math.max(box.bottom, rect.bottom),
+          }
+        : { ...rect }
+    }
+
+    return box
+  })
+
+  lift = $derived(
+    this.mac && this.inside && !this.collapsed
+      ? Math.round(this.device.dockIconSize * MAGNIFY_BOOST) + 16
+      : 0,
+  )
+
+  staticKey = $derived(
+    [
+      this.device.dockStyle,
+      this.device.dockEdge,
+      this.barHeight,
+      this.device.dockAutoHide,
+      this.desktop,
+      this.hideSystemTaskbar,
+      this.device.dockMonitor,
+      this.collapsed,
+      this.edgeOnly,
+      rootFontSize(),
+    ].join("|"),
+  )
+
+  // local popups listen on the window event; sibling windows get the tauri broadcast
+  closeLocal = () => {
+    this.claims.clear()
+    window.dispatchEvent(new Event("atrix-close-menus"))
+  }
+
+  closeMenus = () => {
+    this.closeLocal()
+    emit("atrix-close-menus").catch(() => undefined)
+  }
+
+  preview = <K extends keyof DeviceSettings>(
+    key: K,
+    value: DeviceSettings[K],
+  ) => {
+    this.device = { ...this.device, [key]: value }
+  }
+
+  patch = <K extends keyof DeviceSettings>(
+    key: K,
+    value: DeviceSettings[K],
+  ) => {
+    this.preview(key, value)
+    updateDevice(device => ({ ...device, [key]: value })).catch(() => undefined)
+  }
+
+  setWidgets = (widgets: DockWidget[], persist = true) => {
+    if (persist) {
+      this.patch("dockWidgets", widgets)
+    } else {
+      this.preview("dockWidgets", widgets)
+    }
+  }
+
+  addSpacer = () => {
+    const widgets = [...this.device.dockWidgets]
+    const at = widgets.findIndex(widget => widget.kind === "tray")
+
+    widgets.splice(at < 0 ? widgets.length : at, 0, {
+      id: newId(),
+      kind: "spacer",
+      size: 32,
+    })
+
+    this.setWidgets(widgets)
+  }
+
+  moveWidget = (id: string, delta: -1 | 1) => {
+    const widgets = [...this.device.dockWidgets]
+    const from = widgets.findIndex(widget => widget.id === id)
+    const to = from + delta
+
+    if (from < 0 || to < 0 || to >= widgets.length) {
+      return
+    }
+
+    widgets.splice(to, 0, ...widgets.splice(from, 1))
+    this.setWidgets(widgets)
+  }
+
+  moveWidgetTo = (fromId: string, toId: string, after: boolean) => {
+    if (fromId === toId) {
+      return
+    }
+
+    const widgets = [...this.device.dockWidgets]
+    const from = widgets.findIndex(widget => widget.id === fromId)
+
+    if (from < 0) {
+      return
+    }
+
+    const [moved] = widgets.splice(from, 1)
+    const target = widgets.findIndex(widget => widget.id === toId)
+
+    if (target < 0) {
+      return
+    }
+
+    widgets.splice(after ? target + 1 : target, 0, moved)
+    this.setWidgets(widgets)
+  }
+
+  removeWidget = (id: string) => {
+    this.setWidgets(
+      this.device.dockWidgets.filter(
+        widget => widget.id !== id || widget.kind !== "spacer",
+      ),
+    )
+  }
+
+  resizeWidget = (id: string, size: number, persist: boolean) => {
+    this.setWidgets(
+      this.device.dockWidgets.map(widget =>
+        widget.id === id
+          ? { ...widget, size: Math.round(Math.min(240, Math.max(8, size))) }
+          : widget,
+      ),
+      persist,
+    )
+  }
+
+  resetWidgets = () =>
+    this.patch("dockWidgets", structuredClone(defaultDevice.dockWidgets))
+
+  claimFor = (key: string) => (rect: MenuBox | null) => {
+    if (rect) {
+      this.claims.set(key, {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      })
+      this.pointerX = null
+    } else {
+      this.claims.delete(key)
+    }
+  }
+
+  extend = this.claimFor("shared")
+
+  clearClaims = () => this.claims.clear()
+
+  commitDrop = async () => {
+    const from = this.dragPath
+    const onto = this.dropPath
+    const before = this.dropBefore
+
+    this.dragPath = null
+    this.dropPath = null
+
+    if (!from || !onto || from === onto) {
+      return
+    }
+
+    const paths = moveGroup(this.groups, from, onto, before, this.hidden)
+
+    if (!paths) {
+      return
+    }
+
+    this.ordering.commit(paths)
+    const pinned = new Map(dock.pinned.map(app => [app.path, app]))
+    const taskbar = paths.filter(
+      path => pinned.has(path) && !this.hidden.has(path),
+    )
+    const moved = new Set(taskbar)
+    let next = 0
+    const reordered = dock.pinned.map(app =>
+      moved.has(app.path) ? (pinned.get(taskbar[next++]) ?? app) : app,
+    )
+
+    if (reordered.some((app, at) => app.path !== dock.pinned[at]?.path)) {
+      dock.pinned = reordered
+      native.reorderPins(taskbar).catch(() => undefined)
+    }
+
+    this.preview("dockOrder", paths)
+    await updateDevice(device => ({ ...device, dockOrder: paths }))
+  }
+
+  applyLayout = () => {
+    if (this.dockHidden) {
+      return Promise.resolve(undefined)
+    }
+
+    const root = document.documentElement
+
+    root.dataset.surface = "dock"
+
+    if (this.surface === "topbar") {
+      root.dataset.dock = "windows"
+      root.dataset.edge = "top"
+      root.style.setProperty("--dock-height", rem(TOPBAR_H))
+      root.style.setProperty("--dock-content-height", rem(TOPBAR_H))
+
+      return native
+        .applyTopbar({
+          edge: "top",
+          height: TOPBAR_H,
+          width: 0,
+          floating: false,
+          autoHide: false,
+          desktop: false,
+          hideSystemTaskbar: this.hideSystemTaskbar,
+          monitor: this.device.dockMonitor,
+        })
+        .catch(() => undefined)
+    }
+
+    root.dataset.dock = this.device.dockStyle
+    root.dataset.edge = this.device.dockEdge
+    root.style.setProperty("--dock-height", rem(this.barHeight))
+    root.style.setProperty("--dock-content-height", rem(this.device.dockHeight))
+
+    return native
+      .applyTaskbar({
+        edge: this.device.dockEdge,
+        height: this.collapsed ? (this.edgeOnly ? 0 : STRIP) : this.barHeight,
+        width: this.dockWidth,
+        floating: this.device.dockStyle !== "windows",
+        autoHide: this.device.dockAutoHide,
+        desktop: this.desktop,
+        hideSystemTaskbar: this.hideSystemTaskbar,
+        monitor: this.device.dockMonitor,
+      })
+      .catch(() => undefined)
+  }
+
+  private ordering = new DockOrdering()
+
+  private ordered(list: DockGroup[]) {
+    return this.ordering.arrange(list, this.device.dockOrder, this.hidden)
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "installer": {
+    "title": "Atrix のインストール",
+    "version": "バージョン {version}",
+    "components": "コンポーネント",
+    "apps": {
+      "atrix": "ドック、ランチャー、パネル",
+      "files": "ファイル エクスプローラー",
+      "terminal": "ターミナル"
+    },
+    "installed": "インストール済み",
+    "installedVersion": "{version} インストール済み",
+    "unavailable": "パッケージなし",
+    "install": "インストール",
+    "update": "アップデート",
+    "installing": "インストール中",
+    "done": "インストール完了",
+    "partial": "一部のコンポーネントのインストールに失敗",
+    "hint": "選択を外したコンポーネントは変更しません。",
+    "newInstaller": "新しいインストーラー {version}",
+    "getInstaller": "インストーラーを更新",
+    "updateFailed": "アップデート失敗: {reason}"
+  }
+}

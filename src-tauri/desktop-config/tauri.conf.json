@@ -1,0 +1,253 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Atrix",
+  "mainBinaryName": "atrix",
+  "version": "../package.json",
+  "identifier": "com.arixlab.atrix.windows",
+  "build": {
+    "frontendDist": "../build",
+    "devUrl": "http://localhost:1430",
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "url": "/",
+        "title": "Atrix",
+        "width": 680,
+        "height": 420,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": true,
+        "visible": false,
+        "focus": true,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing"
+      },
+      {
+        "label": "taskbar",
+        "url": "/taskbar",
+        "title": "Atrix Taskbar",
+        "width": 720,
+        "height": 48,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "focusable": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing"
+      },
+      {
+        "label": "topbar",
+        "url": "/topbar",
+        "title": "Atrix Top Bar",
+        "width": 720,
+        "height": 34,
+        "visible": false,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "focusable": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "settings",
+        "url": "/settings",
+        "title": "Atrix Settings",
+        "width": 760,
+        "height": 640,
+        "minWidth": 640,
+        "minHeight": 480,
+        "resizable": true,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "skipTaskbar": false,
+        "center": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "note",
+        "url": "/note",
+        "title": "Atrix Note",
+        "width": 520,
+        "height": 640,
+        "minWidth": 360,
+        "minHeight": 320,
+        "resizable": true,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "skipTaskbar": false,
+        "center": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "panel",
+        "url": "/panel",
+        "title": "Atrix Panel",
+        "width": 900,
+        "height": 700,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "notices",
+        "url": "/notices",
+        "title": "Atrix Notifications",
+        "width": 380,
+        "height": 520,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "onboarding",
+        "url": "/onboarding",
+        "title": "Atrix Setup",
+        "width": 880,
+        "height": 620,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "skipTaskbar": false,
+        "center": true,
+        "visible": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "preview",
+        "url": "/preview",
+        "title": "Atrix Preview",
+        "width": 240,
+        "height": 150,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focusable": false,
+        "visible": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing"
+      },
+      {
+        "label": "edit",
+        "url": "/edit",
+        "title": "Atrix Edit",
+        "width": 800,
+        "height": 600,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      },
+      {
+        "label": "studio",
+        "url": "/studio",
+        "title": "Atrix Studio",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu-compositing",
+        "create": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "publisher": "ArixLab",
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIxQTg1M0I3QkZCRDg4QTAKUldTZ2lMMi90MU9vc1V2alhjR3BKdlgxZERmV0dDcm8xSFRzUWk5TGFCdHl4ek1tOUxOcGJiT2UK",
+      "endpoints": [
+        "https://github.com/pleahmacaka/atrix/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "atrix",
+          "atrix-files"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1491 @@
+{
+  "common": {
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "reset": "リセット",
+    "open": "開く",
+    "clear": "クリア",
+    "back": "戻る",
+    "submit": "送信",
+    "none": "なし",
+    "search": "検索",
+    "noMatches": "一致なし",
+    "delete": "削除",
+    "confirm": "確認",
+    "settings": "設定",
+    "done": "完了",
+    "next": "次へ",
+    "skip": "スキップ",
+    "on": "オン",
+    "off": "オフ",
+    "previous": "前へ",
+    "partial": "一部対応",
+    "pinSetting": "この PC だけで使用",
+    "syncSetting": "同期に含める"
+  },
+  "languages": {
+    "system": "システム",
+    "en": "English",
+    "ko": "한국어",
+    "ja": "日本語",
+    "zh": "中文"
+  },
+  "settings": {
+    "title": "設定",
+    "searchAria": "設定を検索",
+    "sections": {
+      "general": {
+        "label": "全般",
+        "blurb": "デバイス名、言語、起動方法を設定します"
+      },
+      "dock": {
+        "label": "ドック",
+        "blurb": "Windows タスクバーに代わるドックの位置、サイズ、動作を設定します"
+      },
+      "launcher": {
+        "label": "ランチャー",
+        "blurb": "ランチャーを開くキーと検索結果を設定します"
+      },
+      "appearance": {
+        "label": "外観",
+        "blurb": "すべてのウィンドウのテーマ、色、表面を調整します"
+      },
+      "calendar": {
+        "label": "カレンダー",
+        "blurb": "開くときのサイズ、週の始まり、祝日を設定します"
+      },
+      "sync": {
+        "label": "同期",
+        "blurb": "デバイス間でデータを直接同期します"
+      },
+      "experimental": {
+        "label": "試験的機能",
+        "blurb": "正式リリース前の機能を試します"
+      },
+      "tray": {
+        "label": "トレイ",
+        "blurb": "ドック右側の時計、ウィジェット、システムアイコンを設定します"
+      },
+      "data": {
+        "label": "データ",
+        "blurb": "バックアップ、保存データ、リセットを管理します"
+      },
+      "about": {
+        "label": "情報",
+        "blurb": "バージョンを確認してアップデートをインストールします"
+      },
+      "note": {
+        "label": "Note",
+        "blurb": "ArixLab Note とカレンダー、スタイル、ページ参照を連携します"
+      }
+    },
+    "groups": {
+      "device": "このデバイス",
+      "features": {
+        "title": "機能",
+        "description": "Atrix の機能をまとめてオン/オフにします。"
+      },
+      "hotkey": {
+        "title": "ランチャーのホットキー",
+        "description": "Win キーを単独で押すと Atrix が開きます。Win の組み合わせはそのまま使えます。"
+      },
+      "backup": {
+        "title": "バックアップ",
+        "description": "設定、プリセット、予定を 1 つの JSON ファイルでエクスポートまたはインポートします"
+      },
+      "dock": "ドック",
+      "results": "結果",
+      "presets": {
+        "title": "テーマプリセット",
+        "description": "プリセットを選び、下の項目を変更するとカスタムプリセットになります"
+      },
+      "calendar": "カレンダー",
+      "storedData": {
+        "title": "保存データ",
+        "description": "Atrix がこのデバイスに保存しているもの"
+      },
+      "resets": "リセット",
+      "shortcuts": {
+        "title": "キーボードショートカット",
+        "description": "Atrix が受け付けるすべてのキー操作"
+      },
+      "dockLook": {
+        "title": "外観",
+        "description": "ドックの背景をウィンドウのテーマと別に調整します"
+      },
+      "experimental": {
+        "title": "実験的機能",
+        "description": "今後変更される可能性がある初期機能です"
+      },
+      "color": "色",
+      "surface": "表面",
+      "typeMotion": "文字と動き",
+      "dockStyle": "スタイルと位置",
+      "dockSize": "サイズ",
+      "dockBehavior": "動作",
+      "dockArrange": "構成",
+      "trayItems": "表示する項目",
+      "clock": "時計",
+      "media": "メディア",
+      "claude": "Claude 使用量",
+      "syncGeneral": "基本",
+      "atrixFiles": "Atrix Files",
+      "windowBackgrounds": {
+        "title": "ウィンドウ別の背景",
+        "description": "ウィンドウごとに背景を指定します"
+      },
+      "note": {
+        "title": "Note 連携",
+        "description": "この PC の Note と連携します。Atrix の同期や Note の同期とは別です"
+      },
+      "linkedStyle": "Atrix 連携"
+    },
+    "rows": {
+      "deviceName": "デバイス名",
+      "autostart": "自動起動",
+      "hideTaskbar": "Windows タスクバーを隠す",
+      "language": "言語",
+      "featureDock": "ドックを使用",
+      "featureLauncher": "ランチャーを使用",
+      "setupWizard": "セットアップウィザード",
+      "openWith": "呼び出しキー",
+      "shortcut": "ショートカット",
+      "backup": "バックアップ",
+      "resultsPerGroup": "グループごとの結果数",
+      "openWindows": "開いているウィンドウ",
+      "commands": "コマンド",
+      "todos": "タスク",
+      "calculator": "電卓",
+      "webSearch": "ウェブ検索",
+      "terminal": "ターミナル",
+      "presets": "プリセット",
+      "mode": "カラーモード",
+      "background": "ウィンドウの背景",
+      "followAccent": "Windows のアクセントカラーを使用",
+      "accentHue": "アクセントカラー",
+      "colorSpread": "サブカラーの間隔",
+      "vividness": "色の鮮やかさ",
+      "texture": "質感",
+      "cornerRadius": "角の丸み",
+      "blur": "背景のぼかし",
+      "fontSize": "文字サイズ",
+      "windowOpacity": "ウィンドウの不透明度",
+      "dockOpacity": "ドックの不透明度",
+      "density": "密度",
+      "motion": "アニメーション",
+      "weekStartsOn": "週の開始日",
+      "timePicker": "時刻の選択方法",
+      "weekNumbers": "週番号",
+      "defaultReminder": "既定のリマインダー",
+      "storedData": "保存データ",
+      "dataFolder": "データフォルダー",
+      "iconCache": "アイコンキャッシュ",
+      "resetAppearance": "外観をリセット",
+      "resetAll": "すべての設定をリセット",
+      "version": "バージョン",
+      "keyboardShortcuts": "キーボードショートカット",
+      "style": "スタイル",
+      "display": "ディスプレイ",
+      "edge": "画面の端",
+      "alignment": "アプリの配置",
+      "height": "高さ",
+      "width": "幅",
+      "iconSize": "アイコンサイズ",
+      "pinDesktop": "ウィンドウの背面に配置",
+      "autoHide": "自動的に隠す",
+      "fullscreenReveal": "全画面で表示",
+      "edgeOnly": "端でのみ表示",
+      "showLauncherButton": "ランチャーボタン",
+      "showTrayIcons": "トレイアイコン",
+      "showClaudeUsage": "Claude 使用量",
+      "claudeUsageStacked": "Claude 使用量を 2 行で表示",
+      "showSettingsButton": "設定ボタン",
+      "showKeymap": "ショートカットのヒント",
+      "showBattery": "バッテリー",
+      "showVolume": "音量",
+      "showMedia": "メディアコントロール",
+      "showSpectrum": "サウンドスペクトラム",
+      "showMeters": "CPU とメモリ",
+      "showNetwork": "ネットワーク",
+      "clock24h": "24 時間表示",
+      "showSeconds": "秒を表示",
+      "spectrumStyle": "スペクトラムの形",
+      "claudeUsageSide": "Claude 使用量の位置",
+      "claudeBridge": "Claude Code 連携",
+      "usageSnapshot": "使用量ファイル",
+      "mediaSide": "メディアの位置",
+      "enableSync": "同期を有効にする",
+      "interval": "間隔",
+      "collections": "コレクション",
+      "unlinkDevice": "このデバイスの接続を解除",
+      "dockSeparators": "区切り線",
+      "clockAlign": "時計の配置",
+      "editMode": "編集モード",
+      "dockBackground": "ドックの背景",
+      "dockBlur": "ドックのぼかし",
+      "dockRadius": "ドックの角",
+      "dockTint": "ドックの色味",
+      "dockBorder": "ドックの枠線",
+      "updates": "アップデート",
+      "showBluetooth": "Bluetooth",
+      "showNotifications": "通知ボタン",
+      "showDesktopButton": "デスクトップ表示ボタン",
+      "showTaskView": "タスクビューボタン",
+      "showInputLanguage": "入力言語",
+      "hideAnimation": "非表示アニメーション",
+      "topBar": "上部バー",
+      "panelPosition": "パネルの位置",
+      "holidayRegion": "祝日の地域",
+      "featureCalendar": "カレンダーパネルを使用",
+      "dockLayout": "ウィジェット配置",
+      "pairDevice": "デバイスを追加",
+      "joinDevice": "別のデバイスに接続",
+      "showSyncStatus": "同期状態のドット",
+      "dockGrowth": "幅の自動拡張",
+      "studio": "Studio",
+      "hideDelay": "非表示までの待ち時間",
+      "atrixFiles": "Atrix Files",
+      "filesDefault": "既定のファイルマネージャー",
+      "filesDefaultApps": "Windows の既定のアプリ",
+      "followAtrix": "Atrix のスタイルを使用",
+      "hideGather": "ロゴにまとめる",
+      "dockIslands": "ウィジェットアイランド",
+      "islandGap": "アイランドの間隔",
+      "dockIcon": "ドックアイコン",
+      "gatherHideMs": "非表示アニメーションの長さ",
+      "gatherShowMs": "表示アニメーションの長さ",
+      "launcherBackground": "ランチャー",
+      "panelBackground": "カレンダーパネル",
+      "settingsBackground": "設定",
+      "noticesBackground": "通知",
+      "filesBackground": "Atrix Files",
+      "terminalBackground": "Atrix Terminal",
+      "noteStatus": "状態",
+      "noteLink": "Note 連携",
+      "note": {
+        "calendar": "カレンダー",
+        "style": "スタイル",
+        "references": "ページ参照",
+        "preview": "プレビュー"
+      },
+      "panelStart": "開くときのサイズ",
+      "font": "フォント",
+      "metersStacked": "CPU とメモリを 2 行で表示"
+    },
+    "hints": {
+      "deviceName": "同期した他のデバイスに表示される名前です",
+      "autostart": "Windows にサインインすると Atrix をバックグラウンドで起動します",
+      "hideTaskbar": "Windows タスクバーを隠し、その場所をドックが使います",
+      "language": "選択しない場合は Windows の表示言語に従います",
+      "featureDock": "Windows タスクバーの代わりにドックを表示します",
+      "featureLauncher": "アプリ、ウィンドウ、コマンドを検索するランチャーを使用します",
+      "setupWizard": "初回起動のガイドをもう一度開きます",
+      "openWith": "ランチャーを呼び出すキーを選びます。",
+      "shortcut": "クリックしてからキーの組み合わせを押してください。",
+      "openWindows": "実行中のウィンドウに名前で切り替えます。",
+      "commands": "ロック、スリープ、ごみ箱を空にするなどを実行できます。",
+      "todos": "検索ボックスから完了チェック付きの予定を直接追加できます。",
+      "calculator": "式を入力すると計算します。",
+      "webSearch": "他に一致するものがない検索語に使うエンジンです。",
+      "terminal": "ターミナル コマンドで開くアプリです。",
+      "weekNumbers": "月表示に週番号を表示します。",
+      "defaultReminder": "予定の開始前に通知します。",
+      "mode": "ダーク、ライト、Windows の設定から選びます",
+      "background": "すべてのウィンドウの背景に使う表面です",
+      "followAccent": "Windows 設定のアクセントカラーをテーマに使います",
+      "colorSpread": "アクセントカラーとサブカラーの色相の間隔を調整します",
+      "vividness": "表面に混ざるアクセントカラーの量を調整します",
+      "texture": "背景に粒子の質感を加えます",
+      "cornerRadius": "ウィンドウとボタンの角の丸みを調整します",
+      "blur": "半透明の背景のぼかしの強さを調整します",
+      "blurGlass": "グラスのぼかしは Windows が適用します。ウィンドウ内の要素のぼかしのみ調整します",
+      "fontSize": "すべての文字のサイズを調整します",
+      "windowOpacity": "すべての Atrix ウィンドウの不透明度を調整します",
+      "dockOpacity": "ドックの不透明度を調整します",
+      "density": "リストとボタンの内側の余白を調整します",
+      "motion": "背景の動きと画面の切り替え効果を使います",
+      "dataFolder": "設定、予定、アイコンキャッシュが保存されたフォルダーを開きます",
+      "iconCache": "キャッシュしたアプリアイコンを削除し、アイコンは必要なときに再生成されます",
+      "resetAppearance": "外観を既定のプリセットに戻します",
+      "resetAll": "デバイス名、同期、保存データ以外のすべての設定を元に戻します",
+      "display": "ドックを表示するモニターです",
+      "edge": "ドックを置く画面の端です",
+      "alignment": "ドック内でアプリを並べる位置です",
+      "pinDesktop": "ウィンドウがドックを覆うことがあり、自動的に隠す設定ではカーソルが端に触れると前面に出ます",
+      "autoHide": "ドックを隠しておき、カーソルが画面の端に触れると表示します",
+      "fullscreenReveal": "全画面ウィンドウでもカーソルが画面の端に触れるとドックを表示します",
+      "edgeOnly": "隠したドックの上をカーソルが通っても反応せず、画面の端に触れたときだけ表示します",
+      "showLauncherButton": "ドックにランチャーボタンを表示し、Win キーでもランチャーを開けます",
+      "showTrayIcons": "バックグラウンドのプログラムの通知領域アイコンを表示します",
+      "showClaudeUsage": "Claude の 5 時間と週間の上限を表示します",
+      "claudeUsageStacked": "5 時間と週間の上限を 2 行で表示します",
+      "showSettingsButton": "ドックに設定ボタンを表示し、ドックを右クリックしても同じメニューが開きます",
+      "showKeymap": "ランチャーの下部と結果の行にショートカットを表示します",
+      "showBattery": "バッテリー搭載デバイスでバッテリーの状態を表示します",
+      "showVolume": "音量アイコンを表示し、アイコン上でスクロールすると音量を調整します",
+      "showMedia": "再生中のトラックの再生、一時停止、スキップのコントロールを表示します",
+      "showSpectrum": "メディアコントロールの横にリアルタイムの出力レベルを表示します",
+      "showMeters": "CPU とメモリの使用量をリアルタイムで表示します",
+      "showNetwork": "Wi-Fi またはイーサネットの接続状態を表示します",
+      "clock24h": "時刻を 24 時間表示にします",
+      "showSeconds": "時計に秒を表示します",
+      "spectrumStyle": "スペクトラムの描き方です",
+      "claudeUsageSide": "Claude 使用量を置くドックの側です",
+      "claudeBridge": "Claude Code のステータスラインから使用量を受け取ります",
+      "usageSnapshot": "使用量ブリッジが書き込むファイルのパスまたは URL です",
+      "mediaSide": "メディアコントロールを置くドックの側です",
+      "enableSync": "Atrix の起動中にバックグラウンドで実行します。",
+      "interval": "ペアリングしたデバイスと同期する頻度です。",
+      "collections": "このデバイスが送受信する内容です。",
+      "unlinkDevice": "ペアリングしたすべてのデバイスとの同期を停止します。",
+      "dockSeparators": "ランチャー、アプリ、トレイの間に細い区切り線を表示します",
+      "clockAlign": "時刻と日付を揃える位置です",
+      "editMode": "画面を暗くし、Atrix の各部分をクリックしてオプションを変更します。",
+      "dockBackground": "ウィンドウの背景に従うか、ドック専用の背景を使います",
+      "dockBlur": "ドックの背後のぼかしをウィンドウとは別に調整します",
+      "dockRadius": "フローティングドックの角の丸みを調整します",
+      "dockTint": "ドックに重ねるアクセントカラーの量を調整します",
+      "dockBorder": "ドックの周りに細い枠線を表示します",
+      "updates": "インストーラーをダウンロードし、新しいバージョンで Atrix を再起動します",
+      "showBluetooth": "Bluetooth の状態と接続中のデバイスを表示します",
+      "showNotifications": "Windows の通知センターを開くボタンを表示します",
+      "showDesktopButton": "ドックの右端にデスクトップ表示ボタンを表示します",
+      "showTaskView": "Windows のタスクビューを開くボタンを表示します",
+      "showInputLanguage": "キーボードレイアウトが 2 つ以上あるとき、アクティブウィンドウの入力言語を表示します",
+      "hideAnimation": "ドックの非表示と再表示にアニメーションを使います。オフにするとすぐに隠れます。",
+      "topBar": "時計、トレイ、ウィジェットを画面上部の別のバーに移します",
+      "panelPosition": "カレンダーと通知パネルが開く位置です",
+      "holidayRegion": "祝日を表示する国です。システムは Windows に従います",
+      "featureCalendar": "時計からカレンダーと予定のパネルを開きます",
+      "dockLayout": "編集モードでウィジェットの順序と余白の幅を調整します",
+      "pairDevice": "ここでコードを作成し、もう一方のデバイスで入力してください。",
+      "joinDevice": "もう一方のデバイスで作成したコードを貼り付けてください。",
+      "showSyncStatus": "時計の横に同期状態をドットで表示します",
+      "lastEntryPoint": "ドックかランチャーのどちらかはオンにしてください",
+      "dockLayoutLocked": "試験的機能で編集モードをオンにすると使用できます",
+      "dockGrowth": "ウィンドウが多いとこの割合まで広げて残りのアプリを ⋯ メニューにまとめ、0% では幅を固定します",
+      "studio": "自分の設定ですべてのウィンドウをサンドボックスでプレビューし、結果を Atrix に適用します",
+      "hideDelay": "カーソルがドックを離れてから隠れるまでの時間です",
+      "trayNeedsDock": "ドックをオンにすると使用できます",
+      "atrixFiles": "Windows エクスプローラーに代わるファイルエクスプローラーです",
+      "filesDefault": "フォルダー、ファイルの場所、Win+E を Atrix Files で開きます",
+      "filesDefaultApps": "3D モデルを開くアプリは Windows の設定で選択してください。",
+      "filesMissing": "Atrix Files がインストールされていません",
+      "followAtrix": "Atrix の外観設定に従います。",
+      "atrixMissing": "Atrix がインストールされていません。",
+      "hideGather": "ドックを中央の丸いロゴにまとめてから送り出します。オフにすると端へスライドします。",
+      "dockIslands": "ドックの各部分を丸いアイランドに分けて表示します。",
+      "islandGap": "ドックのアイランド同士の距離です。",
+      "dockIcon": "ランチャーボタンと非表示時のロゴに使う画像です。",
+      "gatherHideMs": "ドックがロゴにまとまって消えるまでの時間です。",
+      "gatherShowMs": "ドックがロゴから再び広がるまでの時間です。",
+      "noteStatus": "Note をインストールすると連携できます",
+      "noteLink": "この PC の Note と下の項目をやり取りします",
+      "note": {
+        "calendar": "Atrix と Note の予定を互いに反映します",
+        "style": "Note が Atrix の外観設定に従います",
+        "references": "予定のメモで [[ と入力すると Note のページを探してリンクします",
+        "preview": "ページリンクにカーソルを合わせると左に Note の内容を表示します"
+      },
+      "panelStart": "カレンダーを開いたときに最初に表示されるサイズです。",
+      "font": "一覧にないフォントは、インストール済みの名前を入力してください。",
+      "metersStacked": "CPU とメモリの使用量を 2 行で表示します"
+    },
+    "options": {
+      "win": "Win キー",
+      "shortcut": "ショートカット",
+      "both": "両方",
+      "terminalAuto": "自動",
+      "cmd": "コマンド プロンプト",
+      "monday": "月曜日",
+      "sunday": "日曜日",
+      "wheel": "ホイール",
+      "clock": "時計",
+      "dark": "ダーク",
+      "light": "ライト",
+      "system": "システム",
+      "aura": "モダン",
+      "glass": "グラス",
+      "solid": "標準",
+      "cozy": "ゆったり",
+      "compact": "コンパクト",
+      "minBefore": "{minutes}分前",
+      "deg": "{value} deg",
+      "runSetup": "セットアップを実行",
+      "inherit": "ウィンドウと同じ",
+      "openStudio": "Studio を開く",
+      "systemFont": "システムフォント",
+      "customFont": "直接入力"
+    },
+    "featurePresets": {
+      "all": {
+        "name": "すべて",
+        "hint": "ドックとランチャー"
+      },
+      "search": {
+        "name": "ランチャーのみ",
+        "hint": "Windows タスクバーを残す"
+      },
+      "aria": "機能プリセット"
+    },
+    "toasts": {
+      "shortcutFailed": "ショートカットを登録できませんでした: {error}",
+      "autostartFailed": "自動起動に失敗しました: {error}",
+      "presetSaved": "プリセット「{name}」を保存しました。",
+      "dataFolderFailed": "データフォルダーを開けませんでした: {error}",
+      "iconCacheCleared": "アイコンキャッシュをクリアしました。",
+      "iconCacheFailed": "アイコンキャッシュをクリアできませんでした: {error}",
+      "appearanceReset": "外観をリセットしました。",
+      "settingsReset": "設定をリセットしました。",
+      "bridgeFailed": "Claude ブリッジを変更できませんでした: {error}",
+      "iconTooLarge": "512KB 以下の画像を選択してください",
+      "iconFailed": "画像を読み込めませんでした"
+    },
+    "about": {
+      "tagline": "Windows 11 のためのランチャー、ドック、カレンダー",
+      "checkUpdates": "更新を確認",
+      "checking": "確認中",
+      "upToDate": "最新の状態です",
+      "available": "バージョン {version} が利用できます",
+      "installRestart": "インストールして再起動",
+      "downloading": "ダウンロード中 {percent}%",
+      "installing": "インストール中",
+      "failed": "更新に失敗しました: {error}"
+    },
+    "shortcuts": {
+      "launcher": "ランチャー",
+      "panel": "カレンダーパネル",
+      "setup": "セットアップと設定",
+      "openLauncher": "ランチャーを開く",
+      "moveSelection": "選択を移動",
+      "movePage": "ページを移動",
+      "nextGroup": "次のグループ",
+      "previousGroup": "前のグループ",
+      "openResult": "選択した結果を開く",
+      "openAdmin": "管理者として開く",
+      "openLocation": "ファイルの場所を開く",
+      "openNumbered": "番号の結果を開く",
+      "actionMenu": "アクションメニューを開く",
+      "clearThenClose": "入力をクリアしてから閉じる",
+      "switchTabs": "タブを切り替え",
+      "moveDay": "選択した日を移動",
+      "addEvent": "その日に予定を追加",
+      "closePanel": "パネルを閉じる",
+      "nextStep": "次のセットアップ手順",
+      "closeWindow": "このウィンドウを閉じる",
+      "keys": {
+        "up": "↑",
+        "down": "↓",
+        "pageUp": "PageUp",
+        "pageDown": "PageDown",
+        "left": "←",
+        "right": "→",
+        "arrows": "矢印キー",
+        "menu": "Menu"
+      }
+    },
+    "appearance": {
+      "presetDescriptions": {
+        "aurora": "深い青に漂うオーブ",
+        "glass": "明るいすりガラス",
+        "mica": "Windows のアクセントを使った単色",
+        "nord": "冷たい北極の青",
+        "catppuccin": "やわらかなパステルモーブ",
+        "dracula": "チャコールに紫とピンク",
+        "solarized": "アンバーのアクセントの温かい紙色",
+        "mono": "グレースケール、アクセントなし",
+        "neon": "鮮やかなマゼンタとシアンの光",
+        "sunset": "夕暮れにオレンジとゴールド",
+        "forest": "粒子感のある苔の緑",
+        "ocean": "深いティールの潮流",
+        "user": "設定から保存",
+        "arix": "角の丸いフラットなブラック"
+      },
+      "followingAccent": "Windows のアクセントに追従中",
+      "baseColor": "テーマ全体のベースカラー",
+      "resetTo": "{name} にリセット",
+      "preset": "プリセット",
+      "saveAsPreset": "プリセットとして保存",
+      "savePreset": "プリセットを保存",
+      "savePresetBody": "現在の外観をグリッドのカードとして保存します。",
+      "presetName": "プリセット名",
+      "deletePreset": "プリセット {name} を削除",
+      "customPreset": "カスタム",
+      "forkedFrom": "{name} から変更",
+      "fontName": "フォント名"
+    },
+    "hotkey": {
+      "addModifier": "Ctrl や Alt などの修飾キーを追加してください",
+      "recording": "ショートカットを記録中",
+      "change": "ショートカットを変更",
+      "pressKeys": "キーを押してください",
+      "escCancels": "Esc でキャンセル"
+    },
+    "advanced": {
+      "events": "予定",
+      "presets": "プリセット",
+      "resetAllTitle": "すべての設定をリセットしますか?",
+      "resetAllBody": "すべての設定が既定値に戻ります。予定、プリセット、同期の接続は残ります。"
+    },
+    "dock": {
+      "styles": {
+        "windows": {
+          "label": "Windows",
+          "hint": "画面の端に沿った全幅のバー"
+        },
+        "mac": {
+          "label": "Mac",
+          "hint": "中央に浮かぶドック"
+        }
+      },
+      "styleAria": "ドックのスタイル",
+      "automatic": "自動 (プライマリ)",
+      "notConnected": "未接続",
+      "primary": "プライマリ",
+      "start": "先頭",
+      "center": "中央",
+      "bottom": "下",
+      "top": "上",
+      "bars": "バー",
+      "mirror": "ミラー",
+      "wave": "ウェーブ",
+      "dots": "ドット",
+      "left": "左",
+      "right": "右",
+      "connect": "接続",
+      "disconnect": "切断",
+      "alignStart": "左",
+      "alignCenter": "中央",
+      "alignEnd": "右",
+      "openEditMode": "開く",
+      "chooseImage": "画像を選択",
+      "edgeOnly": {
+        "maximized": "最大化時",
+        "always": "常に"
+      }
+    },
+    "sync": {
+      "devices": {
+        "title": "デバイス",
+        "description": "このデバイスとペアリングしたデバイス"
+      },
+      "collections": {
+        "todos": "タスク",
+        "events": "予定",
+        "profile": "プロファイル",
+        "presets": "プリセット",
+        "notes": "メモ"
+      },
+      "everyHour": "1時間ごと",
+      "everyMinutes": "{minutes}分ごと",
+      "states": {
+        "disabled": "オフ",
+        "unpaired": "未接続",
+        "waiting": "ペアリング待ち",
+        "idle": "接続済み",
+        "syncing": "同期中",
+        "error": "エラー"
+      },
+      "lastSync": "最終同期: {when}",
+      "neverSynced": "未同期",
+      "justNow": "たった今",
+      "syncNow": "今すぐ同期",
+      "noDevices": "ペアリング済みのデバイスなし",
+      "seen": "最終確認: {when}",
+      "thisDevice": "このデバイス",
+      "unlink": "接続解除",
+      "toasts": {
+        "failed": "同期に失敗しました。",
+        "synced": "{count} 台のデバイスと同期しました。",
+        "unlinked": "接続を解除しました。",
+        "noPeers": "接続できるデバイスがありません。",
+        "joined": "接続しました。",
+        "copied": "コードをコピーしました。",
+        "removed": "デバイスを削除しました"
+      },
+      "confirm": {
+        "unlinkTitle": "このデバイスの接続を解除しますか?",
+        "unlinkBody": "他のデバイスとの同期を停止します。ローカルデータは保持されます。",
+        "removeTitle": "{name} を削除しますか?",
+        "removeBody": "すべてのデバイスから削除し、ペアリングコードを変更します。以前のペアリングコードは使えなくなります。"
+      },
+      "description": "{collections}をデバイス間で同期します。",
+      "neverSeen": "接続履歴なし",
+      "createCode": "ペアリングコードを作成",
+      "joinWithCode": "コードで接続",
+      "copyCode": "コードをコピー",
+      "codePlaceholder": "ペアリングコード",
+      "remove": "削除"
+    },
+    "backup": {
+      "exportJson": "JSON をエクスポート",
+      "copyJson": "JSON をコピー",
+      "importJson": "JSON をインポート",
+      "exportStarted": "エクスポートを開始しました。",
+      "copied": "JSON をクリップボードにコピーしました。",
+      "notBackup": "Atrix のバックアップではありません。",
+      "nothing": "インポートするものがありません。",
+      "imported": "{count}件をインポートしました。",
+      "skipped": "無効な{count}件をスキップしました。"
+    },
+    "sectionsAria": "セクション",
+    "nav": {
+      "features": "機能",
+      "system": "システム"
+    },
+    "tocAria": "グループ",
+    "themeLink": {
+      "title": "テーマの適用",
+      "body": "外観をコミュニティテーマ「{name}」に切り替えます。",
+      "apply": "適用"
+    },
+    "note": {
+      "states": {
+        "missing": "未インストール",
+        "waiting": "接続待ち",
+        "linked": "接続済み"
+      },
+      "open": "Note を開く"
+    }
+  },
+  "launcher": {
+    "placeholder": "アプリ、ウィンドウ、コマンドを検索",
+    "clear": "クリア",
+    "results": "結果",
+    "moreActions": "その他の操作",
+    "menuAria": "ランチャーメニュー",
+    "resultCount": "{count, plural, other {#件の結果}}",
+    "enter": {
+      "paste": "貼り付け",
+      "copy": "コピー",
+      "open": "開く"
+    },
+    "footer": {
+      "admin": "管理者",
+      "location": "場所",
+      "groups": "グループ"
+    },
+    "sections": {
+      "recent": "最近",
+      "pinned": "ピン留め",
+      "timers": "タイマー",
+      "running": "実行中"
+    },
+    "modes": {
+      "run": "実行",
+      "todo": "タスク",
+      "calc": "計算",
+      "clip": "クリップ",
+      "emoji": "絵文字",
+      "timer": "タイマー",
+      "alarm": "アラーム"
+    },
+    "hints": {
+      "run": "実行",
+      "todo": "タスク",
+      "calc": "計算",
+      "emoji": "絵文字",
+      "clip": "クリップボード",
+      "timer": "タイマー"
+    },
+    "empty": {
+      "run": "コマンドを入力",
+      "todo": "タスクを入力",
+      "calc": "式または単位変換を入力",
+      "alarm": "時刻を入力 (例: 7:30 起床)",
+      "timer": "時間を入力 (例: 5m お茶)",
+      "emoji": "絵文字が見つかりません",
+      "clip": "クリップボード履歴なし",
+      "noResults": "結果なし",
+      "start": "アプリ、ウィンドウ、コマンドを検索",
+      "loading": "アプリを読み込み中"
+    },
+    "couldNotOpen": "{title} を開けませんでした ({error})",
+    "backdrop": {
+      "clearSearch": "検索をクリア",
+      "focusSearch": "検索にフォーカス",
+      "hideKeymap": "キーボードヒントを隠す",
+      "showKeymap": "キーボードヒントを表示",
+      "settings": "Atrix の設定"
+    },
+    "groups": {
+      "app": "アプリ",
+      "window": "ウィンドウ",
+      "command": "コマンド",
+      "calc": "電卓",
+      "unit": "単位変換",
+      "todo": "タスク",
+      "timer": "タイマー",
+      "emoji": "絵文字",
+      "web": "ウェブ",
+      "run": "実行",
+      "setting": "設定",
+      "clip": "クリップボード"
+    },
+    "kinds": {
+      "app": "アプリ",
+      "window": "ウィンドウ",
+      "command": "コマンド",
+      "calc": "計算",
+      "unit": "変換",
+      "todo": "タスク",
+      "timer": "タイマー",
+      "emoji": "絵文字",
+      "web": "ウェブ",
+      "run": "実行",
+      "setting": "設定",
+      "clip": "クリップ"
+    },
+    "actions": {
+      "admin": "管理者として実行",
+      "location": "ファイルの場所を開く",
+      "cancel": "キャンセル",
+      "closeWindow": "ウィンドウを閉じる",
+      "pinDock": "ドックにピン留め",
+      "unpinDock": "ドックからピン留めを外す",
+      "copyOnly": "コピーのみ",
+      "pin": "ピン留め",
+      "unpin": "ピン留めを外す",
+      "delete": "削除",
+      "paste": "貼り付け",
+      "open": "開く"
+    },
+    "chips": {
+      "minimized": "最小化",
+      "enterCopies": "Enter でコピー",
+      "priority": "優先度 {level}"
+    },
+    "timer": {
+      "setAlarm": "アラームを設定: {label}",
+      "startTimer": "タイマーを開始: {label}",
+      "firesAt": "{time} に通知",
+      "left": "残り{remaining} · {time}",
+      "alarm": "アラーム",
+      "timer": "タイマー"
+    },
+    "todo": {
+      "add": "タスクを追加: {title}",
+      "saves": "完了チェック付きの予定としてカレンダーに保存"
+    },
+    "web": {
+      "search": "「{query}」をウェブで検索"
+    },
+    "run": {
+      "title": "{command} を実行",
+      "subtitle": "コマンドライン"
+    },
+    "open": {
+      "title": "{target} を開く",
+      "link": "リンク",
+      "path": "パス"
+    },
+    "clip": {
+      "whitespace": "空白",
+      "justNow": "たった今",
+      "lines": "{count, plural, other {#行}}",
+      "chars": "{count, plural, other {#文字}}",
+      "clearHistory": "履歴をクリア",
+      "keepsPinned": "ピン留めした項目は保持"
+    },
+    "calcErrors": {
+      "divisionByZero": "ゼロ除算",
+      "undefined": "未定義",
+      "outOfRange": "範囲外"
+    },
+    "subtitles": {
+      "power": "電源",
+      "windowsSettings": "Windows の設定",
+      "windows": "Windows",
+      "folder": "フォルダー",
+      "system": "システム",
+      "atrix": "Atrix",
+      "atrixSettings": "Atrix の設定"
+    },
+    "commands": {
+      "lock": "ロック",
+      "sleep": "スリープ",
+      "hibernate": "休止状態",
+      "shutdown": "シャットダウン",
+      "restart": "再起動",
+      "signout": "サインアウト",
+      "recycle": "ごみ箱を空にする",
+      "atrixFiles": "ファイルを開く",
+      "atrixSettings": "Atrix の設定を開く",
+      "atrixPanel": "カレンダーパネルを開く",
+      "atrixNote": "新しいメモ",
+      "atrixQuit": "Atrix を終了",
+      "atrixClipboard": "クリップボードの履歴",
+      "taskmgr": "タスク マネージャー",
+      "explorer": "エクスプローラー",
+      "terminal": "ターミナル",
+      "control": "コントロール パネル",
+      "screenclip": "画面領域切り取り",
+      "snippingtool": "Snipping Tool",
+      "security": "Windows セキュリティ",
+      "devmgmt": "デバイス マネージャー",
+      "diskmgmt": "ディスクの管理",
+      "services": "サービス",
+      "regedit": "レジストリ エディター",
+      "eventvwr": "イベント ビューアー",
+      "msinfo32": "システム情報",
+      "charmap": "文字コード表",
+      "calc": "電卓",
+      "notepad": "メモ帳",
+      "mspaint": "ペイント",
+      "downloads": "ダウンロード",
+      "documents": "ドキュメント",
+      "desktop": "デスクトップ",
+      "recyclebin": "ごみ箱",
+      "thispc": "PC",
+      "atrixEdit": "レイアウトを編集"
+    },
+    "windowsSettings": {
+      "display": "ディスプレイ",
+      "nightlight": "夜間モード",
+      "display-advancedgraphics": "グラフィック",
+      "sound": "サウンド",
+      "sound-devices": "サウンド デバイス",
+      "apps-volume": "音量ミキサー",
+      "notifications": "通知",
+      "quiethours": "応答不可",
+      "powersleep": "電源とバッテリー",
+      "storagesense": "ストレージ",
+      "disksandvolumes": "ディスクとボリューム",
+      "savelocations": "新しいコンテンツの保存先",
+      "multitasking": "マルチタスク",
+      "developers": "開発者向け",
+      "troubleshoot": "トラブルシューティング",
+      "recovery": "回復",
+      "activation": "ライセンス認証",
+      "remotedesktop": "リモート デスクトップ",
+      "project": "この PC へのプロジェクション",
+      "clipboard": "クリップボード",
+      "about": "バージョン情報",
+      "bluetooth": "Bluetooth とデバイス",
+      "printers": "プリンターとスキャナー",
+      "mousetouchpad": "マウス",
+      "devices-touchpad": "タッチパッド",
+      "pen": "ペンと Windows Ink",
+      "autoplay": "自動再生",
+      "usb": "USB",
+      "camera": "カメラ",
+      "mobile-devices": "スマートフォン連携",
+      "network-status": "ネットワークとインターネット",
+      "network-wifi": "Wi-Fi",
+      "network-ethernet": "イーサネット",
+      "network-vpn": "VPN",
+      "network-proxy": "プロキシ",
+      "network-mobilehotspot": "モバイル ホットスポット",
+      "network-airplanemode": "機内モード",
+      "network-advancedsettings": "ネットワークの詳細設定",
+      "personalization": "個人用設定",
+      "personalization-background": "背景",
+      "colors": "色",
+      "themes": "テーマ",
+      "lockscreen": "ロック画面",
+      "personalization-start": "スタート",
+      "taskbar": "タスク バー",
+      "fonts": "フォント",
+      "appsfeatures": "インストールされているアプリ",
+      "defaultapps": "既定のアプリ",
+      "optionalfeatures": "オプション機能",
+      "startupapps": "スタートアップ",
+      "appsforwebsites": "Web サイト用のアプリ",
+      "videoplayback": "ビデオの再生",
+      "yourinfo": "ユーザーの情報",
+      "signinoptions": "サインイン オプション",
+      "emailandaccounts": "メールとアカウント",
+      "otherusers": "他のユーザー",
+      "workplace": "職場または学校にアクセスする",
+      "dateandtime": "日付と時刻",
+      "regionlanguage": "言語と地域",
+      "regionformatting": "地域設定",
+      "typing": "入力",
+      "keyboard": "キーボード",
+      "speech": "音声認識",
+      "gaming-gamebar": "Game Bar",
+      "gaming-gamedvr": "キャプチャ",
+      "gaming-gamemode": "ゲーム モード",
+      "easeofaccess-display": "テキストのサイズ",
+      "easeofaccess-mousepointer": "マウス ポインターとタッチ",
+      "easeofaccess-magnifier": "拡大鏡",
+      "easeofaccess-colorfilter": "カラー フィルター",
+      "easeofaccess-highcontrast": "コントラスト テーマ",
+      "easeofaccess-narrator": "ナレーター",
+      "easeofaccess-closedcaptioning": "字幕",
+      "privacy": "プライバシーとセキュリティ",
+      "privacy-location": "位置情報",
+      "privacy-webcam": "カメラへのアクセス",
+      "privacy-microphone": "マイクへのアクセス",
+      "privacy-appdiagnostics": "アプリの診断",
+      "privacy-feedback": "診断とフィードバック",
+      "search-permissions": "検索のアクセス許可",
+      "findmydevice": "デバイスの検索",
+      "deviceencryption": "デバイスの暗号化",
+      "windowsupdate": "Windows Update",
+      "windowsupdate-history": "更新の履歴",
+      "windowsupdate-options": "詳細オプション",
+      "windowsupdate-optionalupdates": "オプションの更新プログラム",
+      "delivery-optimization": "配信の最適化",
+      "windowsinsider": "Windows Insider Program"
+    }
+  },
+  "dates": {
+    "today": "今日",
+    "tomorrow": "明日",
+    "yesterday": "昨日"
+  },
+  "dock": {
+    "dockAria": "ドック",
+    "dockMenu": "ドックメニュー",
+    "apps": "アプリ",
+    "launcher": "ランチャー",
+    "openLauncher": "ランチャーを開く",
+    "more": "他{count}件",
+    "moreApps": "その他のアプリ",
+    "taskManager": "タスク マネージャー",
+    "hideSettingsButton": "設定ボタンを隠す",
+    "showSettingsButton": "設定ボタンを表示",
+    "settings": "Atrix の設定",
+    "editLayout": "レイアウトを編集",
+    "calendar": "カレンダー",
+    "openCalendar": "カレンダーを開く",
+    "menu": {
+      "pin": "ドックにピン留め",
+      "unpin": "ドックからピン留めを外す",
+      "newWindow": "新しいウィンドウを開く",
+      "endTask": "タスクを終了",
+      "closeAll": "すべて閉じる",
+      "openLocation": "ファイルの場所を開く"
+    },
+    "preview": {
+      "switchTo": "ウィンドウに切り替え",
+      "close": "ウィンドウを閉じる"
+    },
+    "addSpacer": "余白を追加",
+    "resetLayout": "レイアウトをリセット",
+    "spacerWidth": "余白の幅",
+    "moveLeft": "左へ移動",
+    "moveRight": "右へ移動"
+  },
+  "edit": {
+    "title": "レイアウトを編集",
+    "hint": "強調された部分をクリックして変更し、ドラッグで並べ替えます。",
+    "done": "完了",
+    "spots": {
+      "launcher": "ランチャーボタン",
+      "apps": "アプリ",
+      "tray": "トレイと時計",
+      "widgets": "ウィジェット",
+      "search": "ランチャー",
+      "spacer": "余白"
+    },
+    "panel": "パネル設定"
+  },
+  "menu": {
+    "label": "メニュー",
+    "cut": "切り取り",
+    "copy": "コピー",
+    "paste": "貼り付け",
+    "selectAll": "すべて選択"
+  },
+  "panel": {
+    "allDay": "終日",
+    "untitled": "無題",
+    "title": "タイトル",
+    "events": "予定",
+    "errors": {
+      "startRequired": "開始日を入力してください。",
+      "endRequired": "終了日を入力してください。",
+      "endBeforeStart": "終了が開始より前です。"
+    },
+    "greeting": {
+      "morning": "おはようございます",
+      "afternoon": "こんにちは",
+      "evening": "こんばんは"
+    },
+    "summary": {
+      "events": "{count, plural, other {予定#件}}"
+    },
+    "clearSearch": "検索をクリア",
+    "calendarAria": "カレンダー",
+    "cardsAria": "パネルのカード",
+    "notesAria": "メモ",
+    "due": "期限",
+    "nothingDue": "期限のタスクなし",
+    "colors": {
+      "default": "既定",
+      "secondary": "セカンダリ",
+      "accent": "アクセント",
+      "success": "成功",
+      "warning": "警告",
+      "error": "エラー",
+      "info": "情報",
+      "violet": "紫",
+      "pink": "ピンク",
+      "gray": "グレー"
+    },
+    "calendar": {
+      "month": "月",
+      "week": "週",
+      "agenda": "一覧",
+      "from": "{date} から",
+      "viewAria": "カレンダー表示",
+      "nothingScheduled": "予定なし",
+      "nextDays": "今後{count}日間",
+      "noUpcoming": "今後の予定なし"
+    },
+    "week": {
+      "slot": "{day} {time} に新しい予定"
+    },
+    "event": {
+      "new": "新しい予定",
+      "edit": "予定を編集",
+      "start": "開始",
+      "end": "終了",
+      "color": "色",
+      "reminder": "リマインダー",
+      "repeat": "繰り返し",
+      "notes": "メモ",
+      "reminders": {
+        "atStart": "開始時",
+        "minutesBefore": "{count}分前",
+        "hourBefore": "1時間前",
+        "dayBefore": "1日前"
+      },
+      "recurrences": {
+        "none": "繰り返さない",
+        "daily": "毎日",
+        "weekdays": "平日",
+        "weekly": "毎週",
+        "monthly": "毎月",
+        "yearly": "毎年"
+      },
+      "detail": "予定の詳細",
+      "noNotes": "メモなし",
+      "openInNote": "Note で開く",
+      "previewMissing": "プレビューなし",
+      "timeFromTitle": "{time} 開始",
+      "tags": "タグ",
+      "newTag": "新しいタグ",
+      "addEnd": "終了時刻を追加",
+      "removeEnd": "終了時刻を削除",
+      "parent": "親の予定",
+      "children": "サブ予定",
+      "addChild": "サブ予定を追加",
+      "parentLocked": "サブ予定がある予定には親の予定を設定できません。",
+      "date": "日付",
+      "shift": "週末や祝日の場合",
+      "shiftShort": "休日の調整",
+      "shifts": {
+        "none": "そのまま",
+        "next": "次の平日に移動",
+        "previous": "前の平日に移動"
+      },
+      "movedFrom": "{date}から移動",
+      "addField": "項目を追加",
+      "fields": {
+        "reminder": "通知",
+        "tags": "タグ",
+        "parent": "親の予定",
+        "task": "完了チェック"
+      },
+      "every": {
+        "daily": "毎日",
+        "weekdays": "平日",
+        "weekly": "毎週{date}",
+        "monthly": "毎月{date}",
+        "yearly": "毎年{date}"
+      },
+      "writeNotes": "メモを入力",
+      "noteEmpty": "内容なし",
+      "notesSync": {
+        "label": "同期",
+        "all": "すべての予定に適用",
+        "ask": "保存時に適用範囲を選択"
+      },
+      "addTime": "時刻を追加",
+      "removeTime": "時刻を削除",
+      "hour": "時",
+      "minute": "分",
+      "blocks": {
+        "text": "テキスト",
+        "h1": "見出し1",
+        "h2": "見出し2",
+        "h3": "見出し3",
+        "todo": "ToDo",
+        "bullet": "箇条書き",
+        "number": "番号付きリスト",
+        "quote": "引用",
+        "code": "コードブロック",
+        "divider": "区切り線",
+        "date": "今日の日付"
+      }
+    },
+    "ics": {
+      "options": "カレンダーのオプション",
+      "import": ".ics をインポート",
+      "export": ".ics をエクスポート",
+      "copy": ".ics をコピー",
+      "importFile": "カレンダーファイルをインポート",
+      "exported": "{count, plural, other {#件の予定}}をエクスポートしました。",
+      "imported": "{count, plural, other {#件の予定}}をインポートしました。",
+      "copied": "カレンダーをクリップボードにコピーしました。",
+      "noEvents": "予定が見つかりませんでした。"
+    },
+    "notes": {
+      "search": "メモを検索",
+      "new": "新しいメモ",
+      "pinned": "ピン留め",
+      "noNotes": "メモなし",
+      "conflict": "別のデバイスの新しいバージョンで再読み込みしました。",
+      "titleAria": "メモのタイトル",
+      "pin": "メモをピン留め",
+      "unpin": "メモのピン留めを外す",
+      "delete": "メモを削除",
+      "bodyPlaceholder": "メモを入力",
+      "bodyAria": "メモの本文",
+      "select": "メモを選択してください"
+    },
+    "notifications": {
+      "title": "通知",
+      "empty": "通知なし",
+      "clearAll": "すべてクリア",
+      "dismiss": "閉じる",
+      "dismissApp": "{app} の通知をすべて閉じる",
+      "focusAssist": "集中モード",
+      "settings": "通知の設定",
+      "windowsCenter": "Windows の通知センター",
+      "toggle": "通知を表示"
+    },
+    "day": {
+      "title": "{date}の予定",
+      "empty": "予定なし",
+      "add": "予定を追加"
+    },
+    "detail": {
+      "date": "日付"
+    },
+    "header": {
+      "today": "今日 {date}"
+    },
+    "holiday": "祝日",
+    "tags": {
+      "todo": "ToDo",
+      "personal": "個人",
+      "work": "仕事",
+      "search": "タグを検索または作成",
+      "create": "{name} を作成",
+      "edit": "タグを編集",
+      "name": "タグ名",
+      "hide": "共有中は非表示",
+      "delete": "タグを削除",
+      "confirmDelete": "このタグを削除しますか?"
+    },
+    "sharing": "画面共有中",
+    "sharingHint": "非表示タグの予定は画面共有中に表示しません。",
+    "privateReminder": "予定の通知",
+    "expand": "大きく表示",
+    "collapse": "小さく表示",
+    "scope": {
+      "edit": "繰り返し予定の編集",
+      "delete": "繰り返し予定の削除",
+      "one": "この予定のみ",
+      "following": "この予定以降",
+      "all": "すべての予定",
+      "confirm": "この予定を削除しますか？"
+    },
+    "task": {
+      "label": "完了チェック",
+      "done": "完了にする",
+      "undo": "未完了に戻す"
+    },
+    "clock": {
+      "hour": "{period}{hour}時",
+      "minute": "{period}{hour}時{minute}分"
+    },
+    "group": {
+      "title": "グループ",
+      "leave": "グループ解除"
+    },
+    "hiddenCount": "{count}件を非表示",
+    "relation": {
+      "title": "関係",
+      "add": "関係を追加",
+      "parent": "親",
+      "child": "子",
+      "group": "グループ",
+      "remove": "関係を解除",
+      "search": "予定を検索",
+      "empty": "予定なし",
+      "actions": {
+        "parent": "親の予定を指定",
+        "child": "子の予定を追加",
+        "group": "グループにまとめる"
+      }
+    },
+    "hideAgain": "{count}件を再び非表示"
+  },
+  "files": {
+    "forward": "進む",
+    "up": "上へ",
+    "refresh": "更新",
+    "pathAria": "パス",
+    "searchPlaceholder": "このフォルダーを検索",
+    "toggleHidden": "隠しファイルの表示を切り替え",
+    "hiddenItems": "隠し項目",
+    "filesAria": "ファイル",
+    "menuAria": "ファイルメニュー",
+    "newFolder": "新しいフォルダー",
+    "paste": "貼り付け",
+    "open": "開く",
+    "rename": "名前の変更",
+    "copy": "コピー",
+    "cut": "切り取り",
+    "copyPath": "パスのコピー",
+    "columns": {
+      "name": "名前",
+      "modified": "更新日時",
+      "size": "サイズ"
+    },
+    "loading": "読み込み中",
+    "empty": "空のフォルダー",
+    "itemCount": "{count, plural, other {#個の項目}}",
+    "selectedCount": "{count}個を選択"
+  },
+  "onboarding": {
+    "title": "Atrix のセットアップ",
+    "progressAria": "進行状況",
+    "skipSetup": "セットアップをスキップ",
+    "custom": "カスタム",
+    "enterContinues": "Enter で続行",
+    "getStarted": "始める",
+    "startUsing": "Atrix を使い始める",
+    "steps": {
+      "welcome": "ようこそ",
+      "features": "機能",
+      "style": "スタイル",
+      "dock": "ドック",
+      "hotkeys": "ホットキー",
+      "sync": "同期",
+      "tips": "ヒント",
+      "done": "完了"
+    },
+    "welcome": {
+      "title": "Atrix へようこそ",
+      "tagline": "デスクトップに常駐するランチャー、ドック、カレンダーです。",
+      "launcher": {
+        "title": "ランチャー",
+        "text": "Win を押して入力し、Enter を押すだけです。アプリ、ウィンドウ、タスク、計算、ウェブまで。"
+      },
+      "dock": {
+        "title": "ドック",
+        "text": "Windows タスクバーの代わりになるバーに、ピン留めしたアプリと実行中のアプリを表示します。"
+      },
+      "calendar": {
+        "title": "カレンダー",
+        "text": "時計をクリックするだけで、今日の予定が開きます。"
+      }
+    },
+    "features": {
+      "title": "使う機能を選ぶ",
+      "blurb": "プリセットを選んでから、個別の機能をオン/オフできます。あとから設定で変更できます。"
+    },
+    "style": {
+      "title": "外観を選ぶ",
+      "blurb": "変更はすぐに反映されます。色の微調整はあとから設定でできます。"
+    },
+    "dock": {
+      "title": "ドックを整える",
+      "blurb": "サイズと内容の微調整はあとから設定でできます。"
+    },
+    "hotkeys": {
+      "title": "Atrix を開く",
+      "blurb": "ランチャーの呼び出し方を選んでください。",
+      "info": "{win} を単独で押すと Atrix が開きます。{win} + {e} などの組み合わせは通常どおり使えます。",
+      "winOr": "Win キーまたは {shortcut}"
+    },
+    "sync": {
+      "title": "デバイス間で同期",
+      "blurb": "省略できます。別のデバイスとペアリングするか、スキップしてあとで設定してください。"
+    },
+    "tips": {
+      "title": "いくつかのヒント",
+      "blurb": "始める前に知っておきたい3つのことです。",
+      "win": {
+        "title": "Win で Atrix を開く",
+        "text": "どこでも押すだけです。Win の組み合わせはそのまま使えます。"
+      },
+      "run": {
+        "title": "> を入力して実行",
+        "text": "検索ボックスから直接コマンドを実行します。"
+      },
+      "clock": {
+        "title": "時計をクリック",
+        "text": "カレンダーが表示されます。"
+      }
+    },
+    "done": {
+      "title": "準備完了",
+      "blurb": "以下はすべて、あとから設定で変更できます。",
+      "dockValue": "{style} スタイル、{edge}{autoHide, select, yes {、自動的に隠す} other {}}",
+      "edges": {
+        "top": "上端",
+        "bottom": "下端"
+      }
+    }
+  },
+  "tray": {
+    "taskView": "タスクビュー",
+    "showDesktop": "デスクトップの表示",
+    "openSettings": "設定を開く",
+    "menu": {
+      "title": "Atrix メニュー",
+      "calendar": "カレンダー",
+      "lock": "ロック",
+      "sleep": "スリープ",
+      "restart": "再起動",
+      "shutdown": "シャットダウン",
+      "quit": "Atrix を終了"
+    },
+    "widgets": {
+      "title": "トレイとウィジェット",
+      "open": "トレイとウィジェットを表示",
+      "claude": "Claude",
+      "tray": "トレイ",
+      "media": "メディア",
+      "input": "入力",
+      "meters": "システム",
+      "bluetooth": "Bluetooth",
+      "battery": "バッテリー",
+      "volume": "サウンド"
+    },
+    "battery": {
+      "level": "バッテリー {percent}%",
+      "charging": "充電中"
+    },
+    "sync": {
+      "failed": "同期に失敗しました: {error}",
+      "unknownError": "不明なエラー",
+      "syncing": "同期中",
+      "synced": "同期済み: {time}",
+      "ready": "同期の準備完了",
+      "unpaired": "同期: 未接続",
+      "waiting": "同期: ペアリング待ち"
+    },
+    "notifications": {
+      "title": "通知",
+      "open": "通知センターを開く",
+      "quickSettings": "クイック設定",
+      "focusAssist": "集中モード",
+      "settings": "通知の設定",
+      "windowsCenter": "Windows の通知センター",
+      "unseen": "新着 {count}件"
+    },
+    "network": {
+      "title": "ネットワーク",
+      "none": "ネットワークなし",
+      "connected": "接続済み",
+      "ethernet": "イーサネット",
+      "wifi": "Wi-Fi",
+      "signal": "電波強度 {bars}/5",
+      "available": "利用可能なネットワーク",
+      "settings": "ネットワーク設定",
+      "airplane": "機内モード",
+      "noRadio": "Wi-Fi アダプターなし",
+      "deniedUser": "Windows のプライバシー設定で無線へのアクセスがブロックされています。",
+      "deniedSystem": "システムによって無線へのアクセスがブロックされています。",
+      "radioFailed": "無線を切り替えられませんでした。"
+    },
+    "bluetooth": {
+      "title": "Bluetooth",
+      "off": "Bluetooth オフ",
+      "connected": "接続済みデバイス",
+      "noDevices": "接続済みデバイスなし",
+      "addDevice": "デバイスの追加",
+      "settings": "Bluetooth 設定"
+    },
+    "input": {
+      "title": "入力言語: {label}",
+      "settings": "言語設定"
+    },
+    "icons": {
+      "icon": "トレイアイコン",
+      "hidden": "非表示のトレイアイコン",
+      "hiddenCount": "非表示のアイコン{count}個",
+      "hide": "非表示にする",
+      "unhide": "オーバーフローに表示",
+      "showAll": "すべて表示",
+      "allHidden": "{count}個のアイコンを非表示中",
+      "hideFromDock": "ドックで非表示",
+      "showInDock": "ドックに表示"
+    },
+    "meters": {
+      "title": "システム使用率",
+      "memory": "メモリ",
+      "of": "{used} / {total}",
+      "taskManager": "タスク マネージャー"
+    },
+    "media": {
+      "title": "メディア",
+      "previous": "前のトラック",
+      "next": "次のトラック",
+      "play": "再生",
+      "pause": "一時停止",
+      "failed": "メディア操作に失敗しました。",
+      "nowPlaying": "再生中",
+      "nothing": "再生中のメディアなし",
+      "noInfo": "詳細なし"
+    },
+    "volume": {
+      "title": "音量",
+      "sound": "サウンド",
+      "muted": "ミュート中",
+      "level": "音量 {percent}%",
+      "mute": "ミュート",
+      "unmute": "ミュート解除",
+      "output": "出力デバイス",
+      "noDevices": "デバイスなし",
+      "settings": "サウンド設定"
+    },
+    "claude": {
+      "unmeasured": "Claude の使用量は未計測",
+      "fiveHour": "5時間 {percent}%",
+      "weekly": "週 {percent}%",
+      "leftHours": "残り{hours}時間{minutes}分",
+      "leftMinutes": "残り{minutes}分"
+    },
+    "update": {
+      "title": "Atrix のアップデート",
+      "body": "設定の詳細設定からバージョン {version} をインストールしてください。"
+    }
+  },
+  "studio": {
+    "windows": "ウィンドウ",
+    "pick": "左からウィンドウを選択してください。",
+    "reload": "再読み込み",
+    "reloadSettings": "自分の設定を読み込む",
+    "resetData": "データのリセット",
+    "apply": "Atrix に適用",
+    "applied": "適用済み",
+    "confirm": {
+      "title": "Atrix に適用しますか?",
+      "body": "外観、ドック、ランチャー、カレンダーの設定を Studio の設定に置き換えます。デバイス名、固定したアプリ、同期はそのままです。",
+      "action": "適用"
+    },
+    "names": {
+      "main": "ランチャー",
+      "taskbar": "ドック",
+      "topbar": "トップバー",
+      "settings": "設定",
+      "panel": "カレンダーパネル",
+      "notices": "通知",
+      "onboarding": "セットアップ",
+      "preview": "ウィンドウプレビュー",
+      "files": "Files",
+      "edit": "編集モード"
+    },
+    "publish": "テーマを公開"
+  }
+}

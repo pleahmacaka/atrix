@@ -1,0 +1,462 @@
+<script lang="ts">
+  import * as native from "#lib/native/index.js"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { saveProfileSynced } from "#lib/data/index.js"
+  import { ensureDevice } from "#lib/device.js"
+  import { onWindowShown, showWindow } from "#lib/native/windows.js"
+  import { setLauncherShortcut, setWinKeyCapture } from "#lib/native/dock.js"
+  import {
+    type DeviceSettings,
+    defaultDevice,
+    defaultProfile,
+    loadProfile,
+    type Profile,
+    saveDevice,
+  } from "@atrix/settings"
+  import {
+    DockControls,
+    AtrixFilesControls,
+    FeatureControls,
+    HotkeyPicker,
+    PresetGrid,
+    allPresets,
+    SyncPanel,
+  } from "#lib/settings-ui/index.js"
+  import {
+    AsciiLogo,
+    Logo,
+    Row,
+    Section,
+    Segmented,
+    SetupFlow,
+    Toasts,
+    toast,
+  } from "@atrix/ui"
+  import { applyAppearance } from "#lib/theme.js"
+
+  const steps = [
+    "welcome",
+    "features",
+    "style",
+    "dock",
+    "hotkeys",
+    "sync",
+    "tips",
+    "done",
+  ]
+
+  const tips = [
+    { id: "win", icon: "lucide:keyboard" },
+    { id: "run", icon: "lucide:terminal" },
+    { id: "clock", icon: "lucide:clock" },
+  ]
+
+  const features = [
+    { id: "launcher", icon: "lucide:search" },
+    { id: "dock", icon: "lucide:panel-bottom" },
+    { id: "calendar", icon: "lucide:calendar-check" },
+  ]
+
+  const kbd = (key: string) => `<kbd class="kbd kbd-sm">${key}</kbd>`
+
+  let at = $state(0)
+  let device = $state<DeviceSettings>(structuredClone(defaultDevice))
+  let profile = $state<Profile>(structuredClone(defaultProfile))
+  let ready = $state(false)
+  let finishing = $state(false)
+
+  const load = async () => {
+    const [d, p] = await Promise.all([ensureDevice(), loadProfile()])
+
+    device = d
+    profile = p
+    at = 0
+    ready = true
+  }
+
+  $effect(() => {
+    load()
+
+    const stop = onWindowShown("onboarding", load)
+
+    return () => {
+      stop.then(fn => fn())
+    }
+  })
+
+  const appearanceJson = $derived(JSON.stringify(profile.appearance))
+
+  $effect(() => {
+    if (ready) {
+      applyAppearance(JSON.parse(appearanceJson))
+    }
+  })
+
+  const presetName = $derived(
+    allPresets([]).find(p => p.id === profile.presetId)?.name ??
+      $t("onboarding.custom"),
+  )
+
+  const triggerLabel = $derived(
+    {
+      win: $t("settings.options.win"),
+      shortcut: device.launcherShortcut,
+      both: $t("onboarding.hotkeys.winOr", {
+        values: { shortcut: device.launcherShortcut },
+      }),
+    }[device.launcherTrigger],
+  )
+
+  const finish = async () => {
+    if (finishing) {
+      return
+    }
+
+    finishing = true
+
+    const launcher = device.features.launcher
+
+    try {
+      await setLauncherShortcut(
+        launcher && device.launcherTrigger !== "win"
+          ? device.launcherShortcut
+          : null,
+      )
+    } catch (error) {
+      toast(
+        $t("settings.toasts.shortcutFailed", {
+          values: { error: error instanceof Error ? error.message : String(error) },
+        }),
+        "error",
+      )
+      at = steps.indexOf("hotkeys")
+      finishing = false
+
+      return
+    }
+
+    try {
+      await setWinKeyCapture(
+        launcher && device.launcherTrigger !== "shortcut",
+      ).catch(() => undefined)
+      device.onboarded = true
+      await saveDevice($state.snapshot(device))
+      await saveProfileSynced($state.snapshot(profile))
+
+      if (launcher) {
+        await showWindow("main")
+      }
+
+      await native.hideWindow("onboarding")
+    } finally {
+      finishing = false
+    }
+  }
+
+  const summary = $derived([
+    {
+      icon: "lucide:palette",
+      label: $t("onboarding.steps.style"),
+      value: presetName,
+    },
+    {
+      icon: "lucide:panel-bottom",
+      label: $t("onboarding.steps.dock"),
+      value: $t("onboarding.done.dockValue", {
+        values: {
+          style: $t(`settings.dock.styles.${device.dockStyle}.label`),
+          edge: $t(`onboarding.done.edges.${device.dockEdge}`),
+          autoHide: device.dockAutoHide ? "yes" : "no",
+        },
+      }),
+    },
+    {
+      icon: "lucide:keyboard",
+      label: $t("onboarding.welcome.launcher.title"),
+      value: triggerLabel,
+    },
+    {
+      icon: "lucide:refresh-cw",
+      label: $t("onboarding.steps.sync"),
+      value: device.sync.enabled ? $t("common.on") : $t("common.off"),
+    },
+  ])
+</script>
+
+<main class="flex min-h-0 grow flex-col">
+  <SetupFlow
+    title={$t("onboarding.title")}
+    steps={steps.map(id => ({ id, label: $t(`onboarding.steps.${id}`) }))}
+    bind:at
+    busy={finishing}
+    {ready}
+    startLabel={$t("onboarding.getStarted")}
+    finishLabel={$t("onboarding.startUsing")}
+    onfinish={finish}
+  >
+    {#snippet logo()}
+      <Logo class="size-6" />
+    {/snippet}
+
+    {#snippet step(id: string)}
+      {#if id === "welcome"}
+        <div
+          class="flex h-full flex-col items-center justify-center gap-6 text-center"
+        >
+          <div class="flex flex-col items-center gap-3">
+            <AsciiLogo cols={36} class="w-40" />
+
+            <span class="text-xl font-black tracking-tighter uppercase">Atrix</span>
+          </div>
+
+          <div>
+            <h2 class="text-3xl font-semibold tracking-tight">
+              {$t("onboarding.welcome.title")}
+            </h2>
+
+            <p class="mt-2 text-base text-base-content/70">
+              {$t("onboarding.welcome.tagline")}
+            </p>
+          </div>
+
+          <ul class="grid w-full max-w-2xl grid-cols-3 gap-3 text-left">
+            {#each features as f (f.id)}
+              <li
+                class="atrix-card flex flex-col gap-2 p-4"
+              >
+                <div
+                  class="flex size-8 items-center justify-center rounded-field bg-primary/15 text-primary"
+                >
+                  <Icon icon={f.icon} class="size-4" />
+                </div>
+
+                <span class="text-sm font-semibold">
+                  {$t(`onboarding.welcome.${f.id}.title`)}
+                </span>
+
+                <span class="text-xs text-base-content/60">
+                  {$t(`onboarding.welcome.${f.id}.text`)}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {:else if id === "features"}
+        <div class="mb-4">
+          <h2 class="text-2xl font-semibold tracking-tight">
+            {$t("onboarding.features.title")}
+          </h2>
+
+          <p class="text-sm text-base-content/60">
+            {$t("onboarding.features.blurb")}
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 items-start gap-4">
+          <Section title={$t("settings.groups.features.title")}>
+            <FeatureControls bind:device presets />
+          </Section>
+
+          <div class="flex flex-col gap-4">
+            <Section title={$t("settings.groups.atrixFiles")}>
+              <AtrixFilesControls launch={false} />
+            </Section>
+
+            <Section title={$t("settings.groups.device")}>
+              <Row
+                label={$t("settings.rows.autostart")}
+                hint={$t("settings.hints.autostart")}
+              >
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary"
+                  aria-label={$t("settings.rows.autostart")}
+                  bind:checked={device.autostart}
+                />
+              </Row>
+            </Section>
+          </div>
+        </div>
+      {:else if id === "style"}
+        <div class="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-semibold tracking-tight">
+              {$t("onboarding.style.title")}
+            </h2>
+
+            <p class="text-sm text-base-content/60">
+              {$t("onboarding.style.blurb")}
+            </p>
+          </div>
+
+          <Segmented
+            label={$t("settings.rows.mode")}
+            bind:value={profile.appearance.mode}
+            options={[
+              { value: "dark", label: $t("settings.options.dark"), icon: "lucide:moon" },
+              { value: "light", label: $t("settings.options.light"), icon: "lucide:sun" },
+              { value: "system", label: $t("settings.options.system"), icon: "lucide:monitor" },
+            ]}
+          />
+        </div>
+
+        <PresetGrid bind:profile />
+      {:else if id === "dock"}
+        <div class="mb-4">
+          <h2 class="text-2xl font-semibold tracking-tight">
+            {$t("onboarding.dock.title")}
+          </h2>
+
+          <p class="text-sm text-base-content/60">
+            {$t("onboarding.dock.blurb")}
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 items-start gap-4">
+          <Section title={$t("settings.groups.dockStyle")}>
+            <DockControls bind:device subset />
+          </Section>
+
+          <Section title={$t("settings.groups.dockBehavior")}>
+            <DockControls bind:device part="behavior" subset />
+          </Section>
+        </div>
+      {:else if id === "hotkeys"}
+        <div class="mb-4">
+          <h2 class="text-2xl font-semibold tracking-tight">
+            {$t("onboarding.hotkeys.title")}
+          </h2>
+
+          <p class="text-sm text-base-content/60">
+            {$t("onboarding.hotkeys.blurb")}
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-4">
+          <Section title={$t("settings.groups.hotkey.title")}>
+            <Row
+              label={$t("settings.rows.openWith")}
+              hint={$t("settings.hints.openWith")}
+            >
+              <Segmented
+                label={$t("settings.rows.openWith")}
+                bind:value={device.launcherTrigger}
+                options={[
+                  { value: "win", label: $t("settings.options.win") },
+                  { value: "shortcut", label: $t("settings.options.shortcut") },
+                  { value: "both", label: $t("settings.options.both") },
+                ]}
+              />
+            </Row>
+
+            {#if device.launcherTrigger !== "win"}
+              <Row
+                label={$t("settings.rows.shortcut")}
+                hint={$t("settings.hints.shortcut")}
+              >
+                <HotkeyPicker bind:value={device.launcherShortcut} />
+              </Row>
+            {/if}
+          </Section>
+
+          <div
+            class="atrix-card flex items-start gap-3 p-4 text-sm"
+          >
+            <Icon icon="lucide:info" class="mt-0.5 size-4 shrink-0 text-primary" />
+
+            <p class="text-base-content/80">
+              {@html $t("onboarding.hotkeys.info", {
+                values: { win: kbd("Win"), e: kbd("E") },
+              })}
+            </p>
+          </div>
+        </div>
+      {:else if id === "sync"}
+        <div class="mb-4">
+          <h2 class="text-2xl font-semibold tracking-tight">
+            {$t("onboarding.sync.title")}
+          </h2>
+
+          <p class="text-sm text-base-content/60">
+            {$t("onboarding.sync.blurb")}
+          </p>
+        </div>
+
+        <SyncPanel bind:device compact />
+      {:else if id === "tips"}
+        <div
+          class="flex h-full flex-col items-center justify-center gap-8 text-center"
+        >
+          <div>
+            <h2 class="text-3xl font-semibold tracking-tight">
+              {$t("onboarding.tips.title")}
+            </h2>
+
+            <p class="mt-2 text-base text-base-content/70">
+              {$t("onboarding.tips.blurb")}
+            </p>
+          </div>
+
+          <ul class="grid w-full max-w-2xl grid-cols-3 gap-3 text-left">
+            {#each tips as tip (tip.id)}
+              <li
+                class="atrix-card flex flex-col gap-2 p-4"
+              >
+                <div
+                  class="flex size-8 items-center justify-center rounded-field bg-primary/15 text-primary"
+                >
+                  <Icon icon={tip.icon} class="size-4" />
+                </div>
+
+                <span class="text-sm font-semibold">
+                  {$t(`onboarding.tips.${tip.id}.title`)}
+                </span>
+
+                <span class="text-xs text-base-content/60">
+                  {$t(`onboarding.tips.${tip.id}.text`)}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {:else}
+        <div
+          class="flex h-full flex-col items-center justify-center gap-8 text-center"
+        >
+          <div
+            class="flex size-16 items-center justify-center rounded-box bg-success/15 text-success"
+          >
+            <Icon icon="lucide:check" class="size-8" />
+          </div>
+
+          <div>
+            <h2 class="text-3xl font-semibold tracking-tight">
+              {$t("onboarding.done.title")}
+            </h2>
+
+            <p class="mt-2 text-base text-base-content/70">
+              {$t("onboarding.done.blurb")}
+            </p>
+          </div>
+
+          <ul
+            class="atrix-card w-full max-w-md divide-y divide-base-content/10 text-left"
+          >
+            {#each summary as s (s.label)}
+              <li class="flex items-center gap-3 px-4 py-3">
+                <Icon icon={s.icon} class="size-4 shrink-0 text-primary" />
+
+                <span class="w-20 text-sm text-base-content/60">{s.label}</span>
+
+                <span class="truncate text-sm font-medium">{s.value}</span>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+    {/snippet}
+  </SetupFlow>
+</main>
+
+<Toasts />

@@ -1,0 +1,220 @@
+import { currentLocale, tr } from "@atrix/i18n"
+import type { TodoSort } from "@atrix/settings"
+import {
+  addDays,
+  atMinutes,
+  dateKey,
+  dateTimeKey,
+  parseDay,
+  parseLocal,
+  parseTime,
+  startOfDay,
+  type Time,
+  timeMinutes,
+} from "./calendar"
+import type { CalendarEvent, Priority, Todo } from "./types"
+
+const PRIORITY_TOKENS: Record<string, Priority> = { "!1": 1, "!2": 2, "!3": 3 }
+const NO_DUE = Number.MAX_SAFE_INTEGER
+
+export const parseQuickAdd = (
+  text: string,
+  now = new Date(),
+): Partial<Todo> => {
+  const words: string[] = []
+  const tags: string[] = []
+  let priority: Priority | undefined
+  let day: Date | null = null
+  let time: Time | null = null
+
+  for (const token of text.trim().split(" ").filter(Boolean)) {
+    if (token.length > 1 && token.startsWith("#")) {
+      tags.push(token.slice(1))
+      continue
+    }
+
+    if (Object.hasOwn(PRIORITY_TOKENS, token)) {
+      priority = PRIORITY_TOKENS[token]
+      continue
+    }
+
+    const parsedDay = parseDay(token, now)
+
+    if (parsedDay) {
+      day = parsedDay
+      continue
+    }
+
+    const parsedTime = parseTime(token)
+
+    if (parsedTime) {
+      time = parsedTime
+      continue
+    }
+
+    words.push(token)
+  }
+
+  const result: Partial<Todo> = { title: words.join(" ") }
+
+  if (tags.length) {
+    result.tags = [...new Set(tags)]
+  }
+
+  if (priority !== undefined) {
+    result.priority = priority
+  }
+
+  if (time) {
+    const base = day ?? startOfDay(now)
+    result.due = dateTimeKey(atMinutes(base, timeMinutes(time)))
+  } else if (day) {
+    result.due = dateKey(day)
+  }
+
+  return result
+}
+
+export const quickTodo = (text: string, now = new Date()): Todo | null => {
+  const parsed = parseQuickAdd(text, now)
+  const title = parsed.title?.trim()
+
+  if (!title) {
+    return null
+  }
+
+  const stamp = now.getTime()
+
+  return {
+    id: crypto.randomUUID(),
+    title,
+    notes: "",
+    done: false,
+    doneAt: null,
+    priority: parsed.priority ?? 0,
+    due: parsed.due ?? null,
+    tags: parsed.tags ?? [],
+    order: stamp,
+    createdAt: stamp,
+    updatedAt: stamp,
+  }
+}
+
+// todos now live on as checkable calendar events; a stable id lets every synced device convert the same todo into the same event
+export const eventFromTodo = (
+  todo: Todo,
+  today: Date,
+  stamp: number,
+): CalendarEvent => {
+  const timed = todo.due?.includes("T") ?? false
+  const day = todo.due
+    ? parseLocal(todo.due)
+    : todo.done && todo.doneAt
+      ? new Date(todo.doneAt)
+      : today
+  const date = dateKey(day)
+  const start = timed && todo.due ? todo.due : date
+
+  return {
+    id: `todo-${todo.id}`,
+    title: todo.title,
+    notes: todo.notes,
+    start,
+    end: start,
+    allDay: !timed,
+    color: null,
+    reminderMinutes: null,
+    recurrence: "none",
+    task: true,
+    ...(todo.done ? { done: [date] } : {}),
+    createdAt: todo.createdAt,
+    updatedAt: stamp,
+  }
+}
+
+export const toggled = (todo: Todo, now = Date.now()): Todo => ({
+  ...todo,
+  done: !todo.done,
+  doneAt: todo.done ? null : now,
+  updatedAt: now,
+})
+
+const dueAt = (todo: Todo) =>
+  todo.due ? parseLocal(todo.due).getTime() : NO_DUE
+
+const compare: Record<TodoSort, (a: Todo, b: Todo) => number> = {
+  manual: () => 0,
+  due: (a, b) => dueAt(a) - dueAt(b),
+  priority: (a, b) => b.priority - a.priority,
+}
+
+export const sortTodos = (
+  items: Todo[],
+  sortBy: TodoSort,
+  showCompleted: boolean,
+) => {
+  const visible = showCompleted ? items : items.filter(t => !t.done)
+
+  return [...visible].sort(
+    (a, b) =>
+      Number(a.done) - Number(b.done) ||
+      compare[sortBy](a, b) ||
+      a.order - b.order ||
+      a.createdAt - b.createdAt,
+  )
+}
+
+const dueDeadline = (due: string) => {
+  const parsed = parseLocal(due)
+
+  return due.length === 10 ? addDays(parsed, 1).getTime() : parsed.getTime()
+}
+
+export const isOverdue = (todo: Todo, now = new Date()) =>
+  !todo.done && todo.due !== null && dueDeadline(todo.due) <= now.getTime()
+
+const dayLabel = (day: Date, today: Date) => {
+  const distance = Math.round((day.getTime() - today.getTime()) / 86_400_000)
+
+  if (distance === 0) {
+    return tr("dates.today")
+  }
+
+  if (distance === 1) {
+    return tr("dates.tomorrow")
+  }
+
+  if (distance === -1) {
+    return tr("dates.yesterday")
+  }
+
+  if (distance > 1 && distance < 7) {
+    return day.toLocaleDateString(currentLocale(), { weekday: "short" })
+  }
+
+  return day.toLocaleDateString(currentLocale(), {
+    month: "short",
+    day: "numeric",
+    year: day.getFullYear() === today.getFullYear() ? undefined : "numeric",
+  })
+}
+
+export const dueLabel = (todo: Todo, now = new Date()) => {
+  if (!todo.due) {
+    return ""
+  }
+
+  const due = parseLocal(todo.due)
+  const label = dayLabel(startOfDay(due), startOfDay(now))
+
+  if (todo.due.length === 10) {
+    return label
+  }
+
+  const time = due.toLocaleTimeString(currentLocale(), {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+
+  return `${label} ${time}`
+}

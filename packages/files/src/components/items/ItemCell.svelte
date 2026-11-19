@@ -1,0 +1,214 @@
+<script lang="ts">
+  import { currentLocale } from "@atrix/i18n"
+  import { t } from "svelte-i18n"
+  import { formatBytes } from "../../format"
+  import { displayName, type Item } from "../../items"
+  import { HIDDEN } from "../../locations"
+  import type { Explorer } from "../../store/explorer.svelte"
+  import { openMenu } from "../../store/menus"
+  import { driveLabel } from "../../store/places.svelte"
+  import { prefetchOnHover } from "../../store/prefetch"
+  import { middleClick } from "../middleClick"
+  import { prefs, SORT_KEYS } from "../../store/prefs.svelte"
+  import { cellText, kindText } from "./cells"
+  import { duplicateTint, GIT_TONES } from "./decor"
+  import ItemBadges from "./ItemBadges.svelte"
+  import ItemIcon from "./ItemIcon.svelte"
+  import RenameField from "./RenameField.svelte"
+
+  let {
+    explorer,
+    item,
+    icon,
+    template,
+    onpress,
+  }: {
+    explorer: Explorer
+    item: Item
+    icon: number
+    template: string
+    onpress: (item: Item, e: PointerEvent) => void
+  } = $props()
+
+  const tab = $derived(explorer.tab)
+  const view = $derived(explorer.view)
+  const results = $derived(!!tab.results)
+  const selected = $derived(tab.selection.has(item.key))
+  const insight = $derived(tab.insight.view)
+  const dropping = $derived(explorer.dropKey === item.key)
+
+  const tint = $derived(
+    prefs.duplicates ? insight.duplicates.get(item.key) : undefined,
+  )
+
+  const gitState = $derived(
+    prefs.gitColors ? insight.states.get(item.key) : undefined,
+  )
+
+  const usage = $derived(
+    item.drive && item.drive.total > 0
+      ? (item.drive.total - item.drive.free) / item.drive.total
+      : 0,
+  )
+
+  const stemOf = (shown: string) => {
+    const dot = shown.lastIndexOf(".")
+
+    return !item.dir && shown === item.name && dot > 0 ? dot : shown.length
+  }
+</script>
+
+{#snippet name(multiline: boolean)}
+  {@const shown = displayName(item, prefs.showExtensions)}
+
+  {#if tab.renaming === item.key}
+    {@const draft = item.drive ? driveLabel(item.drive, $t) : shown}
+
+    <RenameField
+      value={draft}
+      stem={stemOf(draft)}
+      {multiline}
+      oncommit={draft => explorer.commitRename(item, draft)}
+      oncancel={() => (tab.renaming = null)}
+    />
+  {:else}
+    <span
+      class={[
+        "min-w-0",
+        multiline ? "line-clamp-2 text-center break-all" : "truncate",
+        gitState && GIT_TONES[gitState],
+      ]}
+    >
+      {shown}
+    </span>
+
+    <ItemBadges {explorer} {item} view={insight} />
+  {/if}
+{/snippet}
+
+<div
+  role="row"
+  tabindex="-1"
+  data-key={item.key}
+  {@attach prefetchOnHover(item.dir ? item.path : null)}
+  {@attach item.dir && middleClick(() => explorer.openInTab(item.path))}
+  aria-selected={selected}
+  title={view === "details" ? undefined : item.name}
+  class={[
+    "min-w-0 cursor-default rounded-field outline-none",
+    dropping
+      ? "bg-primary/25 ring-2 ring-primary ring-inset"
+      : selected
+        ? "bg-primary/20"
+        : tint !== undefined
+          ? "bg-(--tint)/15 hover:bg-(--tint)/25"
+          : "hover:bg-base-content/5",
+    tab.focus === item.key && "ring-1 ring-primary/50 ring-inset",
+    explorer.cut.has(item.key)
+      ? "opacity-50"
+      : (item.attrs & HIDDEN) !== 0 && "opacity-60",
+    view === "details" && "mx-1 grid items-center text-sm",
+    (view === "list" || view === "small") &&
+      "mx-0.5 flex items-center gap-2 px-2 text-sm",
+    view === "tiles" && "m-0.5 flex items-center gap-3 px-2",
+    (view === "medium" || view === "large") &&
+      "m-0.5 flex flex-col items-center gap-1 px-1 pt-2 text-xs",
+  ]}
+  style:grid-template-columns={view === "details" ? template : undefined}
+  style:--tint={tint === undefined ? undefined : duplicateTint(tint)}
+  onpointerdown={e => {
+    e.stopPropagation()
+    onpress(item, e)
+  }}
+  onclick={e => {
+    // click counts keep climbing past 2 on fast repeats, so dblclick alone drops every second open
+    if (e.detail >= 2 && e.detail % 2 === 0) {
+      explorer.open(item)
+    }
+  }}
+  oncontextmenu={e => {
+    e.stopPropagation()
+    openMenu(explorer, e, item)
+  }}
+  onkeydown={() => undefined}
+>
+  {#if view === "details"}
+    <div class="flex min-w-0 items-center gap-2 px-2">
+      <ItemIcon source={item} rem={1} class="size-4 shrink-0" />
+
+      {@render name(false)}
+    </div>
+
+    {#each SORT_KEYS.slice(1) as key (key)}
+      <span
+        class={[
+          "truncate px-3 text-xs text-base-content/60",
+          key === "size" && "text-right",
+        ]}
+        title={key === "kind" && results ? (item.parent ?? "") : undefined}
+      >
+        {cellText(item, key, results)}
+      </span>
+    {/each}
+  {:else if view === "tiles"}
+    <ItemIcon source={item} rem={3} thumbnail class="size-12 shrink-0" />
+
+    <div class="flex min-w-0 grow flex-col gap-0.5">
+      <div class="flex min-w-0 items-center gap-1.5 text-sm">
+        {@render name(false)}
+      </div>
+
+      {#if item.drive && item.drive.total > 0}
+        <progress
+          class={[
+            "progress h-1.5 w-full",
+            usage > 0.9 ? "progress-error" : "progress-primary",
+          ]}
+          value={usage}
+          max="1"
+        ></progress>
+
+        <span class="truncate text-xs text-base-content/60">
+          {$t("explorer.drive.free", {
+            values: {
+              free: formatBytes(item.drive.free, currentLocale()),
+              total: formatBytes(item.drive.total, currentLocale()),
+            },
+          })}
+        </span>
+      {:else if item.drive}
+        <span class="truncate text-xs text-base-content/60">
+          {item.drive.connected ? item.kind : $t("explorer.drive.disconnected")}
+        </span>
+      {:else}
+        <span
+          class="truncate text-xs text-base-content/60"
+          title={kindText(item, results)}
+        >
+          {kindText(item, results)}
+        </span>
+
+        {#if !item.dir}
+          <span class="truncate text-xs text-base-content/50">
+            {formatBytes(item.size, currentLocale())}
+          </span>
+        {/if}
+      {/if}
+    </div>
+  {:else if view === "list" || view === "small"}
+    <ItemIcon source={item} rem={1} class="size-4 shrink-0" />
+
+    {@render name(false)}
+  {:else}
+    <ItemIcon
+      source={item}
+      rem={icon}
+      thumbnail
+      class={[view === "large" ? "size-24" : "size-12", "shrink-0"]}
+    />
+
+    <div class="flex w-full min-w-0 flex-col items-center gap-0.5">
+      {@render name(true)}
+    </div>
+  {/if}
+</div>

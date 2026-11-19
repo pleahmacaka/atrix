@@ -1,5 +1,16 @@
 [workspace]
-members = ["src-tauri", "crates/net", "crates/web", "crates/calendar-sync"]
+members = [
+  "src-tauri",
+  "crates/net",
+  "crates/web",
+  "crates/calendar-sync",
+  "crates/window-kit",
+  "crates/is-screen-sharing",
+  "packages/files/plugin",
+  "packages/terminal/plugin",
+  "packages/sync/p2p",
+  "apps/installer/src-tauri",
+]
 resolver = "3"
 
 [workspace.dependencies]
