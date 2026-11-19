@@ -132,7 +132,7 @@ const remove = () =>
           {#each TEMPLATES as template (template.id)}
             <button
               type="button"
-              class="flex cursor-pointer items-center gap-3 rounded-box border border-base-300 bg-base-100 p-3 text-start transition-colors duration-140 hover:bg-base-content/5"
+              class="flex cursor-pointer items-center gap-3 rounded-box border border-base-300 bg-base-100 p-3 text-start transition-colors hover:bg-base-content/5"
               onclick={() => {
                 draft = { id: null, ...fromTemplate(template) }
                 revision++

@@ -91,13 +91,9 @@ const presets = $derived.by(() => {
 
 const picks = $state<Record<string, string>>({})
 
-const targetHarness = $derived(
-  nav.target.kind === "harness"
-    ? hostById(nav.target.host)?.state?.harnesses.find(
-        h => nav.target.kind === "harness" && h.id === nav.target.harness,
-      )
-    : undefined,
-)
+const harnessOf = (target: Target) => target.kind === "harness" ? hostById(target.host)?.state?.harnesses.find(h => h.id === target.harness) : undefined
+
+const targetHarness = $derived(harnessOf(nav.target))
 
 const base = $derived(targetHarness?.base)
 
@@ -224,7 +220,7 @@ const send = (text: string, files: File[]) =>
 
         chatFor(stored).sendMessage({
           text,
-          files: await Promise.all(files.map(toFilePart)),
+          files: await Promise.all(files.map(file => toFilePart(file))),
         })
       }
 
@@ -239,11 +235,13 @@ const send = (text: string, files: File[]) =>
     await view.prompt(id, text, await Promise.all(files.map(toAttachment)))
   })
 
-const spaceName = $derived(
-  nav.space
-    ? hostById(nav.space.host)?.state?.spaces?.find(s => s.id === nav.space?.id)?.name
-    : undefined,
-)
+const spaceName = $derived.by(() => {
+  const space = nav.space
+
+  return space
+    ? hostById(space.host)?.state?.spaces?.find(s => s.id === space.id)?.name
+    : undefined
+})
 
 const ready = $derived(
   nav.target.kind === "model" ? !!findGateway(nav.target.gateway) : true,

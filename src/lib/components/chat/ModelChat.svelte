@@ -44,15 +44,25 @@ const empty = $derived(chat.messages.length === 0 && !busy)
 
 const failure = $derived(attempt.failure ?? chat.error?.message ?? null)
 
+const talking = $derived(conversation.owner === stored.id)
+
 const send = (text: string, files: File[]) =>
   attempt.run(async () =>
     chat.sendMessage({
       text,
-      files: await Promise.all(files.map(toFilePart)),
+      files: await Promise.all(files.map(f => toFilePart(f))),
     }),
   )
 
-const talking = $derived(conversation.owner === stored.id)
+const entries = $derived(
+  chat.messages.flatMap(message =>
+    message.parts.flatMap((part, i) => {
+      const blocks = blocksOf(part)
+
+      return blocks ? [{ id: `${message.id}:${i}`, blocks }] : []
+    }),
+  ),
+)
 
 $effect(() => {
   if (!talking) {
@@ -80,72 +90,68 @@ $effect(() => {
 </script>
 
 <div class="relative flex min-h-0 flex-1">
-<div class="flex min-h-0 min-w-0 flex-1 flex-col">
-  {#if talking && conversation.full}
-    <VoiceConversation view={chatView(stored)} onPermit={() => {}} />
-  {:else if empty && !failure}
-    <EmptyState
-      centered
-      icon="lucide:message-square"
-      title={m.chat_empty_title()}
-      text={m.chat_empty_text()}
-    />
-  {:else}
-    <div
-      class="scroll-centered flex min-h-0 flex-1 flex-col-reverse overflow-y-auto"
-      {@attach pinToggles}
-      {@attach stickBottom}
-    >
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+    {#if talking && conversation.full}
+      <VoiceConversation view={chatView(stored)} onPermit={() => {}} />
+    {:else if empty && !failure}
+      <EmptyState
+        centered
+        icon="lucide:message-square"
+        title={m.chat_empty_title()}
+        text={m.chat_empty_text()}
+      />
+    {:else}
       <div
-        class="content-zoom chat-column relative mx-auto flex w-full flex-col gap-6 px-4 pt-6 pb-2"
-        data-quote={stored.id}
+        class="scroll-centered flex min-h-0 flex-1 flex-col-reverse overflow-y-auto"
+        {@attach pinToggles}
+        {@attach stickBottom}
       >
-        {#each chat.messages as message (message.id)}
-          <ModelMessage
-            {message}
-            pace={paceOf(message)}
-            onAction={text => send(text, [])}
-            onReply={message.role === "assistant" ? text => quoteInto(stored.id, text) : undefined}
-          />
-        {/each}
-        {#if chat.status === "submitted"}
-          <span class="loading loading-dots loading-sm opacity-60"></span>
-        {/if}
-        <ErrorAlert message={failure} />
+        <div
+          class="content-zoom chat-column relative mx-auto flex w-full flex-col gap-6 px-4 pt-6 pb-2"
+          data-quote={stored.id}
+        >
+          {#each chat.messages as message (message.id)}
+            <ModelMessage
+              {message}
+              pace={paceOf(message)}
+              onAction={text => send(text, [])}
+              onReply={message.role === "assistant"
+                ? text => quoteInto(stored.id, text)
+                : undefined}
+            />
+          {/each}
+          {#if chat.status === "submitted"}
+            <span class="loading loading-dots loading-sm opacity-60"></span>
+          {/if}
+          <ErrorAlert message={failure} />
+        </div>
       </div>
-    </div>
+    {/if}
+    <Composer
+      {busy}
+      draft={stored.id}
+      converse={remote ? undefined : { host: CHAT_HOST }}
+      disabled={!connected}
+      placeholder={connected ? m.chat_placeholder() : m.chat_connect_gateway()}
+      onSend={send}
+      onStop={() => chat.stop()}
+    >
+      {#snippet tools()}
+        {#if !remote}
+          <ModelInput
+            gateway={stored.gateway ?? OPENROUTER_ID}
+            bind:value={stored.model}
+            onchange={() => local.save()}
+          />
+        {/if}
+      {/snippet}
+    </Composer>
+  </div>
+  {#if panes.hasSide(pane?.())}
+    <SidePanel
+      {entries}
+      onAction={text => send(text, [])}
+      onSave={blocks => apps.save(appTitleOf(blocks, ""), blocks)}
+    />
   {/if}
-  <Composer
-    {busy}
-    draft={stored.id}
-    converse={remote ? undefined : { host: CHAT_HOST }}
-    disabled={!connected}
-    placeholder={connected ? m.chat_placeholder() : m.chat_connect_gateway()}
-    onSend={send}
-    onStop={() => chat.stop()}
-  >
-    {#snippet tools()}
-      {#if !remote}
-        <ModelInput
-          gateway={stored.gateway ?? OPENROUTER_ID}
-          bind:value={stored.model}
-          onchange={() => local.save()}
-        />
-      {/if}
-    {/snippet}
-  </Composer>
-</div>
-{#if panes.hasSide(pane?.())}
-  <SidePanel
-    entries={chat.messages.flatMap(message =>
-      message.parts.flatMap((part, i) => {
-        const blocks = blocksOf(part)
-
-        return blocks ? [{ id: `${message.id}:${i}`, blocks }] : []
-      }),
-    )}
-    onAction={text => send(text, [])}
-    onSave={blocks => apps.save(appTitleOf(blocks, ""), blocks)}
-  />
-{/if}
 </div>

@@ -69,7 +69,10 @@ const scrollerOf = (node: Node) => {
   for (let el = node.parentElement; el; el = el.parentElement) {
     const { overflowY } = getComputedStyle(el)
 
-    if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      el.scrollHeight > el.clientHeight
+    ) {
       return el
     }
   }
@@ -168,6 +171,8 @@ const keydown = (e: KeyboardEvent) => {
 }
 </script>
 
+
+
 {#if nav.find}
   <search
     bind:this={bar}
@@ -192,7 +197,7 @@ const keydown = (e: KeyboardEvent) => {
     <IconButton
       icon="lucide:chevron-up"
       label={m.common_previous()}
-      title="{m.common_previous()} (Shift+Enter)"
+      title="${m.common_previous()} (Shift+Enter)"
       class="shrink-0"
       disabled={ranges.length === 0}
       onclick={() => step(-1)}
@@ -200,7 +205,7 @@ const keydown = (e: KeyboardEvent) => {
     <IconButton
       icon="lucide:chevron-down"
       label={m.common_next()}
-      title="{m.common_next()} (Enter)"
+      title="${m.common_next()} (Enter)"
       class="shrink-0"
       disabled={ranges.length === 0}
       onclick={() => step(1)}

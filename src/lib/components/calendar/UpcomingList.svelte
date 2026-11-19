@@ -1,19 +1,9 @@
 <script lang="ts">
-import { untrack } from "svelte"
-import {
-  calendar,
-  holidays,
-  pick,
-  sameDay,
-} from "#lib/calendar/calendar.svelte.ts"
-import type { EventTag } from "#lib/calendar/events.ts"
+import { calendar, holidays, pick, sameDay } from "#lib/calendar/calendar.svelte.ts"
+import { addDays, parseLocal, startOfDay } from "#lib/calendar/dates.ts"
 import { clock, shortDay } from "#lib/calendar/format.ts"
-import { addDays, parseLocal, startOfDay } from "#lib/calendar/recurrence.ts"
-import {
-  listShared,
-  type SharedEvent,
-  sharedTags,
-} from "#lib/calendar/shared.ts"
+import { type SharedEvent, watchShared } from "#lib/calendar/shared.ts"
+import type { EventTag } from "#lib/calendar/store.ts"
 import { colorOf } from "#lib/calendar/tags.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
@@ -21,31 +11,34 @@ import { m } from "#lib/paraglide/messages.js"
 
 let { hosts }: { hosts: HostView[] } = $props()
 
+const HORIZON_DAYS = 30
+
 let events = $state<SharedEvent[]>([])
 
 let tags = $state<EventTag[]>([])
 
-$effect(() => {
-  const isHoliday = holidays.isHoliday
-
-  for (const host of hosts) {
-    void host.dsChange
-  }
-
-  untrack(async () => {
+watchShared(
+  () => {
     const now = new Date()
 
-    ;[events, tags] = await Promise.all([
-      listShared(hosts, now, addDays(now, 30), isHoliday).catch(() => []),
-      sharedTags(hosts).catch(() => []),
-    ])
-  })
-})
+    return {
+      hosts,
+      from: now,
+      to: addDays(now, HORIZON_DAYS),
+      isHoliday: holidays.isHoliday,
+    }
+  },
+  work => work().catch(() => {}),
+  (found, known) => {
+    events = found
+    tags = known
+  },
+)
 
-const label = (e: SharedEvent) => {
-  const day = shortDay(parseLocal(e.start))
+const label = (event: SharedEvent) => {
+  const day = shortDay(parseLocal(event.start))
 
-  return e.allDay ? day : `${day} ${clock(e.start)}`
+  return event.allDay ? day : `${day} ${clock(event.start)}`
 }
 </script>
 

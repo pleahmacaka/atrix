@@ -9,7 +9,13 @@ import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { startNewChatDrag } from "#lib/store/drag.ts"
-import { goPage, nav, openConversation, openSettings } from "#lib/store/nav.svelte.ts"
+import {
+  goPage,
+  nav,
+  openConversation,
+  openSettings,
+  type Page,
+} from "#lib/store/nav.svelte.ts"
 import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
 import { type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
@@ -29,19 +35,28 @@ type Action = {
 
 type Item = Action & { id: string }
 
-const newChat = (): Action => ({
-  label: m.chat_new(),
-  icon: "lucide:square-pen",
-  shortcut: "new",
-  drag: startNewChatDrag,
-  run: () => {
-    goPage("chat")
-    openConversation(null)
-  },
-})
+const newChat = (onRail: boolean, onNarrow: boolean) => {
+  goPage("chat")
+  openConversation(null)
 
-const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
-  agent: () => [
+  if (onRail || onNarrow) {
+    shell.drawer = true
+    shell.peek = false
+  }
+}
+
+const PAGE_ACTIONS: Record<Page, Action[]> = {
+  apps: [],
+  chat: [
+    {
+      label: m.chat_new(),
+      icon: "lucide:square-pen",
+      shortcut: "new",
+      drag: startNewChatDrag,
+      run: () => newChat(rail, shell.narrow),
+    },
+  ],
+  agent: [
     {
       label: m.agent_new(),
       icon: "lucide:user-plus",
@@ -59,11 +74,12 @@ const PAGE_ACTIONS: Partial<Record<string, () => Action[]>> = {
       },
     },
   ],
-  data: () => [],
-  devices: () => [],
-  knowledge: () => [],
-  settings: () => [],
+  calendar: [],
+  data: [],
+  devices: [],
+  knowledge: [],
 }
+
 
 const pageItem = (page: (typeof PAGES)[number]): Item => ({
   id: page.id,
@@ -161,7 +177,7 @@ const zones = $derived.by(() => {
 const topPage = $derived(nav.page === "chat" || layout.top.includes(nav.page))
 
 const actions: Action[] = $derived(
-  (!topPage && PAGE_ACTIONS[nav.page]?.()) || [newChat()],
+  (!topPage && PAGE_ACTIONS[nav.page]) || PAGE_ACTIONS.chat,
 )
 
 let dragging = $state<string | null>(null)
@@ -176,7 +192,13 @@ const hoverItem = (e: DragEvent, zone: Zone, index: number) => {
   e.preventDefault()
   e.stopPropagation()
 
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const box = e.currentTarget
+
+  if (!(box instanceof HTMLElement)) {
+    return
+  }
+
+  const r = box.getBoundingClientRect()
   const vertical = zone === "top" || rail
   const after = vertical ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2
 

@@ -1,98 +1,215 @@
-import type { Backend } from "#lib/datasource/client.ts"
-import { applyChange, familyOf, getEvent, putEvent } from "./events.ts"
 import {
-  type CalendarEvent,
-  editInSeries,
-  type Occurrence,
-  removeFromSeries,
-  type Scope,
-  shareNotes,
-} from "./recurrence.ts"
+  addDays,
+  DAY_MS,
+  dateKey,
+  dateTimeKey,
+  dayDelta,
+  parseLocal,
+} from "./dates.ts"
+import type { CalendarEvent, Occurrence, Scope, SeriesChange } from "./types.ts"
 
-const seriesOf = async (backend: Backend, occurrence: Occurrence) =>
-  occurrence.seriesDate ? await getEvent(backend, occurrence.id) : null
+const childrenOf = (all: CalendarEvent[], seriesId: string) =>
+  all.filter(event => event.seriesId === seriesId)
 
-export const notesOnly = (occurrence: Occurrence, draft: CalendarEvent) => {
-  const keys = [
-    "title",
-    "start",
-    "end",
-    "allDay",
-    "color",
-    "recurrence",
-    "until",
-    "shift",
-  ] as const
+const firstDate = (series: CalendarEvent) => dateKey(parseLocal(series.start))
 
-  return (
-    keys.every(k => occurrence[k] === draft[k]) &&
-    occurrence.tags.join() === draft.tags.join() &&
-    occurrence.notes !== draft.notes
+const dayBefore = (key: string) => dateKey(addDays(parseLocal(key), -1))
+
+const rekey = (key: string, days: number) =>
+  days === 0 ? key : dateKey(addDays(parseLocal(key), days))
+
+const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes()
+
+const atMinutes = (day: Date, minutes: number) =>
+  new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    Math.floor(minutes / 60),
+    minutes % 60,
   )
+
+const placed = (draft: CalendarEvent, day: Date) => {
+  const draftStart = parseLocal(draft.start)
+  const length = parseLocal(draft.end).getTime() - draftStart.getTime()
+
+  if (draft.allDay) {
+    return {
+      start: dateKey(day),
+      end: dateKey(addDays(day, Math.round(length / DAY_MS))),
+    }
+  }
+
+  const start = atMinutes(day, minutesOf(draftStart))
+
+  return {
+    start: dateTimeKey(start),
+    end: dateTimeKey(new Date(start.getTime() + length)),
+  }
 }
 
-export const saveOccurrence = async (
-  backend: Backend,
-  occurrence: Occurrence | null,
+const exclude = (series: CalendarEvent, seriesDate: string, stamp: number) => ({
+  ...series,
+  exdates: series.exdates.includes(seriesDate)
+    ? series.exdates
+    : [...series.exdates, seriesDate],
+  updatedAt: stamp,
+})
+
+const cut = (
+  series: CalendarEvent,
+  seriesDate: string,
+  all: CalendarEvent[],
+) => ({
+  head: {
+    ...series,
+    until: dayBefore(seriesDate),
+    exdates: series.exdates.filter(day => day < seriesDate),
+  },
+  later: childrenOf(all, series.id).filter(
+    event => (event.originalDate ?? "") >= seriesDate,
+  ),
+})
+
+const wholeSeries = (
+  series: CalendarEvent,
+  all: CalendarEvent[],
+): SeriesChange => ({
+  put: [],
+  remove: [series.id, ...childrenOf(all, series.id).map(event => event.id)],
+})
+
+export const shareNotes = (
+  series: CalendarEvent,
+  notes: string,
+  all: CalendarEvent[],
+  stamp: number,
+): SeriesChange => ({
+  put: [series, ...childrenOf(all, series.id)].map(event => ({
+    ...event,
+    notes,
+    updatedAt: stamp,
+  })),
+  remove: [],
+})
+
+export const removeFromSeries = (
+  series: CalendarEvent,
+  seriesDate: string,
+  scope: Scope,
+  all: CalendarEvent[],
+  stamp: number,
+): SeriesChange => {
+  if (
+    scope === "all" ||
+    (scope === "following" && seriesDate <= firstDate(series))
+  ) {
+    return wholeSeries(series, all)
+  }
+
+  if (scope === "following") {
+    const { head, later } = cut(series, seriesDate, all)
+
+    return {
+      put: [{ ...head, updatedAt: stamp }],
+      remove: later.map(event => event.id),
+    }
+  }
+
+  return { put: [exclude(series, seriesDate, stamp)], remove: [] }
+}
+
+const editOne = (
+  series: CalendarEvent,
+  seriesDate: string,
   draft: CalendarEvent,
-  scope: Scope | null,
+  stamp: number,
+): CalendarEvent => ({
+  ...draft,
+  id: crypto.randomUUID(),
+  recurrence: "none",
+  shift: null,
+  exdates: [],
+  until: null,
+  seriesId: series.id,
+  originalDate: seriesDate,
+  updatedAt: stamp,
+})
+
+const moveFrom = (
+  series: CalendarEvent,
+  draft: CalendarEvent,
+  occurrence: Occurrence,
+  following: boolean,
+  from: string,
+  later: CalendarEvent[],
+  stamp: number,
 ) => {
-  const stamp = Date.now()
-  const series = occurrence && (await seriesOf(backend, occurrence))
-
-  if (!occurrence || !series) {
-    await putEvent(backend, { ...draft, updatedAt: stamp })
-
-    return
+  const shiftDays = dayDelta(occurrence.start, draft.start)
+  const moved: CalendarEvent = {
+    ...draft,
+    ...placed(draft, addDays(parseLocal(from), shiftDays)),
+    id: following ? crypto.randomUUID() : series.id,
+    exdates: series.exdates
+      .filter(day => day >= from)
+      .map(day => rekey(day, shiftDays)),
+    until: series.until && rekey(series.until, shiftDays),
+    updatedAt: stamp,
   }
 
-  const family = await familyOf(backend, series.id)
-
-  if (series.notesSync && notesOnly(occurrence, draft)) {
-    await applyChange(backend, shareNotes(series, draft.notes, family, stamp))
-
-    return
+  return {
+    moved,
+    later: later.map(event => ({
+      ...event,
+      seriesId: moved.id,
+      originalDate: event.originalDate && rekey(event.originalDate, shiftDays),
+      updatedAt: stamp,
+    })),
   }
-
-  await applyChange(
-    backend,
-    editInSeries(series, occurrence, draft, scope ?? "one", family, stamp),
-  )
 }
 
-export const removeOccurrence = async (
-  backend: Backend,
+export const editInSeries = (
+  series: CalendarEvent,
   occurrence: Occurrence,
-  scope: Scope | null,
-) => {
-  const series = await seriesOf(backend, occurrence)
+  draft: CalendarEvent,
+  scope: Scope,
+  all: CalendarEvent[],
+  stamp: number,
+): SeriesChange & { edited: CalendarEvent } => {
+  const seriesDate = occurrence.seriesDate ?? firstDate(series)
 
-  if (!series || !occurrence.seriesDate) {
-    await applyChange(backend, { put: [], remove: [occurrence.id] })
+  if (scope === "one") {
+    const edited = editOne(series, seriesDate, draft, stamp)
 
-    return
+    return {
+      put: [exclude(series, seriesDate, stamp), edited],
+      remove: [],
+      edited,
+    }
   }
 
-  await applyChange(
-    backend,
-    removeFromSeries(
-      series,
-      occurrence.seriesDate,
-      scope ?? "one",
-      await familyOf(backend, series.id),
-      Date.now(),
-    ),
+  const following = scope === "following" && seriesDate > firstDate(series)
+  const from = following ? seriesDate : firstDate(series)
+  const { head, later } = following
+    ? cut(series, seriesDate, all)
+    : { head: null, later: childrenOf(all, series.id) }
+  const moved = moveFrom(
+    series,
+    draft,
+    occurrence,
+    following,
+    from,
+    later,
+    stamp,
   )
-}
 
-export const setNotesSync = async (
-  backend: Backend,
-  occurrence: Occurrence,
-  on: boolean,
-) => {
-  const series = await seriesOf(backend, occurrence)
-
-  if (series) {
-    await putEvent(backend, { ...series, notesSync: on, updatedAt: Date.now() })
+  return {
+    put: [
+      ...(head ? [{ ...head, updatedAt: stamp }] : []),
+      moved.moved,
+      ...moved.later,
+    ],
+    remove: [],
+    edited: moved.moved,
   }
 }

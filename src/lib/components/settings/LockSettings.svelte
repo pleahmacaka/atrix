@@ -58,6 +58,6 @@ const choose = (value: string) => {
     label={m.lock_idle()}
     items={IDLE}
     value={String(settings.lockIdle)}
-    onpick={v => settings.setLockIdle(Number(v))}
+    onpick={value => settings.setLockIdle(Number(value))}
   />
 </SettingRow>

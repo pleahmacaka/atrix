@@ -62,6 +62,19 @@ const folderSpace = (folder: string, fallback: string): Space => ({
   agents: [],
 })
 
+const nodeOf = (
+  key: string,
+  space: Space,
+  agents: AgentRow[],
+  auto: boolean,
+): SpaceNode => ({
+  key,
+  space,
+  auto,
+  agents,
+  status: urgent(agents.map(a => a.status)),
+})
+
 export const urgent = (statuses: Status[]): Status =>
   statuses.reduce<Status>((a, b) => (RANK[b] < RANK[a] ? b : a), "idle")
 
@@ -129,13 +142,7 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
 
       const agents = pinnedFirst([...explicit, ...matched].map(rowOf))
 
-      return {
-        key: `${host.id}:${space.id}`,
-        space,
-        auto: false,
-        agents,
-        status: urgent(agents.map(a => a.status)),
-      }
+      return nodeOf(`${host.id}:${space.id}`, space, agents, false)
     })
 
     const claimed = new Set(nodes.flatMap(n => n.agents.map(a => a.id)))
@@ -149,13 +156,14 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
     for (const [key, items] of folders) {
       const agents = pinnedFirst(items.map(rowOf))
 
-      nodes.push({
-        key: `${host.id}:folder:${key}`,
-        space: folderSpace(items[0]?.cwd ?? "", host.name),
-        auto: true,
-        agents,
-        status: urgent(agents.map(a => a.status)),
-      })
+      nodes.push(
+        nodeOf(
+          `${host.id}:folder:${key}`,
+          folderSpace(items[0]?.cwd ?? "", host.name),
+          agents,
+          true,
+        ),
+      )
     }
 
     return {

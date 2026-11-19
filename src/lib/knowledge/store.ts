@@ -22,11 +22,11 @@ const VERSIONING = `<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/
 
 const ACTOR_HEADER = "x-amz-meta-actor"
 
-const DOC_EXTENSION = ".md"
+const DOCUMENT = ".md"
 
-const CANVAS_EXTENSION = ".canvas"
+const CANVAS = ".canvas"
 
-const APP_EXTENSION = ".app"
+const APP = ".app"
 
 type Endpoint = { port: number; access: string; secret: string }
 
@@ -87,14 +87,13 @@ const randomHex = () =>
     .map(b => b.toString(16).padStart(2, "0"))
     .join("")
 
-const pad = (n: number) => String(n).padStart(2, "0")
-
 const isoNow = (date = new Date()) => {
   const offset = -date.getTimezoneOffset()
   const sign = offset >= 0 ? "+" : "-"
   const local = new Date(date.getTime() + offset * 60_000)
     .toISOString()
     .slice(0, 19)
+  const pad = (n: number) => String(n).padStart(2, "0")
 
   return `${local}${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`
 }
@@ -109,9 +108,7 @@ const keyWith = (path: string, extension: string) => {
   return clean.endsWith(extension) ? clean : `${clean}${extension}`
 }
 
-const keyOf = (path: string) => keyWith(path, DOC_EXTENSION)
-
-const canvasKeyOf = (path: string) => keyWith(path, CANVAS_EXTENSION)
+const keyOf = (path: string) => keyWith(path, DOCUMENT)
 
 const xml = (text: string) =>
   new DOMParser().parseFromString(text, "application/xml")
@@ -145,6 +142,13 @@ const actorOf = (header: string | null): Actor | null => {
     return null
   }
 }
+
+const entryOf = (key: string, etag: string, doc: Doc): Entry => ({
+  key,
+  etag,
+  meta: doc.meta,
+  edges: linksOf(doc),
+})
 
 export class KnowledgeStore {
   #client: AwsClient | null = null
@@ -227,21 +231,13 @@ export class KnowledgeStore {
     const text = await response.text()
     const doc = parseDoc(text)
     const loaded = {
-      key,
-      etag: etagOf(response),
-      meta: doc.meta,
-      edges: linksOf(doc),
+      ...entryOf(key, etagOf(response), doc),
       body: doc.body,
       text,
     }
 
     if (!versionId) {
-      this.#entries.set(key, {
-        key,
-        etag: loaded.etag,
-        meta: doc.meta,
-        edges: loaded.edges,
-      })
+      this.#entries.set(key, entryOf(key, loaded.etag, doc))
     }
 
     return loaded
@@ -264,12 +260,17 @@ export class KnowledgeStore {
       created_by: actor,
       updated_by: actor,
     }
-
     const doc = { meta, body }
 
     assertTextOnly(doc)
 
-    return this.#insert(key, doc, actor)
+    const response = await this.#put(key, doc, actor, guard(null))
+
+    if (response.status === 412) {
+      throw exists(key)
+    }
+
+    return this.#saved(key, doc, response, actor)
   }
 
   update = async (ref: string, etag: string, patch: Patch, actor: Actor) => {
@@ -304,7 +305,7 @@ export class KnowledgeStore {
     const versions = (await this.#versions(key)).filter(v => v.key === key)
 
     return Promise.all(
-      versions.map(async ({ key: _, ...v }) => {
+      versions.map(async ({ key: _key, ...v }) => {
         if (v.deleted) {
           return { ...v, actor: null }
         }
@@ -324,16 +325,13 @@ export class KnowledgeStore {
     etag: string,
     actor: Actor,
   ) => {
-    const old = await this.read(ref, versionId)
-    const { title, description, tags, scope, links, sources } = old.meta
+    const { meta, body } = await this.read(ref, versionId)
+    const { title, description, tags, scope, links, sources } = meta
 
     return this.update(
       ref,
       etag,
-      {
-        fields: { title, description, tags, scope, links, sources },
-        body: old.body,
-      },
+      { fields: { title, description, tags, scope, links, sources }, body },
       actor,
     )
   }
@@ -347,19 +345,19 @@ export class KnowledgeStore {
 
     await this.remove(current.key, actor)
 
-    const { body: _, text: __, ...entry } = current
+    const { body, text, ...entry } = current
 
     return entry
   }
 
   trash = async (): Promise<Trashed[]> => {
     const all = await this.#versions("")
-    const deleted = all.filter(
-      v => v.deleted && v.latest && v.key.endsWith(DOC_EXTENSION),
+    const marks = all.filter(
+      v => v.deleted && v.latest && v.key.endsWith(DOCUMENT),
     )
 
     const found = await Promise.all(
-      deleted.map(async marker => {
+      marks.map(async marker => {
         const last = all
           .filter(v => v.key === marker.key && !v.deleted)
           .toSorted((a, b) => b.modified.localeCompare(a.modified))[0]
@@ -406,7 +404,13 @@ export class KnowledgeStore {
       body: old.body,
     }
 
-    return this.#insert(key, doc, actor)
+    const response = await this.#put(key, doc, actor, guard(null))
+
+    if (response.status === 412) {
+      throw exists(key)
+    }
+
+    return this.#saved(key, doc, response, actor)
   }
 
   graph = () => {
@@ -423,7 +427,7 @@ export class KnowledgeStore {
     [...this.#canvases.values()].toSorted((a, b) => a.key.localeCompare(b.key))
 
   readCanvas = async (path: string): Promise<LoadedCanvas> => {
-    const key = canvasKeyOf(path)
+    const key = keyWith(path, CANVAS)
     const response = await this.#ok(this.#send(this.#url(key)))
 
     return {
@@ -439,7 +443,7 @@ export class KnowledgeStore {
     data: Canvas,
     actor: Actor,
   ): Promise<SavedCanvas> => {
-    const key = canvasKeyOf(path)
+    const key = keyWith(path, CANVAS)
     const written = await this.writeObject(key, etag, canvas.parse(data), actor)
 
     return written.ok
@@ -462,11 +466,7 @@ export class KnowledgeStore {
 
     await this.#ok(response)
 
-    return {
-      key,
-      etag: etagOf(response),
-      value: await response.json(),
-    }
+    return { key, etag: etagOf(response), value: await response.json() }
   }
 
   writeObject = async (
@@ -477,7 +477,7 @@ export class KnowledgeStore {
   ): Promise<WrittenObject> => {
     const key = keyWith(path, "")
 
-    if (!key || key.endsWith(DOC_EXTENSION)) {
+    if (!key || key.endsWith(DOCUMENT)) {
       throw new Error(`invalid_key: ${path} is not an object key`)
     }
 
@@ -497,11 +497,11 @@ export class KnowledgeStore {
 
     const entry = { key, etag: etagOf(response) }
 
-    if (key.endsWith(APP_EXTENSION)) {
+    if (key.endsWith(APP)) {
       this.#apps.set(key, entry)
     }
 
-    if (key.endsWith(CANVAS_EXTENSION)) {
+    if (key.endsWith(CANVAS)) {
       this.#canvases.set(key, entry)
     }
 
@@ -536,8 +536,7 @@ export class KnowledgeStore {
 
   move = async (from: string, to: string, actor: Actor) => {
     const source = keyWith(from, "")
-    const extension =
-      [DOC_EXTENSION, CANVAS_EXTENSION].find(e => source.endsWith(e)) ?? ""
+    const extension = [DOCUMENT, CANVAS].find(e => source.endsWith(e)) ?? ""
     const target = keyWith(to, extension)
     const keys = this.#under(source)
 
@@ -702,30 +701,13 @@ export class KnowledgeStore {
       },
     })
 
-  #insert = async (key: string, doc: Doc, actor: Actor) => {
-    const response = await this.#put(key, doc, actor, guard(null))
-
-    if (response.status === 412) {
-      throw exists(key)
-    }
-
-    return this.#saved(key, doc, response, actor)
-  }
-
   #saved = async (key: string, doc: Doc, response: Response, actor: Actor) => {
     await this.#ok(response)
 
-    const { meta } = doc
-    const entry = {
-      key,
-      etag: etagOf(response),
-      meta,
-      edges: linksOf(doc),
-    }
+    const entry = entryOf(key, etagOf(response), doc)
 
     this.#entries.set(key, entry)
-
-    this.#notify({ id: meta.id, key, etag: entry.etag, actor })
+    this.#notify({ id: entry.meta.id, key, etag: entry.etag, actor })
 
     return entry
   }
@@ -742,23 +724,20 @@ export class KnowledgeStore {
       const page = xml(
         await (await this.#ok(this.#send(this.#base + query))).text(),
       )
-
       const contents = [...page.getElementsByTagName("Contents")].map(c => ({
         key: textOf(c, "Key"),
         etag: textOf(c, "ETag"),
       }))
 
-      keys.push(
-        ...contents.map(c => c.key).filter(k => k.endsWith(DOC_EXTENSION)),
-      )
+      keys.push(...contents.map(c => c.key).filter(k => k.endsWith(DOCUMENT)))
       folders.push(
         ...contents
           .map(c => c.key)
           .filter(k => k.endsWith("/"))
           .map(k => k.slice(0, -1)),
       )
-      canvases.push(...contents.filter(c => c.key.endsWith(CANVAS_EXTENSION)))
-      apps.push(...contents.filter(c => c.key.endsWith(APP_EXTENSION)))
+      canvases.push(...contents.filter(c => c.key.endsWith(CANVAS)))
+      apps.push(...contents.filter(c => c.key.endsWith(APP)))
       token = textOf(page.documentElement, "NextContinuationToken")
     } while (token)
 
@@ -779,12 +758,7 @@ export class KnowledgeStore {
       const doc = response.ok ? parseDocSafe(await response.text()) : null
 
       if (doc) {
-        this.#entries.set(key, {
-          key,
-          etag: etagOf(response),
-          meta: doc.meta,
-          edges: linksOf(doc),
-        })
+        this.#entries.set(key, entryOf(key, etagOf(response), doc))
       } else {
         this.#entries.delete(key)
       }

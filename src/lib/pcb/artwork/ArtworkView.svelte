@@ -285,8 +285,36 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
 
   node.querySelectorAll<SVGGeometryElement>("path, line, polyline").forEach((el, i) => {
     el.setAttribute("pathLength", "1")
-    el.style.animationDelay = `${(i % 120) * 8}ms`
+    el.style.strokeDasharray = "1"
+    el.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], {
+      duration: 1400,
+      delay: (i % 120) * 8,
+      easing: "cubic-bezier(0.2, 0.7, 0.2, 1)",
+      fill: "forwards",
+    })
   })
+}
+
+const march = (node: SVGLineElement, on: boolean) => {
+  const run = () => {
+    for (const animation of node.getAnimations()) {
+      animation.cancel()
+    }
+
+    if (on) {
+      node.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -1 }], {
+        duration: 1000,
+        iterations: Number.POSITIVE_INFINITY,
+        easing: "linear",
+      })
+    }
+  }
+
+  run()
+
+  return {
+    update: run,
+  }
 }
 </script>
 
@@ -303,8 +331,21 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
 {#snippet rats(render: LiveRender, preview: boolean)}
   <g transform={origin(render)}>
     {#each render.unrouted as u, i (i)}
-      <g class={["rat", preview ? "preview" : u.net === focus && "hot"]}>
-        <line x1={u.from[0]} y1={u.from[1]} x2={u.to[0]} y2={u.to[1]} />
+      {@const dim = !preview && !!focus && u.net !== focus}
+      <g
+        class={dim ? "opacity-15 transition-opacity" : "opacity-100 transition-opacity"}
+        stroke={preview ? "#f8fafc" : "#f43f5e"}
+        fill={preview ? "#f8fafc" : "#f43f5e"}
+      >
+        <line
+          x1={u.from[0]}
+          y1={u.from[1]}
+          x2={u.to[0]}
+          y2={u.to[1]}
+          stroke-width={u.net === focus && !preview ? 0.45 : 0.25}
+          stroke-dasharray={u.net === focus && !preview ? "0.9 0.1" : "0.6 0.4"}
+          use:march={u.net === focus && !preview}
+        />
         <circle cx={u.from[0]} cy={u.from[1]} r="0.35" />
         <circle cx={u.to[0]} cy={u.to[1]} r="0.35" />
       </g>
@@ -317,7 +358,6 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
     {#each seedCopper as l (l.layer)}
       {#if shown(l.layer)}
         <g
-          class="draw-in"
           transform={origin(seed)}
           style:color={colorOf(l.layer)}
           opacity={layerOpacity(l.layer)}
@@ -508,54 +548,3 @@ const drawIn = (svg: string) => (node: SVGGElement) => {
 {:else}
   <EmptyState icon="lucide:layers" text={m.pcb_artwork_no_copper()} class="size-full justify-center" />
 {/if}
-
-<style>
-  .rat {
-    stroke: #f43f5e;
-    fill: #f43f5e;
-    transition: opacity 0.12s;
-  }
-
-  .rat circle {
-    stroke: none;
-  }
-
-  .rat line {
-    stroke-width: 0.25;
-    stroke-dasharray: 0.6 0.4;
-  }
-
-  .focus .rat:not(.hot, .preview) {
-    opacity: 0.15;
-  }
-
-  .rat.hot line {
-    stroke-width: 0.45;
-    animation: march 1s linear infinite;
-  }
-
-  .rat.preview {
-    stroke: #f8fafc;
-    fill: #f8fafc;
-  }
-
-  @keyframes march {
-    to {
-      stroke-dashoffset: -1;
-    }
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .draw-in :global(:is(path, line, polyline)) {
-      stroke-dasharray: 1;
-      stroke-dashoffset: 1;
-      animation: draw-in 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
-    }
-  }
-
-  @keyframes draw-in {
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-</style>

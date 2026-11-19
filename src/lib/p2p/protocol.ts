@@ -603,31 +603,17 @@ export type HostCall = <K extends Op>(
   request: RequestOf<K>,
 ) => Promise<Answers[K]>
 
-export const reply = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), value: z.unknown().optional() }),
-  z.object({ ok: z.literal(false), error: z.string() }),
-])
+export type Reply<T = unknown> =
+  | { ok: true; value?: T }
+  | { ok: false; error: string }
 
-export type Reply = z.infer<typeof reply>
+export const replyOf = <T>(schema: z.ZodType<T>) =>
+  z.discriminatedUnion("ok", [
+    z.object({ ok: z.literal(true), value: schema }),
+    z.object({ ok: z.literal(false), error: z.string() }),
+  ])
 
-const EVENT_TYPES: Record<HostEvent["type"], true> = {
-  state: true,
-  update: true,
-  patch: true,
-  view: true,
-  kg: true,
-  ds: true,
-  install: true,
-}
-
-const hostEvent = z.custom<HostEvent>(
-  value =>
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof value.type === "string" &&
-    Object.hasOwn(EVENT_TYPES, value.type),
-)
+export const reply = replyOf(z.unknown())
 
 export const lockKinds = ["pin", "pattern"] as const
 
@@ -643,7 +629,7 @@ const lockSecret = z.object({
 export type LockSecret = z.infer<typeof lockSecret>
 
 export const frame = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("event"), event: hostEvent }),
+  z.object({ kind: z.literal("event"), event: z.custom<HostEvent>() }),
   z.object({
     kind: z.literal("gateways"),
     gateways: z.array(gateway),

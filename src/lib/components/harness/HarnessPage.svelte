@@ -85,8 +85,13 @@ $effect(() => {
 
 const removeProfile = () =>
   attempt.run(async () => {
-    await (harness ? removeProfileEverywhere(harness) : host.removeProfile(harnessId))
-    onSelect(null)
+    const removed = await (harness
+      ? removeProfileEverywhere(harness)
+      : host.removeProfile(harnessId))
+
+    if (removed) {
+      onSelect(null)
+    }
   })
 </script>
 

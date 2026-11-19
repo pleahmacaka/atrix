@@ -29,27 +29,29 @@ export type Tile = z.infer<typeof tile>
 
 export type Home = z.infer<typeof home>
 
-const titleIn = (b: z.infer<typeof block>) =>
+type Block = z.infer<typeof block>
+
+const titleOf = (b: Block) =>
   "title" in b && typeof b.title === "string" ? b.title : ""
 
-export const appTitleOf = (blocks: z.infer<typeof block>[], fallback: string) =>
-  blocks.map(titleIn).find(Boolean) || fallback || "App"
+export const appTitleOf = (blocks: Block[], fallback: string) =>
+  blocks.map(titleOf).find(Boolean) || fallback || "App"
 
-export const appKeyOf = (title: string) => {
-  const slug = title
+const slugOf = (title: string) =>
+  title
     .normalize("NFKC")
     .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
+    .split(/[^\\p{L}\\p{N}]+/u)
     .filter(Boolean)
     .join("-")
     .slice(0, 40)
 
-  return `apps/${slug || "app"}-${crypto.randomUUID().slice(0, 8)}${APP_EXTENSION}`
-}
+export const appKeyOf = (title: string) =>
+  `apps/${slugOf(title) || "app"}-${crypto.randomUUID().slice(0, 8)}${APP_EXTENSION}`
 
 export const arrange = (stored: Home | null, keys: string[]): Home => {
   const known = new Set(keys)
-  const tiles = (stored?.tiles ?? []).flatMap((t): Tile[] => {
+  const kept = (stored?.tiles ?? []).flatMap((t): Tile[] => {
     if (t.kind === "app") {
       return known.has(t.key) ? [t] : []
     }
@@ -59,15 +61,11 @@ export const arrange = (stored: Home | null, keys: string[]): Home => {
     return apps.length ? [{ ...t, apps }] : []
   })
   const placed = new Set(
-    tiles.flatMap(t => (t.kind === "app" ? [t.key] : t.apps)),
+    kept.flatMap(t => (t.kind === "app" ? [t.key] : t.apps)),
   )
+  const missing = keys
+    .filter(k => !placed.has(k))
+    .map((key): Tile => ({ kind: "app", key }))
 
-  return {
-    tiles: [
-      ...tiles,
-      ...keys
-        .filter(k => !placed.has(k))
-        .map((key): Tile => ({ kind: "app", key })),
-    ],
-  }
+  return { tiles: [...kept, ...missing] }
 }

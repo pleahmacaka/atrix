@@ -113,6 +113,17 @@ const inFlight = new SvelteSet<string>()
 export const pending = (draft: string) =>
   inFlight.has(draft) || queues.get(draft).length > 0
 
+const sendQueued = async (host: HostView, draft: string, next: Queued) => {
+  const sending = await expand(draft, next.text)
+  const attachments = await Promise.all(
+    [...next.files, ...sending.files].map(toAttachment),
+  )
+
+  return sendPrimed(draft, sending.text, text =>
+    host.prompt(draft, text, attachments),
+  )
+}
+
 const drain = (host: HostView, draft: string, busy: boolean) => {
   if (
     busy ||
@@ -131,15 +142,7 @@ const drain = (host: HostView, draft: string, busy: boolean) => {
 
   inFlight.add(draft)
 
-  expand(draft, next.text)
-    .then(async sending => {
-      const files = [...next.files, ...sending.files]
-      const attachments = await Promise.all(files.map(toAttachment))
-
-      return sendPrimed(draft, sending.text, text =>
-        host.prompt(draft, text, attachments),
-      )
-    })
+  sendQueued(host, draft, next)
     .catch((e: unknown) => {
       unshiftQueue(draft, next)
 

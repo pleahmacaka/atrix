@@ -1,6 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import type { EventTag } from "#lib/calendar/events.ts"
+import type { EventTag } from "#lib/calendar/store.ts"
 import { COLOR_KEYS, COLORS, tagLabel, toColor } from "#lib/calendar/tags.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu } from "#lib/store/contextMenu.svelte.ts"

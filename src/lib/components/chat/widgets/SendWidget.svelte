@@ -5,49 +5,56 @@ import { m } from "#lib/paraglide/messages.js"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import { voice } from "#lib/voice/voice.svelte.ts"
 
+type Action = {
+  icon: string
+  label: string
+  run: () => void
+  tone: "btn-error" | "btn-primary"
+  disabled?: boolean
+}
+
 const composer = useComposer()
 
-const round = "btn btn-sm btn-circle size-full min-h-0"
+const action = $derived.by((): Action => {
+  if (composer.empty && composer.talking) {
+    return {
+      icon: "lucide:phone-off",
+      label: m.voice_end(),
+      run: conversation.end,
+      tone: "btn-error",
+    }
+  }
+
+  if (composer.stoppable) {
+    return { icon: "lucide:square", label: m.chat_stop(), run: composer.stop, tone: "btn-primary" }
+  }
+
+  if (composer.empty && composer.callable) {
+    return {
+      icon: "lucide:audio-lines",
+      label: voice.ready ? m.voice_mode() : m.voice_setup(),
+      run: composer.call,
+      tone: "btn-primary",
+    }
+  }
+
+  return {
+    icon: "lucide:arrow-up",
+    label: m.chat_send(),
+    run: composer.submit,
+    tone: "btn-primary",
+    disabled: composer.empty || composer.props.disabled,
+  }
+})
 </script>
 
-{#if composer.empty && composer.talking}
-  <button
-    type="button"
-    class={[round, "btn-error"]}
-    aria-label={m.voice_end()}
-    title={m.voice_end()}
-    onclick={conversation.end}
-  >
-    <Icon icon="lucide:phone-off" class="size-4" />
-  </button>
-{:else if composer.stoppable}
-  <button
-    type="button"
-    class={[round, "btn-primary"]}
-    aria-label={m.chat_stop()}
-    title={m.chat_stop()}
-    onclick={composer.stop}
-  >
-    <Icon icon="lucide:square" class="size-3" />
-  </button>
-{:else if composer.empty && composer.callable}
-  <button
-    type="button"
-    class={[round, "btn-primary"]}
-    aria-label={voice.ready ? m.voice_mode() : m.voice_setup()}
-    title={voice.ready ? m.voice_mode() : m.voice_setup()}
-    onclick={composer.call}
-  >
-    <Icon icon="lucide:audio-lines" class="size-4" />
-  </button>
-{:else}
-  <button
-    type="submit"
-    class={[round, "btn-primary"]}
-    aria-label={m.chat_send()}
-    title={m.chat_send()}
-    disabled={composer.empty || composer.props.disabled}
-  >
-    <Icon icon="lucide:arrow-up" class="size-4" />
-  </button>
-{/if}
+<button
+  type="button"
+  class={["btn btn-sm btn-circle size-full min-h-0", action.tone]}
+  aria-label={action.label}
+  title={action.label}
+  disabled={action.disabled}
+  onclick={action.run}
+>
+  <Icon icon={action.icon} class="size-4" />
+</button>

@@ -10,11 +10,16 @@ export type Source = z.infer<typeof sourceSchema>
 
 export type Drop = "before" | "after" | "merge"
 
-const withoutSource = (tiles: Tile[], source: Source) => {
-  if (source.kind === "tile") {
-    const moved = tiles[source.index]
+const app = (key: string): Tile => ({ kind: "app", key })
 
-    return { moved, rest: tiles.filter((_, i) => i !== source.index) }
+const keyOf = (tile: Tile) => (tile.kind === "app" ? tile.key : tile.id)
+
+const take = (tiles: Tile[], source: Source) => {
+  if (source.kind === "tile") {
+    return {
+      moved: tiles[source.index],
+      rest: tiles.filter((_, i) => i !== source.index),
+    }
   }
 
   const rest = tiles.flatMap((t): Tile[] => {
@@ -27,12 +32,8 @@ const withoutSource = (tiles: Tile[], source: Source) => {
     return apps.length ? [{ ...t, apps }] : []
   })
 
-  const moved: Tile = { kind: "app", key: source.key }
-
-  return { moved, rest }
+  return { moved: app(source.key), rest }
 }
-
-const keyOf = (tile: Tile) => (tile.kind === "app" ? tile.key : tile.id)
 
 export const moveTile = (
   tiles: Tile[],
@@ -47,7 +48,7 @@ export const moveTile = (
     return tiles
   }
 
-  const { moved, rest } = withoutSource(tiles, source)
+  const { moved, rest } = take(tiles, source)
 
   if (!moved || keyOf(moved) === keyOf(anchor)) {
     return tiles
@@ -75,7 +76,7 @@ export const moveTile = (
 }
 
 export const releaseMember = (tiles: Tile[], folder: string, key: string) => {
-  const { moved, rest } = withoutSource(tiles, { kind: "member", folder, key })
+  const { moved, rest } = take(tiles, { kind: "member", folder, key })
 
   return [...rest, moved]
 }
@@ -89,7 +90,5 @@ export const renameFolder = (tiles: Tile[], folder: string, name: string) =>
 
 export const dissolveFolder = (tiles: Tile[], folder: string) =>
   tiles.flatMap((t): Tile[] =>
-    t.kind === "folder" && t.id === folder
-      ? t.apps.map(key => ({ kind: "app", key }))
-      : [t],
+    t.kind === "folder" && t.id === folder ? t.apps.map(app) : [t],
   )

@@ -1,19 +1,19 @@
 import { z } from "zod"
+import { m } from "#lib/paraglide/messages.js"
 import { getLocale } from "#lib/paraglide/runtime.js"
 import { persist, persisted } from "#lib/store/stored.svelte.ts"
+import { addDays, DAY_MS, startOfDay } from "./dates.ts"
 import {
   blueSaturday,
   holidayCheck,
   holidaysOn,
   loadHolidays,
   regionOf,
+  regions,
   restDayOf,
 } from "./holidays.ts"
-import { addDays, DAY_MS, startOfDay } from "./recurrence.ts"
 
 export const WEEKS = 4
-
-export type WeekStart = 0 | 1
 
 const PREFS = "calendar-prefs"
 
@@ -25,6 +25,8 @@ const prefsSchema = z.object({
 })
 
 type Prefs = z.infer<typeof prefsSchema>
+
+type WeekStart = Prefs["weekStartsOn"]
 
 const legacy = (key: string, fallback: string) =>
   localStorage.getItem(key) ?? fallback
@@ -124,9 +126,6 @@ class HolidayView {
 
   load = () => loadHolidays().then(() => (this.ready = true))
 
-  namesOn = (day: Date) =>
-    this.ready ? holidaysOn(day, this.region, getLocale().split("-")[0]) : []
-
   weekdayTone = (day: Date) =>
     day.getDay() === this.restDay
       ? "text-error"
@@ -136,6 +135,26 @@ class HolidayView {
 
   dayTone = (day: Date) =>
     this.isHoliday(day) ? "text-error" : this.weekdayTone(day)
+
+  names = (day: Date) =>
+    this.ready ? holidaysOn(day, this.region, getLocale().split("-")[0]) : []
+
+  regionOptions = () => [
+    { value: "system", label: m.calendar_region_system() },
+    ...regionNames(this.ready ? regions() : []),
+  ]
+}
+
+type RegionOption = { value: string; label: string; keywords?: string[] }
+
+const regionNames = (codes: string[]): RegionOption[] => {
+  const names = new Intl.DisplayNames([getLocale()], { type: "region" })
+
+  return codes.map(code => ({
+    value: code,
+    label: names.of(code) ?? code,
+    keywords: [code],
+  }))
 }
 
 export const holidays = new HolidayView()

@@ -17,40 +17,43 @@ import {
   saveChannels,
 } from "./store.svelte.ts"
 
+const TYPING_MS = 8000
+
 const queues = new Map<string, Promise<void>>()
 
+const repliesOf = (host: HostView, id: string, start: number) =>
+  (host.views[id]?.items.slice(start) ?? [])
+    .flatMap(i => (i.type === "agent" ? [i.text.trim()] : []))
+    .filter(Boolean)
+    .join("\n\n")
+
+const observe = (check: () => boolean) =>
+  new Promise<void>(resolve => {
+    const stop = $effect.root(() => {
+      $effect(() => {
+        if (check()) {
+          resolve()
+          queueMicrotask(() => stop())
+        }
+      })
+    })
+  })
+
 const idle = (host: HostView, id: string) =>
-  new Promise<void>(resolve => {
-    const stop = $effect.root(() => {
-      $effect(() => {
-        if (!host.views[id]?.running) {
-          resolve()
-          queueMicrotask(() => stop())
-        }
-      })
-    })
+  observe(() => !host.views[id]?.running)
+
+const settled = (host: HostView, id: string, start: number) => {
+  let began = false
+
+  return observe(() => {
+    const view = host.views[id]
+    const landed = (view?.items.slice(start) ?? []).some(i => i.type !== "user")
+
+    began ||= !!view?.running
+
+    return (began || landed) && !view?.running
   })
-
-const settled = (host: HostView, id: string, start: number) =>
-  new Promise<void>(resolve => {
-    let began = false
-    const stop = $effect.root(() => {
-      $effect(() => {
-        const view = host.views[id]
-
-        began ||= !!view?.running
-        // prompt can return before running flips, so wait for the turn to start or land
-        const landed = (view?.items.slice(start) ?? []).some(
-          i => i.type !== "user",
-        )
-
-        if ((began || landed) && !view?.running) {
-          resolve()
-          queueMicrotask(() => stop())
-        }
-      })
-    })
-  })
+}
 
 const configure = async (host: HostView, bot: Bot, id: string) => {
   const mode = host.views[id]?.config.find(o => o.category === "mode")
@@ -74,6 +77,22 @@ const opened = async (host: HostView, id: string | null | undefined) => {
     () => id,
     () => null,
   )
+}
+
+const remember = (bot: Bot, channel: string | null, id: string) => {
+  const current = channels.bots.find(b => b.id === bot.id)
+
+  if (!current) {
+    return
+  }
+
+  if (channel === null) {
+    current.main = id
+  } else {
+    current.sessions = { ...current.sessions, [channel]: id }
+  }
+
+  saveChannels()
 }
 
 export const sessionOf = async (
@@ -102,23 +121,10 @@ export const sessionOf = async (
       channel === null ? bot.name : `${bot.name} ${channelName ?? channel}`,
     )
     .catch(() => {})
-
-  const current = channels.bots.find(b => b.id === bot.id)
-
-  if (current) {
-    if (channel === null) {
-      current.main = id
-    } else {
-      current.sessions = { ...current.sessions, [channel]: id }
-    }
-
-    saveChannels()
-  }
+  remember(bot, channel, id)
 
   return id
 }
-
-const TYPING_MS = 8000
 
 const typing = (provider: Provider, channel: string) => {
   const ping = () =>
@@ -134,35 +140,39 @@ const typing = (provider: Provider, channel: string) => {
   return () => clearInterval(timer)
 }
 
+const promptAll = async (host: HostView, id: string, text: string) => {
+  for (;;) {
+    await idle(host, id)
+
+    const start = host.views[id]?.items.length ?? 0
+
+    try {
+      await host.prompt(id, text)
+
+      return start
+    } catch (e) {
+      if (!isBusyError(e)) {
+        throw e
+      }
+    }
+  }
+}
+
 const answer = async (host: HostView, bot: Bot, message: Incoming) => {
   const provider = providerOf(bot.provider)
   const id = await sessionOf(host, bot, message.channelId, message.channelName)
-  const text = `${message.author}: ${message.content}`
   const stop = typing(provider, message.channelId)
 
   try {
-    let start = 0
-
-    for (;;) {
-      await idle(host, id)
-      start = host.views[id]?.items.length ?? 0
-
-      try {
-        await host.prompt(id, text)
-        break
-      } catch (e) {
-        if (!isBusyError(e)) {
-          throw e
-        }
-      }
-    }
+    const start = await promptAll(
+      host,
+      id,
+      `${message.author}: ${message.content}`,
+    )
 
     await settled(host, id, start)
 
-    const reply = (host.views[id]?.items.slice(start) ?? [])
-      .flatMap(i => (i.type === "agent" ? [i.text.trim()] : []))
-      .filter(Boolean)
-      .join("\n\n")
+    const reply = repliesOf(host, id, start)
 
     if (reply) {
       await provider.send(message.channelId, reply, {

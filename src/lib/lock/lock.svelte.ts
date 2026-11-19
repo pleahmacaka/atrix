@@ -22,17 +22,17 @@ const digest = async (salt: string, secret: string) => {
   return hash.toHex()
 }
 
-const read = () => {
+const readFlag = (key: string) => {
   try {
-    return localStorage.getItem(LOCKED) === "1"
+    return localStorage.getItem(key) === "1"
   } catch {
     return false
   }
 }
 
-const write = (locked: boolean) => {
+const writeFlag = (key: string, on: boolean) => {
   try {
-    localStorage.setItem(LOCKED, locked ? "1" : "0")
+    localStorage.setItem(key, on ? "1" : "0")
   } catch {}
 }
 
@@ -70,7 +70,7 @@ export const checkLock = async (value: string) => {
 export type Setup = LockKind | "remove"
 
 class Screen {
-  locked = $state(read())
+  locked = $state(readFlag(LOCKED))
 
   setup = $state<Setup | null>(null)
 
@@ -117,14 +117,14 @@ class Screen {
 
     this.setup = null
     this.locked = true
-    write(true)
+    writeFlag(LOCKED, true)
   }
 
   unlock = () => {
     this.locked = false
     this.#failures = 0
     this.#active = Date.now()
-    write(false)
+    writeFlag(LOCKED, false)
   }
 
   fail = () => {

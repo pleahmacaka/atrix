@@ -1,4 +1,3 @@
-import type { ChatItem } from "#lib/acp/items.ts"
 import {
   agentInstructions,
   agents,
@@ -7,7 +6,7 @@ import {
 import { hostById, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { recents } from "#lib/store/recent.ts"
-import { chats } from "./chats.svelte.ts"
+import { conversationFile, documentFile } from "./mentions/file.ts"
 import { TAGS, tagged } from "./tags.ts"
 
 export type Mention =
@@ -34,11 +33,9 @@ export type Token = {
   end: number
 }
 
-const TRANSCRIPT_CHARS = 20_000
+const TRIGGERS = new Set<string>(["/", "#", "@"])
 
 const LIMIT = 50
-
-const TRIGGERS = new Set<string>(["/", "#", "@"])
 
 export const tokenAt = (text: string, caret: number): Token | null => {
   const before = text.slice(0, caret)
@@ -52,21 +49,21 @@ export const tokenAt = (text: string, caret: number): Token | null => {
   }
 
   return {
-    trigger: trigger as Trigger,
+    trigger: trigger === "/" || trigger === "#" ? trigger : "@",
     query: word.slice(1).toLowerCase(),
     start,
     end: caret,
   }
 }
 
+const byPrefix = (query: string) => (a: Suggestion, b: Suggestion) =>
+  Number(!a.label.toLowerCase().startsWith(query)) -
+  Number(!b.label.toLowerCase().startsWith(query))
+
 const matching = (items: Suggestion[], query: string) =>
   items
     .filter(s => s.label.toLowerCase().includes(query))
-    .toSorted(
-      (a, b) =>
-        Number(!a.label.toLowerCase().startsWith(query)) -
-        Number(!b.label.toLowerCase().startsWith(query)),
-    )
+    .toSorted(byPrefix(query))
     .slice(0, LIMIT)
 
 export const conversations = (query: string, self: string) =>
@@ -118,7 +115,7 @@ export const documents = (query: string) =>
         label: title,
         detail: e.key,
         icon: "lucide:file-text",
-        mention: { kind: "doc" as const, key: e.key, title },
+        mention: { kind: "doc", key: e.key, title },
       }
     }),
     query,
@@ -131,73 +128,10 @@ export const people = (query: string) =>
       label: a.name,
       detail: providerOf(a)?.label ?? "",
       icon: providerOf(a)?.icon ?? "lucide:bot",
-      mention: { kind: "agent" as const, id: a.id, title: a.name },
+      mention: { kind: "agent", id: a.id, title: a.name },
     })),
     query,
   )
-
-const transcriptOf = (items: ChatItem[]) =>
-  items
-    .flatMap(i =>
-      i.type === "user"
-        ? `User: ${i.text}`
-        : i.type === "agent"
-          ? `Assistant: ${i.text}`
-          : [],
-    )
-    .join("\n\n")
-    .slice(-TRANSCRIPT_CHARS)
-
-const sessionText = async (host: string, id: string) => {
-  const view = hostById(host)
-
-  if (!view) {
-    throw new Error(m.chat_no_device())
-  }
-
-  const opened = !!view.views[id]
-
-  await view.open(id)
-
-  const text = transcriptOf(view.views[id]?.items ?? [])
-
-  if (!opened) {
-    await view.close(id).catch(() => {})
-  }
-
-  return text
-}
-
-const chatText = (id: string) =>
-  (chats.find(id)?.messages ?? [])
-    .map(message => {
-      const text = message.parts
-        .flatMap(p => (p.type === "text" ? p.text : []))
-        .join("")
-
-      return `${message.role === "user" ? "User" : "Assistant"}: ${text}`
-    })
-    .join("\n\n")
-    .slice(-TRANSCRIPT_CHARS)
-
-const fileOf = async (mention: Mention) => {
-  if (mention.kind === "doc") {
-    const doc = await hostById(LOCAL)?.readDoc(mention.key)
-    const body = `<atrix-document key="${mention.key}" title="${mention.title}">\n${doc?.text ?? ""}\n</atrix-document>`
-
-    return new File([body], `${mention.title}.md`, { type: "text/markdown" })
-  }
-
-  const text =
-    mention.kind === "session"
-      ? await sessionText(mention.host, mention.id)
-      : mention.kind === "chat"
-        ? chatText(mention.id)
-        : ""
-  const body = `<atrix-conversation title="${mention.title}">\n${text}\n</atrix-conversation>`
-
-  return new File([body], `${mention.title}.md`, { type: "text/markdown" })
-}
 
 const agentLine = (id: string) => {
   const agent = agents.find(id)
@@ -289,6 +223,20 @@ const bracket = (text: string, used: Suggestion[]) => {
   )
 }
 
+const fileOf = (s: Suggestion) => {
+  const { mention } = s
+
+  if (mention.kind === "doc") {
+    return documentFile(mention.key, mention.title)
+  }
+
+  if (mention.kind === "session" || mention.kind === "chat") {
+    return conversationFile(mention, mention.title)
+  }
+
+  return Promise.reject(new Error(m.chat_no_device()))
+}
+
 export const expand = async (draft: string, text: string) => {
   const used = usedIn(draft, text)
 
@@ -299,7 +247,7 @@ export const expand = async (draft: string, text: string) => {
   const files = await Promise.all(
     used
       .filter(s => s.mention.kind !== "agent" && s.mention.kind !== "member")
-      .map(s => fileOf(s.mention).catch(() => [])),
+      .map(s => fileOf(s).catch(() => [])),
   )
   const block = agentBlock(
     used.flatMap(s => (s.mention.kind === "agent" ? s.mention.id : [])),

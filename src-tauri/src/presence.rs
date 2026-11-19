@@ -1,17 +1,21 @@
 use std::collections::HashMap;
-use std::fs::{self, TryLockError};
-use std::io::ErrorKind;
-use std::io::{Read, Seek, SeekFrom};
+use std::fs::{self, File, TryLockError};
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
+use std::time::Duration;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::{AppHandle, Manager};
 
+fn home_dir(app: &AppHandle) -> Option<PathBuf> {
+    app.path().home_dir().ok()
+}
+
 #[tauri::command(async)]
 pub fn claude_presence(app: AppHandle) -> Vec<Value> {
-    let Ok(home) = app.path().home_dir() else {
+    let Some(home) = home_dir(&app) else {
         return Vec::new();
     };
     let Ok(entries) = fs::read_dir(home.join(".claude").join("sessions")) else {
@@ -20,10 +24,14 @@ pub fn claude_presence(app: AppHandle) -> Vec<Value> {
 
     let records: Vec<(Pid, Value)> = entries
         .flatten()
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|e| fs::read(e.path()).ok())
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
+        .filter_map(|entry| fs::read(entry.path()).ok())
         .filter_map(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
-        .filter_map(|r| Some((Pid::from_u32(r["pid"].as_u64()? as u32), r)))
+        .filter_map(|record| {
+            let pid = u32::try_from(record["pid"].as_u64()?).ok()?;
+
+            Some((Pid::from_u32(pid), record))
+        })
         .collect();
     let pids: Vec<Pid> = records.iter().map(|(pid, _)| *pid).collect();
     let mut system = System::new();
@@ -42,7 +50,7 @@ pub fn claude_presence(app: AppHandle) -> Vec<Value> {
 }
 
 fn codex_dir(app: &AppHandle) -> Option<PathBuf> {
-    app.path().home_dir().ok().map(|h| h.join(".codex"))
+    home_dir(app).map(|home| home.join(".codex"))
 }
 
 fn held(path: &Path) -> bool {
@@ -63,21 +71,20 @@ pub fn codex_presence(app: AppHandle) -> Vec<String> {
 
     entries
         .flatten()
-        .map(|e| e.path())
-        .filter(|p| held(p))
-        .filter_map(|p| {
-            let name = p.file_name()?.to_str()?;
+        .map(|entry| entry.path())
+        .filter(|path| held(path))
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?;
 
-            name.strip_suffix(".lock")
-                .filter(|id| !id.starts_with('.'))
-                .map(str::to_owned)
+            Some(name.strip_suffix(".lock")?.to_owned())
         })
+        .filter(|id| !id.starts_with('.'))
         .collect()
 }
 
 fn newest_first(dir: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = fs::read_dir(dir)
-        .map(|entries| entries.flatten().map(|e| e.path()).collect())
+        .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
         .unwrap_or_default();
 
     paths.sort_unstable_by(|a, b| b.cmp(a));
@@ -94,25 +101,20 @@ pub fn codex_rollout(app: AppHandle, id: String) -> Option<String> {
         .flat_map(|year| newest_first(year))
         .flat_map(|month| newest_first(&month))
         .flat_map(|day| newest_first(&day))
-        .find(|f| f.to_string_lossy().ends_with(&suffix))
-        .map(|f| f.to_string_lossy().into_owned())
+        .find(|file| file.to_string_lossy().ends_with(&suffix))
+        .map(|file| file.to_string_lossy().into_owned())
 }
 
-const SUBAGENT_TAIL_BYTES: u64 = 64 * 1024;
+const TAIL_BYTES: u64 = 64 * 1024;
 
-const SUBAGENT_TAIL_LINES: usize = 24;
+const TAIL_LINES: usize = 24;
 
-fn tail_lines(path: &Path) -> Vec<String> {
-    use std::io::{Read, Seek, SeekFrom};
-
-    let Ok(mut file) = fs::File::open(path) else {
-        return Vec::new();
-    };
-    let length = file.metadata().map(|m| m.len()).unwrap_or(0);
+fn tail(file: &mut File) -> Vec<String> {
+    let length = file.metadata().map(|meta| meta.len()).unwrap_or(0);
     let mut buffer = Vec::new();
 
     if file
-        .seek(SeekFrom::Start(length.saturating_sub(SUBAGENT_TAIL_BYTES)))
+        .seek(SeekFrom::Start(length.saturating_sub(TAIL_BYTES)))
         .and_then(|_| file.read_to_end(&mut buffer))
         .is_err()
     {
@@ -122,11 +124,17 @@ fn tail_lines(path: &Path) -> Vec<String> {
     let text = String::from_utf8_lossy(&buffer);
     let lines: Vec<String> = text
         .lines()
-        .filter(|l| l.starts_with('{'))
-        .map(String::from)
+        .filter(|line| line.starts_with('{'))
+        .map(str::to_owned)
         .collect();
 
-    lines[lines.len().saturating_sub(SUBAGENT_TAIL_LINES)..].to_vec()
+    lines[lines.len().saturating_sub(TAIL_LINES)..].to_vec()
+}
+
+fn tail_lines(path: &Path) -> Vec<String> {
+    File::open(path)
+        .map(|mut file| tail(&mut file))
+        .unwrap_or_default()
 }
 
 #[derive(Default)]
@@ -141,7 +149,7 @@ fn usage_row(line: &str) -> Option<Value> {
     let row: Value = serde_json::from_str(line).ok()?;
     let message = row.get("message");
 
-    Some(serde_json::json!({
+    Some(json!({
         "type": row.get("type")?,
         "timestamp": row.get("timestamp")?,
         "id": message.and_then(|m| m.get("id")),
@@ -154,7 +162,7 @@ fn usage_lines(path: &Path) -> Vec<Value> {
         return Vec::new();
     };
     let usage = cache.entry(path.to_path_buf()).or_default();
-    let Ok(mut file) = fs::File::open(path) else {
+    let Ok(mut file) = File::open(path) else {
         return Vec::new();
     };
     let mut fresh = Vec::new();
@@ -163,7 +171,7 @@ fn usage_lines(path: &Path) -> Vec<Value> {
         return usage.rows.clone();
     }
 
-    let Some(end) = fresh.iter().rposition(|b| *b == b'\n') else {
+    let Some(end) = fresh.iter().rposition(|byte| *byte == b'\n') else {
         return usage.rows.clone();
     };
     let text = String::from_utf8_lossy(&fresh[..=end]);
@@ -174,9 +182,7 @@ fn usage_lines(path: &Path) -> Vec<Value> {
                 .ok()
                 .and_then(|row| row.get("timestamp").cloned())
         {
-            usage
-                .rows
-                .push(serde_json::json!({ "type": "start", "timestamp": at }));
+            usage.rows.push(json!({ "type": "start", "timestamp": at }));
         }
 
         if line.contains("\"api-request\"") || line.contains("\"output_tokens\"") {
@@ -189,8 +195,37 @@ fn usage_lines(path: &Path) -> Vec<Value> {
     usage.rows.clone()
 }
 
-// a stopped subagent never gets finished: true in its meta, so a silent log ends it
-const SUBAGENT_STALE: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+const STALE: Duration = Duration::from_secs(15 * 60);
+
+fn stale(path: &Path) -> bool {
+    fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|at| at.elapsed().ok())
+        .is_none_or(|age| age > STALE)
+}
+
+fn subagent(meta: &Path) -> Option<Value> {
+    let id = meta.file_name()?.to_str()?.strip_suffix(".meta.json")?;
+    let parsed: Value = serde_json::from_slice(&fs::read(meta).ok()?).ok()?;
+
+    if parsed.get("finished").and_then(Value::as_bool) == Some(true) {
+        return None;
+    }
+
+    let log = meta.with_file_name(format!("{id}.jsonl"));
+
+    if stale(&log) {
+        return None;
+    }
+
+    Some(json!({
+        "id": id,
+        "meta": parsed,
+        "tail": tail_lines(&log),
+        "usage": usage_lines(&log),
+    }))
+}
 
 #[tauri::command(async)]
 pub fn claude_subagents(transcript: String) -> Vec<Value> {
@@ -201,30 +236,6 @@ pub fn claude_subagents(transcript: String) -> Vec<Value> {
 
     entries
         .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            let id = path.file_name()?.to_str()?.strip_suffix(".meta.json")?;
-            let meta: Value = serde_json::from_slice(&fs::read(&path).ok()?).ok()?;
-
-            if meta.get("finished").and_then(Value::as_bool) == Some(true) {
-                return None;
-            }
-
-            let log = folder.join(format!("{id}.jsonl"));
-            let quiet = fs::metadata(&log)
-                .and_then(|m| m.modified())
-                .ok()
-                .and_then(|at| at.elapsed().ok())
-                .is_none_or(|age| age > SUBAGENT_STALE);
-
-            if quiet {
-                return None;
-            }
-
-            let tail = tail_lines(&log);
-            let usage = usage_lines(&log);
-
-            Some(serde_json::json!({ "id": id, "meta": meta, "tail": tail, "usage": usage }))
-        })
+        .filter_map(|entry| subagent(&entry.path()))
         .collect()
 }

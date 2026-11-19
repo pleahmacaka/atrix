@@ -110,7 +110,7 @@ $effect(() => {
       />
     </summary>
     <div
-      class="dropdown-content duration-140 border-base-300 bg-raised max-h-96 w-full overflow-y-auto border-b py-2 shadow-lg"
+      class="dropdown-content border-base-300 bg-raised max-h-96 w-full overflow-y-auto border-b py-2 shadow-lg"
     >
       <Toc toc={doc.toc} active={current?.id ?? ""} onpick={pick} />
     </div>

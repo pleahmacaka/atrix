@@ -2,17 +2,16 @@
 import Icon from "@iconify/svelte"
 import type { Ask } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { CARD } from "./labels.ts"
+import { CARD } from "./card.ts"
 
 let { ask, onPermit }: { ask: Ask; onPermit: (optionId: string) => void } = $props()
 
-const iconOf = (kind: string) => {
-  if (!kind.startsWith("allow")) {
-    return "lucide:x"
-  }
-
-  return kind.endsWith("always") ? "lucide:check-check" : "lucide:check"
-}
+const iconOf = (kind: string) =>
+  kind.startsWith("allow")
+    ? kind.endsWith("always")
+      ? "lucide:check-check"
+      : "lucide:check"
+    : "lucide:x"
 </script>
 
 <section class={CARD} aria-label={m.chat_permission_title()}>
@@ -24,7 +23,10 @@ const iconOf = (kind: string) => {
     {#each ask.options as option (option.optionId)}
       <button
         type="button"
-        class={["btn btn-sm", option.kind.startsWith("allow") ? "btn-primary" : "btn-ghost"]}
+        class={[
+          "btn btn-sm",
+          option.kind.startsWith("allow") ? "btn-primary" : "btn-ghost",
+        ]}
         onclick={() => onPermit(option.optionId)}
       >
         <Icon icon={iconOf(option.kind)} class="size-4" />

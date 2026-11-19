@@ -10,9 +10,7 @@ import KnowledgeDoc from "./KnowledgeDoc.svelte"
 const host = $derived(knowledgeHost())
 
 const empty = $derived(
-  !!host?.state?.knowledge?.ready &&
-    host.knowledge.length === 0 &&
-    host.canvases.length === 0,
+  !!host?.state?.knowledge?.ready && host.knowledge.length === 0 && host.canvases.length === 0,
 )
 </script>
 

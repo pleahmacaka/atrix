@@ -94,7 +94,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
 <div class="flex min-h-0 flex-1 gap-2 p-2 max-sm:gap-0 max-sm:p-1" data-shell>
   {#if docked && (!shell.collapsed || shell.compact)}
     <div
-      class="flex min-h-0 shrink-0 transition-width duration-140"
+      class="flex min-h-0 shrink-0 transition-width"
       style:width="{shell.collapsed ? RAIL_REM : shell.width}rem"
     >
       <Sidebar rail={shell.collapsed} />
@@ -104,7 +104,7 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
         type="button"
         class={[
           "relative -mx-1.5 my-2 w-1 shrink-0 cursor-col-resize rounded-full",
-          "transition-colors duration-140 hover:bg-primary/60 active:bg-primary",
+          "transition-colors hover:bg-primary/60 active:bg-primary",
         ]}
         aria-label={m.shell_resize_pane()}
         data-resize

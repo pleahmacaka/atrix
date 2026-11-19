@@ -2,7 +2,7 @@ import { z } from "zod"
 
 const color = z.string().optional()
 
-const box = {
+const BOX = {
   id: z.string(),
   x: z.number(),
   y: z.number(),
@@ -12,15 +12,15 @@ const box = {
 }
 
 export const canvasNode = z.discriminatedUnion("type", [
-  z.object({ ...box, type: z.literal("text"), text: z.string() }),
+  z.object({ ...BOX, type: z.literal("text"), text: z.string() }),
   z.object({
-    ...box,
+    ...BOX,
     type: z.literal("file"),
     file: z.string(),
     subpath: z.string().optional(),
   }),
-  z.object({ ...box, type: z.literal("link"), url: z.string() }),
-  z.object({ ...box, type: z.literal("group"), label: z.string().optional() }),
+  z.object({ ...BOX, type: z.literal("link"), url: z.string() }),
+  z.object({ ...BOX, type: z.literal("group"), label: z.string().optional() }),
 ])
 
 const side = z.enum(["top", "right", "bottom", "left"]).optional()

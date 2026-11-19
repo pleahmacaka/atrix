@@ -10,13 +10,17 @@ export const PI_BASE = "pi-acp"
 
 const KEY_ENV = "ATRIX_PROVIDER_KEY"
 
+const KEYLESS = "atrix"
+
+const PI_DIR = ".atrix/pi"
+
 export const providerKindOf = (harness: {
   kind: HarnessKind | null
   base: string
 }): ProviderKind | null =>
   harness.kind ?? (harness.base === PI_BASE ? "pi" : null)
 
-const trimmed = (url: string) => (url.endsWith("/") ? url.slice(0, -1) : url)
+const trimSlash = (url: string) => (url.endsWith("/") ? url.slice(0, -1) : url)
 
 const anthropicURL = (gateway: Gateway) => {
   const path = templateFor(gateway)?.anthropic
@@ -41,7 +45,7 @@ export const servesKind = (kind: ProviderKind, gateway: Gateway) => {
 
 const claudeEnv = (gateway: Gateway, model: string) => ({
   ANTHROPIC_BASE_URL: anthropicURL(gateway) ?? "",
-  ANTHROPIC_AUTH_TOKEN: gateway.key || "atrix",
+  ANTHROPIC_AUTH_TOKEN: gateway.key || KEYLESS,
   ANTHROPIC_API_KEY: "",
   ANTHROPIC_MODEL: model,
   ANTHROPIC_DEFAULT_OPUS_MODEL: model,
@@ -49,34 +53,36 @@ const claudeEnv = (gateway: Gateway, model: string) => ({
   ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
 })
 
-const codexEnv = (gateway: Gateway, model: string) => ({
-  MODEL_PROVIDER: "atrix",
-  CODEX_CONFIG: JSON.stringify({
-    model,
-    ...(!templateFor(gateway)?.codexDefaults && {
-      web_search: "disabled",
-      model_reasoning_effort: templateFor(gateway)?.reasoning ?? "low",
-    }),
-    model_providers: {
-      atrix: {
-        name: "Atrix",
-        base_url: trimmed(gateway.baseURL),
-        env_key: KEY_ENV,
-        wire_api: "responses",
-      },
-    },
-  }),
-  [KEY_ENV]: gateway.key || "atrix",
-})
+const codexEnv = (gateway: Gateway, model: string) => {
+  const template = templateFor(gateway)
 
-const piDir = (home: string) => `${home}/.atrix/pi`
+  return {
+    MODEL_PROVIDER: "atrix",
+    CODEX_CONFIG: JSON.stringify({
+      model,
+      ...(!template?.codexDefaults && {
+        web_search: "disabled",
+        model_reasoning_effort: template?.reasoning ?? "low",
+      }),
+      model_providers: {
+        atrix: {
+          name: "Atrix",
+          base_url: trimSlash(gateway.baseURL),
+          env_key: KEY_ENV,
+          wire_api: "responses",
+        },
+      },
+    }),
+    [KEY_ENV]: gateway.key || KEYLESS,
+  }
+}
 
 const writePi = async (home: string, gateway: Gateway, model: string) => {
-  const dir = piDir(home)
+  const dir = `${home}/${PI_DIR}`
   const models = {
     providers: {
       atrix: {
-        baseUrl: trimmed(gateway.baseURL),
+        baseUrl: trimSlash(gateway.baseURL),
         api: "openai-completions",
         apiKey: `$${KEY_ENV}`,
         compat: {
@@ -104,7 +110,7 @@ const writePi = async (home: string, gateway: Gateway, model: string) => {
     content: JSON.stringify(settings, null, 2),
   })
 
-  return { PI_CODING_AGENT_DIR: dir, [KEY_ENV]: gateway.key || "atrix" }
+  return { PI_CODING_AGENT_DIR: dir, [KEY_ENV]: gateway.key || KEYLESS }
 }
 
 const envOf = async (

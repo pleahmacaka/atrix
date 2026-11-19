@@ -10,7 +10,7 @@ export const TAGS = {
 export type Tag = (typeof TAGS)[keyof typeof TAGS]
 
 export const tagged = (tag: Tag, body: string) =>
-  `<${tag}>\n${body.replaceAll(`</${tag}>`, `</ ${tag}>`)}\n</${tag}>`
+  `<${tag}>\n${body.replaceAll(`</${tag}>`, `</ ${tag}`)}\n</${tag}>`
 
 const INJECTED = new RegExp(
   `<(${Object.values(TAGS).join("|")})>[\\s\\S]*?</\\1>\\s*`,

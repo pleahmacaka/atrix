@@ -34,6 +34,9 @@ const envelopeOf = async (audio: Blob) => {
 
 const sentences = new Intl.Segmenter(undefined, { granularity: "sentence" })
 
+const failure = (error: unknown) =>
+  error instanceof Error ? error.message : m.voice_failed()
+
 type Line = { text: string; audio?: Promise<Blob> }
 
 class Voice {
@@ -80,7 +83,7 @@ class Voice {
   }
 
   fail = (error: unknown) => {
-    this.error = error instanceof Error ? error.message : m.voice_failed()
+    this.error = failure(error)
     clearTimeout(this.#clear)
     this.#clear = setTimeout(() => {
       this.error = null
@@ -90,43 +93,6 @@ class Voice {
   transcribe = (audio: Blob) => transcribeAudio(audio)
 
   synthesize = (text: string) => synthesizeText(text)
-
-  #prefetch = (text: string) => {
-    const pending = this.synthesize(text)
-    pending.catch(() => {})
-
-    return pending
-  }
-
-  #play = (audio: Blob) =>
-    new Promise<void>((resolve, reject) => {
-      const url = URL.createObjectURL(audio)
-      const player = new Audio(url)
-      player.preservesPitch = true
-      player.playbackRate = settings.voiceRate
-      this.#audio = player
-      this.#envelope = []
-
-      envelopeOf(audio)
-        .then(levels => {
-          if (this.#audio === player) {
-            this.#envelope = levels
-          }
-        })
-        .catch(() => {})
-
-      player.onpause = () => {
-        URL.revokeObjectURL(url)
-        resolve()
-      }
-
-      player.onerror = () => {
-        URL.revokeObjectURL(url)
-        reject(new Error(m.voice_playback()))
-      }
-
-      player.play().catch(() => reject(new Error(m.voice_playback())))
-    })
 
   begin = () => {
     this.#fed = 0
@@ -144,17 +110,7 @@ class Voice {
 
     for (const { segment } of complete) {
       this.#fed += segment.length
-
-      const text = plainText(segment).trim()
-
-      if (text.length > this.#budget && this.#budget < SPOKEN_LIMIT) {
-        this.#budget = 0
-      } else if (text) {
-        const line = text.slice(0, this.#budget)
-
-        this.#budget -= line.length
-        this.#lines.push({ text: line })
-      }
+      this.#enqueue(segment)
     }
 
     const upcoming = this.#lines[0]
@@ -181,6 +137,98 @@ class Voice {
 
     return this.#draining ?? Promise.resolve()
   }
+
+  outputLevel = () => {
+    const player = this.#audio
+
+    if (!player || !this.speaking) {
+      return 0
+    }
+
+    return this.#envelope[Math.floor(player.currentTime / ENVELOPE_S)] ?? 0
+  }
+
+  setRate = (rate: number) => {
+    settings.setVoiceRate(rate)
+
+    if (this.#audio) {
+      this.#audio.playbackRate = rate
+    }
+  }
+
+  stopSpeaking = () => {
+    this.hush()
+    this.#cut = true
+  }
+
+  hush = () => {
+    this.#run++
+    this.#lines = []
+    this.#draining = undefined
+    this.#audio?.pause()
+    this.#audio = undefined
+    this.speaking = false
+    this.spoken = ""
+  }
+
+  toggle = (onText: (text: string) => void) => {
+    if (this.recording) {
+      this.#recorder?.stop()
+    } else if (!this.transcribing) {
+      this.#record(onText)
+    }
+  }
+
+  #enqueue = (segment: string) => {
+    const text = plainText(segment).trim()
+
+    if (text.length > this.#budget && this.#budget < SPOKEN_LIMIT) {
+      this.#budget = 0
+    } else if (text) {
+      const line = text.slice(0, this.#budget)
+
+      this.#budget -= line.length
+      this.#lines.push({ text: line })
+    }
+  }
+
+  #prefetch = (text: string) => {
+    const pending = this.synthesize(text)
+    pending.catch(() => {})
+
+    return pending
+  }
+
+  #play = (audio: Blob) =>
+    new Promise<void>((resolve, reject) => {
+      const url = URL.createObjectURL(audio)
+      const player = new Audio(url)
+
+      player.preservesPitch = true
+      player.playbackRate = settings.voiceRate
+      this.#audio = player
+      this.#envelope = []
+
+      envelopeOf(audio)
+        .then(levels => {
+          if (this.#audio === player) {
+            this.#envelope = levels
+          }
+        })
+        .catch(() => {})
+
+      player.onpause = () => {
+        URL.revokeObjectURL(url)
+        resolve()
+      }
+
+      player.onerror = () => {
+        URL.revokeObjectURL(url)
+        reject(new Error(m.voice_playback()))
+      }
+
+      player.play().catch(() => reject(new Error(m.voice_playback())))
+    })
 
   #drain = async () => {
     const run = this.#run
@@ -222,48 +270,7 @@ class Voice {
     }
   }
 
-  outputLevel = () => {
-    const player = this.#audio
-
-    if (!player || !this.speaking) {
-      return 0
-    }
-
-    return this.#envelope[Math.floor(player.currentTime / ENVELOPE_S)] ?? 0
-  }
-
-  setRate = (rate: number) => {
-    settings.setVoiceRate(rate)
-
-    if (this.#audio) {
-      this.#audio.playbackRate = rate
-    }
-  }
-
-  stopSpeaking = () => {
-    this.hush()
-    this.#cut = true
-  }
-
-  hush = () => {
-    this.#run++
-    this.#lines = []
-    this.#draining = undefined
-    this.#audio?.pause()
-    this.#audio = undefined
-    this.speaking = false
-    this.spoken = ""
-  }
-
-  toggle = (onText: (text: string) => void) => {
-    if (this.recording) {
-      this.#recorder?.stop()
-    } else if (!this.transcribing) {
-      this.#start(onText)
-    }
-  }
-
-  #start = async (onText: (text: string) => void) => {
+  #record = async (onText: (text: string) => void) => {
     this.stopSpeaking()
     this.error = null
 

@@ -17,6 +17,8 @@ const STATUS_LIMIT: Duration = Duration::from_secs(20);
 
 const SCHEDULE_LIMIT: Duration = Duration::from_secs(120);
 
+const POLL: Duration = Duration::from_millis(200);
+
 const HOURS: [u32; 3] = [1, 6, 24];
 
 fn drain(pipe: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
@@ -32,7 +34,7 @@ fn drain(pipe: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
 }
 
 fn installed() -> bool {
-    process::command("tokscale").is_ok()
+    process::which("tokscale").is_some()
 }
 
 fn tokscale(args: &[&str], failure: &str, limit: Duration) -> Result<String> {
@@ -56,7 +58,7 @@ fn tokscale(args: &[&str], failure: &str, limit: Duration) -> Result<String> {
             return Err("usage_timeout".into());
         }
 
-        thread::sleep(Duration::from_millis(200));
+        thread::sleep(POLL);
     }
 
     let status = child.wait()?;
@@ -74,27 +76,31 @@ fn tokscale(args: &[&str], failure: &str, limit: Duration) -> Result<String> {
     Ok(String::from_utf8_lossy(&output).into_owned())
 }
 
-#[derive(Deserialize)]
-struct Credentials {
-    token: String,
-}
+fn token(app: &AppHandle) -> Result<String> {
+    #[derive(Deserialize)]
+    struct Credentials {
+        token: String,
+    }
 
-#[tauri::command]
-pub async fn usage_graph(app: AppHandle) -> Result<String> {
     let path = app
         .path()
         .home_dir()?
         .join(".config")
         .join("tokscale")
         .join("credentials.json");
-    let credentials: Credentials = fs::read_to_string(path)
+
+    fs::read_to_string(path)
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())
-        .ok_or_else(|| Error::from("usage_login"))?;
+        .map(|credentials: Credentials| credentials.token)
+        .ok_or_else(|| Error::from("usage_login"))
+}
 
+#[tauri::command]
+pub async fn usage_graph(app: AppHandle) -> Result<String> {
     let response = fetch::client()?
         .get(STATS)
-        .bearer_auth(credentials.token)
+        .bearer_auth(token(&app)?)
         .send()
         .await
         .map_err(|e| Error::code("usage_failed", e))?;
@@ -103,11 +109,9 @@ pub async fn usage_graph(app: AppHandle) -> Result<String> {
         return Err("usage_login".into());
     }
 
-    let response = response
-        .error_for_status()
-        .map_err(|e| Error::code("usage_failed", e))?;
-
     response
+        .error_for_status()
+        .map_err(|e| Error::code("usage_failed", e))?
         .text()
         .await
         .map_err(|e| Error::code("usage_failed", e))
@@ -136,13 +140,6 @@ pub async fn usage_autosubmit(hours: u32) -> Result<()> {
     .await?
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Schedule {
-    enabled: bool,
-    interval_minutes: u32,
-}
-
 #[tauri::command]
 pub async fn usage_autosubmit_status() -> Result<u32> {
     if !installed() {
@@ -150,6 +147,13 @@ pub async fn usage_autosubmit_status() -> Result<u32> {
     }
 
     tauri::async_runtime::spawn_blocking(|| {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Schedule {
+            enabled: bool,
+            interval_minutes: u32,
+        }
+
         let output = tokscale(
             &["autosubmit", "status", "--json"],
             "usage_submit_failed",

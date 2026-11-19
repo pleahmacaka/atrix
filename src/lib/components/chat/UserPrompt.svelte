@@ -4,7 +4,7 @@ import type { TextItem } from "#lib/acp/items.ts"
 import { promptOf } from "#lib/chat/session.ts"
 import { m } from "#lib/paraglide/messages.js"
 import Attachments from "./Attachments.svelte"
-import { BUBBLE } from "./labels.ts"
+import { BUBBLE } from "./bubble.ts"
 import Markdown from "./Markdown.svelte"
 
 let { item }: { item: TextItem } = $props()

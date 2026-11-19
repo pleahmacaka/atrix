@@ -4,7 +4,7 @@ import { m } from "#lib/paraglide/messages.js"
 
 const MAX_BYTES = 10 * 1024 * 1024
 
-const BINARY_MARK = "\u0000"
+export const isImage = (file: File) => file.type.startsWith("image/")
 
 const checkSize = (file: File) => {
   if (file.size > MAX_BYTES) {
@@ -12,40 +12,36 @@ const checkSize = (file: File) => {
   }
 }
 
-export const isImage = (file: File) => file.type.startsWith("image/")
+const kindOf = async (file: File): Promise<Attachment["kind"]> => {
+  if (isImage(file)) {
+    return "image"
+  }
+
+  return (await file.text()).includes("\u0000") ? "file" : "text"
+}
+
+const base64Of = async (file: File) =>
+  new Uint8Array(await file.arrayBuffer()).toBase64()
 
 export const toAttachment = async (file: File): Promise<Attachment> => {
   checkSize(file)
 
-  if (isImage(file)) {
-    const bytes = new Uint8Array(await file.arrayBuffer())
+  const kind = await kindOf(file)
 
+  if (kind === "text") {
     return {
-      kind: "image",
+      kind,
       name: file.name,
-      mimeType: file.type,
-      data: bytes.toBase64(),
-    }
-  }
-
-  const text = await file.text()
-
-  if (text.includes(BINARY_MARK)) {
-    const bytes = new Uint8Array(await file.arrayBuffer())
-
-    return {
-      kind: "file",
-      name: file.name,
-      mimeType: file.type || "application/octet-stream",
-      data: bytes.toBase64(),
+      mimeType: file.type || "text/plain",
+      text: await file.text(),
     }
   }
 
   return {
-    kind: "text",
+    kind,
     name: file.name,
-    mimeType: file.type || "text/plain",
-    text,
+    mimeType: file.type || "application/octet-stream",
+    data: await base64Of(file),
   }
 }
 
@@ -58,13 +54,16 @@ const dataUrl = (file: File) =>
     reader.readAsDataURL(file)
   })
 
-export const toFilePart = async (file: File): Promise<FileUIPart> => {
+export const toFilePart = async (
+  file: File,
+  url = dataUrl(file),
+): Promise<FileUIPart> => {
   checkSize(file)
 
   return {
     type: "file",
     mediaType: file.type || "text/plain",
     filename: file.name,
-    url: await dataUrl(file),
+    url: await url,
   }
 }

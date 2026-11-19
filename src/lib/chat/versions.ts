@@ -1,14 +1,13 @@
-type Named = { name: string }
-
 export const versionOf = (name: string) => {
   const words = name.split(" ")
   const at = words.findIndex(w => w !== "" && Number.isFinite(Number(w)))
+  const numbers = at < 0 ? undefined : words[at]
 
-  return at < 0
+  return numbers === undefined
     ? null
     : {
         family: words.toSpliced(at, 1).join(" ").toLowerCase(),
-        parts: words[at]?.split(".").map(Number) ?? [],
+        parts: numbers.split(".").map(Number),
       }
 }
 
@@ -24,7 +23,7 @@ const newer = (a: number[], b: number[]) => {
   return false
 }
 
-export const olderModels = (models: Named[]) => {
+export const olderModels = (models: { name: string }[]) => {
   const best = new Map<string, number[]>()
 
   for (const { name } of models) {

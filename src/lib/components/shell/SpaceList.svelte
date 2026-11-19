@@ -1,6 +1,5 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { SvelteDate } from "svelte/reactivity"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
@@ -11,11 +10,14 @@ import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { SPACE_HUES, type Space } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { getLocale } from "#lib/paraglide/runtime.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import { startDrag } from "#lib/store/drag.ts"
 import { keyOf } from "#lib/store/keys.ts"
-import { goPage, nav, openConversation } from "#lib/store/nav.svelte.ts"
+import {
+  goPage,
+  nav,
+  openConversation,
+} from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import {
   type AgentRow,
@@ -26,6 +28,7 @@ import {
 } from "#lib/store/spaceTree.ts"
 import { conversationMenu } from "./conversationMenu.ts"
 import FolderPicker from "./FolderPicker.svelte"
+import { elapsed } from "./format.ts"
 import SessionPicker from "./SessionPicker.svelte"
 
 let { rail = false }: { rail?: boolean } = $props()
@@ -86,35 +89,16 @@ const openKeys = $derived(
 
 const clustered = $derived(panes.leaves.length > 1 ? openKeys : new Set<string>())
 
-const now = new SvelteDate()
-
-const units = [
-  { unit: "day", ms: DAY_MS },
-  { unit: "hour", ms: 3_600_000 },
-  { unit: "minute", ms: 60_000 },
-] as const
-
-const elapsed = (since: number) => {
-  const gap = Math.max(0, now.getTime() - since)
-  const found = units.find(u => gap >= u.ms) ?? units[2]
-
-  const format = new Intl.NumberFormat(getLocale(), {
-    style: "unit",
-    unit: found.unit,
-    unitDisplay: "narrow",
-  })
-
-  return gap < found.ms ? `<${format.format(1)}` : format.format(Math.floor(gap / found.ms))
-}
-
 $effect(() => {
-  const timer = setInterval(() => now.setTime(Date.now()), 30_000)
+  const timer = setInterval(() => (now = Date.now()), 30_000)
 
   return () => clearInterval(timer)
 })
 
+let now = $state(Date.now())
+
 const settledOf = (entry: Entry) =>
-  tier(entry) === 2 && now.getTime() - recency(entry) > SETTLE_MS
+  tier(entry) === 2 && now - recency(entry) > SETTLE_MS
 
 const recent = $derived(sorted.filter(e => !settledOf(e)))
 
@@ -156,35 +140,33 @@ const materialize = async (host: string, node: SpaceNode, name = node.space.name
   return space?.id ?? null
 }
 
-const placeIn = async (host: string, node: SpaceNode, sessionId: string, before: string | null) => {
+const placeIn = async (host: string, node: SpaceNode, id: string, before: string | null) => {
   const view = hostById(host)
-  const row = tree.hosts
-    .find(h => h.id === host)
-    ?.spaces.flatMap(n => n.agents)
-    .find(a => a.id === sessionId)
-  const home = node.auto && folderKey(row?.item.cwd ?? "") === folderKey(node.space.folder)
+  const home = node.auto && folderKey(tree.hosts
+    .find(h => h.id === host)?.spaces.flatMap(n => n.agents).find(a => a.id === id)?.item.cwd ?? "") === folderKey(node.space.folder)
 
   if (home) {
-    return view?.place(sessionId, null, null)
+    await view?.place(id, null, null)
+    return
   }
 
   const space = await materialize(host, node)
 
   if (space) {
-    await view?.place(sessionId, space, before)
+    await view?.place(id, space, before)
   }
 }
-
 const startAgent = (host: string, node: SpaceNode) => {
   const space = node.space
+  const current = nav.target.kind === "harness" ? nav.target : null
 
   goPage("chat")
   openConversation(null)
   nav.space = node.auto ? null : { host, id: space.id }
 
   const harness =
-    nav.target.kind === "harness" && nav.target.host === host
-      ? nav.target.harness
+    current && current.host === host
+      ? current.harness
       : hostById(host)?.state?.harnesses.find(h => h.enabled)?.id
 
   if (harness) {
@@ -194,8 +176,8 @@ const startAgent = (host: string, node: SpaceNode) => {
       harness,
       cwd:
         space.folder ||
-        (nav.target.kind === "harness"
-          ? nav.target.cwd
+        (current
+          ? current.cwd
           : (hostById(host)?.state?.home ?? "")),
     }
   }
@@ -457,7 +439,7 @@ const menuOf = (e: MouseEvent, entry: Entry) => {
         {/if}
         {#if row.since}
           <span class={["shrink-0 tabular-nums", row.status !== "idle" && "text-primary"]}>
-            {elapsed(row.since)}
+            {elapsed(row.since, now)}
           </span>
         {/if}
       </span>

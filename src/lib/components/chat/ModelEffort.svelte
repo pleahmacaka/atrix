@@ -35,8 +35,7 @@ const level = $derived(
 )
 
 const modelName = $derived(
-  models.find(c => c.value === model)?.name ??
-    (locked && model ? model : m.chat_model()),
+  models.find(c => c.value === model)?.name ?? (locked && model ? model : m.chat_model()),
 )
 
 const effortName = $derived(efforts.find(c => c.value === effort)?.name)

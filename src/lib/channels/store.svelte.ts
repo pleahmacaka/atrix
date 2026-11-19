@@ -67,21 +67,34 @@ export const PROVIDERS: Provider[] = [discord]
 export const providerOf = (id: string) =>
   PROVIDERS.find(p => p.id === id) ?? discord
 
-const bindingSchema = z.preprocess(
-  raw =>
-    raw && typeof raw === "object" && "discordChannelId" in raw
-      ? { provider: discord.id, channel: raw.discordChannelId, ...raw }
-      : raw,
-  z.object({
-    provider: z.string(),
-    channel: z.string(),
-    harness: z.string(),
-    cwd: z.string(),
-    sessionId: z.string().nullable(),
-  }),
-)
+const legacyChannel = z.object({ discordChannelId: z.string() })
+
+const bindingSchema = z.object({
+  provider: z.string(),
+  channel: z.string(),
+  harness: z.string(),
+  cwd: z.string(),
+  sessionId: z.string().nullable(),
+})
+
+const bindingOf = (raw: unknown) => {
+  const legacy = legacyChannel.safeParse(raw)
+
+  if (!legacy.success) {
+    return raw
+  }
+
+  const { discordChannelId, ...rest } = legacy.data
+
+  return { ...rest, provider: discord.id, channel: discordChannelId }
+}
 
 export type Binding = z.infer<typeof bindingSchema>
+
+const bindingsSchema = z.preprocess(
+  raw => (Array.isArray(raw) ? raw.map(bindingOf) : raw),
+  z.array(bindingSchema).catch([]),
+)
 
 const botSchema = z.object({
   id: z.string(),
@@ -133,28 +146,26 @@ const optionsSchema = z.object({
 
 export type ProviderOptions = z.infer<typeof optionsSchema>
 
-const KEY = "channels"
-
-const savedSchema = z.preprocess(
-  raw =>
-    raw && typeof raw === "object" && !("providers" in raw)
-      ? { ...raw, providers: { [discord.id]: raw } }
-      : raw,
-  z
-    .object({
-      bindings: z.array(bindingSchema).catch([]),
-      bots: z.array(botSchema).optional(),
-      requests: z.array(requestSchema).catch([]),
-      providers: z.record(z.string(), optionsSchema).catch({}),
-    })
-    .transform(({ bindings, bots, requests, providers }) => ({
-      bots: bots ?? bindings.map(botOf),
-      requests,
-      providers,
-    })),
-)
+const savedSchema = z
+  .object({
+    bindings: bindingsSchema,
+    bots: z.array(botSchema).optional(),
+    requests: z.array(requestSchema).catch([]),
+    providers: z.record(z.string(), optionsSchema).catch({}),
+  })
+  .transform(({ bindings, bots, requests, providers }) => ({
+    bots: bots ?? bindings.map(botOf),
+    requests,
+    providers,
+  }))
 
 type Saved = z.infer<typeof savedSchema>
+
+const KEY = "channels"
+
+const EMPTY: Saved = { bots: [], requests: [], providers: {} }
+
+const load = (): Saved => persisted(KEY, EMPTY, savedSchema)
 
 export type Live = {
   status: "off" | "connecting" | "on"
@@ -163,9 +174,6 @@ export type Live = {
 }
 
 const OFF: Live = { status: "off", user: null, error: null }
-
-const load = (): Saved =>
-  persisted(KEY, { bots: [], requests: [], providers: {} }, savedSchema)
 
 export const channels = $state<Saved & { live: Record<string, Live> }>({
   ...load(),

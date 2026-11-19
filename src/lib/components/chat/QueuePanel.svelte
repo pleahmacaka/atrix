@@ -7,11 +7,11 @@ import { m } from "#lib/paraglide/messages.js"
 
 const composer = useComposer()
 
+const items = $derived(composer.queued)
+
 let editing = $state<number | null>(null)
 
 let draft = $state("")
-
-const items = $derived(composer.queued)
 
 const sendNow = (index: number) => {
   frontQueued(composer.props.draft, index)
@@ -43,6 +43,11 @@ const save = (index: number) => {
 
   editing = null
 }
+
+const edit = (index: number, text: string) => {
+  draft = text
+  editing = index
+}
 </script>
 
 {#if items.length}
@@ -54,7 +59,9 @@ const save = (index: number) => {
       {m.queue_title({ count: items.length })}
     </h3>
     {#each items as item, index (index)}
-      <div class="flex min-w-0 items-center gap-2 rounded-field px-2 py-1 hover:bg-base-content/5">
+      <div
+        class="flex min-w-0 items-center gap-2 rounded-field px-2 py-1 hover:bg-base-content/5"
+      >
         <span
           class="grid size-5 shrink-0 place-items-center rounded-field bg-base-content/10 text-xs tabular-nums"
         >
@@ -94,10 +101,7 @@ const save = (index: number) => {
             icon="lucide:pencil"
             label={m.queue_edit()}
             size="xs"
-            onclick={() => {
-              draft = item.text
-              editing = index
-            }}
+            onclick={() => edit(index, item.text)}
           />
           <IconButton
             icon="lucide:x"

@@ -1,23 +1,18 @@
 import { getLocale } from "#lib/paraglide/runtime.js"
-import {
-  type CalendarEvent,
-  dateKey,
-  openEnded,
-  parseLocal,
-} from "./recurrence.ts"
+import { dateKey, parseLocal } from "./dates.ts"
+import { openEnded } from "./occurrence.ts"
+import type { CalendarEvent } from "./types.ts"
 
 export const format = (d: Date, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(getLocale(), options).format(d)
 
-export const clock = (value: string) =>
-  parseLocal(value).toLocaleTimeString(getLocale(), {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  })
+const format24 = new Intl.DateTimeFormat(getLocale(), {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+})
 
-export const eventTime = (event: CalendarEvent, allDayLabel: string) =>
-  event.allDay ? allDayLabel : clock(event.start)
+export const clock = (value: string) => format24.format(parseLocal(value))
 
 export const shortDay = (day: Date) =>
   format(day, { month: "short", day: "numeric", weekday: "short" })
@@ -28,13 +23,6 @@ export const longDay = (day: Date) =>
     month: "long",
     day: "numeric",
     weekday: "long",
-  })
-
-export const dateLabel = (day: Date, today: Date) =>
-  format(day, {
-    year: day.getFullYear() === today.getFullYear() ? undefined : "numeric",
-    month: "long",
-    day: "numeric",
   })
 
 export const eventSpan = (event: CalendarEvent, allDayLabel: string) => {

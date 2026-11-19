@@ -1,19 +1,18 @@
 <script lang="ts">
 import { untrack } from "svelte"
 import { on } from "svelte/events"
-import type { EventTag } from "#lib/calendar/events.ts"
+import { dateKey, dateTimeKey } from "#lib/calendar/dates.ts"
+import { shiftable } from "#lib/calendar/occurrence.ts"
+import type { EventTag } from "#lib/calendar/store.ts"
+import { COLOR_KEYS, COLORS } from "#lib/calendar/tags.ts"
 import {
   type CalendarEvent,
-  dateKey,
-  dateTimeKey,
   type Occurrence,
   RECURRENCES,
   type Recurrence,
   SHIFTS,
   type Shift,
-  shiftable,
-} from "#lib/calendar/recurrence.ts"
-import { COLOR_KEYS, COLORS } from "#lib/calendar/tags.ts"
+} from "#lib/calendar/types.ts"
 import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import TagPicker from "./TagPicker.svelte"
@@ -21,7 +20,6 @@ import TagPicker from "./TagPicker.svelte"
 let {
   event,
   day,
-  author,
   tags,
   busy,
   onsave,
@@ -34,7 +32,6 @@ let {
 }: {
   event: Occurrence | null
   day: Date
-  author: string
   tags: EventTag[]
   busy: boolean
   onsave: (draft: CalendarEvent) => void
@@ -61,14 +58,16 @@ const SHIFT_LABELS: Record<Shift | "", () => string> = {
   previous: m.calendar_shift_previous,
 }
 
+const NEW_EVENT_HOUR = 9
+
 const blank = (): CalendarEvent => {
   const start = new Date(day)
 
-  start.setHours(9, 0, 0, 0)
+  start.setHours(NEW_EVENT_HOUR, 0, 0, 0)
 
   const end = new Date(start)
 
-  end.setHours(10)
+  end.setHours(NEW_EVENT_HOUR + 1)
 
   return {
     id: crypto.randomUUID(),
@@ -86,12 +85,12 @@ const blank = (): CalendarEvent => {
     seriesId: null,
     originalDate: null,
     notesSync: false,
-    createdBy: author,
+    createdBy: "",
     updatedAt: 0,
   }
 }
 
-const base = untrack(() => event) ?? blank()
+const base = untrack(() => event ?? blank())
 
 type Form = Pick<
   CalendarEvent,

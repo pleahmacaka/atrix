@@ -1,6 +1,4 @@
-import { get, set } from "idb-keyval"
 import { getContext, type Snippet, setContext } from "svelte"
-import { SvelteMap, SvelteSet } from "svelte/reactivity"
 import { z } from "zod"
 import type { Command } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -9,6 +7,16 @@ import { Stored } from "#lib/store/stored.svelte.ts"
 import { conversation } from "#lib/voice/conversation.svelte.ts"
 import { voice } from "#lib/voice/voice.svelte.ts"
 import { isImage } from "./attachments.ts"
+import {
+  addFiles,
+  filesOf,
+  previewsOf,
+  release,
+  removeFile,
+  replaceFile,
+  setFiles,
+} from "./composer/files.ts"
+import { clearQuote, quoted, quoteOf, setQuote } from "./composer/quote.ts"
 import { expand, remember, type Suggestion } from "./mentions.ts"
 import {
   clearQueue,
@@ -42,60 +50,13 @@ const KEY = Symbol("composer")
 
 export const drafts = new Stored("draft:", "", z.string())
 
-export const quotes = new SvelteMap<string, string>()
-
-const QUOTE_LIMIT = 600
-
-export const quoted = (text: string) => {
-  const trimmed = text.trim()
-  const chars = [...trimmed]
-  const short =
-    chars.length > QUOTE_LIMIT
-      ? `${chars.slice(0, QUOTE_LIMIT).join("")}…`
-      : trimmed
-
-  return short
-    .split("\n")
-    .map(line => `> ${line}`)
-    .join("\n")
-}
-
-const attached = new SvelteMap<string, File[]>()
-
-const thumbnails = new SvelteMap<File, string>()
-
-const restoring = new Set<string>()
-
-const halted = new SvelteSet<string>()
-
-const ATTACHED = "attached:"
+export { clearQuote, quoted, quoteOf }
 
 const PASTE_CHARS = 1000
 
 const PASTE_LINES = 10
 
-const restore = (draft: string) => {
-  if (restoring.has(draft)) {
-    return
-  }
-
-  restoring.add(draft)
-  get<File[]>(ATTACHED + draft)
-    .then(files => {
-      if (!files?.length || attached.has(draft)) {
-        return
-      }
-
-      for (const file of files) {
-        if (isImage(file)) {
-          thumbnails.set(file, URL.createObjectURL(file))
-        }
-      }
-
-      attached.set(draft, files)
-    })
-    .catch(() => {})
-}
+const halted = new Set<string>()
 
 export const paneComposers = new Map<string, Composer>()
 
@@ -106,7 +67,7 @@ export class Composer {
 
   picker = $state<HTMLInputElement>()
 
-  previews = thumbnails
+  previews = previewsOf
 
   #props: () => ComposerProps
 
@@ -119,18 +80,11 @@ export class Composer {
   }
 
   get files() {
-    const { draft } = this.props
-
-    restore(draft)
-
-    return attached.get(draft) ?? []
+    return filesOf(this.props.draft)
   }
 
   set files(value: File[]) {
-    const { draft } = this.props
-
-    attached.set(draft, value)
-    set(ATTACHED + draft, value).catch(() => {})
+    setFiles(this.props.draft, value)
   }
 
   get callable() {
@@ -139,18 +93,6 @@ export class Composer {
 
   get talking() {
     return conversation.owner === this.props.draft
-  }
-
-  call = () => {
-    const { converse, draft } = this.props
-
-    if (!voice.ready) {
-      openSettings("gateway")
-    } else if (converse) {
-      conversation.start(draft, converse.host)
-    } else {
-      this.props.onCall?.()
-    }
   }
 
   get text() {
@@ -162,17 +104,11 @@ export class Composer {
   }
 
   get quote() {
-    return quotes.get(this.props.draft) ?? null
-  }
-
-  clearQuote = () => {
-    quotes.delete(this.props.draft)
+    return quoteOf(this.props.draft)
   }
 
   get queued() {
-    const { draft, queue } = this.props
-
-    return queue ? queuedOf(draft) : []
+    return this.props.queue ? queuedOf(this.props.draft) : []
   }
 
   get empty() {
@@ -180,9 +116,7 @@ export class Composer {
   }
 
   get queueable() {
-    const { busy, queue } = this.props
-
-    return busy && !!queue
+    return this.props.busy && !!this.props.queue
   }
 
   get stoppable() {
@@ -193,17 +127,31 @@ export class Composer {
     )
   }
 
-  add = (list: Iterable<File>) => {
-    const added = [...list]
-
-    for (const file of added) {
-      if (isImage(file)) {
-        this.previews.set(file, URL.createObjectURL(file))
-      }
-    }
-
-    this.files = [...this.files, ...added]
+  get stopped() {
+    return halted.has(this.props.draft)
   }
+
+  set stopped(value: boolean) {
+    if (value) {
+      halted.add(this.props.draft)
+    } else {
+      halted.delete(this.props.draft)
+    }
+  }
+
+  call = () => {
+    const { converse, draft, onCall } = this.props
+
+    if (!voice.ready) {
+      openSettings("gateway")
+    } else if (converse) {
+      conversation.start(draft, converse.host)
+    } else {
+      onCall?.()
+    }
+  }
+
+  add = (list: Iterable<File>) => addFiles(this.props.draft, list)
 
   paste = (text: string) => {
     const lines = text.split("\n").length
@@ -220,45 +168,14 @@ export class Composer {
     return true
   }
 
-  replace = (file: File, next: File) => {
-    const url = this.previews.get(file)
+  replace = (file: File, next: File) =>
+    replaceFile(this.props.draft, file, next)
 
-    if (url) {
-      URL.revokeObjectURL(url)
-      this.previews.delete(file)
-    }
-
-    if (isImage(next)) {
-      this.previews.set(next, URL.createObjectURL(next))
-    }
-
-    this.files = this.files.map(f => (f === file ? next : f))
-  }
-
-  remove = (file: File) => {
-    const url = this.previews.get(file)
-
-    if (url) {
-      URL.revokeObjectURL(url)
-      this.previews.delete(file)
-    }
-
-    this.files = this.files.filter(f => f !== file)
-  }
+  remove = (file: File) => removeFile(this.props.draft, file)
 
   mention = (suggestion: Suggestion) => remember(this.props.draft, suggestion)
 
-  get stopped() {
-    return halted.has(this.props.draft)
-  }
-
-  set stopped(value: boolean) {
-    if (value) {
-      halted.add(this.props.draft)
-    } else {
-      halted.delete(this.props.draft)
-    }
-  }
+  clearQuote = () => clearQuote(this.props.draft)
 
   #pullQueue = () => {
     const { draft } = this.props
@@ -300,8 +217,7 @@ export class Composer {
 
     this.stopped = false
 
-    const behind = !!this.props.queue && pending(draft)
-    const queueing = busy || behind
+    const queueing = busy || (!!this.props.queue && pending(draft))
 
     if (queueing && !this.props.queue) {
       return
@@ -310,40 +226,35 @@ export class Composer {
     this.text = ""
     this.files = []
     this.clearQuote()
+    delete drainFailures[draft]
 
     if (queueing) {
       enqueue(draft, value, files)
-      delete drainFailures[draft]
 
       return
     }
 
-    delete drainFailures[draft]
-
     const sending = await expand(draft, value)
     const sent = onSend(sending.text, [...files, ...sending.files])
 
-    for (const file of files) {
-      const url = this.previews.get(file)
-
-      if (url) {
-        URL.revokeObjectURL(url)
-        this.previews.delete(file)
-      }
-    }
+    files.forEach(release)
 
     Promise.resolve(sent).then(ok => {
       if (ok === false && !this.text) {
         this.text = typed
 
         if (quote) {
-          quotes.set(draft, quote)
+          setQuote(draft, quote)
         }
       }
     })
   }
 }
 
-export const provideComposer = (composer: Composer) => setContext(KEY, composer)
+export const provideComposer = (composer: Composer) => {
+  setContext(KEY, composer)
+
+  return composer
+}
 
 export const useComposer = () => getContext<Composer>(KEY)

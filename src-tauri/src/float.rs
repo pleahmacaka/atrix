@@ -11,9 +11,9 @@ pub async fn float_open(app: AppHandle, label: String, url: String, title: Strin
         .app
         .windows
         .iter()
-        .find(|w| w.label == TEMPLATE)
-        .ok_or("float window is not configured")?
-        .clone();
+        .find(|window| window.label == TEMPLATE)
+        .cloned()
+        .ok_or("float window is not configured")?;
 
     config.label = label;
     config.url = WebviewUrl::App(url.into());

@@ -1,12 +1,17 @@
 import { m } from "#lib/paraglide/messages.js"
 import type { Actor } from "./document.ts"
 
-export const actorName = (actor: Actor | null) =>
-  !actor
-    ? m.knowledge_none()
-    : actor.kind === "human"
-      ? (actor.user ?? `${m.knowledge_human()} (${actor.device})`)
-      : (actor.agent ?? actor.session ?? actor.device)
+export const actorName = (actor: Actor | null) => {
+  if (!actor) {
+    return m.knowledge_none()
+  }
+
+  if (actor.kind === "human") {
+    return actor.user ?? `${m.knowledge_human()} (${actor.device})`
+  }
+
+  return actor.agent ?? actor.session ?? actor.device
+}
 
 export const actorDetail = (actor: Actor | null) =>
   actor?.kind === "agent"

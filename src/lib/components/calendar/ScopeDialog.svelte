@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { Scope } from "#lib/calendar/recurrence.ts"
+import type { Scope } from "#lib/calendar/types.ts"
 import Modal from "#lib/components/ui/Modal.svelte"
 import { m } from "#lib/paraglide/messages.js"
 
@@ -23,7 +23,7 @@ const title = $derived(
   mode === "edit" ? m.calendar_scope_edit() : m.calendar_scope_delete(),
 )
 
-let picked: Scope | null = null
+let picked = $state<Scope | null>(null)
 
 $effect(() => {
   if (!open) {

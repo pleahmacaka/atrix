@@ -34,7 +34,7 @@ const current = $derived(SETTINGS_TABS.find(t => t.id === nav.settingsTab) ?? SE
       />
     </div>
   {:else}
-    <div class="flex shrink-0 flex-col bg-base-200/60 pt-3 sm:w-44">
+    <div class="flex w-44 shrink-0 flex-col bg-base-200/60 pt-3">
       <SettingsList />
     </div>
   {/if}

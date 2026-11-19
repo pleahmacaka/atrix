@@ -136,10 +136,12 @@ const applyItem = (items: ChatItem[], payload: unknown) => {
       ),
     })
   } else if (result.success) {
-    const { call_id, output } = result.data
-    const text = typeof output === "string" ? output : textOf(output)
+    const text =
+      typeof result.data.output === "string"
+        ? result.data.output
+        : textOf(result.data.output)
 
-    settleTool(items, call_id, false, text)
+    settleTool(items, result.data.call_id, false, text)
   }
 }
 

@@ -7,6 +7,16 @@ type ProfileKey = Pick<HarnessInfo, "base" | "profile">
 
 type Copy = { view: HostView; id: string }
 
+const fanOut = async <T>(
+  [first, ...rest]: [Copy, ...Copy[]],
+  act: (view: HostView, id: string) => Promise<T>,
+) => {
+  const result = await act(first.view, first.id)
+  const settled = await Promise.allSettled(rest.map(c => act(c.view, c.id)))
+
+  return { result, failed: settled.filter(s => s.status === "rejected").length }
+}
+
 export const profileKey = (h: ProfileKey) => `${h.base}\n${h.profile}`
 
 const harnessesOf = (host: HostEntry) => host.view.state?.harnesses ?? []
@@ -20,16 +30,6 @@ const profileCopies = (h: ProfileKey): Copy[] =>
 
 export const copiesOf = (view: HostView, h: HarnessInfo): Copy[] =>
   h.profile ? profileCopies(h) : [{ view, id: h.id }]
-
-export const fanOut = async <T>(
-  [first, ...rest]: [Copy, ...Copy[]],
-  act: (view: HostView, id: string) => Promise<T>,
-) => {
-  const result = await act(first.view, first.id)
-  const settled = await Promise.allSettled(rest.map(c => act(c.view, c.id)))
-
-  return { result, failed: settled.filter(s => s.status === "rejected").length }
-}
 
 export const failedNotice = (failed: number) =>
   failed ? m.harness_copies_failed({ count: failed }) : null

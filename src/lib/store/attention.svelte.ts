@@ -1,18 +1,17 @@
-const looking = () =>
-  document.visibilityState === "visible" && document.hasFocus()
-
 class Attention {
-  active = $state(looking())
+  active = $state(document.visibilityState === "visible" && document.hasFocus())
 
-  constructor() {
-    const update = () => {
-      this.active = looking()
-    }
-
-    window.addEventListener("focus", update)
-    window.addEventListener("blur", update)
-    document.addEventListener("visibilitychange", update)
+  set = (active: boolean) => {
+    this.active = active
   }
 }
 
-export const attention = new Attention()
+const attention = new Attention()
+const sync = () =>
+  attention.set(document.visibilityState === "visible" && document.hasFocus())
+
+window.addEventListener("focus", sync, { passive: true })
+window.addEventListener("blur", sync, { passive: true })
+document.addEventListener("visibilitychange", sync, { passive: true })
+
+export { attention }

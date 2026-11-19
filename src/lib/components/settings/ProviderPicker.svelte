@@ -1,12 +1,9 @@
 <script lang="ts">
+import { untrack } from "svelte"
 import { type ProviderKind, servesKind } from "#lib/acp/provider.ts"
 import Select from "#lib/components/ui/Select.svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import {
-  DEFAULT_PROVIDER,
-  type HarnessInfo,
-  type ProviderChoice,
-} from "#lib/p2p/protocol.ts"
+import { DEFAULT_PROVIDER, type HarnessInfo, type ProviderChoice } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { activeGateways, findGateway } from "#lib/store/gatewayCatalog.ts"
 import { gatewayIcon } from "#lib/store/gateways.svelte.ts"
@@ -29,41 +26,30 @@ const INHERIT = ""
 
 const NATIVE = "native"
 
-const fieldsOf = (choice: ProviderChoice | null | undefined) => {
-  if (choice?.source === "native") {
-    return { gateway: NATIVE, model: "" }
-  }
+const fieldsOf = (choice: ProviderChoice | null | undefined) =>
+  choice?.source === "native"
+    ? { gateway: NATIVE, model: "" }
+    : { gateway: choice?.gateway ?? INHERIT, model: choice?.model ?? "" }
 
-  return { gateway: choice?.gateway ?? INHERIT, model: choice?.model ?? "" }
-}
+const saved = $derived(
+  !harness
+    ? fieldsOf(host.state?.defaultProvider)
+    : harness.providerSource === "default"
+      ? fieldsOf(null)
+      : fieldsOf(harness.provider),
+)
 
-const saved = () => {
-  if (!harness) {
-    return fieldsOf(host.state?.defaultProvider)
-  }
+let gateway = $state(untrack(() => saved.gateway))
 
-  return harness.providerSource === "default"
-    ? fieldsOf(null)
-    : fieldsOf(harness.provider)
-}
-
-let gateway = $state(saved().gateway)
-
-let model = $state(saved().model)
+let model = $state(untrack(() => saved.model))
 
 const fallback = $derived(host.state?.defaultProvider ?? null)
 
-const fallbackGateway = $derived(
-  fallback?.source === "gateway" ? findGateway(fallback.gateway) : undefined,
-)
+const fallbackGateway = $derived(fallback?.source === "gateway" ? findGateway(fallback.gateway) : undefined)
 
-const usable = $derived(
-  !!fallbackGateway && !!kind && servesKind(kind, fallbackGateway),
-)
+const usable = $derived(!!fallbackGateway && !!kind && servesKind(kind, fallbackGateway))
 
-const gateways = $derived(
-  activeGateways().filter(g => !harness || (kind && servesKind(kind, g))),
-)
+const gateways = $derived(activeGateways().filter(g => !harness || (kind && servesKind(kind, g))))
 
 const picked = $derived(gateways.find(g => g.id === gateway))
 
@@ -71,39 +57,22 @@ const inheritDetail = $derived(
   !fallbackGateway
     ? m.harness_provider_off()
     : usable
-      ? m.harness_provider_fallback({
-          gateway: fallbackGateway.name,
-          model: fieldsOf(fallback).model,
-        })
+      ? m.harness_provider_fallback({ gateway: fallbackGateway.name, model: fieldsOf(fallback).model })
       : m.harness_provider_unusable(),
 )
 
 const options = $derived([
   harness
-    ? {
-        value: INHERIT,
-        label: m.harness_provider_inherit(),
-        detail: inheritDetail,
-        icon: "lucide:arrow-down-to-line",
-      }
+    ? { value: INHERIT, label: m.harness_provider_inherit(), detail: inheritDetail, icon: "lucide:arrow-down-to-line" }
     : { value: INHERIT, label: m.harness_provider_off(), icon: "lucide:circle-off" },
   ...gateways.map(g => ({ value: g.id, label: g.name, icon: gatewayIcon(g) })),
-  ...(harness
-    ? [{ value: NATIVE, label: m.harness_provider_native(), icon: "lucide:house" }]
-    : []),
+  ...(harness ? [{ value: NATIVE, label: m.harness_provider_native(), icon: "lucide:house" }] : []),
 ])
 
-const dirty = $derived(
-  gateway !== saved().gateway || (!!picked && model.trim() !== saved().model),
-)
+const dirty = $derived(gateway !== saved.gateway || (!!picked && model.trim() !== saved.model))
 
-const choice = (): ProviderChoice | null => {
-  if (picked) {
-    return { source: "gateway", gateway: picked.id, model: model.trim() }
-  }
-
-  return gateway === NATIVE ? { source: "native" } : null
-}
+const choice = (): ProviderChoice | null =>
+  picked ? { source: "gateway", gateway: picked.id, model: model.trim() } : gateway === NATIVE ? { source: "native" } : null
 
 const save = () => run(() => apply(choice()))
 </script>

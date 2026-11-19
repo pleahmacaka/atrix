@@ -15,7 +15,8 @@ let { columns, rows }: { columns: string[]; rows: unknown[][] } = $props()
       {#each rows as row, r (r)}
         <tr>
           {#each columns as _, c (c)}
-            <td>{String(row[c] ?? "")}</td>
+            {@const cell = row[c]}
+            <td>{cell === null || cell === undefined ? "" : String(cell)}</td>
           {/each}
         </tr>
       {/each}

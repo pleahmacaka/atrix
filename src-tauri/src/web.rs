@@ -14,7 +14,7 @@ pub fn serve<R: Runtime>(app: &AppHandle<R>, addr: &str) -> crate::error::Result
         for request in server.incoming_requests() {
             let path = request.url().split(['?', '#']).next().unwrap_or("/");
 
-            let Some(asset) = assets.get(path.to_string()) else {
+            let Some(asset) = assets.get(path.to_owned()) else {
                 let _ = request.respond(Response::empty(404));
                 continue;
             };

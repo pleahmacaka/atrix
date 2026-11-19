@@ -13,6 +13,7 @@ import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { Browse } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { baseName } from "#lib/path.ts"
+import { dirsOf, needleOf, recentsOf, startOf } from "./folders.ts"
 
 let {
   host,
@@ -26,16 +27,6 @@ let {
   class?: ClassValue
 } = $props()
 
-const isPath = (text: string) =>
-  text.startsWith("/") ||
-  text.startsWith("~") ||
-  text.startsWith("\\\\") ||
-  /^[a-z]:[\\/]/i.test(text)
-
-const RECENT_LIMIT = 6
-
-const RECENT_BROWSING = 3
-
 const attempt = new Attempt()
 
 let open = $state(false)
@@ -44,28 +35,30 @@ let current = $state<Browse | null>(null)
 
 let filter = $state("")
 
-const typedPath = $derived.by(() => {
-  const typed = filter.trim()
-
-  if (!isPath(typed)) {
-    return null
-  }
-
-  const cut = Math.max(typed.lastIndexOf("\\"), typed.lastIndexOf("/")) + 1
-
-  return { dir: typed.slice(0, cut), leaf: typed.slice(cut) }
-})
-
-const needle = $derived((typedPath ? typedPath.leaf : filter.trim()).toLowerCase())
-
-const dirs = $derived(
-  (current?.dirs ?? []).filter(d => d.name.toLowerCase().includes(needle)),
-)
-
 let requested = ""
 
+const typed = $derived(startOf(filter))
+
+const needle = $derived(needleOf(filter))
+
+const dirs = $derived(dirsOf(current, needle))
+
+const recent = $derived(
+  recentsOf(
+    [
+      ...(host?.state?.open ?? []).map(session => session.cwd),
+      ...Object.values(host?.lists ?? {})
+        .flat()
+        .toSorted((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
+        .map(session => session.cwd),
+    ],
+    needle,
+    !!current,
+  ),
+)
+
 $effect(() => {
-  const dir = typedPath?.dir
+  const dir = typed?.dir
   const view = host
 
   if (!dir || !view || dir === requested) {
@@ -82,43 +75,6 @@ $effect(() => {
   })
 })
 
-const nativePath = (path: string) =>
-  /^[a-z]:/i.test(path) ? path.replaceAll("/", "\\") : path
-
-const isTemporary = (path: string) =>
-  path.toLowerCase().includes("\\appdata\\local\\temp\\")
-
-const unique = (paths: string[]) => {
-  const seen = new Set<string>()
-
-  return paths.filter(path => {
-    const key = path.toLowerCase()
-    const fresh = !seen.has(key)
-
-    seen.add(key)
-
-    return fresh
-  })
-}
-
-const recent = $derived(
-  unique(
-    [
-      ...(host?.state?.open ?? []).map(s => s.cwd),
-      ...Object.values(host?.lists ?? {})
-        .flat()
-        .toSorted((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
-        .map(s => s.cwd),
-    ]
-      .map(nativePath)
-      .filter(path => !isTemporary(path)),
-  )
-    .filter(
-      path => !!path && baseName(path).toLowerCase().includes(needle),
-    )
-    .slice(0, current ? RECENT_BROWSING : RECENT_LIMIT),
-)
-
 const browse = (path: string) =>
   attempt.run(async () => {
     if (host) {
@@ -127,6 +83,18 @@ const browse = (path: string) =>
       filter = ""
     }
   })
+
+const enter = (e: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
+  const text = e.currentTarget.value.trim()
+
+  if (e.key === "Enter" && startOf(text)) {
+    e.preventDefault()
+
+    const match = dirs.find(dir => dir.name.toLowerCase() === needle)
+
+    browse(match?.path ?? text)
+  }
+}
 
 const pick = (path: string) => {
   value = path
@@ -184,17 +152,7 @@ const pick = (path: string) => {
       </div>
       <SearchField
         bind:value={filter}
-        onkeydown={e => {
-          const typed = filter.trim()
-
-          if (e.key === "Enter" && isPath(typed)) {
-            e.preventDefault()
-
-            const exact = dirs.find(d => d.name.toLowerCase() === needle)
-
-            browse(exact?.path ?? typed)
-          }
-        }}
+        onkeydown={enter}
         placeholder={m.folder_filter()}
         class="shrink-0"
         data-autofocus
@@ -208,7 +166,7 @@ const pick = (path: string) => {
             <MenuItem
               icon="lucide:history"
               label={baseName(path)}
-              selected={path.toLowerCase() === nativePath(value).toLowerCase()}
+              selected={path.toLowerCase() === value.toLowerCase()}
               title={path}
               onclick={() => pick(path)}
             >

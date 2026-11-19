@@ -37,6 +37,8 @@ const STATUS: Record<Status, { label: () => string; tone: string }> = {
   unsupported: { label: m.dep_unsupported, tone: "badge-error" },
 }
 
+const ATRIX_TOOL_SET = new Set<string>(ATRIX_TOOLS)
+
 const ICONS: Record<Dep["kind"], string> = {
   skills: "lucide:sparkles",
   tools: "lucide:wrench",
@@ -71,13 +73,17 @@ $effect(() => {
 
   let live = true
 
-  inventoryOf(view, target.harness)
-    .then(found => {
+  const loadInventory = async () => {
+    try {
+      const found = await inventoryOf(view, target.harness)
+
       if (live) {
         inventory = found
       }
-    })
-    .catch(() => {})
+    } catch {}
+  }
+
+  void loadInventory()
 
   const others = untrack(() => view.state?.harnesses ?? []).filter(
     h => h.id !== target.harness && h.kind,
@@ -107,7 +113,7 @@ const statusOf = (dep: Dep): Status => {
   }
 
   if (dep.kind === "tools") {
-    return ATRIX_TOOLS.includes(dep.name) ? "ready" : "unverified"
+    return ATRIX_TOOL_SET.has(dep.name) ? "ready" : "unverified"
   }
 
   if (!inventory) {

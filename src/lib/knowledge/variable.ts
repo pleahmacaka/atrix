@@ -7,30 +7,31 @@ const NAME = /^[a-zA-Z_][\w]*$/
 
 const PATTERN = /^\{\{([a-zA-Z_][\w]*)\}\}/
 
-export const BUILTIN_VARIABLES = ["date", "time", "agent_name", "cwd", "user"]
-
 const USE = /\{\{([a-zA-Z_]\w*)(?:\s*\|\|\s*'([^']*)')?\}\}/g
+
+const MENU =
+  "popover-box fixed z-50 flex max-h-56 w-56 flex-col overflow-y-auto p-1 text-sm"
+
+const ROW =
+  "flex min-h-8 cursor-pointer items-center rounded-field px-2 text-start"
+
+export const BUILTIN_VARIABLES = ["date", "time", "agent_name", "cwd", "user"]
 
 export const variablesIn = (text: string) => [
   ...new Set([...text.matchAll(USE)].map(m => m[1])),
 ]
 
 export const fillVariables = (text: string, values: Record<string, string>) =>
-  text.replaceAll(USE, (whole, name: string, fallback?: string) => {
-    if (name in values) {
-      return values[name]
-    }
-
-    return fallback ?? whole
-  })
+  text.replaceAll(USE, (whole, name: string, fallback?: string) =>
+    name in values ? values[name] : (fallback ?? whole),
+  )
 
 type Options = { items: () => string[] }
 
 const menu = () => {
   const box = document.createElement("div")
 
-  box.className =
-    "popover-box fixed z-50 flex max-h-56 w-56 flex-col overflow-y-auto p-1 text-sm"
+  box.className = MENU
   box.setAttribute("role", "listbox")
   document.body.append(box)
 
@@ -43,15 +44,14 @@ const menu = () => {
     }
 
     const current = props
-    const names = current.items
 
     box.replaceChildren(
-      ...names.map((name, i) => {
+      ...current.items.map((name, i) => {
         const row = document.createElement("button")
 
         row.type = "button"
         row.className = [
-          "flex min-h-8 cursor-pointer items-center rounded-field px-2 text-start",
+          ROW,
           i === active ? "bg-base-content/10" : "hover:bg-base-content/5",
         ].join(" ")
         row.textContent = `{{${name}}}`
@@ -63,7 +63,7 @@ const menu = () => {
         return row
       }),
     )
-    box.hidden = names.length === 0
+    box.hidden = current.items.length === 0
 
     const rect = current.clientRect?.()
 

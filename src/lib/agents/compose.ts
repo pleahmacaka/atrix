@@ -25,6 +25,12 @@ export type Dep = { kind: DepKind; name: string; from: string[] }
 
 const INCLUDE = /\{\{#([a-zA-Z_][\w-]*)\}\}/g
 
+const requiresSchema = z.object({
+  skills: z.array(z.string()).optional(),
+  tools: z.array(z.string()).optional(),
+  mcp: z.array(z.string()).optional(),
+})
+
 export const kindOf = (part: Pick<StoredPrompt, "kind">): PartKind =>
   part.kind ?? "prompt"
 
@@ -92,6 +98,24 @@ export const resolve = (
     ...values,
   }).trim()
 
+const addDep = (
+  deps: Dep[],
+  kind: DepKind,
+  name: string,
+  from: string | null,
+) => {
+  const known = deps.find(d => d.kind === kind && d.name === name)
+  const entry = known ?? { kind, name, from: [] }
+
+  if (!known) {
+    deps.push(entry)
+  }
+
+  if (from && !entry.from.includes(from)) {
+    entry.from.push(from)
+  }
+}
+
 export const dependenciesOf = (
   library: StoredPrompt[],
   agent: Pick<StoredAgent, "instructions" | "requires">,
@@ -107,16 +131,7 @@ export const dependenciesOf = (
   for (const [from, requires] of sources) {
     for (const kind of DEP_KINDS) {
       for (const name of requires?.[kind] ?? []) {
-        const known = deps.find(d => d.kind === kind && d.name === name)
-        const entry = known ?? { kind, name, from: [] }
-
-        if (!known) {
-          deps.push(entry)
-        }
-
-        if (from && !entry.from.includes(from)) {
-          entry.from.push(from)
-        }
+        addDep(deps, kind, name, from)
       }
     }
   }
@@ -124,36 +139,37 @@ export const dependenciesOf = (
   return deps
 }
 
-export const mcpNamesOf = (doc: { format: string; content: string }) => {
-  if (doc.format === "json") {
-    try {
-      const parsed = z
-        .record(z.string(), z.unknown())
-        .safeParse(JSON.parse(doc.content || "{}"))
+const mcpKeys = (content: string) => {
+  const parsed = z
+    .record(z.string(), z.unknown())
+    .safeParse(JSON.parse(content || "{}"))
 
-      return Object.keys(parsed.data ?? {})
-    } catch {
-      return []
-    }
-  }
-
-  const prefix = "[mcp_servers."
-
-  return doc.content
-    .split("\n")
-    .map(line => line.trim())
-    .filter(line => line.startsWith(prefix))
-    .map(line =>
-      line.slice(prefix.length).split(/[.\]]/)[0].replaceAll('"', ""),
-    )
-    .filter((name, i, all) => name && all.indexOf(name) === i)
+  return Object.keys(parsed.data ?? {})
 }
 
-const requiresSchema = z.object({
-  skills: z.array(z.string()).optional(),
-  tools: z.array(z.string()).optional(),
-  mcp: z.array(z.string()).optional(),
-})
+const MCP_PREFIX = "[mcp_servers."
+
+const mcpTables = (content: string) =>
+  content
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.startsWith(MCP_PREFIX))
+    .map(line =>
+      line.slice(MCP_PREFIX.length).split(/[.\]]/)[0].replaceAll('"', ""),
+    )
+    .filter((name, i, all) => name && all.indexOf(name) === i)
+
+export const mcpNamesOf = (doc: { format: string; content: string }) => {
+  if (doc.format !== "json") {
+    return mcpTables(doc.content)
+  }
+
+  try {
+    return mcpKeys(doc.content)
+  } catch {
+    return []
+  }
+}
 
 const partSchema = z
   .object({
@@ -179,7 +195,7 @@ export type Blueprint = z.infer<typeof blueprintSchema>
 
 const FENCE = "```json"
 
-export const blueprintIn = (text: string): Blueprint | null => {
+const bodyOf = (text: string) => {
   const start = text.lastIndexOf(FENCE)
 
   if (start < 0) {
@@ -189,12 +205,18 @@ export const blueprintIn = (text: string): Blueprint | null => {
   const body = text.slice(start + FENCE.length)
   const end = body.indexOf("```")
 
-  try {
-    const parsed = blueprintSchema.safeParse(
-      JSON.parse(end < 0 ? body : body.slice(0, end)),
-    )
+  return end < 0 ? body : body.slice(0, end)
+}
 
-    return parsed.data ?? null
+export const blueprintIn = (text: string): Blueprint | null => {
+  const body = bodyOf(text)
+
+  if (body === null) {
+    return null
+  }
+
+  try {
+    return blueprintSchema.safeParse(JSON.parse(body)).data ?? null
   } catch {
     return null
   }

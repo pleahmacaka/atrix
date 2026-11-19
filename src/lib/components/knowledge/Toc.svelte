@@ -1,21 +1,23 @@
 <script lang="ts">
 let { markdown, root }: { markdown: string; root: HTMLElement | null } = $props()
 
+type Heading = { level: number; text: string }
+
 const FENCE = "```"
 
 const headings = $derived.by(() => {
   let fenced = false
-  const found: { level: number; text: string }[] = []
+  const found: Heading[] = []
 
   for (const line of markdown.split("\n")) {
     if (line.trimStart().startsWith(FENCE)) {
       fenced = !fenced
     }
 
-    const hashes = line.length - line.replace(/^#+/, "").length
+    const level = line.length - line.replace(/^#+/, "").length
 
-    if (!fenced && hashes >= 2 && hashes <= 4 && line[hashes] === " ") {
-      found.push({ level: hashes, text: line.slice(hashes + 1).trim() })
+    if (!fenced && level >= 2 && level <= 4 && line[level] === " ") {
+      found.push({ level, text: line.slice(level + 1).trim() })
     }
   }
 
@@ -26,22 +28,20 @@ const numbered = $derived.by(() => {
   const counters = [0, 0, 0]
   const top = Math.min(...headings.map(h => h.level))
 
-  return headings.map(h => {
-    const depth = Math.min(h.level - top, 2)
+  return headings.map(heading => {
+    const depth = Math.min(heading.level - top, 2)
 
     counters[depth]++
     counters.fill(0, depth + 1)
 
-    return { ...h, depth, number: counters.slice(0, depth + 1).join(".") }
+    return { ...heading, depth, number: counters.slice(0, depth + 1).join(".") }
   })
 })
 
 const INDENT = ["ps-2", "ps-5", "ps-8"]
 
 const jump = (index: number) =>
-  root
-    ?.querySelectorAll("h2, h3, h4")
-    [index]?.scrollIntoView({ behavior: "smooth", block: "start" })
+  root?.querySelectorAll("h2, h3, h4")[index]?.scrollIntoView({ behavior: "smooth", block: "start" })
 </script>
 
 <ol class="grid gap-0.5 text-sm">

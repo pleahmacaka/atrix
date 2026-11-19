@@ -172,7 +172,7 @@ const show = (list: Offer[]) => {
               class={[
                 "flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-box px-3 py-2.5",
                 "border border-base-300 bg-base-100 text-start",
-                "transition-colors duration-140 hover:bg-base-content/5",
+                "transition-colors hover:bg-base-content/5",
               ]}
               onclick={() => show(list)}
             >

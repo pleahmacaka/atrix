@@ -8,42 +8,48 @@ import type { Recent } from "#lib/store/recent.ts"
 import type { AgentRow } from "#lib/store/spaceTree.ts"
 import { markRead, unread } from "#lib/store/unread.svelte.ts"
 
+const markItem = (
+  label: string,
+  icon: string,
+  run: () => unknown,
+): MenuItem => ({
+  label,
+  icon,
+  run,
+})
+
 const readItems = (item: Recent, row: AgentRow | null): MenuItem[] => {
-  const host =
-    item.current.kind === "session" ? hostById(item.current.host) : null
+  const current = item.current
+  const host = current.kind === "session" ? hostById(current.host) : null
 
   if (row && host) {
-    return row.status === "done"
+    if (row.status === "done") {
+      return [
+        markItem(m.menu_mark_read(), "lucide:check-check", () =>
+          host.seen(row.id, row.turn),
+        ),
+      ]
+    }
+
+    return row.turn > 0
       ? [
-          {
-            label: m.menu_mark_read(),
-            icon: "lucide:check-check",
-            run: () => host.seen(row.id, row.turn),
-          },
+          markItem(m.menu_mark_unread(), "lucide:circle-dot", () =>
+            host.seen(row.id, row.turn - 1),
+          ),
         ]
-      : row.turn > 0
-        ? [
-            {
-              label: m.menu_mark_unread(),
-              icon: "lucide:circle-dot",
-              run: () => host.seen(row.id, row.turn - 1),
-            },
-          ]
-        : []
+      : []
   }
 
   return unread.has(item.key)
     ? [
-        {
-          label: m.menu_mark_read(),
-          icon: "lucide:check-check",
-          run: () => markRead(item.key),
-        },
+        markItem(m.menu_mark_read(), "lucide:check-check", () =>
+          markRead(item.key),
+        ),
       ]
     : []
 }
 
-const removeItems = (item: Recent): MenuItem[] => {
+const closeItems = (item: Recent): MenuItem[] => {
   const current = item.current
 
   if (current.kind === "chat") {
@@ -67,15 +73,11 @@ const removeItems = (item: Recent): MenuItem[] => {
 
   return [
     "separator",
-    {
-      label: m.menu_close_session(),
-      icon: "lucide:circle-x",
-      run: () => {
-        panes.forget(current)
+    markItem(m.menu_close_session(), "lucide:circle-x", () => {
+      panes.forget(current)
 
-        return host.close(current.id)
-      },
-    },
+      return host.close(current.id)
+    }),
   ]
 }
 
@@ -88,13 +90,12 @@ export const conversationMenu = (
     goPage("chat")
     panes.split(panes.active.id, side, current)
   }
+  const copy = (text: string) => navigator.clipboard.writeText(text)
 
   return [
-    {
-      label: m.menu_open(),
-      icon: "lucide:square-arrow-out-up-right",
-      run: () => openConversation(current),
-    },
+    markItem(m.menu_open(), "lucide:square-arrow-out-up-right", () =>
+      openConversation(current),
+    ),
     {
       label: m.menu_open_right(),
       icon: "lucide:columns-2",
@@ -109,16 +110,8 @@ export const conversationMenu = (
     },
     ...readItems(item, row),
     "separator",
-    {
-      label: m.menu_copy_title(),
-      icon: "lucide:type",
-      run: () => navigator.clipboard.writeText(item.title),
-    },
-    {
-      label: m.menu_copy_id(),
-      icon: "lucide:fingerprint",
-      run: () => navigator.clipboard.writeText(current.id),
-    },
-    ...removeItems(item),
+    markItem(m.menu_copy_title(), "lucide:type", () => copy(item.title)),
+    markItem(m.menu_copy_id(), "lucide:fingerprint", () => copy(current.id)),
+    ...closeItems(item),
   ]
 }

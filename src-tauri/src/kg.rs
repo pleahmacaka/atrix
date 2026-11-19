@@ -14,9 +14,11 @@ use tokio::net::TcpStream;
 use crate::error::{Error, Result};
 use crate::{fetch, platform};
 
+const VERSION: &str = "v1.11.0";
+
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 
-const VERSITYGW: &str = "v1.11.0";
+const READY_POLL: Duration = Duration::from_millis(100);
 
 const EXECUTABLE: &str = if cfg!(windows) {
     "versitygw.exe"
@@ -46,7 +48,6 @@ pub struct Endpoint {
 #[derive(Default)]
 pub struct Store {
     running: Mutex<Option<(Child, Endpoint)>>,
-
     starting: tokio::sync::Mutex<()>,
 }
 
@@ -57,14 +58,12 @@ impl Store {
         }
     }
 
-    fn running(&self) -> Option<Endpoint> {
+    fn endpoint(&self) -> Option<Endpoint> {
         let mut running = self.running.lock().unwrap();
         let (child, endpoint) = running.as_mut()?;
+        let alive = child.try_wait().is_ok_and(|status| status.is_none());
 
-        child
-            .try_wait()
-            .is_ok_and(|status| status.is_none())
-            .then(|| endpoint.clone())
+        alive.then(|| endpoint.clone())
     }
 }
 
@@ -83,7 +82,7 @@ fn asset_name() -> Result<String> {
     };
     let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
 
-    Ok(format!("versitygw_{VERSITYGW}_{os}_{arch}.{extension}"))
+    Ok(format!("versitygw_{VERSION}_{os}_{arch}.{extension}"))
 }
 
 #[cfg(windows)]
@@ -91,9 +90,9 @@ fn unpack(archive: &[u8]) -> Result<Vec<u8>> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(archive))?;
     let name = zip
         .file_names()
-        .flatten()
-        .find(|n| n.ends_with(&format!("/{EXECUTABLE}")))
-        .map(|n| n.into_owned())
+        .map_while(Result::ok)
+        .find(|name| name.ends_with(&format!("/{EXECUTABLE}")))
+        .map(|name| name.into_owned())
         .ok_or("versitygw_archive_invalid")?;
     let mut bytes = Vec::new();
 
@@ -109,7 +108,11 @@ fn unpack(archive: &[u8]) -> Result<Vec<u8>> {
     for entry in tar.entries()? {
         let mut entry = entry?;
 
-        if entry.path()?.file_name().is_some_and(|n| n == EXECUTABLE) {
+        if entry
+            .path()?
+            .file_name()
+            .is_some_and(|name| name == EXECUTABLE)
+        {
             let mut bytes = Vec::new();
 
             entry.read_to_end(&mut bytes)?;
@@ -123,25 +126,20 @@ fn unpack(archive: &[u8]) -> Result<Vec<u8>> {
 
 async fn download(target: &Path) -> Result<()> {
     let client = fetch::client()?;
-    let listing = fetch::get(
-        &client,
-        &format!("https://api.github.com/repos/versity/versitygw/releases/tags/{VERSITYGW}"),
-        "versitygw_download",
-    )
-    .await?;
-    let release: Release = serde_json::from_slice(&listing)?;
+    let url = format!("https://api.github.com/repos/versity/versitygw/releases/tags/{VERSION}");
+    let release: Release =
+        serde_json::from_slice(&fetch::get(&client, &url, "versitygw_download").await?)?;
     let name = asset_name()?;
     let asset = release
         .assets
         .into_iter()
-        .find(|a| a.name == name)
+        .find(|asset| asset.name == name)
         .ok_or("versitygw_archive_invalid")?;
     let expected = asset
         .digest
         .as_deref()
-        .and_then(|d| d.strip_prefix("sha256:"))
-        .ok_or("versitygw_archive_invalid")?
-        .to_owned();
+        .and_then(|digest| digest.strip_prefix("sha256:"))
+        .ok_or("versitygw_archive_invalid")?;
     let archive = fetch::get(&client, &asset.browser_download_url, "versitygw_download").await?;
 
     if fetch::sha256_hex(&archive) != expected {
@@ -187,10 +185,34 @@ async fn wait_ready(port: u16) -> Result<()> {
             return Ok(());
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(READY_POLL).await;
     }
 
     Err("kg_store_timeout".into())
+}
+
+fn spawn(
+    program: PathBuf,
+    port: u16,
+    access: &str,
+    secret: &str,
+    dirs: [&Path; 3],
+) -> Result<Child> {
+    let [data, meta, versions] = dirs;
+
+    Ok(platform::hidden(program)
+        .env("ROOT_ACCESS_KEY", access)
+        .env("ROOT_SECRET_KEY", secret)
+        .args(["--port", &format!("127.0.0.1:{port}"), "--quiet", "posix"])
+        .arg("--sidecar")
+        .arg(meta)
+        .arg("--versioning-dir")
+        .arg(versions)
+        .arg(data)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?)
 }
 
 #[tauri::command]
@@ -202,34 +224,21 @@ pub async fn kg_start(
 ) -> Result<Endpoint> {
     let _starting = store.starting.lock().await;
 
-    if let Some(endpoint) = store.running() {
+    if let Some(endpoint) = store.endpoint() {
         return Ok(endpoint);
     }
 
     let home = app.path().home_dir()?;
     let program = binary(&home).await?;
     let root = home.join(".atrix").join("kg");
-    let dirs = ["data", "meta", "versions"].map(|d| root.join(d));
+    let [data, meta, versions] = ["data", "meta", "versions"].map(|dir| root.join(dir));
 
-    for dir in &dirs {
+    for dir in [&data, &meta, &versions] {
         fs::create_dir_all(dir)?;
     }
 
-    let [data, meta, versions] = dirs;
     let port = free_port()?;
-    let mut child = platform::hidden(program)
-        .env("ROOT_ACCESS_KEY", &access)
-        .env("ROOT_SECRET_KEY", &secret)
-        .args(["--port", &format!("127.0.0.1:{port}"), "--quiet", "posix"])
-        .arg("--sidecar")
-        .arg(meta)
-        .arg("--versioning-dir")
-        .arg(versions)
-        .arg(data)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+    let mut child = spawn(program, port, &access, &secret, [&data, &meta, &versions])?;
     let endpoint = Endpoint {
         port,
         access,

@@ -28,17 +28,18 @@ mod usage;
 mod web;
 
 pub use stdio::{FLAG as MCP_STDIO_FLAG, run as mcp_stdio};
+
 use tauri::webview::PageLoadEvent;
-use tauri::{Manager, RunEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_plugin_log::log::LevelFilter;
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
+
+const LOG_BYTES: u128 = 5_000_000;
 
 #[cfg(all(desktop, debug_assertions))]
 pub(crate) fn dev_icon() -> tauri::image::Image<'static> {
     tauri::include_image!("icons/dev.png")
 }
-
-const LOG_BYTES: u128 = 5_000_000;
 
 fn logger(app: &tauri::App) -> tauri::Result<()> {
     #[cfg(desktop)]
@@ -47,7 +48,6 @@ fn logger(app: &tauri::App) -> tauri::Result<()> {
     let folder = app.path().app_log_dir()?;
 
     let builder = tauri_plugin_log::Builder::new().clear_targets();
-    // stdout follows AttachConsole in console.rs and would print into the user's terminal
     #[cfg(debug_assertions)]
     let builder = builder.target(Target::new(TargetKind::Stdout));
 
@@ -68,6 +68,60 @@ fn logger(app: &tauri::App) -> tauri::Result<()> {
             .rotation_strategy(RotationStrategy::KeepSome(5))
             .build(),
     )
+}
+
+fn on_close(window: &tauri::Window, event: &WindowEvent) {
+    match event {
+        #[cfg(desktop)]
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            let _ = window.hide();
+        }
+        WindowEvent::Destroyed => window.app_handle().exit(0),
+        _ => {}
+    }
+}
+
+fn on_page_load(webview: &tauri::Webview, payload: &tauri::webview::PageLoadPayload) {
+    if payload.event() != PageLoadEvent::Started || webview.label() != "main" {
+        return;
+    }
+
+    webview.state::<agents::Agents>().kill_all();
+
+    #[cfg(desktop)]
+    webview.state::<pty::Ptys>().kill_all();
+}
+
+fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    logger(app)?;
+    backdrop::install(app);
+
+    #[cfg(all(desktop, debug_assertions))]
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_icon(dev_icon())?;
+    }
+
+    #[cfg(desktop)]
+    {
+        app.manage(tray::Tray::<tauri::Wry>::default());
+
+        if app.state::<launch::Launch>().headless {
+            if let Some(window) = app.get_webview_window("main") {
+                window.hide()?;
+            }
+
+            println!("atrix running headless");
+        } else {
+            tray::install(app.handle())?;
+        }
+    }
+
+    if let Some(addr) = app.state::<launch::Launch>().web.clone() {
+        web::serve(app.handle(), &addr)?;
+    }
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -91,59 +145,13 @@ pub fn run() {
         .manage(pty::Ptys::default());
 
     let builder = builder
-        .setup(|app| {
-            logger(app)?;
-            backdrop::install(app);
-
-            #[cfg(all(desktop, debug_assertions))]
-            if let Some(window) = app.get_webview_window("main") {
-                window.set_icon(dev_icon())?;
-            }
-
-            #[cfg(desktop)]
-            {
-                app.manage(tray::Tray::<tauri::Wry>::default());
-
-                if app.state::<launch::Launch>().headless {
-                    if let Some(window) = app.get_webview_window("main") {
-                        window.hide()?;
-                    }
-
-                    println!("atrix running headless");
-                } else {
-                    tray::install(app.handle())?;
-                }
-            }
-
-            if let Some(addr) = app.state::<launch::Launch>().web.clone() {
-                web::serve(app.handle(), &addr)?;
-            }
-
-            Ok(())
-        })
+        .setup(setup)
         .on_window_event(|window, event| {
-            if window.label() != "main" {
-                return;
-            }
-
-            match event {
-                #[cfg(desktop)]
-                tauri::WindowEvent::CloseRequested { api, .. } => {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-                tauri::WindowEvent::Destroyed => window.app_handle().exit(0),
-                _ => {}
+            if window.label() == "main" {
+                on_close(window, event);
             }
         })
-        .on_page_load(|webview, payload| {
-            if payload.event() == PageLoadEvent::Started && webview.label() == "main" {
-                webview.state::<agents::Agents>().kill_all();
-
-                #[cfg(desktop)]
-                webview.state::<pty::Ptys>().kill_all();
-            }
-        })
+        .on_page_load(on_page_load)
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init());

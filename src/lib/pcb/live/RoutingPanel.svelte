@@ -28,6 +28,13 @@ const stats = $derived(
 
 const meta = $derived(routing.render?.meta ?? null)
 
+const FILL: Record<LiveSeed["state"], string> = {
+  queued: "",
+  routing: "bg-linear-to-r from-cyan-400 to-amber-400 shadow-lg shadow-cyan-400/80",
+  checked: "bg-slate-500",
+  clean: "bg-green-400 shadow-lg shadow-green-400/80",
+}
+
 const showingFinal = $derived(final && routing.selected === null)
 
 const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
@@ -108,7 +115,7 @@ const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
         >
           <span class="w-8 shrink-0 text-right tabular-nums text-base-content/60">#{s.seed}</span>
           <span class="relative h-2 flex-1 overflow-hidden rounded-full bg-base-300">
-            <span class={["bar absolute inset-y-0 left-0", s.state]} style:width={`${progress(s)}%`}></span>
+            <span class={["absolute inset-y-0 left-0", FILL[s.state]]} style:width={`${progress(s)}%`}></span>
           </span>
           <span
             class={["w-8 shrink-0 text-right whitespace-nowrap tabular-nums", s.errors === null ? "text-info" : s.errors === 0 ? "text-success" : "text-base-content"]}
@@ -170,19 +177,3 @@ const passed = (s: LiveSeed) => s.seed === routing.best?.seed && s.errors === 0
     </div>
   </footer>
 </aside>
-
-<style>
-  .bar.routing {
-    background: linear-gradient(90deg, #22d3ee, #fbbf24);
-    box-shadow: 0 0 0.5rem rgb(34 211 238 / 0.8);
-  }
-
-  .bar.checked {
-    background: #64748b;
-  }
-
-  .bar.clean {
-    background: #4ade80;
-    box-shadow: 0 0 0.5rem rgb(74 222 128 / 0.8);
-  }
-</style>

@@ -32,8 +32,11 @@ export const ACCENTS = [
 
 export type Accent = (typeof ACCENTS)[number]["id"]
 
-const read = <T extends string>(key: string, fallback: T) =>
-  (localStorage.getItem(key) as T | null) ?? fallback
+const read = <T extends string>(key: string, fallback: T) => {
+  const raw = localStorage.getItem(key)
+
+  return raw === null ? fallback : (raw as T)
+}
 
 export const TERMINAL_FONT = "JetBrainsMono Nerd Font Mono"
 
@@ -73,6 +76,8 @@ const within = (raw: string, range: Bounds) => {
 const ranged = (key: string, range: Bounds) =>
   within(read(key, String(range.base)), range)
 
+const write = (key: string, value: string) => localStorage.setItem(key, value)
+
 class Settings {
   deviceName = $state<string>(
     read(
@@ -109,7 +114,7 @@ class Settings {
 
   setTokscaleSubmit = (hours: number) => {
     this.tokscaleSubmit = hours
-    localStorage.setItem("tokscale-submit", String(hours))
+    write("tokscale-submit", String(hours))
   }
 
   lockIdle = $state<number>(
@@ -118,17 +123,17 @@ class Settings {
 
   setLockIdle = (minutes: number) => {
     this.lockIdle = minutes
-    localStorage.setItem("lock-idle", String(minutes))
+    write("lock-idle", String(minutes))
   }
 
   setTokscale = (on: boolean) => {
     this.tokscale = on
-    localStorage.setItem("tokscale", on ? "on" : "off")
+    write("tokscale", on ? "on" : "off")
   }
 
   setUsageRing = (ring: UsageRing) => {
     this.usageRing = ring
-    localStorage.setItem("usage-ring", ring)
+    write("usage-ring", ring)
   }
 
   sidebarCollapse = $state<SidebarCollapse>(
@@ -145,49 +150,49 @@ class Settings {
 
   setVoiceURL = (url: string) => {
     this.voiceURL = url.trim().replace(/\/+$/, "")
-    localStorage.setItem("voice-url", this.voiceURL)
+    write("voice-url", this.voiceURL)
   }
 
   voiceRate = $state<number>(Number(read("voice-rate", "1")) || 1)
 
   setVoiceRate = (rate: number) => {
     this.voiceRate = rate
-    localStorage.setItem("voice-rate", String(rate))
+    write("voice-rate", String(rate))
   }
 
   setName = (name: string) => {
     this.deviceName = name.trim() || this.deviceName
-    localStorage.setItem("device-name", this.deviceName)
+    write("device-name", this.deviceName)
   }
 
   setUserName = (name: string) => {
     this.userName = name.trim()
-    localStorage.setItem("user-name", this.userName)
+    write("user-name", this.userName)
   }
 
   setTheme = (theme: Theme) => {
     this.theme = theme
-    localStorage.setItem("theme", theme)
+    write("theme", theme)
   }
 
   setAccent = (accent: Accent) => {
     this.accent = accent
-    localStorage.setItem("accent", accent)
+    write("accent", accent)
   }
 
   setEffect = (effect: WindowEffect) => {
     this.effect = effect
-    localStorage.setItem("window-effect", effect)
+    write("window-effect", effect)
   }
 
   setLayout = (layout: Layout) => {
     this.layout = layout
-    localStorage.setItem("layout", layout)
+    write("layout", layout)
   }
 
   setShape = (shape: PanelShape) => {
     this.shape = shape
-    localStorage.setItem("panel-shape", shape)
+    write("panel-shape", shape)
   }
 
   scale = $state<number>(ranged("ui-scale", SCALE))
@@ -206,59 +211,59 @@ class Settings {
 
   setTerminalWeight = (weight: number) => {
     this.terminalWeight = weight
-    localStorage.setItem("terminal-weight", String(weight))
+    write("terminal-weight", String(weight))
   }
 
   setInterfaceFont = (font: string) => {
     this.interfaceFont = font
-    localStorage.setItem("interface-font", font)
+    write("interface-font", font)
   }
 
   setTerminalFont = (font: string) => {
     this.terminalFont = font
-    localStorage.setItem("terminal-font", font)
+    write("terminal-font", font)
   }
 
   setTerminalSize = (size: number) => {
     this.terminalSize = size
-    localStorage.setItem("terminal-size", String(size))
+    write("terminal-size", String(size))
   }
 
   setTerminalScroll = (percent: number) => {
     this.terminalScroll = percent
-    localStorage.setItem("terminal-scroll", String(percent))
+    write("terminal-scroll", String(percent))
   }
 
   setContentScale = (scale: number) => {
     this.contentScale = scale
-    localStorage.setItem("content-scale", String(scale))
+    write("content-scale", String(scale))
   }
 
   setScale = (scale: number) => {
     this.scale = scale
-    localStorage.setItem("ui-scale", String(scale))
+    write("ui-scale", String(scale))
   }
 
   setSidebarCollapse = (mode: SidebarCollapse) => {
     this.sidebarCollapse = mode
-    localStorage.setItem("sidebar-collapse", mode)
+    write("sidebar-collapse", mode)
   }
 
   setTexture = (texture: Texture) => {
     this.texture = texture
-    localStorage.setItem("window-texture", texture)
+    write("window-texture", texture)
   }
 
   setTransparency = (percent: number) => {
     this.transparency = percent
-    localStorage.setItem("window-transparency", String(percent))
+    write("window-transparency", String(percent))
   }
 
   mailTokenCap = $state<number>(Number(read("mail-token-cap", "0")) || 0)
 
   setMailTokenCap = (cap: number) => {
     this.mailTokenCap = cap
-    localStorage.setItem("mail-token-cap", String(cap))
+    write("mail-token-cap", String(cap))
   }
 }
 

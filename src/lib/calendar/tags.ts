@@ -1,6 +1,6 @@
 import { m } from "#lib/paraglide/messages.js"
-import type { EventTag } from "./events.ts"
-import type { CalendarEvent } from "./recurrence.ts"
+import type { EventTag } from "./store.ts"
+import type { CalendarEvent } from "./types.ts"
 
 export const COLORS = {
   "": { chip: "bg-primary", label: m.calendar_color_primary },
@@ -15,10 +15,19 @@ export const COLORS = {
 
 export type EventColor = keyof typeof COLORS
 
-export const COLOR_KEYS = Object.keys(COLORS) as EventColor[]
+export const COLOR_KEYS: EventColor[] = [
+  "",
+  "info",
+  "warning",
+  "success",
+  "error",
+  "violet",
+  "pink",
+  "gray",
+]
 
 export const toColor = (value: string | null | undefined): EventColor =>
-  COLOR_KEYS.find(c => c === value) ?? ""
+  COLOR_KEYS.find(color => color === value) ?? ""
 
 const DEFAULT_LABELS: Record<string, () => string> = {
   todo: m.calendar_tag_todo,

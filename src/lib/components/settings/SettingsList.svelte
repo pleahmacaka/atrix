@@ -12,24 +12,23 @@ let { row = false }: { row?: boolean } = $props()
   aria-label={m.settings_menu()}
 >
   {#each SETTINGS_TABS as tab (tab.id)}
+    {@const selected = nav.settingsTab === tab.id}
     <button
       type="button"
       class={[
         "flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-field text-sm",
         row ? "shrink-0 px-3" : "px-2",
         "transition-colors duration-140",
-        nav.settingsTab === tab.id
-          ? "bg-primary/8 text-primary"
-          : "text-base-content/75 hover:bg-base-content/8",
+        selected ? "bg-primary/8 text-primary" : "text-base-content/75 hover:bg-base-content/8",
       ]}
-      aria-current={nav.settingsTab === tab.id ? "page" : undefined}
+      aria-current={selected ? "page" : undefined}
       aria-label={tab.label}
-      onclick={() => {
-        nav.settingsTab = tab.id
-      }}
+      onclick={() => (nav.settingsTab = tab.id)}
     >
       <Icon icon={tab.icon} class="size-4 shrink-0" />
-      <span class={["min-w-0 text-start", row ? "whitespace-nowrap" : "flex-1 truncate"]}>{tab.label}</span>
+      <span class={["min-w-0 text-start", row ? "whitespace-nowrap" : "flex-1 truncate"]}>
+        {tab.label}
+      </span>
     </button>
   {/each}
 </nav>

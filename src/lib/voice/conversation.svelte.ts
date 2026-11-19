@@ -25,12 +25,14 @@ const GRACE_MS = 200
 type Take = {
   frames: Float32Array[]
   rate: number
-  partial?: ReturnType<typeof setInterval>
+  interval?: ReturnType<typeof setInterval>
   asking: boolean
   final: boolean
 }
 
 const joined = (...texts: string[]) => texts.filter(Boolean).join(" ")
+
+const audioOf = (take: Take) => wavOf(take.frames, take.rate)
 
 class Conversation {
   owner = $state<string | null>(null)
@@ -71,10 +73,6 @@ class Conversation {
 
   #pending = $state("")
 
-  get holding() {
-    return !!this.#pending
-  }
-
   #flush?: ReturnType<typeof setTimeout>
 
   #chain: Promise<unknown> = Promise.resolve()
@@ -82,6 +80,10 @@ class Conversation {
   #vad = new Vad()
 
   #run = 0
+
+  get holding() {
+    return !!this.#pending
+  }
 
   start = (owner: string, host: string) => {
     this.end()
@@ -149,6 +151,13 @@ class Conversation {
     this.mic = 0
   }
 
+  #fail = (run: number, message: string) => {
+    if (run === this.#run) {
+      this.#release()
+      this.error = message
+    }
+  }
+
   #open = async () => {
     const run = ++this.#run
     const context = new AudioContext({ sampleRate: CAPTURE_RATE })
@@ -168,10 +177,7 @@ class Conversation {
         },
       })
     } catch {
-      if (run === this.#run) {
-        this.#release()
-        this.error = m.voice_mic_denied()
-      }
+      this.#fail(run, m.voice_mic_denied())
 
       return
     }
@@ -188,10 +194,9 @@ class Conversation {
 
     await context.resume().catch(() => {})
 
+    const source = context.createMediaStreamSource(stream)
     const analyser = context.createAnalyser()
     const samples = new Float32Array(analyser.fftSize)
-
-    const source = context.createMediaStreamSource(stream)
 
     source.connect(analyser)
 
@@ -200,10 +205,7 @@ class Conversation {
     try {
       capture = await Capture.open(context, source)
     } catch {
-      if (run === this.#run) {
-        this.#release()
-        this.error = m.voice_failed()
-      }
+      this.#fail(run, m.voice_failed())
 
       return
     }
@@ -219,12 +221,7 @@ class Conversation {
 
     for (const track of stream.getAudioTracks()) {
       track.enabled = !this.muted
-      track.onended = () => {
-        if (run === this.#run) {
-          this.#release()
-          this.error = m.voice_mic_lost()
-        }
-      }
+      track.onended = () => this.#fail(run, m.voice_mic_lost())
     }
 
     let last = performance.now()
@@ -232,6 +229,7 @@ class Conversation {
     this.#timer = setInterval(() => {
       const now = performance.now()
       const ms = Math.min(now - last, MAX_STEP_MS)
+
       last = now
 
       if (context.state === "suspended") {
@@ -248,6 +246,7 @@ class Conversation {
       }
 
       const heard = loudness(input)
+
       this.mic += (heard - this.mic) * SMOOTHING
       this.level +=
         (Math.max(heard, loudness(voice.outputLevel())) - this.level) *
@@ -288,8 +287,6 @@ class Conversation {
     }
   }
 
-  #audioOf = (take: Take) => wavOf(take.frames, take.rate)
-
   #listen = () => {
     const take = this.#take
     const run = this.#run
@@ -298,14 +295,14 @@ class Conversation {
       return
     }
 
-    take.partial = setInterval(async () => {
+    take.interval = setInterval(async () => {
       if (take.asking || take.final) {
         return
       }
 
       take.asking = true
 
-      const text = await voice.transcribe(this.#audioOf(take)).catch(() => "")
+      const text = await voice.transcribe(audioOf(take)).catch(() => "")
 
       take.asking = false
 
@@ -319,31 +316,28 @@ class Conversation {
     const take = this.#take
 
     if (!take) {
-      return
+      return undefined
     }
 
     take.final = true
-    clearInterval(take.partial)
+    clearInterval(take.interval)
     this.#capture?.end(take.frames)
     this.#take = undefined
+
+    return take
   }
 
   #finish = async () => {
-    const take = this.#take
     const run = this.#run
-
-    this.#take = undefined
+    const take = this.#take
 
     if (!take || take.final) {
       return
     }
 
-    take.final = true
-    clearInterval(take.partial)
-    this.#capture?.end(take.frames)
     this.transcribing++
 
-    const audio = this.#audioOf(take)
+    const audio = audioOf(take)
     const transcript = this.#chain.then(() => voice.transcribe(audio))
 
     this.#chain = transcript.catch(() => {})
@@ -381,7 +375,6 @@ class Conversation {
     }
 
     this.#pending = ""
-
     this.waiting = true
     clearTimeout(this.#wait)
     this.#wait = setTimeout(this.replied, WAIT_MS)

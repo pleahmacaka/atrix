@@ -7,7 +7,6 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
 import Section from "#lib/components/ui/Section.svelte"
-import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import type { SpeechProvider, SpeechRole } from "#lib/store/local.svelte.ts"
 import {
@@ -15,12 +14,18 @@ import {
   chooseSpeech,
   probeSpeech,
   removeSpeech,
+  type SpeechTemplate,
   saveSpeech,
   speechIcon,
   speechProviders,
   speechTemplateOf,
   speechTemplates,
 } from "#lib/store/speech.svelte.ts"
+import AddButton from "./AddButton.svelte"
+import GatewayCheck from "./GatewayCheck.svelte"
+import ProviderListRow from "./ProviderListRow.svelte"
+import { ProbeState } from "./probeState.svelte.ts"
+import SettingCard from "./SettingCard.svelte"
 
 let { role }: { role: SpeechRole } = $props()
 
@@ -35,13 +40,9 @@ type Draft = {
   voice: string
 }
 
-type Check =
-  | { state: "idle" }
-  | { state: "busy"; for: string }
-  | { state: "ok"; for: string; models: string[] }
-  | { state: "failed"; for: string; reason: string }
-
 const CUSTOM = "custom"
+
+const attempt = new Attempt()
 
 const templates = $derived(speechTemplates().filter(t => t.role === role))
 
@@ -50,68 +51,38 @@ const choices = $derived([
   { value: CUSTOM, name: m.gateway_custom() },
 ])
 
-const attempt = new Attempt()
+const providers = $derived(speechProviders(role))
+
+const active = $derived(activeSpeech(role))
 
 let draft = $state<Draft | null>(null)
-
-let check = $state<Check>({ state: "idle" })
 
 let armed = $state(false)
 
 let revealed = $state(false)
 
-const providers = $derived(speechProviders(role))
-
-const active = $derived(activeSpeech(role))
-
 const urlOf = (d: Draft) => d.baseURL.trim().replace(/\/+$/, "")
 
-const signature = $derived(draft ? `${urlOf(draft)}\n${draft.key.trim()}` : "")
-
-const current = $derived<Check>(
-  check.state !== "idle" && check.for === signature ? check : { state: "idle" },
-)
+const probe = new ProbeState(() => (draft ? `${urlOf(draft)}\n${draft.key.trim()}` : ""))
 
 const template = $derived(templates.find(t => t.id === draft?.template))
 
 const editableURL = $derived(!!draft && (draft.id !== null || !template?.baseURL))
 
-const openai = $derived(draft?.kind === "openai")
+const verified = $derived(probe.current.state === "ok")
 
-const warned = $derived(armed && current.state !== "ok")
+const warned = $derived(armed && !verified)
 
-const blank = (): Draft => {
-  const first = templates[0]
-
-  return {
-    id: null,
-    template: first.id,
-    kind: first.kind,
-    name: first.name,
-    baseURL: first.baseURL,
-    key: "",
-    model: first.model,
-    voice: first.voice,
-  }
-}
-
-const open = (next: Draft) => {
-  draft = next
-  check = { state: "idle" }
-  armed = false
-}
-
-const edit = (p: SpeechProvider) =>
-  open({
-    id: p.id,
-    template: speechTemplateOf(p)?.id ?? CUSTOM,
-    kind: p.kind,
-    name: p.name,
-    baseURL: p.baseURL,
-    key: p.key ?? "",
-    model: p.model,
-    voice: p.voice,
-  })
+const fromTemplate = ({ id, kind, name, baseURL, model, voice }: SpeechTemplate): Draft => ({
+  id: null,
+  template: id,
+  kind,
+  name,
+  baseURL,
+  key: "",
+  model,
+  voice,
+})
 
 const choose = (id: string) => {
   if (!draft) {
@@ -129,30 +100,30 @@ const choose = (id: string) => {
   armed = false
 }
 
-const verify = async () => {
-  if (!draft || !urlOf(draft)) {
+const edit = (provider: SpeechProvider) => {
+  draft = {
+    id: provider.id,
+    template: speechTemplateOf(provider)?.id ?? CUSTOM,
+    kind: provider.kind,
+    name: provider.name,
+    baseURL: provider.baseURL,
+    key: provider.key ?? "",
+    model: provider.model,
+    voice: provider.voice,
+  }
+  armed = false
+}
+
+const verify = () => {
+  const current = draft
+
+  if (!current || !urlOf(current)) {
     return
   }
 
-  const signed = signature
-
-  check = { state: "busy", for: signed }
-
-  try {
-    const models = await probeSpeech({
-      kind: draft.kind,
-      baseURL: urlOf(draft),
-      key: draft.key.trim() || null,
-    })
-
-    check = { state: "ok", for: signed, models }
-  } catch (e) {
-    check = {
-      state: "failed",
-      for: signed,
-      reason: e instanceof Error ? e.message : String(e),
-    }
-  }
+  return probe.verify(() =>
+    probeSpeech({ kind: current.kind, baseURL: urlOf(current), key: current.key.trim() || null }),
+  )
 }
 
 const save = () =>
@@ -182,7 +153,7 @@ const save = () =>
   })
 
 const submit = () => {
-  if (current.state === "ok" || armed) {
+  if (verified || armed) {
     save()
   } else {
     armed = true
@@ -191,59 +162,40 @@ const submit = () => {
 </script>
 
 <div class="flex flex-col gap-6">
-  <div class="flex flex-col rounded-box border border-base-300 bg-base-100 px-3 py-1">
+  <SettingCard>
     {#each providers as provider (provider.id)}
-      <div
-        class={[
-          "-mx-2 rounded-field px-2 transition-colors duration-140",
-          draft?.id === provider.id && "bg-primary/8 text-primary",
-        ]}
+      {@const current = active?.id === provider.id}
+      <ProviderListRow
+        icon={speechIcon(provider)}
+        name={provider.name}
+        url={provider.baseURL}
+        editing={draft?.id === provider.id}
       >
-        <SettingRow icon={speechIcon(provider)} title={provider.name}>
-          <div class="flex min-w-0 items-center justify-end gap-1">
-            <span
-              class="min-w-0 truncate text-sm text-base-content/60"
-              title={provider.baseURL}
-            >
-              {provider.baseURL}
-            </span>
-            <button
-              type="button"
-              class={[
-                "btn btn-sm shrink-0 font-normal",
-                active?.id === provider.id ? "bg-primary/8 text-primary" : "btn-ghost",
-              ]}
-              aria-pressed={active?.id === provider.id}
-              onclick={() => attempt.run(() => chooseSpeech(role, provider.id))}
-            >
-              {active?.id === provider.id ? m.speech_in_use() : m.speech_use()}
-            </button>
-            <IconButton
-              icon="lucide:pencil"
-              label={m.gateway_edit()}
-              aria-pressed={draft?.id === provider.id}
-              onclick={() => edit(provider)}
-            />
-            <ConfirmButton
-              label={m.common_delete()}
-              disabled={attempt.busy}
-              onconfirm={() => attempt.run(() => removeSpeech(provider.id))}
-            />
-          </div>
-        </SettingRow>
-      </div>
+        <button
+          type="button"
+          class={["btn btn-sm shrink-0 font-normal", current ? "bg-primary/8 text-primary" : "btn-ghost"]}
+          aria-pressed={current}
+          onclick={() => attempt.run(() => chooseSpeech(role, provider.id))}
+        >
+          {current ? m.speech_in_use() : m.speech_use()}
+        </button>
+        <IconButton
+          icon="lucide:pencil"
+          label={m.gateway_edit()}
+          aria-pressed={draft?.id === provider.id}
+          onclick={() => edit(provider)}
+        />
+        <ConfirmButton
+          label={m.common_delete()}
+          disabled={attempt.busy}
+          onconfirm={() => attempt.run(() => removeSpeech(provider.id))}
+        />
+      </ProviderListRow>
     {/each}
     {#if !draft}
-      <button
-        type="button"
-        class="btn btn-ghost -mx-2 justify-start gap-3 px-2 font-medium text-base-content/70"
-        onclick={() => open(blank())}
-      >
-        <Icon icon="lucide:plus" class="size-5 shrink-0" />
-        {m.gateway_add()}
-      </button>
+      <AddButton label={m.gateway_add()} onclick={() => (draft = fromTemplate(templates[0]))} />
     {/if}
-  </div>
+  </SettingCard>
 
   {#if draft}
     <Section
@@ -251,13 +203,7 @@ const submit = () => {
       title={draft.id ? m.gateway_editing({ name: draft.name }) : m.gateway_add()}
     >
       {#snippet actions()}
-        <IconButton
-          icon="lucide:x"
-          label={m.common_cancel()}
-          onclick={() => {
-            draft = null
-          }}
-        />
+        <IconButton icon="lucide:x" label={m.common_cancel()} onclick={() => (draft = null)} />
       {/snippet}
       <form
         class="flex flex-col gap-2 py-2"
@@ -273,7 +219,7 @@ const submit = () => {
             ghost={false}
             class="w-full"
             value={draft.template}
-            choices={choices}
+            {choices}
             onchange={choose}
           />
           <IconInput
@@ -294,11 +240,9 @@ const submit = () => {
             onblur={verify}
           />
         {:else}
-          <p class="truncate px-1 text-xs text-base-content/55" title={draft.baseURL}>
-            {draft.baseURL}
-          </p>
+          <p class="truncate px-1 text-xs text-base-content/55" title={draft.baseURL}>{draft.baseURL}</p>
         {/if}
-        {#if openai}
+        {#if draft.kind === "openai"}
           <div class="flex min-w-0 items-center gap-2">
             <IconInput
               icon="lucide:key-round"
@@ -316,9 +260,7 @@ const submit = () => {
               label={revealed ? m.gateway_key_hide() : m.gateway_key_show()}
               aria-pressed={revealed}
               class="shrink-0"
-              onclick={() => {
-                revealed = !revealed
-              }}
+              onclick={() => (revealed = !revealed)}
             />
           </div>
           <div class={["grid grid-cols-1 gap-2", role === "tts" && "sm:grid-cols-2"]}>
@@ -340,29 +282,21 @@ const submit = () => {
             {/if}
           </div>
         {/if}
-        <div class="flex min-h-8 items-center gap-2 px-1 text-sm" aria-live="polite">
-          {#if current.state === "busy"}
-            <span class="loading loading-spinner loading-xs opacity-60"></span>
-            <span class="text-base-content/60">{m.gateway_checking()}</span>
-          {:else if current.state === "ok"}
-            <Icon icon="lucide:circle-check" class="size-4 shrink-0 text-success" />
-            <span class="min-w-0 flex-1 truncate text-success">
-              {current.models.length
-                ? m.speech_verified({ models: current.models.slice(0, 3).join(", ") })
-                : m.speech_verified_plain()}
-            </span>
-          {:else if current.state === "failed"}
-            <Icon icon="lucide:circle-alert" class="size-4 shrink-0 text-error" />
-            <span class="min-w-0 flex-1 text-error">{current.reason}</span>
-          {:else}
-            <span class="min-w-0 flex-1 text-base-content/55">{m.speech_unchecked()}</span>
-          {/if}
-        </div>
+        {#if probe.current.state === "ok"}
+          <GatewayCheck
+            check={probe.current}
+            done={probe.current.models.length
+              ? m.speech_verified({ models: probe.current.models.slice(0, 3).join(", ") })
+              : m.speech_verified_plain()}
+          />
+        {:else}
+          <GatewayCheck check={probe.current} done="" idle={m.speech_unchecked()} />
+        {/if}
         <div class="flex justify-end gap-2">
           <button
             type="button"
             class="btn btn-sm"
-            disabled={current.state === "busy" || !draft.baseURL.trim()}
+            disabled={probe.current.state === "busy" || !draft.baseURL.trim()}
             onclick={verify}
           >
             <Icon icon="lucide:plug-zap" class="size-4" />

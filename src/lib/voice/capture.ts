@@ -18,19 +18,21 @@ const flatten = (frames: Float32Array[]) => {
   return flat
 }
 
+const writeTag = (view: DataView, at: number, tag: string) => {
+  for (let i = 0; i < tag.length; i++) {
+    view.setUint8(at + i, tag.charCodeAt(i))
+  }
+}
+
 export const wavOf = (frames: Float32Array[], rate: number) => {
   const samples = flatten(frames)
-  const view = new DataView(new ArrayBuffer(44 + samples.length * 2))
-  const text = (at: number, value: string) => {
-    for (let i = 0; i < value.length; i++) {
-      view.setUint8(at + i, value.charCodeAt(i))
-    }
-  }
+  const bytes = samples.length * 2
+  const view = new DataView(new ArrayBuffer(44 + bytes))
 
-  text(0, "RIFF")
-  view.setUint32(4, 36 + samples.length * 2, true)
-  text(8, "WAVE")
-  text(12, "fmt ")
+  writeTag(view, 0, "RIFF")
+  view.setUint32(4, 36 + bytes, true)
+  writeTag(view, 8, "WAVE")
+  writeTag(view, 12, "fmt ")
   view.setUint32(16, 16, true)
   view.setUint16(20, 1, true)
   view.setUint16(22, 1, true)
@@ -38,8 +40,8 @@ export const wavOf = (frames: Float32Array[], rate: number) => {
   view.setUint32(28, rate * 2, true)
   view.setUint16(32, 2, true)
   view.setUint16(34, 16, true)
-  text(36, "data")
-  view.setUint32(40, samples.length * 2, true)
+  writeTag(view, 36, "data")
+  view.setUint32(40, bytes, true)
 
   samples.forEach((sample, i) => {
     view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true)
@@ -60,23 +62,8 @@ export class Capture {
   private constructor(node: AudioWorkletNode, rate: number) {
     this.#node = node
     this.rate = rate
-
-    const limit = rate * PRE_ROLL_S
-
-    node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-      for (const take of this.#takes) {
-        take.push(e.data)
-      }
-
-      this.#ring.push(e.data)
-
-      let held = this.#ring.reduce((n, f) => n + f.length, 0)
-
-      while (held - this.#ring[0].length >= limit) {
-        held -= this.#ring[0].length
-        this.#ring.shift()
-      }
-    }
+    node.port.onmessage = (e: MessageEvent<Float32Array>) =>
+      this.#receive(e.data)
   }
 
   static open = async (context: AudioContext, source: AudioNode) => {
@@ -110,4 +97,23 @@ export class Capture {
     this.#node.port.onmessage = null
     this.#node.disconnect()
   }
+
+  #receive = (frame: Float32Array) => {
+    for (const take of this.#takes) {
+      take.push(frame)
+    }
+
+    this.#ring.push(frame)
+
+    const limit = this.rate * PRE_ROLL_S
+
+    while (
+      this.#ring.length > 1 &&
+      this.#size() - this.#ring[0].length >= limit
+    ) {
+      this.#ring.shift()
+    }
+  }
+
+  #size = () => this.#ring.reduce((n, f) => n + f.length, 0)
 }

@@ -42,8 +42,6 @@ const BRANDS: Record<string, string> = {
   "grok-build": "thesvg:grok-xai",
 }
 
-export const OFFICIAL = new Set(["claude-acp", "codex-acp", "gemini"])
-
 export const brandIcon = (base: string) => BRANDS[base] ?? "lucide:bot"
 
 const REPO_HOSTS: [string, string][] = [

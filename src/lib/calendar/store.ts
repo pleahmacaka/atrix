@@ -1,21 +1,18 @@
-import { and, asc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm"
+import { and, asc, eq, gte, isNull, lt, ne, or } from "drizzle-orm"
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { type Backend, datasource } from "#lib/datasource/client.ts"
+import { addDays, DAY_MS, dateKey, dateTimeKey, parseLocal } from "./dates.ts"
+import { expand } from "./occurrence.ts"
+import { putEvent } from "./records.ts"
 import {
-  addDays,
   type CalendarEvent,
-  dateKey,
-  dateTimeKey,
-  expand,
   type HolidayCheck,
-  parseLocal,
   RECURRENCES,
   type Recurrence,
-  type SeriesChange,
   SHIFT_LIMIT,
   SHIFTS,
   type Shift,
-} from "./recurrence.ts"
+} from "./types.ts"
 
 export const CALENDAR = "calendar"
 
@@ -45,7 +42,7 @@ export const tags = sqliteTable("tags", {
   color: text("color").notNull(),
 })
 
-export type EventRow = typeof events.$inferSelect
+type EventRow = typeof events.$inferSelect
 
 export type EventTag = typeof tags.$inferSelect
 
@@ -116,7 +113,6 @@ const prepare = async (backend: Backend) => {
 
   const existing = await tableNames(backend)
 
-  // sqlite-proxy's migrator reads drizzle-kit files from disk, which the webview cannot
   await backend.dsExecute(CALENDAR, CREATE_EVENTS, [])
 
   const { rows } = await backend.dsQuery(
@@ -164,8 +160,9 @@ const open = async (backend: Backend) => {
 }
 
 export const toIso = (value: string) => {
-  const date = value.includes("T") ? value : `${value}T00:00`
-  const parsed = new Date(date)
+  const parsed = value.includes("T")
+    ? new Date(value)
+    : parseLocal(value.slice(0, 10))
 
   if (Number.isNaN(parsed.getTime())) {
     throw new Error(`invalid_date: ${value}`)
@@ -180,10 +177,10 @@ const recurrenceOf = (value: string): Recurrence =>
 const shiftOf = (value: string | null | undefined): Shift | null =>
   SHIFTS.find(s => s === value) ?? null
 
-export const fromRow = (row: EventRow): CalendarEvent => {
+const fromRow = (row: EventRow): CalendarEvent => {
   const start = new Date(row.start)
   const end = new Date(row.end)
-  const lastDay = end > start ? addDays(end, -1) : start
+  const lastDay = new Date(end.getTime() - DAY_MS)
 
   return {
     id: row.id,
@@ -308,45 +305,6 @@ export const allEvents = async (backend: Backend) => {
   return (await db.select().from(events)).map(fromRow)
 }
 
-export const getEvent = async (backend: Backend, id: string) => {
-  const db = await open(backend)
-  const [row] = await db.select().from(events).where(eq(events.id, id))
-
-  return row ? fromRow(row) : null
-}
-
-export const familyOf = async (backend: Backend, seriesId: string) => {
-  const db = await open(backend)
-  const rows = await db
-    .select()
-    .from(events)
-    .where(or(eq(events.id, seriesId), eq(events.seriesId, seriesId)))
-
-  return rows.map(fromRow)
-}
-
-export const putEvent = async (backend: Backend, event: CalendarEvent) => {
-  const db = await open(backend)
-  const { id, ...rest } = toRow(event)
-
-  await db
-    .insert(events)
-    .values({ id, ...rest })
-    .onConflictDoUpdate({ target: events.id, set: rest })
-}
-
-export const applyChange = async (backend: Backend, change: SeriesChange) => {
-  for (const event of change.put) {
-    await putEvent(backend, event)
-  }
-
-  if (change.remove.length > 0) {
-    const db = await open(backend)
-
-    await db.delete(events).where(inArray(events.id, change.remove))
-  }
-}
-
 export const addEvent = async (
   backend: Backend,
   input: EventInput,
@@ -358,9 +316,6 @@ export const addEvent = async (
 
   return event
 }
-
-export const deleteEvent = (backend: Backend, id: string) =>
-  applyChange(backend, { put: [], remove: [id] })
 
 export const listTags = async (backend: Backend) => {
   const db = await open(backend)

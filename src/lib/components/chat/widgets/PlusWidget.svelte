@@ -39,12 +39,7 @@ const connect = (name: string) => {
     />
   {/snippet}
   <div role="menu" tabindex="-1" class="flex flex-col" {@attach menuKeys}>
-    <MenuItem
-      icon="lucide:paperclip"
-      label={m.chat_attach()}
-      data-autofocus
-      onclick={attach}
-    />
+    <MenuItem icon="lucide:paperclip" label={m.chat_attach()} data-autofocus onclick={attach} />
     {#if datasources}
       <MenuLabel text={m.chat_datasource_connect()} />
       {#each datasources as name (name)}

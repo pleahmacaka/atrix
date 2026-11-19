@@ -7,7 +7,7 @@ import {
   putTag,
   toIso,
   toRow,
-} from "#lib/calendar/events.ts"
+} from "#lib/calendar/store.ts"
 import { newTag, tagLabel } from "#lib/calendar/tags.ts"
 import { isBound, sendToChannel } from "#lib/channels/store.svelte.ts"
 import type { Backend } from "#lib/datasource/client.ts"

@@ -24,12 +24,18 @@ import {
 } from "./config.ts"
 import {
   detectHarnesses,
+  forgetRegistry,
   type Harness,
   type Installable,
   type Launch,
   type Source,
 } from "./harnesses.ts"
-import { prepareLaunch, providerKindOf, servesKind } from "./provider.ts"
+import {
+  type ProviderKind,
+  prepareLaunch,
+  providerKindOf,
+  servesKind,
+} from "./provider.ts"
 import {
   disabledHarnesses,
   providerChoices,
@@ -48,13 +54,35 @@ export type Entry = Omit<
 
 export type RegistryEvents = {
   changed: () => void
-  release: (id: string) => Promise<unknown>
+  release: (id: string) => Promise<void>
   log: (harness: string, line: string) => void
 }
 
 const PROFILE = "profile:"
 
 const profileId = (profile: Profile) => `${PROFILE}${profile.id}`
+
+type Provided = {
+  kind: ProviderKind
+  gateway: NonNullable<ReturnType<typeof findGateway>>
+  model: string
+}
+
+const resolvePicked = (
+  entry: Entry | undefined,
+  picked: ProviderChoice | undefined,
+): Provided | null => {
+  if (picked?.source !== "gateway") {
+    return null
+  }
+
+  const kind = entry && providerKindOf(entry)
+  const gateway = findGateway(picked.gateway)
+
+  return kind && picked.model && gateway && servesKind(kind, gateway)
+    ? { kind, gateway, model: picked.model }
+    : null
+}
 
 export const mirrorKind = (entry: Entry | undefined): HarnessKind | null =>
   entry && !entry.profile ? entry.kind : null
@@ -124,9 +152,11 @@ export class Harnesses {
   }
 
   redetect = async (force = false) => {
-    await this.#detect(force)
-    await this.#build()
-    this.on.changed()
+    if (force) {
+      forgetRegistry()
+    }
+
+    await this.#refresh()
   }
 
   install = async (id: string, scope: InstallScope): Promise<Installed> => {
@@ -142,7 +172,8 @@ export class Harnesses {
       channel: this.#log(id),
     })
 
-    await this.redetect()
+    forgetRegistry()
+    await this.#refresh()
 
     return { pathHint }
   }
@@ -157,7 +188,8 @@ export class Harnesses {
     await this.on.release(id)
     await native("tool_uninstall", { source, channel: this.#log(id) })
     this.#forgetProvider(id)
-    await this.redetect()
+    forgetRegistry()
+    await this.#refresh()
 
     return null
   }
@@ -181,20 +213,6 @@ export class Harnesses {
     this.#providers = saveProvider(id, null)
   }
 
-  #resolve = (id: string, picked: ProviderChoice | undefined) => {
-    if (picked?.source !== "gateway") {
-      return null
-    }
-
-    const found = this.find(id)
-    const kind = found ? providerKindOf(found) : null
-    const gateway = findGateway(picked.gateway)
-
-    return kind && picked.model && gateway && servesKind(kind, gateway)
-      ? { kind, gateway, model: picked.model }
-      : null
-  }
-
   #sourceOf = (id: string): ProviderSource => {
     const own = this.#providers[id]
 
@@ -210,9 +228,9 @@ export class Harnesses {
       case "native":
         return null
       case "own":
-        return this.#resolve(id, this.#providers[id])
+        return resolvePicked(this.find(id), this.#providers[id])
       case "default":
-        return this.#resolve(id, this.#providers[DEFAULT_PROVIDER])
+        return resolvePicked(this.find(id), this.#providers[DEFAULT_PROVIDER])
     }
   }
 
@@ -246,7 +264,7 @@ export class Harnesses {
 
     this.entry(id)
 
-    return picked.source === "native" || !!this.#resolve(id, picked)
+    return picked.source === "native" || !!resolvePicked(this.find(id), picked)
   }
 
   setProvider = (id: string, picked: ProviderChoice | null) => {
@@ -338,18 +356,23 @@ export class Harnesses {
   #saveProfiles = async (profiles: Profile[]) => {
     this.#profiles = profiles
     await saveProfiles(this.#home, profiles)
-    await this.#build()
-    this.on.changed()
+    await this.#refresh()
   }
 
   #log = (harness: string) =>
     new Channel<string>(line => this.on.log(harness, line))
 
-  #detect = async (force = false) => {
-    const { harnesses, available } = await detectHarnesses(force)
+  #detect = async () => {
+    const { harnesses, available } = await detectHarnesses()
 
     this.#base = harnesses
     this.#available = available
+  }
+
+  #refresh = async () => {
+    await this.#detect()
+    await this.#build()
+    this.on.changed()
   }
 
   #build = async () => {

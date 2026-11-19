@@ -65,11 +65,9 @@ export class Knowledge {
 
         if (sent > NOTICE_LIMIT) {
           this.#watchers.get(id)?.delete(sessionId)
-
-          return
+        } else {
+          this.deps.notify(sessionId, `<atrix-knowledge-change id="${id}" />`)
         }
-
-        this.deps.notify(sessionId, `<atrix-knowledge-change id="${id}" />`)
       }, SETTLE_MS),
     )
   }
@@ -107,7 +105,7 @@ export class Knowledge {
       throw new Error(`not_found: no document ${ref}`)
     }
 
-    const watchers = this.#watchers.get(id) ?? new Set()
+    const watchers = this.#watchers.get(id) ?? new Set<string>()
 
     if (on) {
       watchers.add(sessionId)

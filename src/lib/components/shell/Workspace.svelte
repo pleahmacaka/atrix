@@ -6,18 +6,20 @@ import DevicesView from "#lib/components/devices/DevicesView.svelte"
 import AgentEditor from "#lib/components/harness/AgentEditor.svelte"
 import PromptEditor from "#lib/components/harness/PromptEditor.svelte"
 import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
-import FindBar from "#lib/components/shell/FindBar.svelte"
-import PaneNode from "#lib/components/shell/PaneNode.svelte"
-import TitleBar from "#lib/components/shell/TitleBar.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
-import { hostById, hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { nav } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
+import FindBar from "./FindBar.svelte"
+import { hostViews, localHost } from "./hostQueries.ts"
+import PaneNode from "./PaneNode.svelte"
+import TitleBar from "./TitleBar.svelte"
 
-const local = $derived(hostById(LOCAL))
+const local = $derived(localHost())
 
-const hosts = $derived(hostList().map(h => h.view))
+const hosts = $derived(hostViews())
+
+const sharedInput = $derived(panes.shared && panes.leaves.length > 1)
 </script>
 
 {#snippet noHost()}
@@ -43,7 +45,7 @@ const hosts = $derived(hostList().map(h => h.view))
     >
       <PaneNode node={panes.root} />
     </div>
-    {#if panes.shared && panes.leaves.length > 1}
+    {#if sharedInput}
       <div class="shrink-0 pt-1" bind:this={panes.inputSlot}></div>
     {/if}
   {:else if nav.page === "agent"}
@@ -88,3 +90,4 @@ const hosts = $derived(hostList().map(h => h.view))
     <DevicesView />
   {/if}
 </section>
+

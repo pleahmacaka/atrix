@@ -55,7 +55,7 @@ const measure = (e: PointerEvent) => {
   onclick={onopen}
 >
   <span class="w-20 shrink-0 truncate text-start text-sm text-base-content/70">
-    {call.status}
+    {call.status || " "}
   </span>
   <span class="flex h-6 min-w-0 flex-1 items-center justify-center gap-0.5">
     {#each levels as level, i (i)}
