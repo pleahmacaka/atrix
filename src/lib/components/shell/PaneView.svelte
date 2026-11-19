@@ -184,7 +184,10 @@ const HINTS: Record<Zone, string> = {
 <section
   class={[
     "relative flex min-h-0 min-w-0 flex-1 flex-col",
-    split && "overflow-hidden",
+    split && [
+      "overflow-hidden border transition-colors duration-140",
+      focused ? "border-primary/40" : "border-transparent",
+    ],
   ]}
   aria-label={info?.title ?? m.chat_new()}
   data-find-root={focused || undefined}
@@ -202,7 +205,7 @@ const HINTS: Record<Zone, string> = {
   {#if split}
     <header
       class={[
-        "flex h-8 shrink-0 cursor-grab items-center gap-2 px-3 active:cursor-grabbing",
+        "flex h-7 shrink-0 cursor-grab items-center gap-2 px-3 active:cursor-grabbing",
         "text-xs font-semibold transition-colors duration-140",
         focused ? "bg-primary/8 text-primary" : "bg-base-content/4 text-base-content/55",
       ]}

@@ -741,6 +741,7 @@
   "knowledge_canvas_link": "링크",
   "palette_theme": "테마 전환",
   "chat_interrupted": "사용자가 요청을 중단했습니다",
+  "chat_compacted": "이전 대화를 요약해 이어서 진행",
   "shell_side_panel": "사이드 패널",
   "side_previous": "이전 항목",
   "side_next": "다음 항목",

@@ -741,6 +741,7 @@
   "knowledge_canvas_link": "Link",
   "palette_theme": "Toggle theme",
   "chat_interrupted": "Request interrupted by user",
+  "chat_compacted": "Continued from a summary of the earlier conversation",
   "shell_side_panel": "Side panel",
   "side_previous": "Previous item",
   "side_next": "Next item",

@@ -523,7 +523,7 @@ const railRows = $derived(
     <button
       type="button"
       class={[
-        "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field px-2 text-sm",
+        "group/space flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field ps-2 pe-1 text-sm",
         "transition-colors duration-140 hover:bg-base-content/8",
       ]}
       aria-expanded={open}
@@ -554,6 +554,13 @@ const railRows = $derived(
       <Icon
         icon="lucide:chevron-down"
         class={["size-3.5 shrink-0 opacity-50 transition-transform duration-140", !open && "-rotate-90"]}
+      />
+      <Icon
+        icon="lucide:grip-vertical"
+        class={[
+          "size-3.5 shrink-0 cursor-grab transition-opacity duration-140",
+          node.auto ? "opacity-0" : "opacity-30 group-hover/space:opacity-70",
+        ]}
       />
     </button>
   </div>

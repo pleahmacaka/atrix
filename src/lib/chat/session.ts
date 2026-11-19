@@ -11,6 +11,8 @@ import { withoutInjected } from "./tags.ts"
 
 const INTERRUPTED = "[Request interrupted by user"
 
+const COMPACTED = "This session is being continued from a previous conversation"
+
 export type Activity = ToolItem | ThoughtItem
 
 export type Segment =
@@ -19,7 +21,12 @@ export type Segment =
 
 export type Turn = { id: string; prompt: string; reply: string }
 
-export type Prompt = { text: string; files: FileRef[]; interrupted: boolean }
+export type Prompt = {
+  text: string
+  files: FileRef[]
+  interrupted: boolean
+  compacted: boolean
+}
 
 const isActivity = (item: ChatItem): item is Activity => item.type === "tool"
 
@@ -34,6 +41,7 @@ export const promptOf = (item: TextItem): Prompt => {
       ...split.files.filter(f => !own.some(g => g.name === f.name)),
     ],
     interrupted: split.text.trim().startsWith(INTERRUPTED),
+    compacted: split.text.trim().startsWith(COMPACTED),
   }
 }
 
@@ -60,7 +68,7 @@ export const turnsOf = (items: ChatItem[]) =>
       const prompt = promptOf(item)
       const text = prompt.text.trim()
 
-      if (text && !prompt.interrupted) {
+      if (text && !prompt.interrupted && !prompt.compacted) {
         all.push({ id: item.id, prompt: plainText(text), reply: "" })
       }
     } else if (item.type === "agent") {

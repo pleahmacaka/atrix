@@ -53,6 +53,22 @@ const sessionFor = async (host: HostView, binding: Binding) => {
   return id
 }
 
+const TYPING_MS = 8000
+
+const typing = (binding: Binding) => {
+  const provider = providerOf(binding.provider)
+  const ping = () =>
+    provider
+      .typing(binding.channel)
+      .catch((e: unknown) => logFailure("channel typing", e))
+
+  ping()
+
+  const timer = setInterval(ping, TYPING_MS)
+
+  return () => clearInterval(timer)
+}
+
 const relay = async (binding: Binding, message: Incoming) => {
   const host = hostById(LOCAL)
 
@@ -60,6 +76,16 @@ const relay = async (binding: Binding, message: Incoming) => {
     return
   }
 
+  const stop = typing(binding)
+
+  try {
+    await answer(host, binding, message)
+  } finally {
+    stop()
+  }
+}
+
+const answer = async (host: HostView, binding: Binding, message: Incoming) => {
   const id = await sessionFor(host, binding)
   const text = `${message.author}: ${message.content}`
 

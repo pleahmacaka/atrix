@@ -45,6 +45,49 @@ let present = $state(false)
 
 let token = $state("")
 
+let botName = $state<string | null>(null)
+
+let ownerName = $state<string | null>(null)
+
+$effect(() => {
+  const current = provider
+
+  if (!present) {
+    botName = null
+
+    return
+  }
+
+  current.botName().then(
+    name => {
+      botName = name
+    },
+    () => {
+      botName = null
+    },
+  )
+})
+
+$effect(() => {
+  const current = provider
+  const id = ownerId
+
+  ownerName = null
+
+  if (!present || !isOwnerId(id)) {
+    return
+  }
+
+  current.userName(id).then(
+    name => {
+      if (id === ownerId) {
+        ownerName = name
+      }
+    },
+    () => {},
+  )
+})
+
 const ownerId = $derived(optionsOf(provider.id).ownerId)
 
 let draft = $state({ channel: "", harness: "", cwd: "" })
@@ -125,7 +168,7 @@ const remove = (providerId: string, channel: string) => {
         <div class="flex items-center justify-end gap-2">
           <span class="flex items-center gap-2 text-sm whitespace-nowrap">
             <Icon icon="lucide:circle-check" class="size-4 text-success" />
-            {m.channels_token_saved()}
+            {botName ?? m.channels_token_saved()}
           </span>
           <ConfirmButton
             label={m.channels_token_clear()}
@@ -213,6 +256,12 @@ const remove = (providerId: string, channel: string) => {
         ]}
         bind:value={() => ownerId, v => setOptions(provider.id, { ownerId: v.trim() })}
       />
+      {#if ownerName}
+        <span class="flex items-center gap-1.5 text-sm whitespace-nowrap">
+          <Icon icon="lucide:circle-check" class="size-4 text-success" />
+          {ownerName}
+        </span>
+      {/if}
     </SettingRow>
   </div>
 

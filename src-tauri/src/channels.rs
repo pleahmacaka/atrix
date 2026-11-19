@@ -319,3 +319,59 @@ pub fn channel_token_clear() -> Result<()> {
 pub fn channel_token_present() -> Result<bool> {
     Ok(stored_token()?.is_some())
 }
+
+fn channel_of(channel_id: &str) -> Result<Id<twilight_model::id::marker::ChannelMarker>> {
+    channel_id
+        .trim()
+        .parse()
+        .ok()
+        .and_then(Id::new_checked)
+        .ok_or_else(|| Error::code("channel_id_invalid", channel_id))
+}
+
+#[tauri::command]
+pub async fn channel_typing(channels: State<'_, Channels>, channel_id: String) -> Result<()> {
+    let (http, _) = channels
+        .http
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("channel_not_connected")?;
+
+    http.create_typing_trigger(channel_of(&channel_id)?)
+        .await
+        .map_err(|e| Error::code("channel_send_failed", e))?;
+
+    Ok(())
+}
+
+fn client() -> Result<Client> {
+    Ok(Client::new(stored_token()?.ok_or("channel_token_missing")?))
+}
+
+#[tauri::command]
+pub async fn channel_bot_name() -> Result<String> {
+    let user = client()?
+        .current_user()
+        .await
+        .map_err(|e| Error::code("channel_token_invalid", e))?
+        .model()
+        .await
+        .map_err(|e| Error::code("channel_token_invalid", e))?;
+
+    Ok(user.global_name.unwrap_or(user.name))
+}
+
+#[tauri::command]
+pub async fn channel_user_name(user_id: String) -> Result<String> {
+    let id = owner_of(&user_id)?;
+    let user = client()?
+        .user(id)
+        .await
+        .map_err(|e| Error::code("channel_owner_invalid", e))?
+        .model()
+        .await
+        .map_err(|e| Error::code("channel_owner_invalid", e))?;
+
+    Ok(user.global_name.unwrap_or(user.name))
+}
