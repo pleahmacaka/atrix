@@ -26,16 +26,18 @@ pub fn tree(command: Command) -> CommandWrap {
 }
 
 pub fn hidden(program: impl AsRef<OsStr>) -> Command {
-    let mut command = Command::new(program);
+    let command = Command::new(program);
 
     #[cfg(windows)]
-    {
+    let command = {
         use std::os::windows::process::CommandExt;
 
         use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 
+        let mut command = command;
         command.creation_flags(CREATE_NO_WINDOW.0);
-    }
+        command
+    };
 
     command
 }

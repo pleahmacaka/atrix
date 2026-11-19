@@ -21,7 +21,7 @@ pub async fn float_open(app: AppHandle, label: String, url: String, title: Strin
 
     let builder = WebviewWindowBuilder::from_config(&app, &config)?;
 
-    #[cfg(debug_assertions)]
+    #[cfg(all(desktop, debug_assertions))]
     let builder = builder.icon(crate::dev_icon())?;
 
     builder.build()?;
