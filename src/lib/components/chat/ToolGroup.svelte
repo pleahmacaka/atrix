@@ -242,9 +242,9 @@ const summary = $derived.by(() => {
       {@const { json, rest } = splitJson(unfence(item.detail), going)}
       <pre
         class={[
-          "mt-1.5 overflow-auto rounded-field bg-inset p-3",
-          "text-xs break-all whitespace-pre-wrap",
-          going && "border-s-2 border-primary/60",
+          "mt-1.5 overflow-auto border-s-2 bg-base-content/5 py-2.5 ps-3.5 pe-3",
+          "font-mono text-xs leading-relaxed break-all whitespace-pre-wrap",
+          going ? "border-primary/70" : "border-base-content/15",
           big ? "max-h-160" : "max-h-32",
         ]}
         {@attach follow(() => live(item), () => item.detail)}>{#each jsonTokens(json) as t, i (i)}<span class={TONES[t.kind]}>{t.text}</span>{/each}{json && rest ? GAP : ""}{rest}{#if going}<span class="caret"></span>{/if}</pre>

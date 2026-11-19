@@ -1,4 +1,5 @@
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "@fontsource-variable/jetbrains-mono";
 @import "tailwindcss";
 @plugin "daisyui" {
   themes: false;
@@ -198,7 +199,9 @@ svg[role="img"][height="1em"] > :is(path, circle, ellipse, rect, polygon):not([f
 
 @theme {
   --font-sans: var(--font-interface, "Pretendard Variable"), Pretendard, sans-serif;
-  --font-mono: var(--font-sans);
+  --font-mono:
+    "JetBrainsMono Nerd Font Mono", "JetBrains Mono Variable", ui-monospace,
+    monospace;
   --default-transition-duration: 140ms;
   --transition-property-size: width, height;
   --transition-property-dash: stroke-dashoffset;
@@ -538,20 +541,19 @@ summary {
 
 .markdown code {
   background: var(--color-inset);
-  border-radius: var(--radius-field);
-  padding: 0 0.25rem;
-  font-size: 0.875em;
-  font-variant-numeric: tabular-nums;
+  border-radius: 0.25rem;
+  padding: 0.0625rem 0.3125rem;
+  font-size: 0.8125em;
 }
 
 .markdown pre {
-  background: var(--color-inset);
-  border: var(--border) solid var(--color-base-300);
-  border-radius: var(--radius-box);
+  background: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+  border-inline-start: 0.125rem solid
+    color-mix(in oklab, var(--color-primary) 55%, transparent);
   padding: 0.75rem 1rem;
   overflow-x: auto;
-  font-size: 0.875em;
-  line-height: 1.6;
+  font-size: 0.8125em;
+  line-height: 1.65;
 }
 
 .markdown pre code {
@@ -711,7 +713,7 @@ summary {
   }
 
   & pre {
-    @apply rounded-box bg-inset p-4 overflow-x-auto;
+    @apply border-s-2 border-primary/55 bg-base-content/5 p-4 overflow-x-auto;
 
     & code {
       @apply bg-transparent p-0;

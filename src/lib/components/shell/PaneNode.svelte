@@ -63,9 +63,9 @@ const nudge = (e: KeyboardEvent) => {
       type="button"
       aria-label={m.shell_resize_pane()}
       class={[
-        "relative shrink-0 rounded-full transition-colors",
+        "relative z-10 shrink-0 bg-base-300 transition-colors",
         "hover:bg-primary/60 focus-visible:bg-primary/60 active:bg-primary",
-        node.dir === "row" ? "my-2 w-1 cursor-col-resize" : "mx-2 h-1 cursor-row-resize",
+        node.dir === "row" ? "w-px cursor-col-resize" : "h-px cursor-row-resize",
       ]}
       onpointerdown={drag}
       ondblclick={() => panes.reset(node.id)}

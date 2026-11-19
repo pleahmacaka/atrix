@@ -6,6 +6,8 @@ import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import Modal from "#lib/components/ui/Modal.svelte"
+import Select from "#lib/components/ui/Select.svelte"
 import { tooltip } from "#lib/components/ui/tooltip.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { SPACE_HUES, type Space } from "#lib/p2p/protocol.ts"
@@ -397,33 +399,32 @@ const railRows = $derived(
   {#if editing}
     {@const view = hostById(editing.host)}
     <form
-      class="mx-2 my-1 flex flex-col gap-2 rounded-field bg-base-content/5 p-2"
+      class="flex flex-col gap-4 p-5"
       onsubmit={e => {
         e.preventDefault()
         attempt.run(save)
       }}
     >
+      <h2 class="text-base font-semibold">
+        {editing.node ? m.space_edit() : m.spaces_new()}
+      </h2>
       <input
-        class="input input-sm w-full"
+        class="input w-full"
         aria-label={m.spaces_name()}
         placeholder={m.spaces_name()}
         bind:value={editing.name}
         {@attach el => el.focus()}
-        onkeydown={e => {
-          if (e.key === "Escape") {
-            editing = null
-          }
-        }}
       />
       {#if many && editing.node === null}
-        <select class="select select-sm w-full" aria-label={m.spaces_host()} bind:value={editing.host}>
-          {#each tree.hosts as h (h.id)}
-            <option value={h.id}>{h.name}</option>
-          {/each}
-        </select>
+        <Select
+          class="w-full"
+          label={m.spaces_host()}
+          options={tree.hosts.map(h => ({ value: h.id, label: h.name }))}
+          bind:value={editing.host}
+        />
       {/if}
-      <FolderPicker host={view} bind:value={editing.folder} class="w-full" />
-      <div class="flex justify-end gap-1">
+      <FolderPicker host={view} bind:value={editing.folder} class="w-full justify-start" />
+      <div class="flex justify-end gap-2">
         <button type="button" class="btn btn-ghost btn-sm" onclick={() => (editing = null)}>
           {m.common_cancel()}
         </button>
@@ -434,6 +435,21 @@ const railRows = $derived(
     </form>
   {/if}
 {/snippet}
+
+<Modal
+  bind:open={
+    () => editing !== null,
+    open => {
+      if (!open) {
+        editing = null
+      }
+    }
+  }
+  label={editing?.node ? m.space_edit() : m.spaces_new()}
+  class="max-w-md"
+>
+  {@render editor()}
+</Modal>
 
 {#snippet agent(host: string, node: SpaceNode, row: AgentRow)}
   {@const key = `${node.key}/${row.id}`}
@@ -615,9 +631,6 @@ const railRows = $derived(
         }}
       />
     </div>
-    {#if editing && editing.key === null}
-      {@render editor()}
-    {/if}
     <ErrorAlert message={attempt.failure} />
     {#if empty && !editing}
       <EmptyState icon="lucide:inbox" text={m.chat_none()} class="py-6" />
@@ -628,19 +641,15 @@ const railRows = $derived(
           <h3 class="truncate px-4 pt-2 pb-1 text-xs text-base-content/50">{host.name}</h3>
         {/if}
         {#each host.spaces as node (node.key)}
-          {#if editing?.key === node.key}
-            {@render editor()}
-          {:else}
-            <div class="px-2">
-              {@render spaceHeader(host.id, node, host.spaces)}
-            </div>
-            {#if !folded(node)}
-              <ul class="menu w-full gap-0.5 py-0 ps-2 pe-1">
-                {#each ordered(node) as row (row.id)}
-                  {@render agent(host.id, node, row)}
-                {/each}
-              </ul>
-            {/if}
+          <div class="px-2">
+            {@render spaceHeader(host.id, node, host.spaces)}
+          </div>
+          {#if !folded(node)}
+            <ul class="menu w-full gap-0.5 py-0 ps-2 pe-1">
+              {#each ordered(node) as row (row.id)}
+                {@render agent(host.id, node, row)}
+              {/each}
+            </ul>
           {/if}
         {/each}
       </section>
