@@ -276,6 +276,10 @@ pub(crate) fn window_for(app: &AppHandle, label: &str) -> Option<WebviewWindow> 
     let builder = tauri::WebviewWindowBuilder::from_config(app, &config).ok()?;
     let window = atrix_window_kit::build(builder).ok()?;
 
+    if config.skip_taskbar {
+        hide_from_switcher(&window);
+    }
+
     UNPAINTED.lock().unwrap().insert(label.to_string());
 
     if label == "launcher" {
@@ -289,6 +293,57 @@ pub(crate) fn window_for(app: &AppHandle, label: &str) -> Option<WebviewWindow> 
     }
 
     Some(window)
+}
+
+// skipTaskbar only drops the taskbar button, and tao rewrites GWL_EXSTYLE on every state change, so the tool bit is enforced here
+fn hide_from_switcher(window: &WebviewWindow) {
+    use windows::Win32::UI::Shell::SetWindowSubclass;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW,
+    };
+
+    let target = window.clone();
+
+    let _ = window.run_on_main_thread(move || {
+        let Ok(hwnd) = target.hwnd() else {
+            return;
+        };
+
+        unsafe {
+            let _ = SetWindowSubclass(hwnd, Some(keep_tool_window), TOOL_SUBCLASS, 0);
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, tool_style(style) as isize);
+        }
+    });
+}
+
+const TOOL_SUBCLASS: usize = 2;
+
+fn tool_style(style: u32) -> u32 {
+    use windows::Win32::UI::WindowsAndMessaging::{WS_EX_APPWINDOW, WS_EX_TOOLWINDOW};
+
+    (style | WS_EX_TOOLWINDOW.0) & !WS_EX_APPWINDOW.0
+}
+
+unsafe extern "system" fn keep_tool_window(
+    hwnd: windows::Win32::Foundation::HWND,
+    message: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    _: usize,
+    _: usize,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::UI::Shell::DefSubclassProc;
+    use windows::Win32::UI::WindowsAndMessaging::{GWL_EXSTYLE, STYLESTRUCT, WM_STYLECHANGING};
+
+    if message == WM_STYLECHANGING && wparam.0 as i32 == GWL_EXSTYLE.0 {
+        let change = unsafe { &mut *(lparam.0 as *mut STYLESTRUCT) };
+
+        change.styleNew = tool_style(change.styleNew);
+    }
+
+    unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
 }
 
 fn reveal(window: &WebviewWindow) {
