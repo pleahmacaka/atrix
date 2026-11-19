@@ -1,98 +1,61 @@
 <script lang="ts">
-  import { kindLabel, type Result } from "#lib/desktop/launcher/core/index.ts"
-  import { rootRem } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { type Launcher, MENU_WIDTH } from "./launcher.svelte"
+import Icon from "@iconify/svelte"
+import type { Result } from "#lib/desktop/launcher/core/index.ts"
+import type { Launcher } from "./launcher.svelte"
 
-  let {
-    launcher,
-    item,
-    index,
-  }: { launcher: Launcher; item: Result; index: number } = $props()
+let {
+  launcher,
+  item,
+  index,
+}: { launcher: Launcher; item: Result; index: number } = $props()
 
-  const active = $derived(index === launcher.active)
+const active = $derived(index === launcher.active)
+
+const image = $derived(item.icon.startsWith("data:") || item.icon.startsWith("/"))
 </script>
 
-<div
+<button
+  type="button"
   role="option"
   aria-selected={active}
   data-index={index}
   tabindex="-1"
   class={[
-    "group flex items-center gap-2 rounded-field px-2 transition-colors duration-100",
-    launcher.compact ? "py-1" : "py-1.5",
-    active
-      ? "bg-primary/15 ring-1 ring-primary/30 ring-inset"
-      : "hover:bg-base-content/5",
+    "flex min-h-9 w-full min-w-0 cursor-pointer items-center gap-2 rounded-field px-2",
+    "text-left text-sm",
+    active ? "bg-primary/8 text-primary" : "hover:bg-base-content/8",
   ]}
-  onmousemove={() => (launcher.cursor = index)}
-  oncontextmenu={e => {
-    e.preventDefault()
-    launcher.openMenu(index, e.clientX, e.clientY)
+  onpointermove={() => {
+    launcher.cursor = index
   }}
+  onclick={() => launcher.run(item)}
+  oncontextmenu={e => launcher.openMenu(index, e)}
 >
-  <button
-    type="button"
-    class="flex min-w-0 grow items-center gap-3 text-left"
-    tabindex="-1"
-    onclick={() => launcher.run(item)}
-  >
-    <span
-      class="flex size-9 shrink-0 items-center justify-center rounded-selector bg-base-content/5"
-    >
-      {#if item.kind === "emoji"}
-        <span class="text-2xl leading-none">{item.icon}</span>
-      {:else if item.icon.startsWith("data:")}
-        <img src={item.icon} alt="" class="size-6" />
-      {:else}
-        <Icon icon={item.icon} class="size-5 text-base-content/80" />
-      {/if}
-    </span>
-
-    <span class="min-w-0 grow">
-      <span class="flex items-center gap-2">
-        <span class="truncate font-medium">{item.title}</span>
-
-        {#each item.chips ?? [] as chip}
-          <span class="badge badge-ghost badge-xs shrink-0">{chip}</span>
-        {/each}
-      </span>
-
-    </span>
-  </button>
-
-  {#if index < 9 && launcher.device.showKeymap}
-    <kbd
-      class={[
-        "kbd kbd-xs shrink-0 transition-opacity duration-100",
-        active ? "opacity-60" : "opacity-0 group-hover:opacity-40",
-      ]}
-    >
-      Alt {index + 1}
-    </kbd>
-  {/if}
-
-  <span class="badge badge-ghost badge-sm shrink-0">
-    {kindLabel(item.kind)}
+  <span class="grid size-5 shrink-0 place-items-center">
+    {#if item.kind === "emoji"}
+      <span class="text-base leading-none">{item.icon}</span>
+    {:else if image}
+      <img src={item.icon} alt="" class="size-5 object-contain" />
+    {:else}
+      <Icon icon={item.icon} class="size-4 opacity-70" />
+    {/if}
   </span>
-
-  <button
-    type="button"
-    class={[
-      "btn btn-circle btn-ghost btn-xs shrink-0 transition-opacity duration-100",
-      active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-    ]}
-    aria-label={$t("launcher.moreActions")}
-    tabindex="-1"
-    onclick={e => {
-      e.stopPropagation()
-
-      const rect = e.currentTarget.getBoundingClientRect()
-
-      launcher.openMenu(index, rect.right - MENU_WIDTH * rootRem(), rect.bottom + 4)
-    }}
-  >
-    <Icon icon="lucide:ellipsis" class="size-4" />
-  </button>
-</div>
+  <span class="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
+  {#each item.chips ?? [] as chip (chip)}
+    <span class="badge badge-ghost badge-sm shrink-0 whitespace-nowrap">{chip}</span>
+  {/each}
+  {#if item.running}
+    <span class="loading loading-spinner loading-xs shrink-0"></span>
+  {/if}
+  {#if item.subtitle}
+    <span
+      class="max-w-1/3 min-w-0 truncate text-xs text-base-content/50"
+      title={item.subtitle}
+    >
+      {item.subtitle}
+    </span>
+  {/if}
+  {#if index < 9 && launcher.device.showKeymap}
+    <kbd class="kbd kbd-xs shrink-0 opacity-60">Alt {index + 1}</kbd>
+  {/if}
+</button>

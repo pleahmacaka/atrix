@@ -1,7 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
 
-export type Device = { id: string; name: string; addedAt: number }
-
 export type Scope = "drives" | "home" | "folders"
 
 export type Browse = { scope: Scope; folders: string[]; always: string[] }
@@ -22,39 +20,18 @@ export type Browsed =
   | { kind: "denied" }
 
 export type ShareState = {
-  name: string
-  devices: Device[]
-  pendingPair: string | null
-  senior: boolean
+  devices: Member[]
   browse: Browse
   browseAsks: Member[]
-  members: Member[]
 }
 
-export type Invite = { code: string; link: string }
+export type Answer = "once" | "always" | "deny"
 
 export const shareState = () =>
   invoke<ShareState>("plugin:atrix-files|share_state")
 
 export const takeAttention = () =>
   invoke<boolean>("plugin:atrix-files|share_take_attention")
-
-export const renameSelf = (name: string) =>
-  invoke<void>("plugin:atrix-files|share_rename_self", { name })
-
-export const invite = () => invoke<Invite>("plugin:atrix-files|share_invite")
-
-export const join = (code: string) =>
-  invoke<void>("plugin:atrix-files|share_join", { code })
-
-export const dismissPair = () =>
-  invoke<void>("plugin:atrix-files|share_dismiss_pair")
-
-export const renameDevice = (id: string, name: string) =>
-  invoke<void>("plugin:atrix-files|share_rename_device", { id, name })
-
-export const removeDevice = (id: string) =>
-  invoke<void>("plugin:atrix-files|share_remove_device", { id })
 
 export const browseDevice = (device: string, path: string | null) =>
   invoke<Browsed>("plugin:atrix-files|share_browse", { device, path })
@@ -65,16 +42,11 @@ export const fetchRemote = (device: string, path: string) =>
     path,
   })
 
-export const answerBrowse = (
-  device: string,
-  answer: "once" | "always" | "deny",
-) => invoke<void>("plugin:atrix-files|share_browse_answer", { device, answer })
+export const answerBrowse = (device: string, answer: Answer) =>
+  invoke<void>("plugin:atrix-files|share_browse_answer", { device, answer })
 
 export const revokeBrowse = (device: string) =>
   invoke<void>("plugin:atrix-files|share_browse_revoke", { device })
 
 export const setBrowseScope = (scope: Scope, folders: string[]) =>
   invoke<void>("plugin:atrix-files|share_browse_scope", { scope, folders })
-
-export const qr = (text: string) =>
-  invoke<string>("plugin:atrix-files|share_qr", { text })

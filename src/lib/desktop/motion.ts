@@ -9,10 +9,11 @@ import {
 
 const FADE_MS = 120
 
-export const fadeShell = (out: boolean) => {
-  const el = document.querySelector<HTMLElement>(".siri-shell")
+const reducedMotion = () =>
+  matchMedia("(prefers-reduced-motion: reduce)").matches
 
-  if (!el || document.documentElement.dataset.motion === "false") {
+export const fadeShell = (el: HTMLElement, out: boolean) => {
+  if (reducedMotion()) {
     return
   }
 
@@ -20,9 +21,7 @@ export const fadeShell = (out: boolean) => {
     animation.cancel()
   }
 
-  const base = Number.parseFloat(getComputedStyle(el).opacity) || 1
-
-  el.animate([{ opacity: out ? base : 0 }, { opacity: out ? 0 : base }], {
+  el.animate([{ opacity: out ? 1 : 0 }, { opacity: out ? 0 : 1 }], {
     duration: FADE_MS,
     easing: out ? "ease-in" : "ease-out",
     fill: out ? "forwards" : "backwards",

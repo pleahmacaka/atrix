@@ -1,26 +1,47 @@
 <script lang="ts">
-  import { currentLocale } from "@atrix/i18n"
-  import { Row, Section, toast } from "@atrix/ui"
-  import { t } from "svelte-i18n"
-  import { clearKey, type KeyStatus, keyStatus, type Provider, saveKey } from "./audio"
+  import Section from "#lib/components/ui/Section.svelte"
+  import Select from "#lib/components/ui/Select.svelte"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { toast } from "#lib/files/store/toast.svelte.ts"
+  import { m } from "#lib/paraglide/messages.js"
+  import { currentLocale } from "#lib/store/locale.ts"
   import {
-    LANGUAGES,
-    MODELS,
-    transcribeSettings,
-  } from "./transcribe.svelte"
+    clearKey,
+    type KeyStatus,
+    keyStatus,
+    type Provider,
+    saveKey,
+  } from "./audio"
+  import { LANGUAGES, MODELS, transcribeSettings } from "./transcribe.svelte"
 
-  const PROVIDERS: Provider[] = ["groq", "openai", "custom"]
+  const PROVIDERS: { value: Provider; label: () => string }[] = [
+    { value: "groq", label: m.files_audio_providers_groq },
+    { value: "openai", label: m.files_audio_providers_openai },
+    { value: "custom", label: m.files_audio_providers_custom },
+  ]
 
   let status = $state<KeyStatus>({ saved: false, base: null })
   let key = $state("")
   let base = $state("")
   let busy = $state(false)
 
-  const languageName = (code: string) =>
-    code
-      ? (new Intl.DisplayNames([currentLocale()], { type: "language" }).of(code) ??
-        code)
-      : $t("audio.settings.auto")
+  const languages = $derived.by(() => {
+    const names = new Intl.DisplayNames([currentLocale()], { type: "language" })
+
+    return LANGUAGES.map(code => ({
+      value: code,
+      label: code
+        ? (names.of(code) ?? code)
+        : m.files_audio_settings_auto(),
+    }))
+  })
+
+  const models = $derived(
+    MODELS[transcribeSettings.provider].map(model => ({
+      value: model,
+      label: model,
+    })),
+  )
 
   $effect(() => {
     const provider = transcribeSettings.provider
@@ -52,8 +73,8 @@
     } catch (reason) {
       toast(
         String(reason) === "badUrl"
-          ? $t("audio.settings.badUrl")
-          : $t("audio.settings.saveFailed"),
+          ? m.files_audio_settings_bad_url()
+          : m.files_audio_settings_save_failed(),
         "error",
       )
     } finally {
@@ -67,94 +88,93 @@
   }
 </script>
 
-<Section title={$t("audio.settings.title")}>
-  <Row label={$t("audio.settings.provider")}>
-    <select
-      class="select select-sm w-40"
-      aria-label={$t("audio.settings.provider")}
+<Section>
+  <SettingRow title={m.files_audio_settings_provider()}>
+    <Select
+      class="w-44 max-sm:w-full"
+      label={m.files_audio_settings_provider()}
+      options={PROVIDERS.map(provider => ({
+        value: provider.value,
+        label: provider.label(),
+      }))}
       value={transcribeSettings.provider}
-      onchange={e => pickProvider(e.currentTarget.value as Provider)}
-    >
-      {#each PROVIDERS as provider (provider)}
-        <option value={provider}>{$t(`audio.providers.${provider}`)}</option>
-      {/each}
-    </select>
-  </Row>
+      onchange={pickProvider}
+    />
+  </SettingRow>
 
   {#if transcribeSettings.provider === "custom"}
-    <Row label={$t("audio.settings.baseUrl")} hint={$t("audio.settings.baseUrlHint")} stacked>
+    <SettingRow title={m.files_audio_settings_base_url()}>
       <input
-        class="input input-sm w-full"
+        class="input input-sm w-64 max-sm:w-full"
         type="url"
         placeholder="https://"
-        aria-label={$t("audio.settings.baseUrl")}
+        aria-label={m.files_audio_settings_base_url()}
         bind:value={base}
       />
-    </Row>
+    </SettingRow>
   {/if}
 
-  <Row label={$t("audio.settings.model")}>
-    {#if MODELS[transcribeSettings.provider].length}
-      <select
-        class="select select-sm w-52"
-        aria-label={$t("audio.settings.model")}
+  <SettingRow title={m.files_audio_settings_model()}>
+    {#if models.length > 0}
+      <Select
+        class="w-56 max-sm:w-full"
+        label={m.files_audio_settings_model()}
+        options={models}
         bind:value={transcribeSettings.model}
-      >
-        {#each MODELS[transcribeSettings.provider] as model (model)}
-          <option value={model}>{model}</option>
-        {/each}
-      </select>
+      />
     {:else}
       <input
-        class="input input-sm w-52"
-        aria-label={$t("audio.settings.model")}
+        class="input input-sm w-56 max-sm:w-full"
+        aria-label={m.files_audio_settings_model()}
+        spellcheck="false"
         bind:value={transcribeSettings.model}
       />
     {/if}
-  </Row>
+  </SettingRow>
 
-  <Row label={$t("audio.settings.language")}>
-    <select
-      class="select select-sm w-40"
-      aria-label={$t("audio.settings.language")}
+  <SettingRow title={m.files_audio_settings_language()}>
+    <Select
+      class="w-44 max-sm:w-full"
+      label={m.files_audio_settings_language()}
+      options={languages}
       bind:value={transcribeSettings.language}
+    />
+  </SettingRow>
+
+  <SettingRow title={m.files_audio_settings_api_key()}>
+    <span
+      class={[
+        "badge whitespace-nowrap",
+        status.saved ? "badge-success badge-soft" : "badge-ghost",
+      ]}
     >
-      {#each LANGUAGES as code (code)}
-        <option value={code}>{languageName(code)}</option>
-      {/each}
-    </select>
-  </Row>
+      {status.saved
+        ? m.files_audio_settings_key_saved()
+        : m.files_audio_settings_key_missing()}
+    </span>
 
-  <Row
-    label={$t("audio.settings.apiKey")}
-    hint={$t("audio.settings.apiKeyHint")}
-    value={status.saved ? $t("audio.settings.keySaved") : $t("audio.settings.keyMissing")}
-    stacked
-  >
-    <div class="flex gap-2">
-      <input
-        class="input input-sm min-w-0 grow"
-        type="password"
-        autocomplete="off"
-        spellcheck="false"
-        aria-label={$t("audio.settings.apiKey")}
-        bind:value={key}
-      />
+    <input
+      class="input input-sm w-48 max-sm:w-full"
+      type="password"
+      autocomplete="off"
+      spellcheck="false"
+      aria-label={m.files_audio_settings_api_key()}
+      bind:value={key}
+    />
 
-      <button
-        type="button"
-        class="btn btn-sm btn-primary"
-        disabled={!key.trim() || busy}
-        onclick={store}
-      >
-        {$t("audio.settings.saveKey")}
+    <button
+      type="button"
+      class="btn btn-sm btn-primary"
+      disabled={!key.trim() || busy}
+      onclick={store}
+    >
+      {m.files_audio_settings_save_key()}
+    </button>
+
+    {#if status.saved}
+      <button type="button" class="btn btn-sm btn-ghost" onclick={forget}>
+        {m.files_audio_settings_clear_key()}
       </button>
-
-      {#if status.saved}
-        <button type="button" class="btn btn-sm btn-ghost" onclick={forget}>
-          {$t("audio.settings.clearKey")}
-        </button>
-      {/if}
-    </div>
-  </Row>
+    {/if}
+  </SettingRow>
 </Section>

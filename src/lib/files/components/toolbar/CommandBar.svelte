@@ -1,274 +1,252 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { THIS_PC } from "../../locations"
-  import {
-    COMMANDS,
-    type CommandId,
-    hintOf,
-    usable,
-  } from "../../store/commands"
-  import type { Explorer } from "../../store/explorer.svelte"
-  import { NETWORK_ACTIONS } from "../../store/menus"
-  import {
-    GROUP_KEYS,
-    prefs,
-    SORT_KEYS,
-    VIEW_ICONS,
-    VIEWS,
-  } from "../../store/prefs.svelte"
-  import CommandButton from "./CommandButton.svelte"
+import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
+import MenuLabel from "#lib/components/ui/MenuLabel.svelte"
+import { menuKeys } from "#lib/components/ui/menu.ts"
+import Popover, {
+  type PopoverTrigger,
+} from "#lib/components/ui/Popover.svelte"
+import Separator from "#lib/components/ui/Separator.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import { GROUP_BY_LABELS, SORT_LABELS, VIEW_LABELS } from "../../labels"
+import { THIS_PC } from "../../locations"
+import {
+  COMMANDS,
+  type CommandId,
+  hintOf,
+  usable,
+} from "../../store/commands"
+import type { Explorer } from "../../store/explorer.svelte"
+import { NETWORK_ACTIONS } from "../../store/menus"
+import {
+  GROUP_KEYS,
+  prefs,
+  SORT_KEYS,
+  VIEW_ICONS,
+  VIEWS,
+} from "../../store/prefs.svelte"
+import CommandButton from "./CommandButton.svelte"
 
-  let { explorer, compact = false }: { explorer: Explorer; compact?: boolean } =
-    $props()
+let { explorer, compact = false }: { explorer: Explorer; compact?: boolean } =
+  $props()
 
-  const MENU = [
-    "dropdown-content menu z-30 mt-1 w-60 gap-0.5 rounded-box border",
-    "border-base-content/10 bg-base-100 p-2 shadow-xl",
-  ]
+const EDIT: CommandId[] = ["cut", "copy", "paste", "rename", "delete"]
 
-  const EDIT: CommandId[] = ["cut", "copy", "paste", "rename", "delete"]
+const SELECTION: CommandId[] = ["selectAll", "selectNone", "invertSelection"]
 
-  const SELECTION: CommandId[] = ["selectAll", "selectNone", "invertSelection"]
+const OTHERS: CommandId[] = ["properties", "newWindow", "settings"]
 
-  const OTHERS: CommandId[] = ["properties", "newWindow", "settings"]
+let sortOpen = $state(false)
 
-  const more = $derived(
-    prefs.selectionInMore || compact ? [SELECTION, OTHERS] : [OTHERS],
-  )
+let viewOpen = $state(false)
 
-  const folder = $derived(explorer.folder)
+let moreOpen = $state(false)
 
-  const done = () => (document.activeElement as HTMLElement | null)?.blur()
+const more = $derived(
+  prefs.selectionInMore || compact ? [SELECTION, OTHERS] : [OTHERS],
+)
 
-  const pick = (run: () => unknown) => () => {
-    run()
-    done()
-  }
+const folder = $derived(explorer.folder)
+
+const closeAll = () => {
+  sortOpen = false
+  viewOpen = false
+  moreOpen = false
+}
+
+const pick = (run: () => unknown) => () => {
+  closeAll()
+  run()
+}
 </script>
 
-{#snippet option(
-  label: string,
-  run: () => unknown,
-  extra: { icon?: string; hint?: string; active?: boolean; disabled?: boolean },
-)}
-  <li class={[extra.disabled && "menu-disabled"]}>
-    <button
-      type="button"
-      class={[extra.active && "menu-active"]}
-      disabled={extra.disabled}
-      onclick={pick(run)}
-    >
-      {#if extra.icon}
-        <Icon icon={extra.icon} class="size-4" />
-      {/if}
-
-      {label}
-
-      {#if extra.hint}
-        <span class="ml-auto text-xs text-base-content/40">{extra.hint}</span>
-      {/if}
-    </button>
-  </li>
-{/snippet}
-
 {#snippet command(id: CommandId)}
-  {@render option($t(COMMANDS[id].label), () => COMMANDS[id].run(explorer), {
-    icon: COMMANDS[id].icon,
-    hint: hintOf(id),
-    disabled: !usable(id, explorer),
-  })}
+  <MenuItem
+    icon={COMMANDS[id].icon}
+    label={COMMANDS[id].label()}
+    hint={hintOf(id)}
+    disabled={!usable(id, explorer)}
+    onclick={pick(() => COMMANDS[id].run(explorer))}
+  />
 {/snippet}
 
-{#snippet separator()}
-  <li aria-hidden="true" class="mx-1 my-1 border-t border-base-content/10"></li>
+{#snippet menuButton(
+  p: PopoverTrigger,
+  icon: string,
+  label: string,
+  disabled: boolean,
+)}
+  <button
+    {...p}
+    type="button"
+    class="btn btn-ghost btn-sm shrink-0 gap-2 px-2.5 font-normal"
+    {disabled}
+  >
+    <Icon {icon} class="size-4 shrink-0" />
+    <span class="whitespace-nowrap">{label}</span>
+    <Icon icon="lucide:chevron-down" class="size-3.5 shrink-0 opacity-60" />
+  </button>
 {/snippet}
 
 {#snippet moreMenu()}
-  <div class="dropdown dropdown-end">
-    <button
-      type="button"
-      class="btn btn-ghost btn-square btn-sm"
-      aria-label={$t("explorer.commands.more")}
-    >
-      <Icon icon="lucide:ellipsis" class="size-4" />
-    </button>
-
-    <ul tabindex="-1" class={MENU}>
+  <Popover
+    label={m.files_commands_more()}
+    placement="bottom-end"
+    width="w-64"
+    bind:open={moreOpen}
+  >
+    {#snippet trigger(p)}
+      <IconButton
+        {...p}
+        icon="lucide:ellipsis"
+        label={m.files_commands_more()}
+        class="shrink-0"
+      />
+    {/snippet}
+    <div role="menu" tabindex="-1" class="flex flex-col" {@attach menuKeys}>
       {#if explorer.tab.location === THIS_PC}
         {#each NETWORK_ACTIONS as entry (entry.key)}
-          {@render option(
-            $t(`explorer.commands.${entry.key}`),
-            () => explorer.changePlaces(entry.run),
-            { icon: entry.icon },
-          )}
+          <MenuItem
+            icon={entry.icon}
+            label={entry.label()}
+            onclick={pick(() => explorer.changePlaces(entry.run))}
+          />
         {/each}
-
-        {@render separator()}
+        <hr class="my-1 border-0" />
       {/if}
-
       {#each more as group, index (index)}
         {#if index > 0}
-          {@render separator()}
+          <hr class="my-1 border-0" />
         {/if}
-
         {#each group as id (id)}
           {@render command(id)}
         {/each}
       {/each}
-    </ul>
-  </div>
+    </div>
+  </Popover>
 {/snippet}
 
 {#if compact}
   <CommandButton id="preview" {explorer} pressed={prefs.preview} />
-
   {@render moreMenu()}
 {:else}
-  <div
-    class={[
-      "flex shrink-0 items-center gap-0.5 border-b border-base-content/10",
-      "px-2 pb-1.5",
-    ]}
-  >
+  <div class="flex shrink-0 items-center gap-1 px-2 pb-2">
     {#if explorer.inBin}
       <CommandButton id="emptyBin" {explorer} text />
-
       <CommandButton id="restore" {explorer} text />
     {:else}
       <CommandButton id="newFolder" {explorer} text />
     {/if}
 
-    <div class="mx-1 h-5 border-l border-base-content/10"></div>
+    <Separator vertical />
 
     {#each EDIT as id (id)}
       <CommandButton {id} {explorer} />
     {/each}
 
-    <div class="mx-1 h-5 border-l border-base-content/10"></div>
+    <Separator vertical />
 
-    <div class="dropdown">
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm gap-2"
-        disabled={!explorer.arrangeable}
-      >
-        <Icon icon="lucide:arrow-up-down" class="size-4" />
-        {$t("explorer.commands.sort")}
-        <Icon icon="lucide:chevron-down" class="size-3.5 opacity-60" />
-      </button>
-
-      <ul tabindex="-1" class={MENU}>
+    <Popover
+      label={m.files_commands_sort()}
+      width="w-60"
+      bind:open={sortOpen}
+    >
+      {#snippet trigger(p)}
+        {@render menuButton(
+          p,
+          "lucide:arrow-up-down",
+          m.files_commands_sort(),
+          !explorer.arrangeable,
+        )}
+      {/snippet}
+      <div role="menu" tabindex="-1" class="flex flex-col" {@attach menuKeys}>
         {#each SORT_KEYS as key (key)}
-          {@render option(
-            $t(`explorer.sort.${key}`),
-            () => explorer.setSort(key, folder.ascending),
-            { active: folder.sort === key },
-          )}
+          <MenuItem
+            label={SORT_LABELS[key]()}
+            checked={folder.sort === key}
+            onclick={pick(() => explorer.setSort(key, folder.ascending))}
+          />
         {/each}
-
-        {@render separator()}
-
-        {@render option(
-          $t("explorer.sort.ascending"),
-          () => explorer.setSort(folder.sort, true),
-          { icon: "lucide:arrow-up-narrow-wide", active: folder.ascending },
-        )}
-
-        {@render option(
-          $t("explorer.sort.descending"),
-          () => explorer.setSort(folder.sort, false),
-          { icon: "lucide:arrow-down-wide-narrow", active: !folder.ascending },
-        )}
-
-        {@render separator()}
-
-        <li class="menu-title">{$t("explorer.groups.title")}</li>
-
+        <hr class="my-1 border-0" />
+        <MenuItem
+          icon="lucide:arrow-up-narrow-wide"
+          label={m.files_sort_ascending()}
+          checked={folder.ascending}
+          onclick={pick(() => explorer.setSort(folder.sort, true))}
+        />
+        <MenuItem
+          icon="lucide:arrow-down-wide-narrow"
+          label={m.files_sort_descending()}
+          checked={!folder.ascending}
+          onclick={pick(() => explorer.setSort(folder.sort, false))}
+        />
+        <MenuLabel text={m.files_groups_title()} />
         {#each GROUP_KEYS as key (key)}
-          {@render option(
-            $t(`explorer.groups.by.${key}`),
-            () => explorer.setGroup(key),
-            { active: explorer.group === key },
-          )}
+          <MenuItem
+            label={GROUP_BY_LABELS[key]()}
+            checked={explorer.group === key}
+            onclick={pick(() => explorer.setGroup(key))}
+          />
         {/each}
-      </ul>
-    </div>
+      </div>
+    </Popover>
 
-    <div class="dropdown">
-      <button type="button" class="btn btn-ghost btn-sm gap-2">
-        <Icon icon={VIEW_ICONS[explorer.view]} class="size-4" />
-        {$t("explorer.commands.view")}
-        <Icon icon="lucide:chevron-down" class="size-3.5 opacity-60" />
-      </button>
-
-      <ul tabindex="-1" class={MENU}>
+    <Popover
+      label={m.files_commands_view()}
+      width="w-64"
+      bind:open={viewOpen}
+    >
+      {#snippet trigger(p)}
+        {@render menuButton(
+          p,
+          VIEW_ICONS[explorer.view],
+          m.files_commands_view(),
+          false,
+        )}
+      {/snippet}
+      <div role="menu" tabindex="-1" class="flex flex-col" {@attach menuKeys}>
         {#each VIEWS as view (view)}
-          {@render option(
-            $t(`explorer.views.${view}`),
-            () => explorer.setView(view),
-            {
-              icon: VIEW_ICONS[view],
-              hint: hintOf(`view.${view}`),
-              active: explorer.view === view,
-              disabled: !explorer.arrangeable,
-            },
-          )}
+          <MenuItem
+            icon={VIEW_ICONS[view]}
+            label={VIEW_LABELS[view]()}
+            hint={hintOf(`view.${view}`)}
+            checked={explorer.view === view}
+            disabled={!explorer.arrangeable}
+            onclick={pick(() => explorer.setView(view))}
+          />
         {/each}
+        <hr class="my-1 border-0" />
+        <MenuItem
+          icon="lucide:calendar"
+          label={m.files_views_date_groups()}
+          checked={explorer.group === "modified"}
+          disabled={!explorer.arrangeable}
+          onclick={() => explorer.toggleDateGroups()}
+        />
+        <MenuItem
+          icon="lucide:folder-cog"
+          label={m.files_views_folder_only()}
+          checked={!!explorer.own}
+          disabled={!explorer.arrangeable}
+          onclick={() => explorer.toggleFolderOnly()}
+        />
+        <MenuItem
+          icon="lucide:eye"
+          label={m.files_views_hidden()}
+          checked={prefs.showHidden}
+          onclick={() => (prefs.showHidden = !prefs.showHidden)}
+        />
+        <MenuItem
+          icon="lucide:file-type"
+          label={m.files_views_extensions()}
+          checked={prefs.showExtensions}
+          onclick={() => (prefs.showExtensions = !prefs.showExtensions)}
+        />
+      </div>
+    </Popover>
 
-        {@render separator()}
-
-        <li class={[!explorer.arrangeable && "menu-disabled"]}>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              class="checkbox checkbox-xs"
-              checked={explorer.group === "modified"}
-              disabled={!explorer.arrangeable}
-              onchange={() => explorer.toggleDateGroups()}
-            />
-            {$t("explorer.views.dateGroups")}
-          </label>
-        </li>
-
-        <li class={[!explorer.arrangeable && "menu-disabled"]}>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              class="checkbox checkbox-xs"
-              checked={!!explorer.own}
-              disabled={!explorer.arrangeable}
-              onchange={() => explorer.toggleFolderOnly()}
-            />
-            {$t("explorer.views.folderOnly")}
-          </label>
-        </li>
-
-        <li>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              class="checkbox checkbox-xs"
-              bind:checked={prefs.showHidden}
-            />
-            {$t("explorer.views.hidden")}
-          </label>
-        </li>
-
-        <li>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              class="checkbox checkbox-xs"
-              bind:checked={prefs.showExtensions}
-            />
-            {$t("explorer.views.extensions")}
-          </label>
-        </li>
-      </ul>
-    </div>
-
-    <div class="grow"></div>
+    <div class="min-w-0 flex-1"></div>
 
     {#if !prefs.selectionInMore}
       {#each SELECTION as id (id)}

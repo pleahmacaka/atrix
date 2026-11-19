@@ -1,21 +1,23 @@
-import { tr } from "@atrix/i18n"
-import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import { loadDevice, type TerminalApp } from "@atrix/settings"
-import { newWindow as newTerminalWindow } from "#lib/terminal/app/windows.ts"
 import { emit } from "@tauri-apps/api/event"
 import { exit } from "@tauri-apps/plugin-process"
+import {
+  DESKTOP_SECTIONS,
+  openDesktopSettings,
+} from "#lib/components/settings/desktopSettings.ts"
+import type { Result } from "#lib/desktop/launcher/core/index.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { newWindow as newTerminalWindow } from "#lib/terminal/app/windows.ts"
 import {
   editMode,
   emptyRecycleBin,
   openAtrixFiles,
   openUrl,
-  openWithIntent,
   type PowerAction,
   powerAction,
   runCommand,
   showWindow,
 } from "../native"
-import { sections } from "../settings-ui/search"
 import { WINDOWS_PAGES } from "./windows-settings"
 
 const command = (
@@ -59,11 +61,22 @@ const openTerminal = async () => {
   await runCommand(TERMINAL_COMMANDS[terminal])
 }
 
+const POWER_LABELS: Record<PowerAction, () => string> = {
+  lock: m.launcher_cmd_lock,
+  sleep: m.launcher_cmd_sleep,
+  hibernate: m.launcher_cmd_hibernate,
+  shutdown: m.launcher_cmd_shutdown,
+  restart: m.launcher_cmd_restart,
+  signout: m.launcher_cmd_signout,
+}
+
+export const powerLabel = (id: PowerAction) => POWER_LABELS[id]()
+
 const power = (id: PowerAction, icon: string, keywords: string[] = []) =>
   command(
     id,
-    tr(`launcher.commands.${id}`),
-    tr("launcher.subtitles.power"),
+    powerLabel(id),
+    m.launcher_sub_power(),
     icon,
     () => powerAction(id),
     keywords,
@@ -73,8 +86,8 @@ const windowsPages = () =>
   WINDOWS_PAGES.map(page =>
     command(
       `ms-${page.id}`,
-      tr(`launcher.windowsSettings.${page.id}`),
-      tr("launcher.subtitles.windowsSettings"),
+      page.label(),
+      m.launcher_sub_windows_settings(),
       page.icon,
       () => openUrl(`ms-settings:${page.id}`),
       [...page.keywords, "settings"],
@@ -90,8 +103,8 @@ const windowsApp = (
 ) =>
   command(
     id,
-    tr(`launcher.commands.${title}`),
-    tr("launcher.subtitles.windows"),
+    title,
+    m.launcher_sub_windows(),
     icon,
     () => runCommand(exe),
     keywords,
@@ -104,14 +117,10 @@ const shellFolder = (
   target: string,
   keywords: string[] = [],
 ) =>
-  command(
-    id,
-    tr(`launcher.commands.${title}`),
-    tr("launcher.subtitles.folder"),
-    icon,
-    () => runCommand(target),
-    [...keywords, "folder"],
-  )
+  command(id, title, m.launcher_sub_folder(), icon, () => runCommand(target), [
+    ...keywords,
+    "folder",
+  ])
 
 export const systemCommands = (): Result[] => [
   power("lock", "lucide:lock", ["lock screen"]),
@@ -122,48 +131,48 @@ export const systemCommands = (): Result[] => [
   power("signout", "lucide:log-out", ["log off", "log out"]),
   command(
     "recycle",
-    tr("launcher.commands.recycle"),
-    tr("launcher.subtitles.system"),
+    m.launcher_cmd_recycle(),
+    m.launcher_sub_system(),
     "lucide:trash-2",
     emptyRecycleBin,
     ["trash"],
   ),
   command(
     "atrix-files",
-    tr("launcher.commands.atrixFiles"),
-    tr("launcher.subtitles.atrix"),
+    m.launcher_cmd_files(),
+    m.launcher_sub_desktop(),
     "lucide:folder-open",
     () => openAtrixFiles(),
     ["explorer", "files"],
   ),
   command(
     "atrix-settings",
-    tr("launcher.commands.atrixSettings"),
-    tr("launcher.subtitles.atrix"),
+    m.launcher_cmd_desktop_settings(),
+    m.launcher_sub_desktop(),
     "lucide:settings",
-    () => showWindow("settings"),
+    () => openDesktopSettings(),
     ["preferences", "options"],
   ),
   command(
     "atrix-panel",
-    tr("launcher.commands.atrixPanel"),
-    tr("launcher.subtitles.atrix"),
+    m.launcher_cmd_panel(),
+    m.launcher_sub_desktop(),
     "lucide:calendar",
     () => showWindow("panel"),
     ["calendar", "schedule", "events"],
   ),
   command(
     "atrix-quit",
-    tr("launcher.commands.atrixQuit"),
-    tr("launcher.subtitles.atrix"),
+    m.launcher_cmd_quit(),
+    m.launcher_sub_desktop(),
     "lucide:circle-x",
     () => exit(0),
     ["exit", "close"],
   ),
   command(
     "atrix-edit",
-    tr("launcher.commands.atrixEdit"),
-    tr("launcher.subtitles.atrix"),
+    m.launcher_cmd_edit(),
+    m.launcher_sub_desktop(),
     "lucide:pencil-ruler",
     () => editMode(true),
     ["layout", "customize", "arrange"],
@@ -171,8 +180,8 @@ export const systemCommands = (): Result[] => [
   {
     ...command(
       "atrix-clipboard",
-      tr("launcher.commands.atrixClipboard"),
-      tr("launcher.subtitles.atrix"),
+      m.launcher_cmd_clipboard(),
+      m.launcher_sub_desktop(),
       "lucide:clipboard",
       () => emit("launcher-query", "clip "),
       ["clip", "paste", "copy"],
@@ -181,113 +190,147 @@ export const systemCommands = (): Result[] => [
   },
   command(
     "taskmgr",
-    tr("launcher.commands.taskmgr"),
-    tr("launcher.subtitles.windows"),
+    m.launcher_cmd_taskmgr(),
+    m.launcher_sub_windows(),
     "lucide:activity",
     () => runCommand("taskmgr"),
     ["processes", "performance"],
   ),
   command(
     "explorer",
-    tr("launcher.commands.explorer"),
-    tr("launcher.subtitles.windows"),
+    m.launcher_cmd_explorer(),
+    m.launcher_sub_windows(),
     "lucide:folder",
     () => runCommand("explorer"),
     ["files", "folders"],
   ),
   command(
     "terminal",
-    tr("launcher.commands.terminal"),
-    tr("launcher.subtitles.windows"),
+    m.launcher_cmd_terminal(),
+    m.launcher_sub_windows(),
     "lucide:terminal",
     openTerminal,
     ["cmd", "console", "shell", "powershell"],
   ),
   command(
     "control",
-    tr("launcher.commands.control"),
-    tr("launcher.subtitles.windows"),
+    m.launcher_cmd_control(),
+    m.launcher_sub_windows(),
     "lucide:sliders-horizontal",
     () => runCommand("control"),
   ),
   command(
     "screenclip",
-    tr("launcher.commands.screenclip"),
-    tr("launcher.subtitles.windows"),
+    m.launcher_cmd_screenclip(),
+    m.launcher_sub_windows(),
     "lucide:crop",
     () => openUrl("ms-screenclip:"),
     ["screenshot", "snip", "capture", "screen clip"],
   ),
   windowsApp(
     "snippingtool",
-    "snippingtool",
+    m.launcher_cmd_snippingtool(),
     "lucide:scissors",
     "snippingtool",
     ["screenshot", "snip", "capture"],
   ),
   command(
     "windowsdefender",
-    tr("launcher.commands.security"),
-    tr("launcher.subtitles.windows"),
+    m.launcher_cmd_security(),
+    m.launcher_sub_windows(),
     "lucide:shield-check",
     () => openUrl("windowsdefender:"),
     ["defender", "antivirus", "virus", "firewall"],
   ),
-  windowsApp("devmgmt", "devmgmt", "lucide:cpu", "devmgmt.msc", [
+  windowsApp("devmgmt", m.launcher_cmd_devmgmt(), "lucide:cpu", "devmgmt.msc", [
     "drivers",
     "hardware",
   ]),
-  windowsApp("diskmgmt", "diskmgmt", "lucide:hard-drive", "diskmgmt.msc", [
-    "partitions",
-    "volumes",
-    "format",
-  ]),
-  windowsApp("services", "services", "lucide:server-cog", "services.msc", [
-    "daemons",
-    "background",
-  ]),
-  windowsApp("regedit", "regedit", "lucide:file-cog", "regedit", [
-    "registry",
+  windowsApp(
+    "diskmgmt",
+    m.launcher_cmd_diskmgmt(),
+    "lucide:hard-drive",
+    "diskmgmt.msc",
+    ["partitions", "volumes", "format"],
+  ),
+  windowsApp(
+    "services",
+    m.launcher_cmd_services(),
+    "lucide:server-cog",
+    "services.msc",
+    ["daemons", "background"],
+  ),
+  windowsApp(
     "regedit",
-  ]),
-  windowsApp("eventvwr", "eventvwr", "lucide:scroll-text", "eventvwr.msc", [
-    "logs",
-    "events",
-  ]),
-  windowsApp("msinfo32", "msinfo32", "lucide:info", "msinfo32", [
+    m.launcher_cmd_regedit(),
+    "lucide:file-cog",
+    "regedit",
+    ["registry", "regedit"],
+  ),
+  windowsApp(
+    "eventvwr",
+    m.launcher_cmd_eventvwr(),
+    "lucide:scroll-text",
+    "eventvwr.msc",
+    ["logs", "events"],
+  ),
+  windowsApp("msinfo32", m.launcher_cmd_msinfo32(), "lucide:info", "msinfo32", [
     "specs",
     "about this pc",
     "msinfo",
   ]),
-  windowsApp("charmap", "charmap", "lucide:type", "charmap", [
+  windowsApp("charmap", m.launcher_cmd_charmap(), "lucide:type", "charmap", [
     "symbols",
     "unicode",
     "special characters",
   ]),
-  windowsApp("calc", "calc", "lucide:calculator", "calc", ["math", "numbers"]),
-  windowsApp("notepad", "notepad", "lucide:notebook-pen", "notepad", [
-    "text editor",
-    "notes",
+  windowsApp("calc", m.launcher_cmd_calc(), "lucide:calculator", "calc", [
+    "math",
+    "numbers",
   ]),
-  windowsApp("mspaint", "mspaint", "lucide:paintbrush", "mspaint", [
-    "draw",
-    "image editor",
-  ]),
-  shellFolder("downloads", "downloads", "lucide:download", "shell:Downloads"),
-  shellFolder("documents", "documents", "lucide:file-text", "shell:Personal", [
-    "my documents",
-  ]),
-  shellFolder("desktop", "desktop", "lucide:layout-dashboard", "shell:Desktop"),
+  windowsApp(
+    "notepad",
+    m.launcher_cmd_notepad(),
+    "lucide:notebook-pen",
+    "notepad",
+    ["text editor", "notes"],
+  ),
+  windowsApp(
+    "mspaint",
+    m.launcher_cmd_mspaint(),
+    "lucide:paintbrush",
+    "mspaint",
+    ["draw", "image editor"],
+  ),
+  shellFolder(
+    "downloads",
+    m.launcher_cmd_downloads(),
+    "lucide:download",
+    "shell:Downloads",
+  ),
+  shellFolder(
+    "documents",
+    m.launcher_cmd_documents(),
+    "lucide:file-text",
+    "shell:Personal",
+    ["my documents"],
+  ),
+  shellFolder(
+    "desktop",
+    m.launcher_cmd_desktop(),
+    "lucide:layout-dashboard",
+    "shell:Desktop",
+  ),
   shellFolder(
     "recyclebin",
-    "recyclebin",
+    m.launcher_cmd_recyclebin(),
     "lucide:trash",
     "shell:RecycleBinFolder",
     ["trash", "bin", "deleted"],
   ),
   shellFolder(
     "thispc",
-    "thispc",
+    m.launcher_cmd_thispc(),
     "lucide:monitor-cog",
     "shell:MyComputerFolder",
     ["my computer", "drives", "computer"],
@@ -296,18 +339,14 @@ export const systemCommands = (): Result[] => [
 ]
 
 export const settingsLinks = (): Result[] =>
-  sections.map(({ id, icon }) => {
-    const label = tr(`settings.sections.${id}.label`)
-
-    return {
-      id: `setting:${id}`,
-      kind: "setting",
-      title: `Atrix: ${label}`,
-      subtitle: tr("launcher.subtitles.atrixSettings"),
-      icon,
-      keywords: [label],
-      action: () => openWithIntent("settings", id),
-      secondaryActions: [],
-      score: 0,
-    }
-  })
+  DESKTOP_SECTIONS.map(({ id, label, icon }) => ({
+    id: `setting:${id}`,
+    kind: "setting",
+    title: label,
+    subtitle: m.launcher_sub_desktop_settings(),
+    icon,
+    keywords: ["settings", id],
+    action: () => openDesktopSettings(id),
+    secondaryActions: [],
+    score: 0,
+  }))

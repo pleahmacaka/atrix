@@ -68,11 +68,8 @@ beforeEach(() => {
   emitError = undefined
 })
 
-test("a profile from an older build is completed before it is stored", async () => {
-  const partial = {
-    presetId: "aurora",
-    appearance: { mode: "dark", background: "aura" },
-  }
+test("a partial profile is completed before it is stored", async () => {
+  const partial = { appearance: { mode: "dark", background: "aura" } }
 
   await saveProfile(partial as unknown as Parameters<typeof saveProfile>[0])
 
@@ -116,7 +113,6 @@ test("device saves and both updates share one ordered write queue", async () => 
   const saving = saveDevice(saved)
   const updatingProfile = updateProfile(profile => ({
     ...profile,
-    presetId: "custom",
     todo: { ...profile.todo, showCompleted: true },
   }))
   const updatingDevice = updateDevice(device => ({
@@ -136,7 +132,6 @@ test("device saves and both updates share one ordered write queue", async () => 
     "save",
     `emit:${DEVICE_EVENT}`,
     "get:profile",
-    "get:pins",
     "set:profile",
     "save",
     `emit:${PROFILE_EVENT}`,
@@ -149,7 +144,6 @@ test("device saves and both updates share one ordered write queue", async () => 
   expect(profile.todo.showCompleted).toBe(true)
   expect(emitted[0]).toBe(saved)
   expect(emitted[1]).toEqual(profile)
-  expect(data.has("pins")).toBe(false)
 })
 
 test("a failed queued write rejects its caller without poisoning later writes", async () => {
@@ -194,9 +188,19 @@ test("profile saves wait in the same write queue as device saves", async () => {
     "save",
     `emit:${DEVICE_EVENT}`,
     "get:profile",
-    "get:pins",
     "set:profile",
     "save",
     `emit:${PROFILE_EVENT}`,
   ])
+})
+
+test("a profile save reports whether the stored profile changed", async () => {
+  const wider = {
+    ...defaultProfile,
+    launcher: { ...defaultProfile.launcher, maxResults: 12 },
+  }
+
+  expect(await saveProfile(defaultProfile)).toBe(false)
+  expect(await saveProfile(wider)).toBe(true)
+  expect(await saveProfile(wider)).toBe(false)
 })

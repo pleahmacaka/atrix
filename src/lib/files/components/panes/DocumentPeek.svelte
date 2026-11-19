@@ -1,46 +1,52 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import { m } from "#lib/paraglide/messages.js"
 
-  const { url, name }: { url: string; name: string } = $props()
+const { url, name }: { url: string; name: string } = $props()
 
-  let failed = $state(false)
+let failed = $state(false)
 
-  const mount = (host: HTMLElement) => {
-    let cleanup: (() => void) | undefined
-    let gone = false
+const mount = (host: HTMLElement) => {
+  let cleanup: (() => void) | undefined
+  let gone = false
 
-    Promise.all([
-      import("#lib/doc-preview/index.ts"),
-      fetch(url).then(response => response.arrayBuffer()),
-    ])
-      .then(async ([{ renderDocument }, buffer]) => {
-        if (gone) {
-          return
-        }
+  Promise.all([
+    import("#lib/doc-preview/index.ts"),
+    fetch(url).then(response => response.arrayBuffer()),
+  ])
+    .then(async ([{ renderDocument }, buffer]) => {
+      if (gone) {
+        return
+      }
 
-        const next = await renderDocument(new Uint8Array(buffer), name, host)
+      const next = await renderDocument(new Uint8Array(buffer), name, host)
 
-        if (gone) {
-          next()
-        } else {
-          cleanup = next
-        }
-      })
-      .catch(() => (failed = true))
+      if (gone) {
+        next()
+      } else {
+        cleanup = next
+      }
+    })
+    .catch(() => (failed = true))
 
-    return () => {
-      gone = true
-      cleanup?.()
-    }
+  return () => {
+    gone = true
+    cleanup?.()
   }
+}
 </script>
 
 {#if failed}
-  <div class="flex size-full items-center justify-center text-sm text-base-content/50">
-    {$t("explorer.peek.documentFailed")}
-  </div>
+  <EmptyState
+    icon="lucide:file-x"
+    text={m.files_peek_document_failed()}
+    centered
+  />
 {:else}
   {#key url}
-    <div {@attach mount} class="document size-full overflow-auto bg-base-100 [--doc-preview-bg:var(--color-base-100)]"></div>
+    <div
+      {@attach mount}
+      class="size-full overflow-auto bg-base-100 select-text"
+    ></div>
   {/key}
 {/if}

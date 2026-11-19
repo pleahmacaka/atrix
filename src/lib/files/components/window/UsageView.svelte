@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { currentLocale } from "@atrix/i18n"
   import Icon from "@iconify/svelte"
   import { listen } from "@tauri-apps/api/event"
-  import { t } from "svelte-i18n"
+  import EmptyState from "#lib/components/ui/EmptyState.svelte"
+  import { m } from "#lib/paraglide/messages.js"
+  import { currentLocale } from "#lib/store/locale.ts"
   import { formatBytes } from "../../format"
   import {
     randomToken,
@@ -163,7 +164,7 @@
 
 {#if phase === "scanning"}
   <div class="flex flex-col items-center gap-3 py-16 text-sm">
-    <span class="font-medium">{$t("explorer.usage.scanning")}</span>
+    <span class="font-medium">{m.files_usage_scanning()}</span>
 
     {#if expected > 0}
       <progress class="progress progress-primary w-64" value={scanned.bytes} max={expected}></progress>
@@ -172,31 +173,36 @@
     {/if}
 
     <span class="text-base-content/60 tabular-nums">
-      {$t("explorer.usage.counted", {
-        values: { files: count.format(scanned.files), size: formatBytes(scanned.bytes, locale) },
-      })}
+      {m.files_usage_counted({ files: count.format(scanned.files), size: formatBytes(scanned.bytes, locale) })}
     </span>
   </div>
 {:else if phase === "failed" || !current}
-  <div class="flex flex-col items-center gap-2 py-16 text-sm text-base-content/60">
-    <Icon icon="lucide:circle-alert" class="size-6" />
-    {$t("explorer.usage.failed")}
-  </div>
+  <EmptyState icon="lucide:circle-alert" text={m.files_usage_failed()} />
 {:else}
-  <nav class="flex flex-wrap items-center gap-0.5 text-sm" aria-label={$t("explorer.usage.location")}>
-    <button type="button" class="btn btn-ghost btn-xs" disabled={trail.length === 0} onclick={() => open([])}>
-      {root?.name}
+  <nav
+    class="flex min-w-0 flex-wrap items-center gap-0.5 text-sm"
+    aria-label={m.files_usage_location()}
+  >
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs max-w-48 min-w-0"
+      title={root?.name}
+      disabled={trail.length === 0}
+      onclick={() => open([])}
+    >
+      <span class="truncate">{root?.name}</span>
     </button>
 
     {#each trail as name, index (index)}
       <Icon icon="lucide:chevron-right" class="size-3.5 text-base-content/40" />
       <button
         type="button"
-        class="btn btn-ghost btn-xs"
+        class="btn btn-ghost btn-xs max-w-48 min-w-0"
+        title={name}
         disabled={index === trail.length - 1}
         onclick={() => open(trail.slice(0, index + 1))}
       >
-        {name}
+        <span class="truncate">{name}</span>
       </button>
     {/each}
   </nav>
@@ -206,7 +212,7 @@
       viewBox="-160 -160 320 320"
       class="size-80 shrink-0"
       role="img"
-      aria-label={$t("explorer.usage.chart")}
+      aria-label={m.files_usage_chart()}
     >
       {#each segments as segment (segment.key)}
         <path
@@ -239,21 +245,32 @@
       </text>
     </svg>
 
-    <ul class="flex max-h-80 min-w-0 flex-1 flex-col gap-0.5 self-stretch overflow-y-auto">
+    <ul
+      class={[
+        "flex max-h-80 min-w-0 flex-1 flex-col gap-0.5 self-stretch overflow-y-auto",
+        "rounded-box border border-base-300 bg-base-100 p-1",
+      ]}
+    >
       {#each current.children as child, index (child.name)}
         <li>
           <button
             type="button"
-            class="flex w-full flex-col gap-1 rounded-field px-2 py-1.5 text-left hover:bg-base-content/5"
+            class={[
+              "flex w-full cursor-pointer flex-col gap-1 rounded-field px-2 py-1.5 text-left",
+              "transition-colors duration-140 hover:bg-base-content/8",
+              "disabled:cursor-default disabled:hover:bg-transparent",
+            ]}
             disabled={!child.folder}
             onclick={() => open([...trail, child.name])}
           >
-            <span class="flex items-center gap-2 text-sm">
+            <span class="flex min-w-0 items-center gap-2 text-sm">
               <span
                 class="size-2.5 shrink-0 rounded-full"
                 style:background-color={TONES[index % TONES.length]}
               ></span>
-              <span class="min-w-0 flex-1 truncate">{child.name}</span>
+              <span class="min-w-0 flex-1 truncate" title={child.name}>
+                {child.name}
+              </span>
               <span class="text-base-content/60 tabular-nums">{formatBytes(child.size, locale)}</span>
             </span>
 
@@ -261,7 +278,7 @@
 
             <span class="flex gap-3 text-xs text-base-content/50 tabular-nums">
               <span>{percent.format(current.size ? child.size / current.size : 0)}</span>
-              <span>{$t("explorer.usage.files", { values: { count: count.format(child.files) } })}</span>
+              <span>{m.files_usage_files({ count: count.format(child.files) })}</span>
             </span>
           </button>
         </li>
@@ -270,7 +287,7 @@
       {#if current.rest > 0}
         <li class="flex items-center gap-2 px-2 py-1.5 text-sm text-base-content/60">
           <span class="size-2.5 shrink-0 rounded-full bg-base-content/20"></span>
-          <span class="min-w-0 flex-1 truncate">{$t("explorer.usage.rest")}</span>
+          <span class="min-w-0 flex-1 truncate">{m.files_usage_rest()}</span>
           <span class="tabular-nums">{formatBytes(current.rest, locale)}</span>
         </li>
       {/if}

@@ -1,57 +1,34 @@
 <script lang="ts">
-  import type { MenuItem } from "@atrix/ui"
-  import { ContextMenu } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { flip } from "svelte/animate"
-  import { t } from "svelte-i18n"
-  import { EditSpot } from "#lib/desktop/edit/index.js"
+  import MenuItem from "#lib/components/ui/MenuItem.svelte"
+  import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
   import * as native from "#lib/desktop/native/index.js"
+  import { m } from "#lib/paraglide/messages.js"
   import DockItem from "./DockItem.svelte"
   import { type DockGroup, dock } from "./dock.svelte"
-  import EditOptions from "./EditOptions.svelte"
   import type { DockLayout } from "./layout.svelte"
   import { dropTarget } from "./order"
   import { rem } from "./rem.svelte"
 
-  type Props = {
-    layout: DockLayout
-    list: DockGroup[]
-    offset: number
-    tail: boolean
-  }
+  let { layout, placement }: { layout: DockLayout; placement: Placement } = $props()
 
-  let { layout, list, offset, tail }: Props = $props()
-
-  let overflowOpen = $state(false)
-  let openAtPress: boolean | null = null
   let toolbar = $state<HTMLElement>()
-
-  const spotClaim = $derived(layout.claimFor("spot-apps"))
-  const itemsClaim = $derived(layout.claimFor("items"))
-  const overflowClaim = $derived(layout.claimFor("overflow"))
+  let overflowOpen = $state(false)
 
   const device = $derived(layout.device)
 
   const foreground = $derived(dock.windows[0]?.hwnd)
 
-  const overflowItems = $derived.by((): MenuItem[] =>
-    layout.spilled.map(group => ({
-      label: group.name,
-      icon: group.windows.length > 0 ? "lucide:app-window" : "lucide:box",
-      action: () =>
-        group.windows[0]
-          ? native.activateWindow(group.windows[0].hwnd)
-          : native.launchApp(group.path),
-    })),
-  )
+  const open = (group: DockGroup) => {
+    overflowOpen = false
 
-  const toggleOverflow = () => {
-    // the menu's window mousedown already closed it before this click lands
-    overflowOpen = !(openAtPress ?? overflowOpen)
-    openAtPress = null
+    const [first] = group.windows
 
-    if (!overflowOpen) {
-      overflowClaim(null)
+    if (first) {
+      native.activateWindow(first.hwnd).catch(() => undefined)
+    } else {
+      native.launchApp(group.path).catch(() => undefined)
     }
   }
 
@@ -93,70 +70,66 @@
 
 <svelte:window ondragover={track} ondrop={drop} />
 
-<EditSpot id="apps" label={$t("edit.spots.apps")} placement={layout.spotPlacement} onmenu={spotClaim}>
-  {#snippet options()}
-    <EditOptions {layout} kind="apps" />
-  {/snippet}
+<div
+  bind:this={toolbar}
+  bind:clientWidth={layout.appsWidth}
+  role="toolbar"
+  tabindex="-1"
+  aria-label={m.dock_apps()}
+  class="flex min-w-0 shrink-0 items-center gap-0.5"
+  onpointerenter={() => (layout.magnet.target = 1)}
+  onpointermove={e => (layout.pointerX = e.clientX)}
+  onpointerleave={() => (layout.magnet.target = 0)}
+>
+  {#each layout.shown as group (group.key)}
+    <div animate:flip={{ duration: 120 }} class="flex" data-path={group.path}>
+      <DockItem
+        {group}
+        size={device.dockIconSize}
+        edge={device.dockEdge}
+        mac={layout.mac}
+        {foreground}
+        hiddenHere={layout.hidden.has(group.path)}
+        pointerX={layout.pointerX}
+        strength={layout.magnet.current}
+        dragging={layout.dragPath === group.path}
+        dropBefore={layout.dropPath === group.path && layout.dropBefore}
+        dropAfter={layout.dropPath === group.path && !layout.dropBefore}
+        ondragstart={() => (layout.dragPath = group.path)}
+        ondragend={() => {
+          layout.dragPath = null
+          layout.dropPath = null
+        }}
+      />
+    </div>
+  {/each}
 
-  <div
-    bind:this={toolbar}
-    role="toolbar"
-    tabindex="-1"
-    aria-label={$t("dock.apps")}
-    class="flex min-w-0 items-center gap-0.5"
-    onpointerenter={() => (layout.magnet.target = 1)}
-    onpointermove={e => (layout.pointerX = e.clientX)}
-    onpointerleave={() => (layout.magnet.target = 0)}
-  >
-    {#each list as group, index (group.key)}
-      <div animate:flip={{ duration: 120 }} class="flex" data-path={group.path}>
-        <DockItem
-          {group}
-          size={device.dockIconSize}
-          edge={device.dockEdge}
-          mac={layout.mac}
-          {foreground}
-          alignEnd={offset + index >= layout.shown.length / 2}
-          hiddenHere={layout.hidden.has(group.path)}
-          pointerX={layout.pointerX}
-          strength={layout.magnet.current}
-          dragging={layout.dragPath === group.path}
-          dropBefore={layout.dropPath === group.path && layout.dropBefore}
-          dropAfter={layout.dropPath === group.path && !layout.dropBefore}
-          ondragstart={() => (layout.dragPath = group.path)}
-          ondragend={() => {
-            layout.dragPath = null
-            layout.dropPath = null
-          }}
-          onmenu={itemsClaim}
-        />
-      </div>
-    {/each}
-
-    {#if tail && layout.spilled.length > 0}
-      <div class="relative">
-        <button type="button"
-          class="btn btn-ghost btn-square"
-          style:--size={rem(device.dockIconSize + 16)}
-          title={$t("dock.more", { values: { count: layout.spilled.length } })}
-          aria-label={$t("dock.more", { values: { count: layout.spilled.length } })}
-          aria-haspopup="menu"
-          aria-expanded={overflowOpen}
-          onpointerdown={() => (openAtPress = overflowOpen)}
-          onclick={toggleOverflow}
+  {#if layout.spilled.length > 0}
+    <Popover label={m.dock_more_apps()} {placement} width="w-64" bind:open={overflowOpen}>
+      {#snippet trigger(p)}
+        <button
+          {...p}
+          type="button"
+          class={["btn btn-ghost btn-square", overflowOpen && "bg-primary/8 text-primary"]}
+          style:width={rem(device.dockIconSize + 16)}
+          style:height={rem(device.dockIconSize + 16)}
+          title={m.dock_more({ count: layout.spilled.length })}
+          aria-label={m.dock_more({ count: layout.spilled.length })}
         >
-          <Icon icon="lucide:ellipsis" class="size-5 text-base-content/70" />
+          <Icon icon="lucide:ellipsis" class="size-5" />
         </button>
+      {/snippet}
 
-        <ContextMenu
-          bind:open={overflowOpen}
-          items={overflowItems}
-          placement={device.dockEdge === "top" ? "down" : "up"}
-          label={$t("dock.moreApps")}
-          onsize={rect => overflowClaim(rect)}
-          onclose={() => overflowClaim(null)}
-        />
+      <div class="flex max-h-96 flex-col overflow-y-auto" role="menu" tabindex="-1">
+        {#each layout.spilled as group (group.key)}
+          <MenuItem
+            icon={group.windows.length > 0 ? "lucide:app-window" : "lucide:box"}
+            label={group.name}
+            selected={group.windows.some(w => w.hwnd === foreground)}
+            onclick={() => open(group)}
+          />
+        {/each}
       </div>
-    {/if}
-  </div>
-</EditSpot>
+    </Popover>
+  {/if}
+</div>

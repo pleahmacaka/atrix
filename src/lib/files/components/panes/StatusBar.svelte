@@ -1,101 +1,94 @@
 <script lang="ts">
-  import { currentLocale } from "@atrix/i18n"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { formatBytes } from "../../format"
-  import { cancelSearch, measureDirs, randomToken } from "../../native"
-  import type { Explorer } from "../../store/explorer.svelte"
-  import { VIEW_ICONS, type ViewMode } from "../../store/prefs.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import { currentLocale } from "#lib/store/locale.ts"
+import { formatBytes } from "../../format"
+import { VIEW_LABELS } from "../../labels"
+import { cancelSearch, measureDirs, randomToken } from "../../native"
+import type { Explorer } from "../../store/explorer.svelte"
+import { VIEW_ICONS, type ViewMode } from "../../store/prefs.svelte"
 
-  let { explorer }: { explorer: Explorer } = $props()
+let { explorer }: { explorer: Explorer } = $props()
 
-  const QUICK: ViewMode[] = ["details", "large"]
+const QUICK: ViewMode[] = ["details", "large"]
 
-  const MEASURE_DELAY = 200
+const MEASURE_DELAY = 200
 
-  const tab = $derived(explorer.tab)
+const tab = $derived(explorer.tab)
 
-  const bytes = $derived(
-    explorer.selected
-      .filter(item => !item.dir)
-      .reduce((sum, item) => sum + item.size, 0),
-  )
+const bytes = $derived(
+  explorer.selected
+    .filter(item => !item.dir)
+    .reduce((sum, item) => sum + item.size, 0),
+)
 
-  const folders = $derived(
-    explorer.filesystem
-      ? explorer.selected
-          .filter(item => item.dir)
-          .map(item => item.path)
-          .join("\n")
-      : "",
-  )
+const folders = $derived(
+  explorer.filesystem
+    ? explorer.selected
+        .filter(item => item.dir)
+        .map(item => item.path)
+        .join("\n")
+    : "",
+)
 
-  let measured = $state<number | null>(0)
+let measured = $state<number | null>(0)
 
-  $effect(() => {
-    if (!folders) {
-      measured = 0
+$effect(() => {
+  if (!folders) {
+    measured = 0
 
-      return
-    }
+    return
+  }
 
-    const paths = folders.split("\n")
-    const token = randomToken()
-    let current = true
+  const paths = folders.split("\n")
+  const token = randomToken()
+  let current = true
 
-    measured = null
+  measured = null
 
-    const timer = setTimeout(() => {
-      measureDirs(paths, token)
-        .then(size => {
-          if (current) {
-            measured = size ?? 0
-          }
-        })
-        .catch(() => {
-          if (current) {
-            measured = 0
-          }
-        })
-    }, MEASURE_DELAY)
+  const timer = setTimeout(() => {
+    measureDirs(paths, token)
+      .then(size => {
+        if (current) {
+          measured = size ?? 0
+        }
+      })
+      .catch(() => {
+        if (current) {
+          measured = 0
+        }
+      })
+  }, MEASURE_DELAY)
 
-    return () => {
-      current = false
-      clearTimeout(timer)
-      cancelSearch(token).catch(() => undefined)
-    }
-  })
+  return () => {
+    current = false
+    clearTimeout(timer)
+    cancelSearch(token).catch(() => undefined)
+  }
+})
 
-  const total = $derived(measured === null ? null : bytes + measured)
+const total = $derived(measured === null ? null : bytes + measured)
 </script>
 
 <footer
   class={[
-    "flex h-7 shrink-0 items-center gap-4 border-t border-base-content/10 px-3",
-    "text-xs text-base-content/60 tabular-nums",
+    "flex h-9 shrink-0 items-center gap-4 ps-4 pe-2",
+    "text-xs whitespace-nowrap text-base-content/60 tabular-nums",
   ]}
 >
   <span>
     {tab.results
-      ? $t("explorer.status.results", {
-          values: { count: explorer.visible.length },
-        })
-      : $t("explorer.status.items", {
-          values: { count: explorer.visible.length },
-        })}
+      ? m.files_status_results({ count: explorer.visible.length })
+      : m.files_status_items({ count: explorer.visible.length })}
   </span>
 
   {#if explorer.selected.length}
-    <span>
-      {$t("explorer.status.selected", {
-        values: { count: explorer.selected.length },
-      })}
-    </span>
+    <span>{m.files_status_selected({ count: explorer.selected.length })}</span>
 
     {#if total === null}
       <span class="flex items-center gap-1.5">
         <span class="loading loading-spinner loading-xs"></span>
-        {$t("explorer.status.measuring")}
+        {m.files_status_measuring()}
       </span>
     {:else if total > 0}
       <span>{formatBytes(total, currentLocale())}</span>
@@ -103,29 +96,26 @@
   {/if}
 
   {#if tab.searching}
-    <span class="flex items-center gap-1.5">
+    <span class="flex items-center gap-1.5 text-primary">
       <span class="loading loading-spinner loading-xs"></span>
-      {$t("explorer.status.searching")}
+      {m.files_status_searching()}
     </span>
   {/if}
 
-  <div class="grow"></div>
+  <div class="min-w-0 flex-1"></div>
 
-  <div class="join">
+  <div class="flex items-center gap-0.5">
     {#each QUICK as view (view)}
-      <button
-        type="button"
-        class={[
-          "btn join-item btn-ghost btn-xs btn-square",
-          explorer.view === view && "btn-active",
-        ]}
-        aria-label={$t(`explorer.views.${view}`)}
-        title={$t(`explorer.views.${view}`)}
+      <IconButton
+        icon={VIEW_ICONS[view]}
+        label={VIEW_LABELS[view]()}
+        size="xs"
+        iconClass="size-3.5"
+        aria-pressed={explorer.view === view}
+        class={[explorer.view === view && "bg-primary/8 text-primary"]}
         disabled={!explorer.arrangeable}
         onclick={() => explorer.setView(view)}
-      >
-        <Icon icon={VIEW_ICONS[view]} class="size-3.5" />
-      </button>
+      />
     {/each}
   </div>
 </footer>

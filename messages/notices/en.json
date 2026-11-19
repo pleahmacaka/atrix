@@ -1,3 +1,9 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "notices_title": "Notifications",
+  "notices_empty": "No notifications",
+  "notices_clear_all": "Clear all",
+  "notices_dismiss": "Dismiss notification",
+  "notices_dismiss_app": "Dismiss all from {app}",
+  "notices_unseen": "New"
 }

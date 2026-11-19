@@ -1,4 +1,5 @@
 <script lang="ts">
+import "#lib/desktop/launcher/mainWindow.ts"
 import { tick } from "svelte"
 import { fade, fly } from "svelte/transition"
 import CallDock from "#lib/components/chat/CallDock.svelte"

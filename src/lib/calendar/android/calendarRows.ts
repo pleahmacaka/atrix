@@ -356,6 +356,7 @@ export const blankEvent = (id: string): CalendarEvent => ({
   seriesId: null,
   originalDate: null,
   notesSync: false,
+  reminder: null,
   createdBy: "Android",
   updatedAt: 0,
 })

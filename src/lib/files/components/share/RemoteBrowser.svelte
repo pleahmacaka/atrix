@@ -1,9 +1,15 @@
 <script lang="ts">
-  import { toast } from "@atrix/ui"
   import Icon from "@iconify/svelte"
-  import { locale, t } from "svelte-i18n"
+  import EmptyState from "#lib/components/ui/EmptyState.svelte"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import Modal from "#lib/components/ui/Modal.svelte"
+  import { toast } from "#lib/files/store/toast.svelte.ts"
+  import { m } from "#lib/paraglide/messages.js"
+  import { platform } from "#lib/platform.ts"
+  import { currentLocale } from "#lib/store/locale.ts"
   import { formatBytes } from "../../format"
   import { openItem } from "../../native"
+  import { openFile } from "../mobile/mobile"
   import { browseDevice, fetchRemote, type Member, type RemoteEntry } from "./share"
 
   const POLL = 2_000
@@ -14,16 +20,24 @@
 
   type Status = "loading" | "waiting" | "denied" | "failed" | "ready"
 
+  const STATES: Record<"denied" | "failed", { icon: string; text: () => string }> = {
+    denied: { icon: "lucide:shield-x", text: m.files_remote_states_denied },
+    failed: { icon: "lucide:wifi-off", text: m.files_remote_states_failed },
+  }
+
   let { device, onclose }: { device: Member; onclose: () => void } = $props()
 
   let crumbs = $state<Crumb[]>([])
   let entries = $state<RemoteEntry[]>([])
   let status = $state<Status>("loading")
   let opening = $state<string | null>(null)
-  let dialog = $state<HTMLDialogElement>()
   let token = 0
 
+  const locale = $derived(currentLocale())
+
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const reveal = (path: string) => (platform === "android" ? openFile(path) : openItem(path))
 
   const load = async (path: string | null) => {
     const mine = ++token
@@ -98,115 +112,121 @@
         saved = await fetchRemote(device.id, entry.path)
       }
 
-      toast($t("remote.saved"), "success")
-      await openItem(saved).catch(() => undefined)
+      toast(m.files_remote_saved(), "success")
+      await reveal(saved).catch(() => undefined)
     } catch {
-      toast($t("remote.failed"), "error")
+      toast(m.files_remote_failed(), "error")
     } finally {
       opening = null
     }
   }
 
-  const close = () => {
-    token += 1
-    onclose()
-  }
-
-  $effect(() => {
-    dialog?.showModal()
-  })
-
   $effect(() => {
     crumbs = [{ name: device.name, path: null }]
     load(null)
+
+    return () => {
+      token += 1
+    }
   })
 </script>
 
-<dialog bind:this={dialog} class="modal" onclose={close}>
-  <div class="modal-box flex max-h-[80vh] w-full max-w-lg flex-col gap-3 p-4">
-    <header class="flex items-center gap-2">
-      <Icon icon="lucide:folder-search" class="size-4 shrink-0 text-base-content/60" />
+<Modal
+  bind:open={
+    () => true,
+    next => {
+      if (!next) {
+        onclose()
+      }
+    }
+  }
+  label={m.files_devices_browse()}
+  class="w-full max-w-lg"
+>
+  <header class="flex h-12 shrink-0 items-center gap-1 px-3">
+    <Icon icon="lucide:folder-search" class="mx-1 size-4 shrink-0 text-base-content/60" />
 
-      <nav
-        class="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
-        aria-label={$t("remote.location")}
-      >
-        {#each crumbs as crumb, index (index)}
-          {#if index > 0}
-            <Icon icon="lucide:chevron-right" class="size-3.5 shrink-0 text-base-content/40" />
-          {/if}
+    <nav
+      class="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto scrollbar-none"
+      aria-label={m.files_remote_location()}
+    >
+      {#each crumbs as crumb, index (index)}
+        {#if index > 0}
+          <Icon icon="lucide:chevron-right" class="size-3.5 shrink-0 text-base-content/40" />
+        {/if}
 
-          <button
-            type="button"
-            class="btn btn-ghost btn-xs shrink-0"
-            disabled={index === crumbs.length - 1}
-            onclick={() => go(index)}
-          >
-            {crumb.name}
-          </button>
-        {/each}
-      </nav>
+        <button
+          type="button"
+          class={[
+            "btn btn-ghost btn-sm max-w-48 shrink-0 font-normal",
+            index === crumbs.length - 1 && "font-medium",
+          ]}
+          title={crumb.name}
+          aria-current={index === crumbs.length - 1 ? "location" : undefined}
+          onclick={() => go(index)}
+        >
+          <span class="min-w-0 truncate">{crumb.name}</span>
+        </button>
+      {/each}
+    </nav>
 
-      <button
-        type="button"
-        class="btn btn-ghost btn-square btn-sm"
-        aria-label={$t("remote.close")}
-        onclick={() => dialog?.close()}
-      >
-        <Icon icon="lucide:x" class="size-4" />
-      </button>
-    </header>
+    <IconButton icon="lucide:x" label={m.common_close()} class="shrink-0" onclick={onclose} />
+  </header>
 
-    <div class="min-h-48 overflow-y-auto">
-      {#if status === "ready"}
-        {#if entries.length === 0}
-          <p class="py-10 text-center text-sm text-base-content/60">{$t("remote.empty")}</p>
-        {:else}
-          <ul class="flex flex-col">
-            {#each entries as entry (entry.path)}
-              <li>
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-2 rounded-field px-2 py-1.5 text-left hover:bg-base-content/5"
-                  disabled={opening !== null}
-                  onclick={() => (entry.dir ? enter(entry) : open(entry))}
-                >
-                  <Icon
-                    icon={entry.dir ? "lucide:folder" : "lucide:file"}
-                    class="size-4 shrink-0 text-base-content/60"
-                  />
+  <div class="flex min-h-64 flex-col px-3 pb-3">
+    {#if status === "ready"}
+      {#if entries.length === 0}
+        <EmptyState icon="lucide:folder-open" text={m.files_remote_empty()} centered />
+      {:else}
+        <ul class="flex flex-col">
+          {#each entries as entry (entry.path)}
+            <li>
+              <button
+                type="button"
+                class={[
+                  "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-field px-2 text-left",
+                  "transition-colors duration-140 hover:bg-base-content/8",
+                  "disabled:cursor-not-allowed",
+                ]}
+                disabled={opening !== null}
+                onclick={() => (entry.dir ? enter(entry) : open(entry))}
+              >
+                <Icon
+                  icon={entry.dir ? "lucide:folder" : "lucide:file"}
+                  class="size-4 shrink-0 text-base-content/60"
+                />
 
-                  <span class="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
+                <span class="min-w-0 flex-1 truncate text-sm" title={entry.name}>
+                  {entry.name}
+                </span>
 
+                <span class="grid w-20 shrink-0 justify-items-end">
                   {#if opening === entry.path}
                     <span class="loading loading-spinner loading-xs"></span>
                   {:else if !entry.dir}
-                    <span class="text-xs text-base-content/50 tabular-nums">
-                      {formatBytes(entry.size, $locale ?? "en")}
+                    <span class="text-xs whitespace-nowrap text-base-content/50 tabular-nums">
+                      {formatBytes(entry.size, locale)}
                     </span>
                   {/if}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      {:else if status === "loading"}
-        <div class="flex justify-center py-10">
-          <span class="loading loading-spinner loading-sm text-base-content/50"></span>
-        </div>
-      {:else}
-        <div class="flex flex-col items-center gap-1 py-10 text-center">
-          <p class="text-sm font-medium">{$t(`remote.states.${status}`)}</p>
-
-          {#if status === "waiting"}
-            <p class="text-xs text-base-content/60">{$t("remote.waitingHint")}</p>
-          {/if}
-        </div>
+                </span>
+              </button>
+            </li>
+          {/each}
+        </ul>
       {/if}
-    </div>
+    {:else if status === "loading"}
+      <div class="flex flex-1 items-center justify-center">
+        <span class="loading loading-spinner loading-sm text-base-content/50"></span>
+      </div>
+    {:else if status === "waiting"}
+      <EmptyState
+        icon="lucide:hourglass"
+        title={m.files_remote_states_waiting()}
+        text={m.files_remote_waiting_hint()}
+        centered
+      />
+    {:else}
+      <EmptyState icon={STATES[status].icon} text={STATES[status].text()} centered />
+    {/if}
   </div>
-
-  <form method="dialog" class="modal-backdrop">
-    <button type="submit">{$t("remote.close")}</button>
-  </form>
-</dialog>
+</Modal>

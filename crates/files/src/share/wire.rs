@@ -1,25 +1,16 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use data_encoding::BASE32_NOPAD_NOCASE;
 use iroh::endpoint::{RecvStream, SendStream};
-use iroh::EndpointId;
 use iroh_blobs::Hash;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use tauri::Url;
 
 use crate::error::{Error, Result};
 
 pub const ALPN: &[u8] = b"atrix/files/1";
 pub const REQUEST_LIMIT: usize = 16 * 1024;
 pub const REPLY_LIMIT: usize = 64 * 1024 * 1024;
-
-pub const SCHEME: &str = if cfg!(debug_assertions) {
-    "atrix-files-dev"
-} else {
-    "atrix-files"
-};
 
 const RESERVED: [&str; 22] = [
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
@@ -39,13 +30,6 @@ pub struct RemoteEntry {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Request {
-    Pair {
-        secret: [u8; 32],
-        name: String,
-    },
-    Evict {
-        device: String,
-    },
     Browse {
         path: Option<String>,
     },
@@ -59,9 +43,6 @@ pub enum Request {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Reply {
-    Welcome {
-        name: String,
-    },
     Listing {
         path: Option<String>,
         entries: Vec<RemoteEntry>,
@@ -72,62 +53,11 @@ pub enum Reply {
         name: String,
     },
     Pending,
-    Accepted,
     Denied,
 }
 
 pub fn fail(error: impl fmt::Display) -> Error {
     Error::Os(error.to_string())
-}
-
-pub fn encode(bytes: &[u8; 32]) -> String {
-    BASE32_NOPAD_NOCASE.encode(bytes).to_ascii_lowercase()
-}
-
-fn decode(text: &str) -> Option<[u8; 32]> {
-    BASE32_NOPAD_NOCASE
-        .decode(text.as_bytes())
-        .ok()?
-        .try_into()
-        .ok()
-}
-
-pub fn decode_id(text: &str) -> Option<EndpointId> {
-    decode(text).and_then(|bytes| EndpointId::from_bytes(&bytes).ok())
-}
-
-pub fn pair_link(code: &str) -> String {
-    format!("{SCHEME}://pair/{code}")
-}
-
-pub fn is_link(text: &str) -> bool {
-    text.get(..SCHEME.len() + 1)
-        .is_some_and(|head| head.eq_ignore_ascii_case(&format!("{SCHEME}:")))
-}
-
-pub fn parse_link(text: &str) -> Option<String> {
-    let url = Url::parse(text.trim()).ok()?;
-
-    if url.scheme() != SCHEME || url.host_str()? != "pair" {
-        return None;
-    }
-
-    let code = url.path().trim_matches('/');
-
-    parse_code(code).ok().map(|_| code.to_string())
-}
-
-pub fn parse_code(text: &str) -> Result<(EndpointId, [u8; 32])> {
-    // a pairing QR from another release channel carries that channel's scheme
-    let code = text
-        .trim()
-        .split_once("://pair/")
-        .map_or(text.trim(), |(_, code)| code.trim_end_matches('/'));
-
-    let (id, secret) = code.split_once('.').ok_or(Error::Invalid)?;
-    let id = decode_id(id).ok_or(Error::Invalid)?;
-
-    Ok((id, decode(secret).ok_or(Error::Invalid)?))
 }
 
 pub fn safe_relative(name: &str) -> Option<PathBuf> {

@@ -4,6 +4,12 @@ macro_rules! handler {
         tauri::generate_handler![
             $($atrix)*
             crate::desktop::data::data_entries,
+            crate::console::terminal_type,
+            crate::console::terminal_interrupt,
+            crate::console::terminal_keys,
+            crate::console::terminal_screen,
+            crate::console::terminal_paste_image,
+            crate::console::clipboard_image,
             crate::desktop::apps::launcher::list_apps,
             crate::desktop::apps::launcher::pinned_apps,
             crate::desktop::apps::launcher::launch_app,

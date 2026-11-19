@@ -1,29 +1,24 @@
+import { updateDevice } from "@atrix/settings"
+import { openDesktopSettings } from "#lib/components/settings/desktopSettings.ts"
 import { editing } from "#lib/desktop/edit/index.js"
+import { type PowerAction, powerAction } from "#lib/desktop/native/system.js"
 import { hideWindow } from "#lib/desktop/native/windows.js"
+import { m } from "#lib/paraglide/messages.js"
+import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
+import { powerLabel } from "./commands"
 import type { Launcher } from "./launcher.svelte"
 
 const PAGE = 5
 
+const POWER: [PowerAction, string][] = [
+  ["lock", "lucide:lock"],
+  ["sleep", "lucide:moon"],
+  ["restart", "lucide:rotate-cw"],
+  ["shutdown", "lucide:power"],
+]
+
 export const keydown = (launcher: Launcher, e: KeyboardEvent) => {
-  if (launcher.menu) {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault()
-
-      const count = launcher.menuItems.length
-
-      if (count) {
-        const step = e.key === "ArrowDown" ? 1 : count - 1
-
-        launcher.menuCursor = (launcher.menuCursor + step) % count
-      }
-    } else if (e.key === "Enter") {
-      e.preventDefault()
-      launcher.runMenu(launcher.menuItems[launcher.menuCursor])
-    } else if (e.key === "Escape") {
-      e.preventDefault()
-      launcher.menu = null
-    }
-
+  if (contextMenu.current) {
     return
   }
 
@@ -64,9 +59,13 @@ export const keydown = (launcher: Launcher, e: KeyboardEvent) => {
 
       return
     case "Enter":
+      if (e.isComposing) {
+        return
+      }
+
       e.preventDefault()
       launcher.run(
-        launcher.flat[launcher.active],
+        launcher.current,
         e.shiftKey ? "admin" : e.ctrlKey ? "location" : "open",
       )
 
@@ -95,32 +94,59 @@ export const keydown = (launcher: Launcher, e: KeyboardEvent) => {
   }
 }
 
-export const mousedown = (launcher: Launcher, e: MouseEvent) => {
-  const target = e.target as Element
+export const pointerdown = (e: PointerEvent) => {
+  const target = e.target instanceof Element ? e.target : null
 
-  if (launcher.menu && !target.closest("[data-menu]")) {
-    launcher.menu = null
-
+  if (
+    contextMenu.current ||
+    e.button !== 0 ||
+    editing.on ||
+    target?.closest("[data-launcher]")
+  ) {
     return
   }
 
-  if (launcher.backdropMenu) {
-    return
-  }
-
-  if (e.button === 0 && !editing.on && !target.closest("[data-launcher]")) {
-    hideWindow("launcher").catch(() => undefined)
-  }
+  hideWindow("launcher").catch(() => undefined)
 }
 
+const backdropItems = (launcher: Launcher): MenuItem[] => [
+  {
+    label: launcher.query
+      ? m.launcher_search_clear()
+      : m.launcher_search_focus(),
+    icon: launcher.query ? "lucide:eraser" : "lucide:search",
+    run: () => {
+      launcher.setQuery("")
+      launcher.input?.focus()
+    },
+  },
+  {
+    label: launcher.device.showKeymap
+      ? m.launcher_keymap_hide()
+      : m.launcher_keymap_show(),
+    icon: launcher.device.showKeymap ? "lucide:eye-off" : "lucide:eye",
+    run: () => updateDevice(d => ({ ...d, showKeymap: !d.showKeymap })),
+  },
+  "separator",
+  {
+    label: m.launcher_cmd_desktop_settings(),
+    icon: "lucide:settings",
+    run: () => openDesktopSettings(),
+  },
+  "separator",
+  ...POWER.map(([id, icon]) => ({
+    label: powerLabel(id),
+    icon,
+    run: () => powerAction(id),
+  })),
+]
+
 export const contextmenu = (launcher: Launcher, e: MouseEvent) => {
-  if ((e.target as Element).closest("[data-launcher]")) {
+  const target = e.target instanceof Element ? e.target : null
+
+  if (target?.closest("[data-launcher]")) {
     return
   }
 
-  e.preventDefault()
-  e.stopPropagation()
-  launcher.backdropMenuX = e.clientX
-  launcher.backdropMenuY = e.clientY
-  launcher.backdropMenu = true
+  contextMenu.show(e, backdropItems(launcher))
 }

@@ -1,334 +1,340 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { Canvas } from "@threlte/core"
-  import { NeutralToneMapping } from "three"
-  import {
-    type ModelViewerLabels,
-    type ModelViewerLocale,
-    modelViewerLabels,
-    viewerLocale,
-  } from "./labels"
-  import { fetchText, loadModel } from "./load"
-  import {
-    disposeMaterials,
-    disposeModel,
-    type MaterialSet,
-    type Model,
-    parseMaterials,
-  } from "./mesh"
-  import { baseName, fileName, type ObjScan, resolveAsset } from "./model"
-  import Scene from "./Scene.svelte"
+import Icon from "@iconify/svelte"
+import { Canvas } from "@threlte/core"
+import { NeutralToneMapping } from "three"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import Popover from "#lib/components/ui/Popover.svelte"
+import Segmented from "#lib/components/ui/Segmented.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import { fade } from "#lib/pcb/motion.ts"
+import { currentLocale } from "#lib/store/locale.ts"
+import { fetchText, loadModel } from "./load"
+import {
+  disposeMaterials,
+  disposeModel,
+  type MaterialSet,
+  type Model,
+  parseMaterials,
+} from "./mesh"
+import { baseName, fileName, type ObjScan, resolveAsset } from "./model"
+import Scene from "./Scene.svelte"
 
-  let {
-    objUrl,
-    mtlUrl = null,
-    title,
-    locale,
-    labels,
-    onfullscreen,
-  }: {
-    objUrl: string
-    mtlUrl?: string | null
-    title?: string
-    locale?: ModelViewerLocale
-    labels?: Partial<ModelViewerLabels>
-    onfullscreen?: (fullscreen: boolean) => void
-  } = $props()
+let {
+  objUrl,
+  mtlUrl = null,
+  title,
+  onfullscreen,
+}: {
+  objUrl: string
+  mtlUrl?: string | null
+  title?: string
+  onfullscreen?: (fullscreen: boolean) => void
+} = $props()
 
-  type Round = {
-    label: string
-    icon: string
-    tip: string
-    onclick?: () => void
-    target?: string
-    pressed?: boolean
-    disabled?: boolean
+const BACKDROPS = {
+  white: { surface: "bg-zinc-100", cell: "#d4d4d8", section: "#a1a1aa" },
+  gray: { surface: "bg-zinc-600", cell: "#71717a", section: "#a1a1aa" },
+  black: { surface: "bg-zinc-950", cell: "#27272a", section: "#3f3f46" },
+}
+
+type Backdrop = keyof typeof BACKDROPS
+
+const BACKDROP_KEYS = Object.keys(BACKDROPS) as Backdrop[]
+
+const BACKDROP_LABELS: Record<Backdrop, () => string> = {
+  white: m.files_model_white,
+  gray: m.files_model_gray,
+  black: m.files_model_black,
+}
+
+const VIEW_KEY = "atrix-model-viewer.view"
+
+const heading = $derived(title ?? fileName(objUrl))
+
+let status = $state<"loading" | "ready" | "error">("loading")
+
+let progress = $state<number | null>(null)
+
+let failure = $state("")
+
+let model = $state.raw<Model | null>(null)
+
+let scan = $state.raw<ObjScan | null>(null)
+
+let bytes = $state(0)
+
+let materials = $state.raw<MaterialSet | null>(null)
+
+let materialMissing = $state(false)
+
+let revision = $state(0)
+
+let wireframe = $state(false)
+
+let flat = $state(false)
+
+let fullscreen = $state(false)
+
+let dragging = $state(false)
+
+let detailsOpen = $state(false)
+
+let viewOpen = $state(false)
+
+let shell = $state<HTMLElement>()
+
+let picker = $state<HTMLInputElement>()
+
+let scene = $state<ReturnType<typeof Scene>>()
+
+const stored = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null") ?? {}
+  } catch {
+    return {}
+  }
+})()
+
+const view = $state({
+  backdrop: BACKDROP_KEYS.includes(stored.backdrop)
+    ? (stored.backdrop as Backdrop)
+    : "gray",
+  guides: typeof stored.guides === "boolean" ? stored.guides : true,
+  lighting: typeof stored.lighting === "boolean" ? stored.lighting : true,
+  brightness: typeof stored.brightness === "number" ? stored.brightness : 1,
+})
+
+$effect(() => {
+  localStorage.setItem(VIEW_KEY, JSON.stringify(view))
+})
+
+const ready = $derived(status === "ready")
+
+const textures = new Map<string, string>()
+
+let source: { text: string; base: string } | null = null
+
+const count = (n: number) => n.toLocaleString(currentLocale())
+
+const fileSize = (n: number) => {
+  const mega = n >= 1024 ** 2
+
+  return new Intl.NumberFormat(currentLocale(), {
+    style: "unit",
+    unit: mega ? "megabyte" : "kilobyte",
+    maximumFractionDigits: 1,
+  }).format(n / (mega ? 1024 ** 2 : 1024))
+}
+
+const facts = $derived(
+  model && scan
+    ? [
+        [m.files_model_file(), heading],
+        [m.files_columns_size(), fileSize(bytes)],
+        [m.files_model_vertices(), count(scan.vertices)],
+        [m.files_model_faces(), count(scan.faces)],
+        [m.files_model_objects(), count(model.slots.length)],
+        [
+          m.files_model_materials(),
+          materials
+            ? count(Object.keys(materials.materialsInfo).length)
+            : m.files_model_none(),
+        ],
+        [
+          m.files_model_dimensions(),
+          model.size
+            .map(n =>
+              n.toLocaleString(currentLocale(), { maximumFractionDigits: 2 }),
+            )
+            .join(" × "),
+        ],
+      ]
+    : [],
+)
+
+const applyMaterials = (body: string, base: string) => {
+  if (materials) {
+    disposeMaterials(materials)
   }
 
-  const BACKDROPS = {
-    white: { surface: "bg-zinc-100", cell: "#d4d4d8", section: "#a1a1aa" },
-    gray: { surface: "bg-zinc-600", cell: "#71717a", section: "#a1a1aa" },
-    black: { surface: "bg-zinc-950", cell: "#27272a", section: "#3f3f46" },
-  }
-
-  type Backdrop = keyof typeof BACKDROPS
-
-  const BACKDROP_KEYS = Object.keys(BACKDROPS) as Backdrop[]
-
-  const VIEW_KEY = "atrix-model-viewer.view"
-
-  const uid = $props.id()
-
-  const lang = $derived<ModelViewerLocale>(
-    locale ?? viewerLocale(globalThis.navigator?.language),
+  source = { text: body, base }
+  materials = parseMaterials(
+    body,
+    ref =>
+      textures.get(baseName(ref).toLowerCase()) ??
+      resolveAsset(ref, base) ??
+      ref,
+    () => revision++,
   )
-  const text = $derived({ ...modelViewerLabels[lang], ...labels })
-  const heading = $derived(title ?? fileName(objUrl))
+  materialMissing = false
+}
 
-  let status = $state<"loading" | "ready" | "error">("loading")
-  let progress = $state<number | null>(null)
-  let failure = $state("")
-  let model = $state.raw<Model | null>(null)
-  let scan = $state.raw<ObjScan | null>(null)
-  let bytes = $state(0)
-  let materials = $state.raw<MaterialSet | null>(null)
-  let materialMissing = $state(false)
-  let revision = $state(0)
-
-  let wireframe = $state(false)
-  let flat = $state(false)
-  let fullscreen = $state(false)
-  let dragging = $state(false)
-  let detailsOpen = $state(false)
-  let viewOpen = $state(false)
-
-  let shell = $state<HTMLElement>()
-  let picker = $state<HTMLInputElement>()
-  let scene = $state<ReturnType<typeof Scene>>()
-
-  const stored = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null") ?? {}
-    } catch {
-      return {}
-    }
-  })()
-
-  const view = $state({
-    backdrop: BACKDROP_KEYS.includes(stored.backdrop)
-      ? (stored.backdrop as Backdrop)
-      : "gray",
-    guides: typeof stored.guides === "boolean" ? stored.guides : true,
-    lighting: typeof stored.lighting === "boolean" ? stored.lighting : true,
-    brightness:
-      typeof stored.brightness === "number" ? stored.brightness : 1,
-  })
-
-  $effect(() => {
-    localStorage.setItem(VIEW_KEY, JSON.stringify(view))
-  })
-
-  const ready = $derived(status === "ready")
-
-  const textures = new Map<string, string>()
-  let source: { text: string; base: string } | null = null
-
-  const count = (n: number) => n.toLocaleString(lang)
-
-  const fileSize = (n: number) => {
-    const mega = n >= 1024 ** 2
-
-    return new Intl.NumberFormat(lang, {
-      style: "unit",
-      unit: mega ? "megabyte" : "kilobyte",
-      maximumFractionDigits: 1,
-    }).format(n / (mega ? 1024 ** 2 : 1024))
+const releaseMaterials = () => {
+  if (materials) {
+    disposeMaterials(materials)
   }
 
-  const facts = $derived(
-    model && scan
-      ? [
-          [text.file, heading],
-          [text.fileSize, fileSize(bytes)],
-          [text.vertices, count(scan.vertices)],
-          [text.faces, count(scan.faces)],
-          [text.objects, count(model.slots.length)],
-          [
-            text.materials,
-            materials
-              ? count(Object.keys(materials.materialsInfo).length)
-              : text.none,
-          ],
-          [
-            text.dimensions,
-            model.size
-              .map(n => n.toLocaleString(lang, { maximumFractionDigits: 2 }))
-              .join(" × "),
-          ],
-        ]
-      : [],
-  )
-
-  const applyMaterials = (body: string, base: string) => {
-    if (materials) {
-      disposeMaterials(materials)
-    }
-
-    source = { text: body, base }
-    materials = parseMaterials(
-      body,
-      ref =>
-        textures.get(baseName(ref).toLowerCase()) ??
-        resolveAsset(ref, base) ??
-        ref,
-      () => revision++,
-    )
-    materialMissing = false
+  for (const url of textures.values()) {
+    URL.revokeObjectURL(url)
   }
 
-  const releaseMaterials = () => {
-    if (materials) {
-      disposeMaterials(materials)
-    }
+  textures.clear()
+  materials = null
+  source = null
+  materialMissing = false
+}
 
-    for (const url of textures.values()) {
-      URL.revokeObjectURL(url)
-    }
+$effect(() => {
+  const url = objUrl
+  const explicit = mtlUrl
+  const controller = new AbortController()
+  const { signal } = controller
+  let loaded: Model | null = null
 
-    textures.clear()
-    materials = null
-    source = null
-    materialMissing = false
-  }
+  status = "loading"
+  progress = null
 
-  $effect(() => {
-    const url = objUrl
-    const explicit = mtlUrl
-    const controller = new AbortController()
-    const { signal } = controller
-    let loaded: Model | null = null
+  loadModel(url, signal, ratio => (progress = ratio))
+    .then(result => {
+      if (signal.aborted) {
+        disposeModel(result.model)
 
-    status = "loading"
-    progress = null
-
-    loadModel(url, signal, ratio => (progress = ratio))
-      .then(result => {
-        if (signal.aborted) {
-          disposeModel(result.model)
-
-          return
-        }
-
-        loaded = result.model
-        model = result.model
-        scan = result.scan
-        bytes = result.bytes
-        status = "ready"
-
-        const library = result.scan.libraries[0]
-        const mtl =
-          explicit ??
-          (library === undefined ? undefined : resolveAsset(library, url))
-
-        if (mtl === undefined) {
-          return
-        }
-
-        materialMissing = true
-
-        if (mtl) {
-          fetchText(mtl, signal)
-            .then(body => {
-              if (!signal.aborted) {
-                applyMaterials(body, mtl)
-              }
-            })
-            .catch(() => undefined)
-        }
-      })
-      .catch(error => {
-        if (!signal.aborted) {
-          failure = error instanceof Error ? error.message : String(error)
-          status = "error"
-        }
-      })
-
-    return () => {
-      controller.abort()
-      releaseMaterials()
-
-      if (loaded) {
-        disposeModel(loaded)
+        return
       }
 
-      model = null
-      scan = null
-    }
-  })
+      loaded = result.model
+      model = result.model
+      scan = result.scan
+      bytes = result.bytes
+      status = "ready"
 
-  const attach = async (files: File[]) => {
-    const mtl = files.find(f => f.name.toLowerCase().endsWith(".mtl"))
-    const body = mtl ? await mtl.text() : source?.text
+      const library = result.scan.libraries[0]
+      const mtl =
+        explicit ??
+        (library === undefined ? undefined : resolveAsset(library, url))
 
-    if (body === undefined || !model) {
-      return
-    }
-
-    for (const file of files) {
-      if (file === mtl) {
-        continue
+      if (mtl === undefined) {
+        return
       }
 
-      const name = file.name.toLowerCase()
-      const previous = textures.get(name)
+      materialMissing = true
 
-      if (previous) {
-        URL.revokeObjectURL(previous)
+      if (mtl) {
+        fetchText(mtl, signal)
+          .then(body => {
+            if (!signal.aborted) {
+              applyMaterials(body, mtl)
+            }
+          })
+          .catch(() => undefined)
       }
+    })
+    .catch(error => {
+      if (!signal.aborted) {
+        failure = error instanceof Error ? error.message : String(error)
+        status = "error"
+      }
+    })
 
-      textures.set(name, URL.createObjectURL(file))
+  return () => {
+    controller.abort()
+    releaseMaterials()
+
+    if (loaded) {
+      disposeModel(loaded)
     }
 
-    applyMaterials(body, mtl ? objUrl : (source?.base ?? objUrl))
+    model = null
+    scan = null
+  }
+})
+
+const attach = async (files: File[]) => {
+  const mtl = files.find(f => f.name.toLowerCase().endsWith(".mtl"))
+  const body = mtl ? await mtl.text() : source?.text
+
+  if (body === undefined || !model) {
+    return
   }
 
-  const toggleFullscreen = () => {
-    if (onfullscreen) {
-      fullscreen = !fullscreen
-      onfullscreen(fullscreen)
-    } else if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => undefined)
-    } else {
-      shell?.requestFullscreen().catch(() => undefined)
+  for (const file of files) {
+    if (file === mtl) {
+      continue
     }
+
+    const name = file.name.toLowerCase()
+    const previous = textures.get(name)
+
+    if (previous) {
+      URL.revokeObjectURL(previous)
+    }
+
+    textures.set(name, URL.createObjectURL(file))
   }
 
-  const onkeydown = (e: KeyboardEvent) => {
-    const leaving = e.key === "Escape" && fullscreen && onfullscreen
+  applyMaterials(body, mtl ? objUrl : (source?.base ?? objUrl))
+}
 
-    if (e.key === "F11" || leaving) {
-      e.preventDefault()
-      toggleFullscreen()
-    }
+const toggleFullscreen = () => {
+  if (onfullscreen) {
+    fullscreen = !fullscreen
+    onfullscreen(fullscreen)
+  } else if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => undefined)
+  } else {
+    shell?.requestFullscreen().catch(() => undefined)
   }
+}
 
-  const carriesFiles = (e: DragEvent) =>
-    e.dataTransfer?.types.includes("Files") ?? false
+const onkeydown = (e: KeyboardEvent) => {
+  const leaving = e.key === "Escape" && fullscreen && onfullscreen
 
-  const ondragover = (e: DragEvent) => {
-    if (carriesFiles(e)) {
-      e.preventDefault()
-      dragging = status === "ready"
-    }
-  }
-
-  const ondragleave = (e: DragEvent & { currentTarget: HTMLElement }) => {
-    const inside =
-      e.relatedTarget instanceof Node &&
-      e.currentTarget.contains(e.relatedTarget)
-
-    if (!inside) {
-      dragging = false
-    }
-  }
-
-  const ondrop = (e: DragEvent) => {
-    if (!carriesFiles(e)) {
-      return
-    }
-
+  if (e.key === "F11" || leaving) {
     e.preventDefault()
+    toggleFullscreen()
+  }
+}
 
-    if (dragging) {
-      dragging = false
-      attach(Array.from(e.dataTransfer?.files ?? []))
-    }
+const carriesFiles = (e: DragEvent) =>
+  e.dataTransfer?.types.includes("Files") ?? false
+
+const ondragover = (e: DragEvent) => {
+  if (carriesFiles(e)) {
+    e.preventDefault()
+    dragging = status === "ready"
+  }
+}
+
+const ondragleave = (e: DragEvent & { currentTarget: HTMLElement }) => {
+  const inside =
+    e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)
+
+  if (!inside) {
+    dragging = false
+  }
+}
+
+const ondrop = (e: DragEvent) => {
+  if (!carriesFiles(e)) {
+    return
   }
 
-  const onpick = (e: Event & { currentTarget: HTMLInputElement }) => {
-    attach(Array.from(e.currentTarget.files ?? []))
-    e.currentTarget.value = ""
+  e.preventDefault()
+
+  if (dragging) {
+    dragging = false
+    attach(Array.from(e.dataTransfer?.files ?? []))
   }
+}
+
+const onpick = (e: Event & { currentTarget: HTMLInputElement }) => {
+  attach(Array.from(e.currentTarget.files ?? []))
+  e.currentTarget.value = ""
+}
+
+const pressed = (on: boolean) =>
+  on ? "bg-primary/8 text-primary" : undefined
 </script>
 
 <svelte:window {onkeydown} />
@@ -341,33 +347,18 @@
   }}
 />
 
-{#snippet round(b: Round)}
-  <div class={["tooltip", b.tip]} data-tip={b.label}>
-    <button
-      type="button"
-      aria-label={b.label}
-      aria-pressed={b.pressed}
-      disabled={b.disabled}
-      popovertarget={b.target}
-      style:anchor-name={b.target ? `--${b.target}` : undefined}
-      class={[
-        "btn btn-circle btn-sm border-base-content/15 bg-base-100/85",
-        "shadow-sm backdrop-blur-md",
-        b.pressed && "btn-active",
-      ]}
-      onclick={b.onclick}
-    >
-      <Icon icon={b.icon} class="size-4" />
-    </button>
-  </div>
-{/snippet}
-
 {#snippet toggle(label: string, checked: boolean, set: (on: boolean) => void)}
-  <label class="flex cursor-pointer items-center justify-between gap-3 py-1">
-    <span>{label}</span>
+  <label
+    class={[
+      "flex min-h-8 cursor-pointer items-center justify-between gap-3",
+      "rounded-field px-2 transition-colors duration-140",
+      "hover:bg-base-content/8",
+    ]}
+  >
+    <span class="min-w-0 truncate">{label}</span>
     <input
       type="checkbox"
-      class="toggle toggle-primary toggle-xs"
+      class="toggle toggle-sm toggle-primary shrink-0"
       {checked}
       onchange={e => set(e.currentTarget.checked)}
     />
@@ -378,8 +369,8 @@
   bind:this={shell}
   aria-label={heading}
   class={[
-    "relative size-full overflow-hidden font-sans text-base-content",
-    "transition-colors duration-200",
+    "relative size-full overflow-hidden text-base-content",
+    "transition-colors duration-140",
     BACKDROPS[view.backdrop].surface,
   ]}
   {ondragover}
@@ -407,184 +398,165 @@
 
   {#if status === "loading"}
     <div class="absolute inset-0 grid place-items-center">
-      <div
-        class={[
-          "flex w-52 flex-col items-center gap-3 rounded-box p-4",
-          "bg-base-100/85 shadow-sm backdrop-blur-md",
-        ]}
-      >
-        <span class="text-sm text-base-content/70">{text.loading}</span>
-
+      <div class="island flex w-52 flex-col items-center gap-3 p-4">
+        <span class="text-sm text-base-content/70">
+          {m.files_viewer_loading()}
+        </span>
         {#if progress === null}
-          <progress class="progress w-full"></progress>
+          <progress class="progress progress-primary w-full"></progress>
         {:else}
-          <progress class="progress w-full" value={progress} max="1"
+          <progress
+            class="progress progress-primary w-full"
+            value={progress}
+            max="1"
           ></progress>
         {/if}
       </div>
     </div>
   {:else if status === "error"}
     <div class="absolute inset-0 grid place-items-center p-6">
-      <div
-        class={[
-          "flex max-w-sm flex-col items-center gap-2 rounded-box p-5",
-          "bg-base-100/85 text-center shadow-sm backdrop-blur-md",
-        ]}
-      >
-        <Icon icon="lucide:triangle-alert" class="size-8 text-base-content/40" />
-        <p class="text-sm font-semibold">{text.loadFailed}</p>
-        <p class="text-xs break-all text-base-content/60">{failure}</p>
+      <div class="island max-w-sm px-5">
+        <EmptyState
+          icon="lucide:triangle-alert"
+          title={m.files_model_load_failed()}
+          text={failure}
+          class="break-all"
+        />
       </div>
     </div>
   {/if}
 
-  <div class="absolute top-3 left-3">
-    {@render round({
-      label: text.details,
-      icon: "lucide:info",
-      tip: "tooltip-right",
-      target: `${uid}-details`,
-      pressed: detailsOpen,
-      disabled: !ready,
-    })}
-  </div>
-
-  <div class="absolute top-3 right-3">
-    {@render round({
-      label: text.view,
-      icon: "lucide:layers",
-      tip: "tooltip-left",
-      target: `${uid}-view`,
-      pressed: viewOpen,
-    })}
-  </div>
-
-  <div class="absolute bottom-3 left-3">
-    {@render round({
-      label: text.attachMaterial,
-      icon: "lucide:palette",
-      tip: "tooltip-right",
-      onclick: () => picker?.click(),
-      disabled: !ready,
-    })}
-  </div>
-
-  <div class="absolute right-3 bottom-3 flex gap-2">
-    {@render round({
-      label: text.resetView,
-      icon: "lucide:rotate-ccw",
-      tip: "tooltip-top",
-      onclick: () => scene?.frame(),
-      disabled: !ready,
-    })}
-
-    {@render round({
-      label: fullscreen ? text.exitFullscreen : text.fullscreen,
-      icon: fullscreen ? "lucide:minimize" : "lucide:maximize",
-      tip: "tooltip-left",
-      onclick: toggleFullscreen,
-    })}
-  </div>
-
   <div
-    id={`${uid}-details`}
-    popover="manual"
-    style:position-anchor={`--${uid}-details`}
-    class={[
-      "dropdown m-0 mt-2 w-64 rounded-box border border-base-content/10 p-3",
-      "bg-base-100/90 text-xs shadow-lg backdrop-blur-md",
-    ]}
-    ontoggle={e => (detailsOpen = e.newState === "open")}
+    role="toolbar"
+    aria-label={heading}
+    class="island absolute top-2 right-2 flex items-center gap-0.5 p-1"
   >
-    <dl class="grid grid-cols-3 gap-x-3 gap-y-1.5">
-      {#each facts as [label, value] (label)}
-        <dt class="text-base-content/60">{label}</dt>
-        <dd class="col-span-2 truncate tabular-nums" title={value}>{value}</dd>
-      {/each}
-    </dl>
-  </div>
-
-  <div
-    id={`${uid}-view`}
-    popover="auto"
-    style:position-anchor={`--${uid}-view`}
-    class={[
-      "dropdown dropdown-end m-0 mt-2 w-64 rounded-box border p-3 text-sm",
-      "border-base-content/10 bg-base-100/90 shadow-lg backdrop-blur-md",
-    ]}
-    ontoggle={e => (viewOpen = e.newState === "open")}
-  >
-    <div class="flex items-center justify-between gap-3 pb-2">
-      <span>{text.background}</span>
-
-      <div class="flex gap-2">
-        {#each BACKDROP_KEYS as key (key)}
-          <button
-            type="button"
-            aria-label={text[key]}
-            title={text[key]}
-            aria-pressed={view.backdrop === key}
-            class={[
-              "size-5 cursor-pointer rounded-full border border-base-content/20",
-              "ring-2 ring-offset-2 ring-offset-base-100",
-              "transition-shadow duration-150",
-              BACKDROPS[key].surface,
-              view.backdrop === key
-                ? "ring-primary"
-                : "ring-transparent hover:ring-base-content/25",
-            ]}
-            onclick={() => (view.backdrop = key)}
-          ></button>
-        {/each}
-      </div>
-    </div>
-
-    <div class="flex flex-col border-t border-base-content/10 py-1">
-      {@render toggle(text.guides, view.guides, on => (view.guides = on))}
-      {@render toggle(text.lighting, view.lighting, on => (view.lighting = on))}
-
-      <label class="flex flex-col gap-1.5 py-1">
-        <span class="flex justify-between">
-          {text.brightness}
-          <span class="text-base-content/60 tabular-nums">
-            {Math.round(view.brightness * 100)}%
-          </span>
-        </span>
-
-        <input
-          type="range"
-          class="range range-primary range-xs"
-          min="0.2"
-          max="2"
-          step="0.05"
-          aria-label={text.brightness}
-          bind:value={view.brightness}
+    <IconButton
+      icon="lucide:info"
+      label={m.files_model_details()}
+      aria-pressed={detailsOpen}
+      disabled={!ready}
+      class={pressed(detailsOpen && ready)}
+      onclick={() => (detailsOpen = !detailsOpen)}
+    />
+    <Popover
+      label={m.files_model_view()}
+      placement="bottom-end"
+      width="w-72"
+      bind:open={viewOpen}
+    >
+      {#snippet trigger(props)}
+        <IconButton
+          icon="lucide:layers"
+          label={m.files_model_view()}
+          class={pressed(viewOpen)}
+          {...props}
         />
-      </label>
-    </div>
-
-    <div class="flex flex-col border-t border-base-content/10 pt-1">
-      {@render toggle(text.wireframe, wireframe, on => (wireframe = on))}
-      {@render toggle(text.flatShading, flat, on => (flat = on))}
-    </div>
+      {/snippet}
+      <div class="flex flex-col gap-3 p-1">
+        <div class="flex flex-col gap-2 px-2 pt-1">
+          <span class="text-xs font-medium text-base-content/60">
+            {m.files_model_background()}
+          </span>
+          <Segmented
+            label={m.files_model_background()}
+            items={BACKDROP_KEYS.map(key => ({
+              id: key,
+              label: BACKDROP_LABELS[key](),
+            }))}
+            value={view.backdrop}
+            onpick={key => (view.backdrop = key)}
+          />
+        </div>
+        <div class="flex flex-col">
+          {@render toggle(m.files_model_guides(), view.guides, on => {
+            view.guides = on
+          })}
+          {@render toggle(m.files_model_lighting(), view.lighting, on => {
+            view.lighting = on
+          })}
+          <label class="flex flex-col gap-2 px-2 py-2">
+            <span class="flex justify-between gap-3">
+              <span class="min-w-0 truncate">{m.files_model_brightness()}</span>
+              <span class="shrink-0 text-base-content/60 tabular-nums">
+                {Math.round(view.brightness * 100)}%
+              </span>
+            </span>
+            <input
+              type="range"
+              class="range range-primary range-xs w-full"
+              min="0.2"
+              max="2"
+              step="0.05"
+              aria-label={m.files_model_brightness()}
+              bind:value={view.brightness}
+            />
+          </label>
+        </div>
+        <div class="flex flex-col">
+          {@render toggle(m.files_model_wireframe(), wireframe, on => {
+            wireframe = on
+          })}
+          {@render toggle(m.files_model_flat_shading(), flat, on => {
+            flat = on
+          })}
+        </div>
+      </div>
+    </Popover>
+    <IconButton
+      icon="lucide:palette"
+      label={m.files_model_attach_material()}
+      disabled={!ready}
+      onclick={() => picker?.click()}
+    />
+    <IconButton
+      icon="lucide:rotate-ccw"
+      label={m.files_model_reset_view()}
+      disabled={!ready}
+      onclick={() => scene?.frame()}
+    />
+    <IconButton
+      icon={fullscreen ? "lucide:minimize" : "lucide:maximize"}
+      label={fullscreen
+        ? m.files_model_exit_fullscreen()
+        : m.files_model_fullscreen()}
+      onclick={toggleFullscreen}
+    />
   </div>
+
+  {#if detailsOpen && ready}
+    <div
+      class="island absolute top-2 left-2 w-64 max-w-viewport p-3 text-xs"
+      transition:fade
+    >
+      <dl class="flex flex-col gap-1.5">
+        {#each facts as [label, value] (label)}
+          <div class="flex min-w-0 gap-3">
+            <dt class="w-20 shrink-0 truncate text-base-content/60">{label}</dt>
+            <dd class="min-w-0 flex-1 truncate tabular-nums" title={value}>
+              {value}
+            </dd>
+          </div>
+        {/each}
+      </dl>
+    </div>
+  {/if}
 
   {#if materialMissing && ready}
-    <div class="absolute inset-x-0 bottom-3 flex justify-center">
+    <div class="absolute inset-x-0 bottom-2 flex justify-center px-2">
       <div
-        class={[
-          "flex items-center gap-2 rounded-full py-1 pr-1 pl-3 text-xs",
-          "border border-base-content/10 bg-base-100/90 shadow-sm backdrop-blur-md",
-        ]}
+        class="island flex min-w-0 items-center gap-2 py-1 ps-3 pe-1 text-xs"
+        transition:fade
       >
-        <span class="text-base-content/70">{text.materialMissing}</span>
-
+        <span class="min-w-0 truncate text-base-content/70">
+          {m.files_model_material_missing()}
+        </span>
         <button
           type="button"
-          class="btn btn-ghost btn-xs"
+          class="btn btn-ghost btn-xs shrink-0"
           onclick={() => picker?.click()}
         >
-          {text.attachMaterial}
+          {m.files_model_attach_material()}
         </button>
       </div>
     </div>
@@ -593,14 +565,15 @@
   {#if dragging}
     <div
       class={[
-        "pointer-events-none absolute inset-3 grid place-items-center",
+        "pointer-events-none absolute inset-2 grid place-items-center",
         "rounded-box border-2 border-dashed border-primary/60",
         "bg-base-100/70 backdrop-blur-sm",
       ]}
+      transition:fade
     >
       <div class="flex flex-col items-center gap-2 text-sm">
         <Icon icon="lucide:palette" class="size-6 text-primary" />
-        <span>{text.dropHint}</span>
+        <span>{m.files_model_drop_hint()}</span>
       </div>
     </div>
   {/if}

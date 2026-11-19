@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import { citationsOf, notesText } from "#lib/calendar/citations.ts"
 import { parseLocal } from "#lib/calendar/dates.ts"
 import { eventSpan, format } from "#lib/calendar/format.ts"
 import { inSeries } from "#lib/calendar/occurrence.ts"
@@ -13,17 +14,20 @@ let {
   tags,
   onedit,
   onmenu,
+  onopendoc,
 }: {
   events: SharedEvent[]
   tags: EventTag[]
   onedit: (event: SharedEvent) => void
   onmenu: (e: MouseEvent, event: SharedEvent) => void
+  onopendoc: (id: string) => void
 } = $props()
 </script>
 
 <ul class="flex flex-col gap-0.5">
   {#each events as event (event.id)}
       {@const labels = tagsOf(tags, event).map(tagLabel)}
+      {@const cited = citationsOf(event.notes)}
       <li>
         <button
           type="button"
@@ -43,6 +47,12 @@ let {
               {#if inSeries(event)}
                 <Icon
                   icon="lucide:repeat"
+                  class="size-3 shrink-0 text-base-content/50"
+                />
+              {/if}
+              {#if event.reminder !== null && !event.allDay}
+                <Icon
+                  icon="lucide:bell"
                   class="size-3 shrink-0 text-base-content/50"
                 />
               {/if}
@@ -67,11 +77,26 @@ let {
             {/if}
             {#if event.notes}
               <span class="line-clamp-2 text-xs text-base-content/55">
-                {event.notes}
+                {notesText(event.notes)}
               </span>
             {/if}
           </span>
         </button>
+        {#if cited.length > 0}
+          <div class="flex flex-wrap gap-1 ps-6 pb-1">
+            {#each cited as doc (doc.id)}
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs max-w-full gap-1 bg-base-content/5"
+                title={doc.label}
+                onclick={() => onopendoc(doc.id)}
+              >
+                <Icon icon="lucide:file-text" class="size-3 shrink-0" />
+                <span class="truncate">{doc.label}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
       </li>
   {/each}
 </ul>

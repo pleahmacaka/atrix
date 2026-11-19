@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { rootRem } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
   import { emit, listen } from "@tauri-apps/api/event"
-  import { t } from "svelte-i18n"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
   import * as native from "#lib/desktop/native/index.js"
+  import { m } from "#lib/paraglide/messages.js"
 
   type Slot = {
     hwnd: number
@@ -14,6 +13,9 @@
     header: number
     title: string
   }
+
+  const rootRem = () =>
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
 
   let slots = $state<Slot[]>([])
   let hovered = $state<number | null>(null)
@@ -63,26 +65,30 @@
 
 <svelte:body onmouseenter={() => setHover(true)} onmouseleave={() => setHover(false)} />
 
-<div class="atrix-card relative h-full w-full">
+<div class={[
+  "relative size-full rounded-box border border-base-300",
+  "bg-base-100 select-none",
+]}>
   {#each slots as slot (slot.hwnd)}
     {@const active = hovered === slot.hwnd}
 
     <fieldset
       class={[
-        "absolute rounded-field transition-colors duration-100",
-        active ? "bg-base-content/10" : "bg-transparent",
+        "absolute rounded-field transition-colors",
+        active ? "bg-base-content/8" : "bg-transparent",
       ]}
       style:left="{slot.x / rem}rem"
       style:top="{slot.y / rem}rem"
       style:width="{slot.width / rem}rem"
       style:height="{slot.height / rem}rem"
+      aria-label={slot.title}
       onmouseenter={() => (hovered = slot.hwnd)}
       onmouseleave={() => (hovered = null)}
     >
       <button
         type="button"
-        class="absolute inset-0 rounded-field outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        aria-label={$t("dock.preview.switchTo")}
+        class="absolute inset-0 cursor-pointer rounded-field"
+        aria-label={m.dock_preview_switch({ title: slot.title })}
         onclick={() => pick(slot)}
       ></button>
 
@@ -90,19 +96,19 @@
         class="pointer-events-none relative flex items-center gap-2 pr-1 pl-2"
         style:height="{slot.header / rem}rem"
       >
-        <span class="min-w-0 flex-1 truncate text-xs text-base-content/80">{slot.title}</span>
+        <span class="min-w-0 flex-1 truncate text-xs" title={slot.title}>{slot.title}</span>
 
-        <button
-          type="button"
+        <IconButton
+          icon="lucide:x"
+          label={m.dock_preview_close()}
+          size="xs"
           class={[
-            "btn btn-square btn-ghost btn-xs pointer-events-auto text-base-content transition-opacity duration-100 hover:bg-error hover:text-error-content",
+            "pointer-events-auto transition-opacity hover:bg-error",
+            "hover:text-error-content",
             active ? "opacity-100" : "opacity-0 focus-visible:opacity-100",
           ]}
-          aria-label={$t("dock.preview.close")}
           onclick={() => close(slot)}
-        >
-          <Icon icon="lucide:x" class="size-4" />
-        </button>
+        />
       </div>
     </fieldset>
   {/each}

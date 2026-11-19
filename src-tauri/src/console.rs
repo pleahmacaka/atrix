@@ -2,7 +2,6 @@ use tauri::ipc::{InvokeBody, Request};
 
 use crate::error::{Error, Result};
 
-#[cfg(windows)]
 mod imp {
     use std::borrow::Cow;
     use std::sync::Mutex;
@@ -343,35 +342,6 @@ mod imp {
             .map_err(|e| Error::code("image_invalid", e))?;
 
         Ok(png.into_inner())
-    }
-}
-
-#[cfg(not(windows))]
-mod imp {
-    use crate::error::Result;
-
-    pub fn type_into(_: u32, _: &str) -> Result<()> {
-        Err("unsupported".into())
-    }
-
-    pub fn interrupt(_: u32) -> Result<()> {
-        Err("unsupported".into())
-    }
-
-    pub fn strokes(_: u32, _: &[super::Stroke]) -> Result<()> {
-        Err("unsupported".into())
-    }
-
-    pub fn screen(_: u32) -> Result<Vec<String>> {
-        Err("unsupported".into())
-    }
-
-    pub fn paste_image(_: u32, _: &[u8]) -> Result<()> {
-        Err("unsupported".into())
-    }
-
-    pub fn clipboard_png() -> Result<Vec<u8>> {
-        Ok(Vec::new())
     }
 }
 

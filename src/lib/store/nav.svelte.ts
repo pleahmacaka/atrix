@@ -1,7 +1,14 @@
 import { panes } from "./panes.svelte.ts"
 import { shell } from "./shell.svelte.ts"
 
-export type Page = "chat" | "knowledge" | "data" | "calendar" | "agent" | "apps"
+export type Page =
+  | "chat"
+  | "knowledge"
+  | "data"
+  | "calendar"
+  | "agent"
+  | "apps"
+  | "files"
 
 export type SettingsTab =
   | "general"
@@ -14,6 +21,7 @@ export type SettingsTab =
   | "shortcuts"
   | "security"
   | "devices"
+  | "desktop"
 
 export type Current =
   | { kind: "chat"; id: string }

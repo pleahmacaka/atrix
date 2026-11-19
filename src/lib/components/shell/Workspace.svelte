@@ -7,6 +7,7 @@ import PromptEditor from "#lib/components/harness/PromptEditor.svelte"
 import KnowledgeView from "#lib/components/knowledge/KnowledgeView.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import { m } from "#lib/paraglide/messages.js"
+import { platform } from "#lib/platform.ts"
 import { nav } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
 import FindBar from "./FindBar.svelte"
@@ -64,6 +65,10 @@ const sharedInput = $derived(panes.shared && panes.leaves.length > 1)
     <KnowledgeView />
   {:else if nav.page === "apps"}
     <AppsHome />
+  {:else if nav.page === "files"}
+    {#await import("#lib/files/components/mobile/FilesPage.svelte") then { default: FilesPage }}
+      <FilesPage />
+    {/await}
   {:else if nav.page === "calendar"}
     {#if hosts.length > 0}
       <CalendarView {hosts} />
@@ -87,4 +92,10 @@ const sharedInput = $derived(panes.shared && panes.leaves.length > 1)
     {/if}
   {/if}
 </section>
+
+{#if platform === "android"}
+  {#await import("#lib/files/components/mobile/ShareWatch.svelte") then { default: ShareWatch }}
+    <ShareWatch />
+  {/await}
+{/if}
 

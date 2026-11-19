@@ -1,11 +1,7 @@
-import { tr } from "@atrix/i18n"
-import {
-  contextMenu,
-  type MenuAction,
-  type MenuItem,
-  openContextMenu,
-} from "@atrix/ui"
+import { m } from "#lib/paraglide/messages.js"
+import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import type { Item } from "../items"
+import { SECTION_LABELS, VIEW_LABELS } from "../labels"
 import {
   baseName,
   extensionOf,
@@ -37,7 +33,14 @@ import {
 } from "./cleanup.svelte"
 import { hintOf } from "./commands"
 import { type Explorer, fail } from "./explorer.svelte"
-import { commandEntry, entry, entryIcon, LOCKED_ITEMS } from "./menu-entries"
+import {
+  commandEntry,
+  entry,
+  entryIcon,
+  entryLabel,
+  type FileAction,
+  LOCKED_ITEMS,
+} from "./menu-entries"
 import { nameDrive, refreshPlaces } from "./places.svelte"
 import {
   MENU_SECTIONS,
@@ -62,46 +65,50 @@ import {
   toggleSection,
 } from "./sidebar"
 
-type Entry = MenuAction | false | null | undefined
-
-const command = (key: string) => tr(`explorer.commands.${key}`)
+type Entry = FileAction | false | null | undefined
 
 const compact = (entries: Entry[]) =>
-  entries.filter((entry): entry is MenuAction => !!entry)
+  entries.filter((entry): entry is FileAction => !!entry)
 
 export const NETWORK_ACTIONS = [
   { key: "mapDrive", run: mapNetworkDrive },
   { key: "unmapDrive", run: disconnectNetworkDrive },
   { key: "addNetworkLocation", run: addNetworkLocation },
-].map(action => ({ ...action, icon: entryIcon(action.key) }))
+].map(action => ({
+  ...action,
+  icon: entryIcon(action.key),
+  label: () => entryLabel(action.key),
+}))
 
-const networkMenu = (x: Explorer): MenuAction[] =>
+const networkMenu = (x: Explorer): FileAction[] =>
   NETWORK_ACTIONS.map(action =>
     entry(action.key, () => x.changePlaces(action.run)),
   )
 
-const moreOptions = (action: () => unknown): MenuAction =>
-  entry("moreOptions", action)
+const moreOptions = (run: () => unknown): FileAction =>
+  entry("moreOptions", run)
 
-const pinItem = (x: Explorer, path: string): MenuAction => {
+const pinItem = (x: Explorer, path: string): FileAction => {
   const pinned = isPinned(path)
 
   return entry("pin", () => x.pin(path, pinned), {
-    label: command(pinned ? "unpin" : "pin"),
+    label: pinned ? m.files_commands_unpin() : m.files_commands_pin(),
     icon: pinned ? "lucide:pin-off" : "lucide:pin",
   })
 }
 
-const privateItem = (path: string): MenuAction => {
+const privateItem = (path: string): FileAction => {
   const marked = isMarked(path)
 
   return entry("private", () => toggleMark(path), {
-    label: command(marked ? "unmarkPrivate" : "markPrivate"),
+    label: marked
+      ? m.files_commands_unmark_private()
+      : m.files_commands_mark_private(),
     icon: marked ? "lucide:eye" : "lucide:eye-off",
   })
 }
 
-const hideDeviceItem = (x: Explorer, path: string): MenuAction => {
+const hideDeviceItem = (x: Explorer, path: string): FileAction => {
   const hidden = prefs.hiddenDevices.includes(path)
 
   return entry(
@@ -114,13 +121,15 @@ const hideDeviceItem = (x: Explorer, path: string): MenuAction => {
       return x.tab.refresh()
     },
     {
-      label: command(hidden ? "unhideDevice" : "hideDevice"),
+      label: hidden
+        ? m.files_commands_unhide_device()
+        : m.files_commands_hide_device(),
       icon: hidden ? "lucide:eye" : "lucide:eye-off",
     },
   )
 }
 
-const hiddenDevicesItem = (x: Explorer): MenuAction => {
+const hiddenDevicesItem = (x: Explorer): FileAction => {
   const shown = prefs.showHiddenDevices
 
   return entry(
@@ -131,7 +140,9 @@ const hiddenDevicesItem = (x: Explorer): MenuAction => {
       return x.tab.refresh()
     },
     {
-      label: command(shown ? "hideHiddenDevices" : "showHiddenDevices"),
+      label: shown
+        ? m.files_commands_hide_hidden_devices()
+        : m.files_commands_show_hidden_devices(),
       icon: shown ? "lucide:eye-off" : "lucide:eye",
     },
   )
@@ -155,18 +166,12 @@ const clipName = (name: string) => {
   return `${chars.slice(0, NAME_HEAD).join("")}…${chars.slice(-NAME_TAIL).join("")}`
 }
 
-const bandizip = (key: string, name?: string) =>
-  tr(
-    `explorer.bandizip.${key}`,
-    name === undefined ? undefined : { name: clipName(name) },
-  )
-
 const stemOf = (item: Item) =>
   item.dir
     ? item.name
     : item.name.slice(0, item.name.length - extensionOf(item.name).length)
 
-const extractMenu = (x: Explorer, packed: Item[]): MenuAction[] => {
+const extractMenu = (x: Explorer, packed: Item[]): FileAction[] => {
   const paths = packed.map(item => item.path)
   const run = (job: BandizipJob) => () => x.bandizip(job, paths)
   const [single] = packed.length === 1 ? packed : []
@@ -176,13 +181,13 @@ const extractMenu = (x: Explorer, packed: Item[]): MenuAction[] => {
     entry("extractAuto", run("extractAuto")),
     entry("extractNamed", run("extractNamed"), {
       label: single
-        ? bandizip("extractNamed", stemOf(single))
-        : bandizip("extractEach"),
+        ? m.files_bandizip_extract_named({ name: clipName(stemOf(single)) })
+        : m.files_bandizip_extract_each(),
     }),
   ]
 }
 
-const bandizipMenu = (x: Explorer): MenuAction[] => {
+const bandizipMenu = (x: Explorer): FileAction[] => {
   const selection = x.selected
 
   if (!archives.bandizip || !x.filesystem || !selection.length) {
@@ -200,10 +205,10 @@ const bandizipMenu = (x: Explorer): MenuAction[] => {
 
   return compact([
     entry("compressZip", run("compressZip"), {
-      label: bandizip("compressZip", name),
+      label: m.files_bandizip_compress_zip({ name: clipName(name) }),
     }),
     entry("compress7z", run("compress7z"), {
-      label: bandizip("compress7z", name),
+      label: m.files_bandizip_compress7z({ name: clipName(name) }),
     }),
     selection.length > 1 && entry("compressEach", run("compressEach")),
   ])
@@ -211,7 +216,7 @@ const bandizipMenu = (x: Explorer): MenuAction[] => {
 
 type Sections = Partial<Record<MenuSection, Entry[]>>
 
-const archiveTabMenu = (x: Explorer, open: MenuAction[]): Sections => {
+const archiveTabMenu = (x: Explorer, open: FileAction[]): Sections => {
   const packed = splitArchive(x.tab.location)
 
   if (!packed || !archives.bandizip) {
@@ -227,10 +232,10 @@ const archiveTabMenu = (x: Explorer, open: MenuAction[]): Sections => {
   return { open, archive: extractMenu(x, [archive]) }
 }
 
-const visible = (section: MenuSection, items: MenuAction[]) => {
+const visible = (section: MenuSection, items: FileAction[]) => {
   const { order, hidden } = prefs.menuItems[section]
-  const idOf = (item: MenuAction) => item.id ?? ""
-  const rank = (item: MenuAction) => {
+  const idOf = (item: FileAction) => item.id ?? ""
+  const rank = (item: FileAction) => {
     const at = order.indexOf(idOf(item))
 
     return at === -1 ? order.length : at
@@ -246,7 +251,7 @@ const visible = (section: MenuSection, items: MenuAction[]) => {
 const builtIns = (layout: Sections) =>
   MENU_SECTIONS.flatMap(section => compact(layout[section] ?? []))
 
-const arrange = (layout: Sections, shell: MenuAction[]): MenuItem[] => {
+const arrange = (layout: Sections, shell: FileAction[]): MenuItem[] => {
   const { order, hidden } = prefs.menuLayout
   const groups = order
     .filter(id => !hidden.includes(id) || id === "properties")
@@ -331,34 +336,29 @@ const itemMenu = (x: Explorer): Sections => {
   }
 }
 
-const viewMenu = (x: Explorer, e: MouseEvent): MenuAction =>
+const viewMenu = (x: Explorer, e: MouseEvent): FileAction =>
   entry(
     "view",
     () =>
-      openContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        placement: "down",
-        items: [
-          ...VIEWS.map(mode => ({
-            label: tr(`explorer.views.${mode}`),
-            icon: mode === x.view ? "lucide:check" : VIEW_ICONS[mode],
-            hint: hintOf(`view.${mode}`),
-            action: () => x.setView(mode),
-          })),
-          "separator",
-          {
-            label: tr("explorer.views.dateGroups"),
-            icon: x.group === "modified" ? "lucide:check" : "lucide:calendar",
-            action: () => x.toggleDateGroups(),
-          },
-          {
-            label: tr("explorer.views.folderOnly"),
-            icon: x.own ? "lucide:check" : "lucide:folder-cog",
-            action: () => x.toggleFolderOnly(),
-          },
-        ],
-      }),
+      contextMenu.show(e, [
+        ...VIEWS.map(mode => ({
+          label: VIEW_LABELS[mode](),
+          icon: mode === x.view ? "lucide:check" : VIEW_ICONS[mode],
+          hint: hintOf(`view.${mode}`),
+          run: () => x.setView(mode),
+        })),
+        "separator",
+        {
+          label: m.files_views_date_groups(),
+          icon: x.group === "modified" ? "lucide:check" : "lucide:calendar",
+          run: () => x.toggleDateGroups(),
+        },
+        {
+          label: m.files_views_folder_only(),
+          icon: x.own ? "lucide:check" : "lucide:folder-cog",
+          run: () => x.toggleFolderOnly(),
+        },
+      ]),
     { icon: VIEW_ICONS[x.view] },
   )
 
@@ -416,42 +416,41 @@ export const openCleanupMenu = (
 ) => {
   const rect = anchor.getBoundingClientRect()
   const left = hoursLeft(item)
-
-  openContextMenu({
-    x: rect.left,
-    y: rect.bottom,
-    placement: "down",
-    anchor,
-    items: [
-      ...DELAYS.map(({ hours, label }) => ({
-        label: tr(`explorer.decor.${label}`, { hours }),
-        icon: hours === left ? "lucide:check" : "lucide:clock",
-        action: () => delayInstaller(item, hours),
-      })),
-      {
-        label: tr("explorer.decor.deleteAfterCustom"),
-        icon: "lucide:pencil",
-        action: () => {
-          customCleanup.item = item
-        },
-      },
-      "separator",
-      {
-        label: tr("explorer.decor.keep"),
-        icon: "lucide:undo-2",
-        action: () => keepInstaller(item),
-      },
-      {
-        label: tr("explorer.decor.deleteNow"),
-        icon: "lucide:trash-2",
-        action: () => {
-          x.tab.select([item.key])
-
-          return x.remove(false)
-        },
-      },
-    ],
+  const at = new MouseEvent("contextmenu", {
+    clientX: rect.left,
+    clientY: rect.bottom,
   })
+
+  contextMenu.show(at, [
+    ...DELAYS.map(({ hours, label }) => ({
+      label: label(),
+      icon: hours === left ? "lucide:check" : "lucide:clock",
+      run: () => delayInstaller(item, hours),
+    })),
+    {
+      label: m.files_decor_delete_after_custom(),
+      icon: "lucide:pencil",
+      run: () => {
+        customCleanup.item = item
+      },
+    },
+    "separator",
+    {
+      label: m.files_decor_keep(),
+      icon: "lucide:undo-2",
+      run: () => keepInstaller(item),
+    },
+    {
+      label: m.files_decor_delete_now(),
+      icon: "lucide:trash-2",
+      danger: true,
+      run: () => {
+        x.tab.select([item.key])
+
+        return x.remove(false)
+      },
+    },
+  ])
 }
 
 const verbsFor = (x: Explorer, selection = x.selected) =>
@@ -492,19 +491,14 @@ export const openMenu = async (
     return arrange(layout, shellItems(own, verbs, target, clipName, fail))
   }
 
-  openContextMenu({
-    x: e.clientX,
-    y: e.clientY,
-    placement: "down",
-    items: extend(ready ?? []),
-  })
+  contextMenu.show(e, extend(ready ?? []))
 
-  const opened = contextMenu.request
+  const opened = contextMenu.current
 
   if (loading && !ready) {
     loading.then(verbs => {
-      if (opened && contextMenu.request === opened) {
-        opened.items = extend(verbs)
+      if (opened && contextMenu.current === opened) {
+        contextMenu.current = { ...opened, items: extend(verbs) }
       }
     })
   }
@@ -545,9 +539,9 @@ const placeMenu = (x: Explorer, place: Place): MenuItem[] => {
           (section === "drives" && location !== THIS_PC)) &&
         entry("rename", () => x.renamePlace(location)),
       hide && {
-        label: tr("explorer.sidebar.hide"),
+        label: m.files_sidebar_hide(),
         icon: "lucide:eye-off",
-        action: () =>
+        run: () =>
           hide === "section" ? toggleSection(section) : hidePath(location),
       },
       own && entry("properties", () => x.properties([location])),
@@ -558,9 +552,9 @@ const placeMenu = (x: Explorer, place: Place): MenuItem[] => {
 
 const sectionsMenu = (): MenuItem[] => [
   ...SIDEBAR_SECTIONS.map(id => ({
-    label: tr(`explorer.sidebar.sections.${id}`),
+    label: SECTION_LABELS[id](),
     icon: sectionShown(id) ? "lucide:eye" : "lucide:eye-off",
-    action: () => toggleSection(id),
+    run: () => toggleSection(id),
   })),
 ]
 
@@ -572,10 +566,5 @@ export const openPlaceMenu = (
   e.preventDefault()
   e.stopPropagation()
 
-  openContextMenu({
-    x: e.clientX,
-    y: e.clientY,
-    placement: "down",
-    items: place ? placeMenu(x, place) : sectionsMenu(),
-  })
+  contextMenu.show(e, place ? placeMenu(x, place) : sectionsMenu())
 }

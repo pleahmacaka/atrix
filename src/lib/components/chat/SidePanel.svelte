@@ -2,7 +2,6 @@
 import Icon from "@iconify/svelte"
 import type { Block, ShownBlock } from "#lib/chat/blocks.ts"
 import GitPanel from "#lib/components/git/GitPanel.svelte"
-import TerminalPanel from "#lib/components/terminal/TerminalPanel.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import MenuItem from "#lib/components/ui/MenuItem.svelte"
@@ -14,6 +13,7 @@ import { m } from "#lib/paraglide/messages.js"
 import { baseName } from "#lib/path.ts"
 import { desktop } from "#lib/platform.ts"
 import { panes, type SideTab, usePane } from "#lib/store/panes.svelte.ts"
+import TerminalView from "#lib/terminal/TerminalView.svelte"
 import UiBlocks from "./UiBlocks.svelte"
 
 export type Shown = { id: string; blocks: ShownBlock[] }
@@ -52,7 +52,7 @@ $effect(() => {
   }
 })
 
-const shellCwd = $derived(host?.id === LOCAL ? (cwd ?? "") : "")
+const shellCwd = $derived(host?.id === LOCAL ? (cwd ?? null) : null)
 
 let index = $state<number | null>(null)
 
@@ -163,7 +163,7 @@ const nameOf = (entry: Shown, i: number) => {
   </header>
   {#if shell && desktop}
     <div class={["flex min-h-0 flex-1 flex-col", tab !== "terminal" && "hidden"]}>
-      <TerminalPanel cwd={shellCwd} />
+      <TerminalView cwd={shellCwd} shown={tab === "terminal"} />
     </div>
   {/if}
   {#if tab === "git"}

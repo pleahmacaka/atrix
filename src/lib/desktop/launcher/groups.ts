@@ -1,4 +1,9 @@
-import type { Result, ResultGroup, ResultKind } from "#lib/desktop/launcher/core/index.ts"
+import type { Profile } from "@atrix/settings"
+import type {
+  Result,
+  ResultGroup,
+  ResultKind,
+} from "#lib/desktop/launcher/core/index.ts"
 import {
   groupResults,
   looksLikeMath,
@@ -6,13 +11,14 @@ import {
   type Route,
   rank,
 } from "#lib/desktop/launcher/core/index.ts"
-import type { Profile } from "@atrix/settings"
 import type { AppEntry } from "#lib/desktop/native/apps.js"
 import type { ClipEntry } from "#lib/desktop/native/clipboard.js"
 import type { WindowEntry } from "#lib/desktop/native/windows.js"
+import { m } from "#lib/paraglide/messages.js"
 import { boost } from "./frecency"
 import {
   appResult,
+  atrixNewResult,
   calcResult,
   clearClipsResult,
   clipResults,
@@ -30,6 +36,26 @@ import { parseTimer, type Timer } from "./timers"
 
 export const RECENT = 6
 
+const GROUP_LABELS: Record<ResultKind, () => string> = {
+  app: m.launcher_group_app,
+  window: m.launcher_group_window,
+  command: m.launcher_group_command,
+  calc: m.launcher_group_calc,
+  unit: m.launcher_group_unit,
+  todo: m.launcher_group_todo,
+  timer: m.launcher_group_timer,
+  emoji: m.launcher_group_emoji,
+  web: m.launcher_group_web,
+  run: m.launcher_group_run,
+  setting: m.common_settings,
+  clip: m.launcher_group_clip,
+  atrix: m.launcher_group_atrix,
+  conversation: m.launcher_group_conversation,
+  doc: m.shell_page_knowledge,
+}
+
+const groupLabel = (kind: ResultKind) => GROUP_LABELS[kind]()
+
 export type GroupSource = {
   route: Route
   profile: Profile
@@ -42,8 +68,8 @@ export type GroupSource = {
   dockPinned: Set<string>
   recentIds: string[]
   commandRows: Result[]
+  atrixRows: Result[]
   extrasById: Map<string, Result>
-  t: (key: string) => string
 }
 
 const limitFor = (s: GroupSource) => (kind: ResultKind) => {
@@ -57,12 +83,21 @@ const limitFor = (s: GroupSource) => (kind: ResultKind) => {
     return Math.max(4, max)
   }
 
-  if (kind === "window" || kind === "command" || kind === "setting") {
+  if (
+    kind === "window" ||
+    kind === "command" ||
+    kind === "setting" ||
+    kind === "conversation" ||
+    kind === "doc"
+  ) {
     return Math.max(3, Math.ceil(max / 2))
   }
 
   return 2
 }
+
+const grouped = (s: GroupSource, items: Result[]) =>
+  items.length ? groupResults(items, limitFor(s), groupLabel) : []
 
 const asApp = (s: GroupSource, a: AppEntry) =>
   appResult(a, s.icons[a.path], s.dockPinned.has(a.path))
@@ -80,7 +115,7 @@ const emptyGroups = (s: GroupSource): ResultGroup[] => {
 
       const extra = s.extrasById.get(id)
 
-      return extra && launcher.showCommands ? [extra] : []
+      return extra ? [extra] : []
     })
     .slice(0, RECENT)
   const running = launcher.showWindows
@@ -96,9 +131,7 @@ const emptyGroups = (s: GroupSource): ResultGroup[] => {
   if (starred.length) {
     groups.push({
       kind: "app",
-      label: recent.length
-        ? s.t("launcher.sections.recent")
-        : s.t("launcher.sections.pinned"),
+      label: recent.length ? m.palette_recent() : m.launcher_section_pinned(),
       start: 0,
       items: starred,
     })
@@ -107,7 +140,7 @@ const emptyGroups = (s: GroupSource): ResultGroup[] => {
   if (s.timers.length) {
     groups.push({
       kind: "timer",
-      label: s.t("launcher.sections.timers"),
+      label: m.launcher_group_timer(),
       start: 0,
       items: s.timers.map(t => pendingTimerResult(t)),
     })
@@ -116,7 +149,7 @@ const emptyGroups = (s: GroupSource): ResultGroup[] => {
   if (running.length) {
     groups.push({
       kind: "window",
-      label: s.t("launcher.sections.running"),
+      label: m.launcher_section_running(),
       start: 0,
       items: running,
     })
@@ -136,44 +169,40 @@ export const buildGroups = (s: GroupSource): ResultGroup[] => {
   const { route } = s
   const { mode, text } = route
   const { launcher } = s.profile
-  const limit = limitFor(s)
 
   if (mode === "run") {
-    return text ? groupResults([runResult(text)], limit) : []
+    return text ? grouped(s, [runResult(text)]) : []
   }
 
   if (mode === "todo") {
     const todo = todoResult(text)
 
-    return todo ? groupResults([todo], limit) : []
+    return grouped(s, todo ? [todo] : [])
   }
 
   if (mode === "calc") {
     const outcome = unitResult(text) ?? calcResult(text)
 
-    return outcome ? groupResults([outcome], limit) : []
+    return grouped(s, outcome ? [outcome] : [])
   }
 
   if (route.mode === "timer") {
     const draft = parseTimer(text, route.kind)
-    const rows = [
+
+    return grouped(s, [
       ...(draft ? [newTimerResult(draft)] : []),
       ...s.timers.map(t => pendingTimerResult(t)),
-    ]
-
-    return rows.length ? groupResults(rows, limit) : []
+    ])
   }
 
   if (mode === "emoji") {
-    const rows = emojiResults(text)
-
-    return rows.length ? groupResults(rows, limit) : []
+    return grouped(s, emojiResults(text))
   }
 
   if (mode === "clip") {
     const rows = clipResults(s.clips, text)
 
-    return rows.length ? groupResults([...rows, clearClipsResult()], limit) : []
+    return grouped(s, rows.length ? [...rows, clearClipsResult()] : [])
   }
 
   if (!text) {
@@ -186,6 +215,7 @@ export const buildGroups = (s: GroupSource): ResultGroup[] => {
       ? s.windows.map(w => windowResult(w, s.icons[w.process]))
       : []),
     ...(launcher.showCommands ? s.commandRows : []),
+    ...s.atrixRows,
   ]
   const extras: Result[] = []
   const conversion = launcher.calculator ? unitResult(text) : null
@@ -207,7 +237,7 @@ export const buildGroups = (s: GroupSource): ResultGroup[] => {
     extras.push(openResult(target))
   }
 
-  extras.push(webResult(text, launcher.webSearch))
+  extras.push(atrixNewResult(text), webResult(text, launcher.webSearch))
 
-  return groupResults([...rank(candidates, text, boost), ...extras], limit)
+  return grouped(s, [...rank(candidates, text, boost), ...extras])
 }

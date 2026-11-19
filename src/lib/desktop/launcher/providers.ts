@@ -1,5 +1,6 @@
-import { dueLabel, eventFromTodo, quickTodo } from "@atrix/data"
-import { currentLocale, tr } from "@atrix/i18n"
+import type { WebSearchEngine } from "@atrix/settings"
+import { addTaskInMain } from "#lib/calendar/desktop.ts"
+import { dueLabel, quickTask } from "#lib/calendar/tasks.ts"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import {
   convert,
@@ -8,8 +9,7 @@ import {
   matchEmoji,
   plainNumber,
 } from "#lib/desktop/launcher/core/index.ts"
-import type { WebSearchEngine } from "@atrix/settings"
-import { events } from "#lib/desktop/data/index.js"
+import { m } from "#lib/paraglide/messages.js"
 import { toggleDockPin } from "../dock/dock.svelte"
 import {
   type AppEntry,
@@ -27,16 +27,25 @@ import {
   runCommand,
   type WindowEntry,
 } from "../native"
+import { type AtrixConversation, type AtrixDoc, askAtrix } from "./atrix"
+import { relativeTime } from "./relative"
 import {
   addTimer,
   cancelTimer,
   formatClock,
   remaining,
   type Timer,
-  type TimerKind,
 } from "./timers"
 
 const FALLBACK_ICON = "lucide:app-window"
+
+export const ATRIX_ICON = "/favicon.svg"
+
+const CALC_ERRORS: Record<string, () => string> = {
+  divisionByZero: m.launcher_calc_division_by_zero,
+  undefined: m.launcher_calc_undefined,
+  outOfRange: m.launcher_calc_out_of_range,
+}
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path
 
@@ -81,7 +90,8 @@ export const appResult = (
   secondaryActions: [
     {
       id: "admin",
-      label: tr("launcher.actions.admin"),
+      label: m.launcher_action_admin(),
+      icon: "lucide:shield",
       run: () => launchApp(app.path, true),
     },
     ...(app.kind === "store"
@@ -89,14 +99,16 @@ export const appResult = (
       : [
           {
             id: "location" as const,
-            label: tr("launcher.actions.location"),
+            label: m.launcher_action_location(),
+            icon: "lucide:folder-open",
             run: () => openLocation(app.path),
           },
         ]),
     {
       label: dockPinned
-        ? tr("launcher.actions.unpinDock")
-        : tr("launcher.actions.pinDock"),
+        ? m.launcher_action_unpin_dock()
+        : m.launcher_action_pin_dock(),
+      icon: dockPinned ? "lucide:pin-off" : "lucide:pin",
       run: () => toggleDockPin(app.path),
     },
   ],
@@ -110,11 +122,12 @@ export const windowResult = (entry: WindowEntry, icon?: string): Result => ({
   subtitle: fileName(entry.process),
   icon: icon || FALLBACK_ICON,
   iconPath: entry.process,
-  chips: entry.minimized ? [tr("launcher.chips.minimized")] : undefined,
+  chips: entry.minimized ? [m.launcher_chip_minimized()] : undefined,
   action: () => activateWindow(entry.hwnd),
   secondaryActions: [
     {
-      label: tr("launcher.actions.closeWindow"),
+      label: m.launcher_action_close_window(),
+      icon: "lucide:x",
       run: () => closeWindow(entry.hwnd),
     },
   ],
@@ -140,7 +153,7 @@ export const calcResult = (expression: string): Result | null => {
   if ("error" in outcome) {
     return {
       ...base,
-      title: tr(`launcher.calcErrors.${outcome.error}`),
+      title: CALC_ERRORS[outcome.error]?.() ?? outcome.error,
       action: () => undefined,
       stay: true,
     }
@@ -149,7 +162,6 @@ export const calcResult = (expression: string): Result | null => {
   return {
     ...base,
     title: formatNumber(outcome.value),
-    chips: [tr("launcher.chips.enterCopies")],
     action: () => navigator.clipboard.writeText(plainNumber(outcome.value)),
   }
 }
@@ -167,7 +179,6 @@ export const unitResult = (expression: string): Result | null => {
     title: converted.formatted,
     subtitle: expression.trim(),
     icon: "lucide:arrow-left-right",
-    chips: [tr("launcher.chips.enterCopies")],
     action: () => navigator.clipboard.writeText(converted.formatted),
     secondaryActions: [],
     score: 2100,
@@ -179,9 +190,8 @@ export const emojiResults = (query: string): Result[] =>
     id: `emoji:${match.char}`,
     kind: "emoji",
     title: match.name,
-    subtitle: match.char,
+    subtitle: "",
     icon: match.char,
-    chips: [tr("launcher.chips.enterCopies")],
     action: () => navigator.clipboard.writeText(match.char),
     secondaryActions: [],
     score: match.score,
@@ -190,15 +200,11 @@ export const emojiResults = (query: string): Result[] =>
 export const newTimerResult = (draft: Omit<Timer, "id">): Result => ({
   id: "timer:new",
   kind: "timer",
-  title: tr(
+  title:
     draft.kind === "alarm"
-      ? "launcher.timer.setAlarm"
-      : "launcher.timer.startTimer",
-    {
-      label: draft.label,
-    },
-  ),
-  subtitle: tr("launcher.timer.firesAt", { time: formatClock(draft.fireAt) }),
+      ? m.launcher_timer_set_alarm({ label: draft.label })
+      : m.launcher_timer_start({ label: draft.label }),
+  subtitle: m.launcher_timer_fires_at({ time: formatClock(draft.fireAt) }),
   icon: draft.kind === "alarm" ? "lucide:alarm-clock" : "lucide:timer",
   action: () => addTimer(draft),
   secondaryActions: [],
@@ -209,7 +215,7 @@ export const pendingTimerResult = (timer: Timer, now = Date.now()): Result => ({
   id: `timer:${timer.id}`,
   kind: "timer",
   title: timer.label,
-  subtitle: tr("launcher.timer.left", {
+  subtitle: m.launcher_timer_left({
     remaining: remaining(timer, now),
     time: formatClock(timer.fireAt),
   }),
@@ -218,7 +224,8 @@ export const pendingTimerResult = (timer: Timer, now = Date.now()): Result => ({
   secondaryActions: [
     {
       id: "cancel",
-      label: tr("launcher.actions.cancel"),
+      label: m.common_cancel(),
+      icon: "lucide:circle-x",
       run: () => cancelTimer(timer.id),
       stay: true,
     },
@@ -227,28 +234,20 @@ export const pendingTimerResult = (timer: Timer, now = Date.now()): Result => ({
   score: Math.max(1, 1999 - Math.floor((timer.fireAt - now) / 1000)),
 })
 
-export const timerKindLabel = (kind: TimerKind) =>
-  tr(kind === "alarm" ? "launcher.timer.alarm" : "launcher.timer.timer")
-
 export const todoResult = (text: string): Result | null => {
-  const todo = quickTodo(text)
+  const task = quickTask(text)
 
-  if (!todo) {
+  if (!task) {
     return null
   }
-
-  const chips = todo.due ? [dueLabel(todo)] : []
 
   return {
     id: "todo",
     kind: "todo",
-    title: tr("launcher.todo.add", { title: todo.title }),
-    subtitle: tr("launcher.todo.saves"),
+    title: m.launcher_todo_add({ title: task.title }),
+    subtitle: task.due ? dueLabel(task.due) : m.launcher_todo_saves(),
     icon: "lucide:list-plus",
-    chips,
-    action: async () => {
-      await events.put(eventFromTodo(todo, new Date(), Date.now()))
-    },
+    action: () => addTaskInMain(task.title, task.due),
     secondaryActions: [],
     score: 2000,
   }
@@ -264,13 +263,15 @@ const ENGINES: Record<WebSearchEngine, { name: string; url: string }> = {
   },
 }
 
+export const engineName = (engine: WebSearchEngine) => ENGINES[engine].name
+
 export const webResult = (query: string, engine: WebSearchEngine): Result => {
   const { name, url } = ENGINES[engine]
 
   return {
     id: "web",
     kind: "web",
-    title: tr("launcher.web.search", { query }),
+    title: m.launcher_web_search({ query }),
     subtitle: name,
     icon: "lucide:globe",
     action: () => openUrl(url + encodeURIComponent(query)),
@@ -282,8 +283,8 @@ export const webResult = (query: string, engine: WebSearchEngine): Result => {
 export const runResult = (command: string): Result => ({
   id: "run",
   kind: "run",
-  title: tr("launcher.run.title", { command }),
-  subtitle: tr("launcher.run.subtitle"),
+  title: m.launcher_run_title({ command }),
+  subtitle: m.launcher_run_subtitle(),
   icon: "lucide:terminal",
   action: () => runCommand(command),
   secondaryActions: [],
@@ -296,8 +297,8 @@ export const openResult = (target: string): Result => {
   return {
     id: "open",
     kind: "run",
-    title: tr("launcher.open.title", { target }),
-    subtitle: link ? tr("launcher.open.link") : tr("launcher.open.path"),
+    title: m.launcher_open_title({ target }),
+    subtitle: link ? m.launcher_open_link() : m.launcher_open_path(),
     icon: link ? "lucide:external-link" : "lucide:folder-open",
     action: () => openUrl(target),
     secondaryActions: [],
@@ -305,53 +306,39 @@ export const openResult = (target: string): Result => {
   }
 }
 
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["day", 86_400_000],
-  ["hour", 3_600_000],
-  ["minute", 60_000],
-]
-
-export const relativeTime = (at: number, now = Date.now()) => {
-  const gap = now - at
-  const unit = UNITS.find(([, ms]) => gap >= ms)
-
-  return unit
-    ? new Intl.RelativeTimeFormat(currentLocale(), { numeric: "auto" }).format(
-        -Math.floor(gap / unit[1]),
-        unit[0],
-      )
-    : tr("launcher.clip.justNow")
-}
-
 const clipTitle = (text: string) =>
   text.trim().split("\n")[0].split(/\s+/).join(" ").slice(0, 120)
 
 const clipResult = (entry: ClipEntry, score: number): Result => {
-  const lines = entry.text.trim().split("\n").length
-  const when = relativeTime(entry.at)
-  const size = `${tr("launcher.clip.lines", { count: lines })} · ${tr("launcher.clip.chars", { count: entry.text.length })}`
+  const size = m.launcher_clip_size({
+    lines: entry.text.trim().split("\n").length,
+    chars: entry.text.length,
+  })
 
   return {
     id: `clip:${entry.id}`,
     kind: "clip",
-    title: clipTitle(entry.text) || tr("launcher.clip.whitespace"),
-    subtitle: `${when} · ${size}`,
+    title: clipTitle(entry.text) || m.launcher_clip_whitespace(),
+    subtitle: `${relativeTime(entry.at)}, ${size}`,
     icon: entry.pinned ? "lucide:pin" : "lucide:clipboard",
     action: () => clipboardPaste(entry.id),
     secondaryActions: [
       {
-        label: tr("launcher.actions.copyOnly"),
+        label: m.common_copy(),
+        icon: "lucide:copy",
         run: () => clipboardCopy(entry.id),
       },
       {
         label: entry.pinned
-          ? tr("launcher.actions.unpin")
-          : tr("launcher.actions.pin"),
+          ? m.launcher_action_unpin()
+          : m.launcher_action_pin(),
+        icon: entry.pinned ? "lucide:pin-off" : "lucide:pin",
         run: () => clipboardPin(entry.id, !entry.pinned),
         stay: true,
       },
       {
-        label: tr("launcher.actions.delete"),
+        label: m.common_delete(),
+        icon: "lucide:trash-2",
         run: () => clipboardRemove(entry.id),
         stay: true,
       },
@@ -372,11 +359,59 @@ export const clipResults = (entries: ClipEntry[], query: string): Result[] => {
 export const clearClipsResult = (): Result => ({
   id: "clip:clear",
   kind: "command",
-  title: tr("launcher.clip.clearHistory"),
-  subtitle: tr("launcher.clip.keepsPinned"),
+  title: m.launcher_clip_clear(),
+  subtitle: m.launcher_clip_keeps_pinned(),
   icon: "lucide:trash-2",
   action: clipboardClear,
   secondaryActions: [],
   stay: true,
+  score: 0,
+})
+
+export const atrixOpenResult = (): Result => ({
+  id: "atrix:open",
+  kind: "atrix",
+  title: m.launcher_atrix_open(),
+  subtitle: "",
+  icon: ATRIX_ICON,
+  keywords: ["atrix", "agent", "chat"],
+  action: () => askAtrix({ kind: "open" }),
+  secondaryActions: [],
+  score: 0,
+})
+
+export const atrixNewResult = (prompt: string): Result => ({
+  id: "atrix:new",
+  kind: "atrix",
+  title: m.launcher_atrix_new({ text: prompt }),
+  subtitle: "",
+  icon: "lucide:square-pen",
+  action: () => askAtrix({ kind: "new", prompt }),
+  secondaryActions: [],
+  score: 1,
+})
+
+export const conversationResult = (entry: AtrixConversation): Result => ({
+  id: `conversation:${entry.key}`,
+  kind: "conversation",
+  title: entry.title,
+  subtitle: entry.source,
+  icon: entry.icon,
+  keywords: [entry.source],
+  running: entry.running,
+  action: () => askAtrix({ kind: "conversation", current: entry.current }),
+  secondaryActions: [],
+  score: 0,
+})
+
+export const docResult = (doc: AtrixDoc): Result => ({
+  id: `doc:${doc.id}`,
+  kind: "doc",
+  title: doc.title,
+  subtitle: doc.tags.join(", "),
+  icon: "lucide:file-text",
+  keywords: doc.tags,
+  action: () => askAtrix({ kind: "doc", id: doc.id }),
+  secondaryActions: [],
   score: 0,
 })

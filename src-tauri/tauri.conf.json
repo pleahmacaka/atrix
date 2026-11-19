@@ -118,25 +118,6 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-smooth-scrolling"
       },
       {
-        "label": "settings",
-        "create": false,
-        "url": "/shell/settings",
-        "title": "Atrix Settings",
-        "width": 760,
-        "height": 640,
-        "minWidth": 640,
-        "minHeight": 480,
-        "resizable": true,
-        "transparent": true,
-        "decorations": false,
-        "shadow": false,
-        "skipTaskbar": false,
-        "center": true,
-        "visible": false,
-        "dragDropEnabled": false,
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-smooth-scrolling"
-      },
-      {
         "label": "panel",
         "create": false,
         "url": "/shell/panel",
@@ -259,6 +240,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "windows": {
       "nsis": {
         "installerHooks": "windows/hooks.nsh"

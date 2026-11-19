@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Row, toast } from "@atrix/ui"
-  import { t } from "svelte-i18n"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { toast } from "#lib/files/store/toast.svelte.ts"
+  import { m } from "#lib/paraglide/messages.js"
   import {
     type DefaultApp,
     defaultAppStatus,
@@ -13,9 +14,14 @@
     windows = true,
   }: { handler?: DefaultApp; windows?: boolean } = $props()
 
+  let known = $state(false)
+
   $effect(() => {
     defaultAppStatus()
-      .then(status => (handler = status))
+      .then(status => {
+        handler = status
+        known = true
+      })
       .catch(() => undefined)
   })
 
@@ -23,44 +29,42 @@
     try {
       handler = await setDefaultApp(toggle.checked)
     } catch {
-      toast($t("explorer.settings.defaultAppUnavailable"), "error")
+      toast(m.files_settings_default_app_unavailable(), "error")
     }
 
     toggle.checked = handler.enabled
   }
 </script>
 
-<Row
-  label={$t("explorer.settings.defaultAppLabel")}
-  hint={handler.supported
-    ? $t("explorer.settings.defaultAppHint")
-    : $t("explorer.settings.defaultAppUnavailable")}
->
+<SettingRow title={m.files_settings_default_app_label()}>
+  {#if known && !handler.supported}
+    <span class="badge badge-ghost whitespace-nowrap">
+      {m.files_settings_default_app_unavailable()}
+    </span>
+  {/if}
+
   <input
     type="checkbox"
-    class="toggle toggle-primary"
-    aria-label={$t("explorer.settings.defaultAppLabel")}
+    class="toggle toggle-sm toggle-primary"
+    aria-label={m.files_settings_default_app_label()}
     checked={handler.enabled}
     disabled={!handler.supported}
     onchange={e => toggleDefault(e.currentTarget)}
   />
-</Row>
+</SettingRow>
 
 {#if windows}
-  <Row
-    label={$t("explorer.settings.windowsDefaults")}
-    hint={$t("explorer.settings.windowsDefaultsHint")}
-  >
+  <SettingRow title={m.files_settings_windows_defaults()}>
     <button
       type="button"
-      class="btn btn-soft btn-sm"
+      class="btn btn-sm"
       disabled={!handler.supported}
       onclick={() =>
         openDefaultApps().catch(() =>
-          toast($t("explorer.settings.defaultAppUnavailable"), "error"),
+          toast(m.files_settings_default_app_unavailable(), "error"),
         )}
     >
-      {$t("common.open")}
+      {m.files_open()}
     </button>
-  </Row>
+  </SettingRow>
 {/if}

@@ -1,4 +1,5 @@
 import { type CellObject, read, utils, type WorkSheet } from "@e965/xlsx"
+import { m } from "#lib/paraglide/messages.js"
 import { rem } from "./rem"
 
 const CLASS = "atrix-sheet"
@@ -9,8 +10,8 @@ const MAX_COLS = 60
 
 const STYLE = `
 .${CLASS} {
-  --line: color-mix(in srgb, currentColor 14%, transparent);
-  --head: color-mix(in srgb, currentColor 6%, var(--doc-preview-bg, Canvas));
+  --line: color-mix(in oklab, currentColor 14%, transparent);
+  --head: color-mix(in oklab, currentColor 6%, var(--color-base-100, Canvas));
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -22,26 +23,27 @@ const STYLE = `
   gap: 0.25rem;
   padding: 0.375rem;
   overflow-x: auto;
-  border-bottom: 0.0625rem solid var(--line);
   flex: none;
 }
 .${CLASS}-tabs button {
   font: inherit;
   font-size: 0.8125rem;
-  color: inherit;
+  color: color-mix(in oklab, currentColor 75%, transparent);
   background: transparent;
-  border: 0.0625rem solid transparent;
-  border-radius: 0.375rem;
+  border: 0;
+  border-radius: var(--radius-field, 0.375rem);
   padding: 0.25rem 0.625rem;
   white-space: nowrap;
   cursor: pointer;
-  opacity: 0.7;
+  transition: background-color 140ms, color 140ms;
 }
-.${CLASS}-tabs button:hover { opacity: 1; }
+.${CLASS}-tabs button:hover {
+  color: inherit;
+  background: color-mix(in oklab, currentColor 8%, transparent);
+}
 .${CLASS}-tabs button[aria-selected="true"] {
-  opacity: 1;
-  background: var(--head);
-  border-color: var(--line);
+  color: var(--color-primary, inherit);
+  background: color-mix(in oklab, var(--color-primary, currentColor) 8%, transparent);
 }
 .${CLASS}-scroll { flex: 1; min-height: 0; overflow: auto; }
 .${CLASS} table {
@@ -71,10 +73,9 @@ const STYLE = `
 .${CLASS} thead th:first-child { left: 0; z-index: 2; }
 .${CLASS}-note {
   flex: none;
-  padding: 0.375rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
-  border-top: 0.0625rem solid var(--line);
-  opacity: 0.7;
+  opacity: 0.6;
 }
 .${CLASS}-empty { padding: 1rem; font-size: 0.875rem; opacity: 0.55; }
 .${CLASS}-thumb { height: auto; overflow: hidden; }
@@ -148,14 +149,14 @@ const buildTable = (sheet: WorkSheet, maxRows: number, maxCols: number) => {
 
 const truncationNote = (rows: boolean, cols: boolean) => {
   if (rows && cols) {
-    return `앞 ${MAX_ROWS}행, ${MAX_COLS}열만 표시`
+    return m.files_doc_rows_cols_shown({ rows: MAX_ROWS, cols: MAX_COLS })
   }
 
   if (rows) {
-    return `앞 ${MAX_ROWS}행만 표시`
+    return m.files_doc_rows_shown({ rows: MAX_ROWS })
   }
 
-  return cols ? `앞 ${MAX_COLS}열만 표시` : ""
+  return cols ? m.files_doc_cols_shown({ cols: MAX_COLS }) : ""
 }
 
 const SIGNATURES = [
@@ -186,7 +187,7 @@ const visibleSheets = (bytes: Uint8Array, sheetRows: number) => {
   }))
 }
 
-const emptyNote = () => element("div", `${CLASS}-empty`, "데이터 없음")
+const emptyNote = () => element("div", `${CLASS}-empty`, m.files_doc_no_data())
 
 const styled = (className: string) => {
   const root = element("div", className)

@@ -1,57 +1,41 @@
 <script lang="ts">
-  import { Confirm, Segmented, toast } from "@atrix/ui"
   import Icon from "@iconify/svelte"
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager"
   import { open } from "@tauri-apps/plugin-dialog"
-  import { t } from "svelte-i18n"
+  import EmptyState from "#lib/components/ui/EmptyState.svelte"
+  import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import Section from "#lib/components/ui/Section.svelte"
+  import Segmented from "#lib/components/ui/Segmented.svelte"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { toast } from "#lib/files/store/toast.svelte.ts"
+  import { m } from "#lib/paraglide/messages.js"
+  import { openSettings } from "#lib/store/nav.svelte.ts"
   import BrowseAsks from "./BrowseAsks.svelte"
   import { shareError } from "./errors"
-  import Qr from "./Qr.svelte"
   import RemoteBrowser from "./RemoteBrowser.svelte"
-  import {
-    type Device,
-    dismissPair,
-    type Invite,
-    invite,
-    join,
-    type Member,
-    removeDevice,
-    renameDevice,
-    renameSelf,
-    revokeBrowse,
-    type Scope,
-    setBrowseScope,
-  } from "./share"
-  import { share } from "./share.svelte"
+  import { type Member, revokeBrowse, type Scope, setBrowseScope } from "./share"
+  import { memberName, share } from "./share.svelte"
 
-  let { scan }: { scan?: () => Promise<string | null> } = $props()
+  const SCOPES: { id: Scope; label: string }[] = [
+    { id: "drives", label: m.files_devices_scopes_drives() },
+    { id: "home", label: m.files_devices_scopes_home() },
+    { id: "folders", label: m.files_devices_scopes_folders() },
+  ]
 
-  let offer = $state<Invite | null>(null)
-  let inviting = $state(false)
-  let code = $state("")
-  let joining = $state(false)
-  let editing = $state<string | null>(null)
-  let draft = $state("")
-  let removing = $state<Device | null>(null)
-  let confirmRemove = $state(false)
   let browsing = $state<Member | null>(null)
 
   const browse = $derived(share.state.browse)
 
-  const nameOf = (id: string) =>
-    [...share.state.devices, ...share.state.members].find(known => known.id === id)?.name ??
-    id.slice(0, 8)
+  const report = (reason: unknown) => toast(shareError(reason), "error")
 
   const changeScope = (scope: Scope) =>
-    setBrowseScope(scope, browse.folders).catch(reason => toast(shareError(reason), "error"))
+    setBrowseScope(scope, browse.folders).catch(report)
 
   const addFolder = async () => {
     const picked = await open({ directory: true }).catch(() => null)
 
     if (typeof picked === "string" && !browse.folders.includes(picked)) {
-      await setBrowseScope("folders", [...browse.folders, picked]).catch(reason =>
-        toast(shareError(reason), "error"),
-      )
+      await setBrowseScope("folders", [...browse.folders, picked]).catch(report)
     }
   }
 
@@ -59,334 +43,148 @@
     setBrowseScope(
       browse.scope,
       browse.folders.filter(known => known !== folder),
-    ).catch(reason => toast(shareError(reason), "error"))
+    ).catch(report)
 
-  const startInvite = async () => {
-    inviting = true
-
-    try {
-      offer = await invite()
-    } catch (reason) {
-      toast(shareError(reason), "error")
-    } finally {
-      inviting = false
-    }
-  }
-
-  const connect = async (value: string) => {
-    if (!value.trim()) {
-      return
+  export const back = () => {
+    if (!browsing) {
+      return false
     }
 
-    joining = true
+    browsing = null
 
-    try {
-      await join(value)
-      code = ""
-      toast($t("devices.joined"), "success")
-    } catch (reason) {
-      toast(shareError(reason), "error")
-    } finally {
-      joining = false
-    }
-  }
-
-  const scanCode = async () => {
-    const value = await scan?.().catch(() => null)
-
-    if (value) {
-      await connect(value)
-    }
-  }
-
-  const commitName = (id: string) => {
-    const name = draft.trim()
-
-    editing = null
-
-    if (name) {
-      renameDevice(id, name).catch(() => undefined)
-    }
+    return true
   }
 </script>
 
-<div class="flex flex-col gap-4">
-  <label class="flex flex-col gap-1">
-    <span class="text-xs font-medium text-base-content/60">{$t("devices.thisDevice")}</span>
-    <input
-      class="input input-sm w-full"
-      value={share.state.name}
-      onchange={e => renameSelf(e.currentTarget.value).catch(() => undefined)}
-    />
-  </label>
+{#snippet pairAction()}
+  <button
+    type="button"
+    class="btn btn-ghost btn-xs"
+    onclick={() => openSettings("devices")}
+  >
+    <Icon icon="lucide:link" class="size-3.5" />
+    {m.files_devices_pair()}
+  </button>
+{/snippet}
 
-  {#if share.state.pendingPair}
-    <div class="flex flex-col gap-2 rounded-box border border-primary/30 bg-primary/5 p-3">
-      <span class="text-sm">{$t("devices.pairRequest")}</span>
-      <div class="flex gap-2">
-        <button
-          type="button"
-          class="btn btn-xs btn-primary"
-          disabled={joining}
-          onclick={() => share.state.pendingPair && connect(share.state.pendingPair)}
-        >
-          {$t("devices.connect")}
-        </button>
-        <button
-          type="button"
-          class="btn btn-xs btn-ghost"
-          onclick={() => dismissPair().catch(() => undefined)}
-        >
-          {$t("devices.ignore")}
-        </button>
-      </div>
-    </div>
+<div class="flex flex-col gap-6">
+  {#if share.state.browseAsks.length > 0}
+    <Section icon="lucide:bell-ring" title={m.files_devices_requests()}>
+      <BrowseAsks />
+    </Section>
   {/if}
 
-  <BrowseAsks />
-
-  <div class="flex flex-col gap-1">
-    <span class="text-xs font-medium text-base-content/60">{$t("devices.paired")}</span>
-
+  <Section
+    icon="lucide:monitor-smartphone"
+    title={m.files_devices_paired()}
+    actions={pairAction}
+  >
     {#if share.state.devices.length === 0}
-      <p class="text-sm text-base-content/60">{$t("devices.none")}</p>
+      <EmptyState icon="lucide:wifi-off" text={m.files_devices_none()} />
     {:else}
-      <ul class="flex flex-col">
+      <ul class="-mx-2 flex flex-col py-2">
         {#each share.state.devices as device (device.id)}
-          <li class="flex items-center gap-2 rounded-field px-1 py-1 hover:bg-base-content/5">
-            <Icon icon="lucide:monitor-smartphone" class="size-4 shrink-0 text-base-content/60" />
-
-            {#if editing === device.id}
-              <input
-                class="input input-xs min-w-0 flex-1"
-                aria-label={$t("devices.rename")}
-                bind:value={draft}
-                {@attach node => node.focus()}
-                onblur={() => commitName(device.id)}
-                onkeydown={e => {
-                  if (e.key === "Enter") {
-                    commitName(device.id)
-                  } else if (e.key === "Escape") {
-                    e.stopPropagation()
-                    editing = null
-                  }
-                }}
-              />
-            {:else}
-              <span class="min-w-0 flex-1 truncate text-sm">{device.name}</span>
-            {/if}
-
+          <li>
             <button
               type="button"
-              class="btn btn-ghost btn-square btn-xs"
-              aria-label={$t("devices.browse")}
-              title={$t("devices.browse")}
+              class={[
+                "flex min-h-11 w-full cursor-pointer items-center gap-3",
+                "rounded-field px-2 text-left text-sm",
+                "transition-colors duration-140 hover:bg-base-content/8",
+              ]}
+              title={m.files_devices_browse()}
               onclick={() => (browsing = device)}
             >
-              <Icon icon="lucide:folder-search" class="size-3.5" />
-            </button>
-
-            <button
-              type="button"
-              class="btn btn-ghost btn-square btn-xs"
-              aria-label={$t("devices.rename")}
-              onclick={() => {
-                draft = device.name
-                editing = device.id
-              }}
-            >
-              <Icon icon="lucide:pencil" class="size-3.5" />
-            </button>
-
-            <button
-              type="button"
-              class="btn btn-ghost btn-square btn-xs hover:text-error"
-              aria-label={$t("devices.remove")}
-              onclick={() => {
-                removing = device
-                confirmRemove = true
-              }}
-            >
-              <Icon icon="lucide:trash-2" class="size-3.5" />
+              <Icon
+                icon="lucide:monitor-smartphone"
+                class="size-4 shrink-0 text-base-content/60"
+              />
+              <span class="min-w-0 flex-1 truncate">{device.name}</span>
+              <Icon
+                icon="lucide:folder-search"
+                class="size-4 shrink-0 text-base-content/60"
+              />
             </button>
           </li>
         {/each}
       </ul>
     {/if}
-  </div>
+  </Section>
 
-  {#if share.state.members.length > 0}
-    <div class="flex flex-col gap-1">
-      <span class="text-xs font-medium text-base-content/60">{$t("devices.syncDevices")}</span>
-
-      <ul class="flex flex-col">
-        {#each share.state.members as member (member.id)}
-          <li class="flex items-center gap-2 rounded-field px-1 py-1 hover:bg-base-content/5">
-            <Icon icon="lucide:monitor" class="size-4 shrink-0 text-base-content/60" />
-            <span class="min-w-0 flex-1 truncate text-sm">{member.name}</span>
-            <button
-              type="button"
-              class="btn btn-ghost btn-square btn-xs"
-              aria-label={$t("devices.browse")}
-              title={$t("devices.browse")}
-              onclick={() => (browsing = member)}
-            >
-              <Icon icon="lucide:folder-search" class="size-3.5" />
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
-
-  <div class="flex flex-col gap-2">
-    <span class="text-xs font-medium text-base-content/60">{$t("devices.browseScope")}</span>
-
-    <Segmented
-      label={$t("devices.browseScope")}
-      value={browse.scope}
-      onchange={changeScope}
-      options={[
-        { value: "drives", label: $t("devices.scopes.drives") },
-        { value: "home", label: $t("devices.scopes.home") },
-        { value: "folders", label: $t("devices.scopes.folders") },
-      ]}
-    />
+  <Section>
+    <SettingRow title={m.files_devices_browse_scope()}>
+      <Segmented
+        label={m.files_devices_browse_scope()}
+        items={SCOPES}
+        value={browse.scope}
+        onpick={changeScope}
+      />
+    </SettingRow>
 
     {#if browse.scope === "folders"}
-      {#if browse.folders.length === 0}
-        <p class="text-sm text-base-content/60">{$t("devices.noFolders")}</p>
-      {:else}
-        <ul class="flex flex-col">
-          {#each browse.folders as folder (folder)}
-            <li class="flex items-center gap-2 rounded-field px-1 py-1 hover:bg-base-content/5">
-              <Icon icon="lucide:folder" class="size-4 shrink-0 text-base-content/60" />
-              <span class="min-w-0 flex-1 truncate text-sm" title={folder}>{folder}</span>
-              <button
-                type="button"
-                class="btn btn-ghost btn-square btn-xs hover:text-error"
-                aria-label={$t("devices.removeFolder")}
-                onclick={() => removeFolder(folder)}
-              >
-                <Icon icon="lucide:x" class="size-3.5" />
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
+      <ul class="-mx-2 flex flex-col pb-3">
+        {#each browse.folders as folder (folder)}
+          <li class="flex min-h-11 items-center gap-3 px-2 text-sm">
+            <Icon
+              icon="lucide:folder"
+              class="size-4 shrink-0 text-base-content/60"
+            />
+            <span class="min-w-0 flex-1 truncate" title={folder}>{folder}</span>
+            <IconButton
+              icon="lucide:x"
+              label={m.files_devices_remove_folder()}
+              class="shrink-0"
+              onclick={() => removeFolder(folder)}
+            />
+          </li>
+        {:else}
+          <li class="px-2 py-2 text-sm text-base-content/60">
+            {m.files_devices_no_folders()}
+          </li>
+        {/each}
 
-      <button type="button" class="btn btn-sm btn-soft justify-start" onclick={addFolder}>
-        <Icon icon="lucide:folder-plus" class="size-4" />
-        {$t("devices.addFolder")}
-      </button>
+        <li>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm w-full justify-start"
+            onclick={addFolder}
+          >
+            <Icon icon="lucide:folder-plus" class="size-4" />
+            {m.files_devices_add_folder()}
+          </button>
+        </li>
+      </ul>
     {/if}
+  </Section>
 
-    {#if browse.always.length > 0}
-      <span class="text-xs font-medium text-base-content/60">{$t("devices.allowed")}</span>
-
-      <ul class="flex flex-col">
+  {#if browse.always.length > 0}
+    <Section icon="lucide:shield-check" title={m.files_devices_allowed()}>
+      <ul class="-mx-2 flex flex-col py-2">
         {#each browse.always as id (id)}
-          <li class="flex items-center gap-2 rounded-field px-1 py-1 hover:bg-base-content/5">
-            <Icon icon="lucide:shield-check" class="size-4 shrink-0 text-base-content/60" />
-            <span class="min-w-0 flex-1 truncate text-sm">{nameOf(id)}</span>
+          {@const name = memberName(id)}
+
+          <li class="flex min-h-11 items-center gap-3 px-2 text-sm">
+            <Icon
+              icon="lucide:monitor-smartphone"
+              class="size-4 shrink-0 text-base-content/60"
+            />
+            <span class="min-w-0 flex-1 truncate" title={name}>{name}</span>
             <button
               type="button"
-              class="btn btn-ghost btn-xs"
-              onclick={() => revokeBrowse(id).catch(() => undefined)}
+              class="btn btn-ghost btn-sm shrink-0"
+              onclick={() => revokeBrowse(id).catch(report)}
             >
-              {$t("devices.revoke")}
+              {m.files_devices_revoke()}
             </button>
           </li>
         {/each}
       </ul>
-    {/if}
-  </div>
-
-  {#if browsing}
-    <RemoteBrowser device={browsing} onclose={() => (browsing = null)} />
+    </Section>
   {/if}
-
-  <Confirm
-    bind:open={confirmRemove}
-    title={$t("devices.confirmRemove", { values: { name: removing?.name ?? "" } })}
-    body={$t(share.state.senior ? "devices.removeEverywhere" : "devices.removeHere")}
-    action={$t("devices.remove")}
-    onconfirm={() => removing && removeDevice(removing.id).catch(() => undefined)}
-  />
-
-  <div class="flex flex-col gap-2">
-    <span class="text-xs font-medium text-base-content/60">{$t("devices.add")}</span>
-
-    {#if offer}
-      <div class="flex items-start gap-3">
-        <Qr text={offer.link} label={$t("devices.qr")} />
-
-        <div class="flex min-w-0 flex-1 flex-col gap-2">
-          <p class="text-xs text-base-content/70">{$t("devices.scanHint")}</p>
-          <input
-            class="input input-sm w-full"
-            readonly
-            aria-label={$t("devices.code")}
-            value={offer.code}
-            onfocus={e => e.currentTarget.select()}
-          />
-          <button
-            type="button"
-            class="btn btn-xs btn-soft"
-            onclick={async () => {
-              if (offer) {
-                await writeText(offer.code)
-                toast($t("share.copied"), "success")
-              }
-            }}
-          >
-            <Icon icon="lucide:copy" class="size-3.5" />
-            {$t("devices.copyCode")}
-          </button>
-          <p class="text-xs text-base-content/50">{$t("devices.expires")}</p>
-        </div>
-      </div>
-    {:else}
-      <button
-        type="button"
-        class="btn btn-sm btn-soft justify-start"
-        disabled={inviting}
-        onclick={startInvite}
-      >
-        {#if inviting}
-          <span class="loading loading-spinner loading-xs"></span>
-        {:else}
-          <Icon icon="lucide:qr-code" class="size-4" />
-        {/if}
-        {$t("devices.showQr")}
-      </button>
-    {/if}
-
-    <form
-      class="flex gap-2"
-      onsubmit={e => {
-        e.preventDefault()
-        connect(code)
-      }}
-    >
-      <input
-        class="input input-sm min-w-0 flex-1"
-        placeholder={$t("devices.enterCode")}
-        aria-label={$t("devices.enterCode")}
-        autocomplete="off"
-        spellcheck="false"
-        bind:value={code}
-      />
-      <button type="submit" class="btn btn-sm btn-soft" disabled={joining || !code.trim()}>
-        {$t("devices.connect")}
-      </button>
-    </form>
-
-    {#if scan}
-      <button type="button" class="btn btn-sm btn-primary" disabled={joining} onclick={scanCode}>
-        <Icon icon="lucide:scan-qr-code" class="size-4" />
-        {$t("devices.scan")}
-      </button>
-    {/if}
-  </div>
 </div>
+
+<ErrorAlert message={share.problem && shareError(share.problem)} />
+
+{#if browsing}
+  <RemoteBrowser device={browsing} onclose={() => (browsing = null)} />
+{/if}

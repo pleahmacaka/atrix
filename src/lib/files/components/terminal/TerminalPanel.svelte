@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import { m } from "#lib/paraglide/messages.js"
   import {
     acceptTabs,
     adoptTab,
@@ -10,11 +12,9 @@
     setHost,
     TabStrip,
   } from "#lib/terminal/index.ts"
-  import { Splitter } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
   import { type Explorer, fail } from "../../store/explorer.svelte"
   import { terminal, terminalPrefs } from "../../store/terminal.svelte"
+  import ResizeHandle from "../window/ResizeHandle.svelte"
 
   let { explorer }: { explorer: Explorer } = $props()
 
@@ -62,67 +62,52 @@
 </script>
 
 {#if session.tabs.length > 0}
+  {#if terminal.open}
+    <ResizeHandle
+      resize={side ? resizeWidth : resizeHeight}
+      label={m.files_terminal_resize()}
+    />
+  {/if}
+
   <section
-    aria-label={$t("terminal.title")}
+    aria-label={m.files_terminal_title()}
     class={[
-      "flex shrink-0 bg-base-100",
-      side ? "flex-row" : "flex-col",
+      "island flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden",
       !terminal.open && "hidden",
     ]}
     style:height={side ? undefined : `${terminalPrefs.height}rem`}
     style:width={side ? `${terminalPrefs.width}rem` : undefined}
     {onkeydowncapture}
   >
-    <Splitter
-      resize={side ? resizeWidth : resizeHeight}
-      label={$t("terminal.resize")}
-    />
+    <header class="flex h-10 shrink-0 items-center gap-1 px-1.5 select-none">
+      <TabStrip />
 
-    <div class="flex min-h-0 min-w-0 grow flex-col">
-      <header class="flex h-9 shrink-0 items-stretch bg-base-300/60 select-none">
-        <TabStrip />
+      <div class="min-w-2 flex-1"></div>
 
-        <div class="grow"></div>
-
-        <button
-          type="button"
-          class="btn btn-ghost h-full rounded-none border-0 px-3"
-          aria-label={$t(side ? "terminal.toBottom" : "terminal.toSide")}
-          title={$t(side ? "terminal.toBottom" : "terminal.toSide")}
-          onclick={() => (terminal.position = side ? "bottom" : "side")}
-        >
-          <Icon
-            icon={side ? "lucide:panel-bottom" : "lucide:panel-right"}
-            class="size-4"
-          />
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-ghost h-full rounded-none border-0 px-3"
-          aria-label={$t("terminal.popOut")}
-          title={$t("terminal.popOut")}
-          onclick={() => popOut().catch(fail)}
-        >
-          <Icon icon="lucide:square-arrow-out-up-right" class="size-4" />
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-ghost h-full rounded-none border-0 px-3"
-          aria-label={$t("terminal.close")}
-          title={$t("terminal.close")}
-          onclick={() => (terminal.open = false)}
-        >
-          <Icon icon="lucide:x" class="size-4" />
-        </button>
-      </header>
-
-      <PaneArea
-        fontFamily={terminalPrefs.fontFamily}
-        fontSize={13}
-        visible={terminal.open}
+      <IconButton
+        icon={side ? "lucide:panel-bottom" : "lucide:panel-right"}
+        label={side ? m.files_terminal_to_bottom() : m.files_terminal_to_side()}
+        class="shrink-0"
+        onclick={() => (terminal.position = side ? "bottom" : "side")}
       />
+
+      <IconButton
+        icon="lucide:square-arrow-out-up-right"
+        label={m.files_terminal_pop_out()}
+        class="shrink-0"
+        onclick={() => popOut().catch(fail)}
+      />
+
+      <IconButton
+        icon="lucide:x"
+        label={m.files_terminal_close()}
+        class="shrink-0"
+        onclick={() => (terminal.open = false)}
+      />
+    </header>
+
+    <div class="flex min-h-0 flex-1">
+      <PaneArea visible={terminal.open} />
     </div>
   </section>
 {/if}

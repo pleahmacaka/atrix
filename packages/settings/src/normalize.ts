@@ -1,32 +1,13 @@
-import {
-  DOCK_ALIGNS,
-  DOCK_STYLES,
-  defaultAppearance,
-  defaultDevice,
-  defaultProfile,
-  presetAppearances,
-  WINDOW_BACKGROUNDS,
-} from "./defaults"
+import { defaultAppearance, defaultDevice, defaultProfile } from "./defaults"
 import type {
   Appearance,
   AtrixStyle,
   DeviceSettings,
-  DockAlign,
   DockWidget,
   DockWidgetKind,
-  Features,
   Profile,
   ThemePrefs,
 } from "./model"
-
-const WINDOW_KEYS: string[] = Object.values(WINDOW_BACKGROUNDS)
-
-const dockLook = (appearance?: Partial<Appearance>) =>
-  Object.fromEntries(
-    Object.entries(appearance ?? {}).filter(
-      ([key]) => key.startsWith("dock") || WINDOW_KEYS.includes(key),
-    ),
-  )
 
 const WIDGET_KINDS: DockWidgetKind[] = ["lead", "apps", "tray", "spacer"]
 
@@ -53,45 +34,21 @@ export const sanitizeWidgets = (
   }))
 }
 
-// Kept internal to the package facade: persistence supplies the saved value.
 export const withDeviceDefaults = (
   saved?: Partial<DeviceSettings> | null,
-): DeviceSettings => {
-  const { chat, ...features } = (saved?.features ?? {}) as Partial<Features> & {
-    chat?: boolean
-  }
-  const unknownDock =
-    !DOCK_STYLES.includes(saved?.dockStyle ?? defaultDevice.dockStyle) ||
-    !DOCK_ALIGNS.includes(saved?.dockAlign ?? defaultDevice.dockAlign)
-  const migrated = {
-    ...(unknownDock
-      ? { dockStyle: defaultDevice.dockStyle, dockAlign: "center" as DockAlign }
-      : {}),
-    ...(chat === false ? { showClaudeUsage: false } : {}),
-  }
-
-  return {
-    ...defaultDevice,
-    ...saved,
-    ...migrated,
-    dockWidgets: sanitizeWidgets(saved?.dockWidgets),
-    features: { ...defaultDevice.features, ...features },
-  }
-}
+): DeviceSettings => ({
+  ...defaultDevice,
+  ...saved,
+  dockWidgets: sanitizeWidgets(saved?.dockWidgets),
+  features: { ...defaultDevice.features, ...saved?.features },
+})
 
 export const withProfileDefaults = (
   saved?: Partial<Profile> | null,
 ): Profile => ({
   ...defaultProfile,
   ...saved,
-  // an untouched built-in preset tracks its current values, so preset updates reach existing profiles
-  appearance:
-    saved?.presetId && presetAppearances[saved.presetId]
-      ? {
-          ...presetAppearances[saved.presetId],
-          ...dockLook(saved.appearance),
-        }
-      : { ...defaultAppearance, ...saved?.appearance },
+  appearance: { ...defaultAppearance, ...saved?.appearance },
   launcher: { ...defaultProfile.launcher, ...saved?.launcher },
   calendar: { ...defaultProfile.calendar, ...saved?.calendar },
   todo: { ...defaultProfile.todo, ...saved?.todo },

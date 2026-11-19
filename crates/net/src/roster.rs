@@ -7,7 +7,7 @@ use crate::{Event, Link, Member, Node, now};
 const UNPAIR_GRACE: Duration = Duration::from_secs(1);
 
 impl Node {
-    fn peers(&self) -> Vec<Member> {
+    pub fn peers(&self) -> Vec<Member> {
         let state = self.lock();
         let mut peers: Vec<Member> = state.members.values().cloned().collect();
 

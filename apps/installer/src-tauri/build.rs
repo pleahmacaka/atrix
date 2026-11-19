@@ -2,69 +2,45 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-const COMPONENTS: [(&str, &str, &str); 3] = [
-    ("atrix", "Atrix", "atrix"),
-    ("files", "Atrix Files", "Atrix Files"),
-    ("terminal", "Atrix Terminal", "Atrix Terminal"),
-];
+const PACKAGE: &str = "../../../package.json";
 
-fn json_string(path: &str, pointer: &str) -> String {
-    println!("cargo:rerun-if-changed={path}");
+fn version() -> String {
+    println!("cargo:rerun-if-changed={PACKAGE}");
 
-    let text = fs::read_to_string(path).unwrap_or_else(|_| panic!("read {path}"));
-    let json: serde_json::Value =
-        serde_json::from_str(&text).unwrap_or_else(|_| panic!("parse {path}"));
+    let text = fs::read_to_string(PACKAGE).expect("read package.json");
+    let json: serde_json::Value = serde_json::from_str(&text).expect("parse package.json");
 
-    json.pointer(pointer)
-        .and_then(|value| value.as_str())
-        .unwrap_or_else(|| panic!("{pointer} in {path}"))
+    json["version"]
+        .as_str()
+        .expect("version in package.json")
         .to_string()
 }
 
 fn main() {
     println!("cargo:rerun-if-env-changed=ATRIX_PAYLOAD");
 
-    let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    let suffix = match os.as_str() {
-        "windows" => ".exe",
-        "macos" => ".app.tar.gz",
-        _ => ".AppImage",
+    let file = match env::var("CARGO_CFG_TARGET_OS").as_deref() {
+        Ok("windows") => "atrix.exe",
+        Ok("macos") => "atrix.app.tar.gz",
+        _ => "atrix.AppImage",
     };
     let strict =
         env::var("PROFILE").as_deref() == Ok("release") || env::var_os("ATRIX_PAYLOAD").is_some();
-    let dir = env::var("ATRIX_PAYLOAD").map_or_else(|_| PathBuf::from("payload"), PathBuf::from);
+    let path = env::var("ATRIX_PAYLOAD")
+        .map_or_else(|_| PathBuf::from("payload"), PathBuf::from)
+        .join(file);
 
-    let mut code = String::from("pub static APPS: &[App] = &[\n");
+    println!("cargo:rerun-if-changed={}", path.display());
 
-    for (id, name, product) in COMPONENTS
-        .iter()
-        .filter(|(id, ..)| os == "windows" || *id != "atrix")
-    {
-        let path = dir.join(format!("{id}{suffix}"));
-
-        println!("cargo:rerun-if-changed={}", path.display());
-
-        let payload = match path.canonicalize() {
-            Ok(path) => format!("Some(include_bytes!({:?}))", path.display().to_string()),
-            Err(_) if strict => panic!("missing installer payload {}", path.display()),
-            Err(_) => "None".to_string(),
-        };
-
-        code += &format!(
-            "    App {{ id: {id:?}, name: {name:?}, product: {product:?}, payload: {payload} }},\n"
-        );
-    }
-
-    let pubkey = json_string(
-        "../../../src-tauri/tauri.conf.json",
-        "/plugins/updater/pubkey",
+    let payload = match path.canonicalize() {
+        Ok(path) => format!("Some(include_bytes!({:?}))", path.display().to_string()),
+        Err(_) if strict => panic!("missing installer payload {}", path.display()),
+        Err(_) => "None".to_string(),
+    };
+    let code = format!(
+        "pub static PAYLOAD: Option<&[u8]> = {payload};\n\npub const VERSION: &str = {:?};\n",
+        version()
     );
-    let version = json_string("../package.json", "/version");
-
-    code += "];\n\n";
-    code += &format!("pub const PUBKEY: &str = {pubkey:?};\n");
-    code += &format!("pub const VERSION: &str = {version:?};\n");
-
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("payload.rs");
 
     fs::write(out, code).expect("write payload.rs");

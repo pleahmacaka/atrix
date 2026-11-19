@@ -1,51 +1,45 @@
+use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::apps::{App, VERSION};
 use crate::fail;
 
-pub const MANIFEST_KEY: &str = "atrix-installer-linux-x86_64";
+pub use crate::unix::{running, stop};
 
-const VERSION_KEY: &str = "X-Atrix-Version=";
+pub const NAME: &str = "linux";
+
+const ID: &str = "com.arixlab.atrix";
+
+const ICON: &[u8] = include_bytes!("../../../../src-tauri/icons/128x128.png");
 
 fn data() -> PathBuf {
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
-        .unwrap_or_else(|| PathBuf::from("."))
+        .or_else(|| std::env::home_dir().map(|home| home.join(".local").join("share")))
+        .unwrap_or_default()
 }
 
-fn identifier(app: &App) -> String {
-    format!("com.arixlab.atrix.{}", app.id)
+fn image() -> PathBuf {
+    data().join("atrix").join("Atrix.AppImage")
 }
 
-fn entry(app: &App) -> PathBuf {
+fn entry() -> PathBuf {
+    data().join("applications").join(format!("{ID}.desktop"))
+}
+
+fn icon() -> PathBuf {
     data()
-        .join("applications")
-        .join(format!("{}.desktop", identifier(app)))
+        .join("icons/hicolor/128x128/apps")
+        .join(format!("{ID}.png"))
 }
 
-fn icon(app: &App) -> &'static [u8] {
-    match app.id {
-        "terminal" => include_bytes!("../../../../packages/terminal/plugin/icons/128x128.png"),
-        _ => include_bytes!("../../../../packages/files/plugin/icons/128x128.png"),
-    }
+pub fn installed() -> bool {
+    image().exists()
 }
 
-fn categories(app: &App) -> &'static str {
-    match app.id {
-        "terminal" => "System;TerminalEmulator;",
-        _ => "System;FileManager;",
-    }
-}
-
-pub fn installed(app: &App) -> Option<String> {
-    std::fs::read_to_string(entry(app))
-        .ok()?
-        .lines()
-        .find_map(|line| line.strip_prefix(VERSION_KEY))
-        .map(str::to_string)
+pub fn outdated() -> bool {
+    false
 }
 
 fn write(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
@@ -57,42 +51,41 @@ fn write(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
 
     std::fs::write(&staged, bytes).map_err(fail)?;
     std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(mode)).map_err(fail)?;
-
-    // renaming over a running AppImage works where writing into it fails with ETXTBSY
     std::fs::rename(&staged, path).map_err(fail)
 }
 
-pub fn install(app: &App, payload: &[u8]) -> Result<(), String> {
-    let image = data()
-        .join("atrix")
-        .join(format!("atrix-{}.AppImage", app.id));
-    let icon_path = data()
-        .join("icons/hicolor/128x128/apps")
-        .join(format!("{}.png", identifier(app)));
-
-    write(&image, payload, 0o755)?;
-    write(&icon_path, icon(app), 0o644)?;
-
+pub fn install(payload: &[u8]) -> Result<(), String> {
+    let image = image();
     let desktop = format!(
-        "[Desktop Entry]\nType=Application\nName={}\nExec=\"{}\" %U\nIcon={}\nCategories={}\nTerminal=false\n{VERSION_KEY}{VERSION}\n",
-        app.product,
+        "[Desktop Entry]\nType=Application\nName=Atrix\nExec=\"{}\" %U\nIcon={ID}\nCategories=Development;\nTerminal=false\n",
         image.display(),
-        identifier(app),
-        categories(app),
     );
 
-    write(&entry(app), desktop.as_bytes(), 0o644)
+    write(&image, payload, 0o755)?;
+    write(&icon(), ICON, 0o644)?;
+    write(&entry(), desktop.as_bytes(), 0o644)
 }
 
-pub fn launch_installer(bytes: &[u8], version: &str) -> Result<(), String> {
-    let path = std::env::var_os("APPIMAGE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::temp_dir().join(format!("Atrix_{version}_installer.AppImage"))
-        });
+pub fn uninstall() -> Result<(), String> {
+    for path in [image(), entry(), icon()] {
+        if let Err(error) = std::fs::remove_file(&path) {
+            if error.kind() != ErrorKind::NotFound {
+                return Err(fail(error));
+            }
+        }
+    }
 
-    write(&path, bytes, 0o755)?;
-    Command::new(path).spawn().map_err(fail)?;
+    let _ = std::fs::remove_dir(data().join("atrix"));
+
+    Ok(())
+}
+
+pub fn default_app(_enabled: bool) -> Result<(), String> {
+    Ok(())
+}
+
+pub fn launch() -> Result<(), String> {
+    Command::new(image()).spawn().map_err(fail)?;
 
     Ok(())
 }

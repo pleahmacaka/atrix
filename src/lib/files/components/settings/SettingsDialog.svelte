@@ -1,15 +1,13 @@
 <script lang="ts">
-  import {
-    Confirm,
-    type PrefsPage,
-    PrefsWindow,
-    Row,
-    Section,
-    StandaloneTheme,
-    toast,
-  } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { getVersion } from "@tauri-apps/api/app"
-  import { t } from "svelte-i18n"
+  import { MediaQuery } from "svelte/reactivity"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import Modal from "#lib/components/ui/Modal.svelte"
+  import Section from "#lib/components/ui/Section.svelte"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { toast } from "#lib/files/store/toast.svelte.ts"
+  import { m } from "#lib/paraglide/messages.js"
   import { parentOf } from "../../locations"
   import { logFile } from "../../native"
   import { archives } from "../../store/archive.svelte"
@@ -18,10 +16,22 @@
   import TranscribeSettings from "../audio/TranscribeSettings.svelte"
   import DeviceSettings from "../share/DeviceSettings.svelte"
   import TerminalSettings from "../terminal/TerminalSettings.svelte"
+  import ConfirmDialog from "../window/ConfirmDialog.svelte"
   import DecorSettings from "./DecorSettings.svelte"
   import DefaultAppRows from "./DefaultAppRows.svelte"
   import MenuSettings from "./MenuSettings.svelte"
   import SidebarSettings from "./SidebarSettings.svelte"
+
+  type Page =
+    | "general"
+    | "decor"
+    | "sidebar"
+    | "contextMenu"
+    | "defaultApp"
+    | "terminal"
+    | "transcribe"
+    | "devices"
+    | "about"
 
   type Toggle =
     | "showHidden"
@@ -36,51 +46,65 @@
     explorer,
   }: { open?: boolean; standalone?: boolean; explorer: Explorer } = $props()
 
-  const PAGES: [string, string][] = [
-    ["general", "lucide:settings-2"],
-    ["appearance", "lucide:palette"],
-    ["decor", "lucide:highlighter"],
-    ["sidebar", "lucide:panel-left"],
-    ["contextMenu", "lucide:square-menu"],
-    ["defaultApp", "lucide:folder-check"],
-    ["terminal", "lucide:square-terminal"],
-    ["transcribe", "lucide:audio-lines"],
-    ["devices", "lucide:share-2"],
-    ["about", "lucide:info"],
+  const PAGES: { id: Page; icon: string; label: () => string }[] = [
+    {
+      id: "general",
+      icon: "lucide:settings-2",
+      label: m.files_settings_pages_general,
+    },
+    {
+      id: "decor",
+      icon: "lucide:highlighter",
+      label: m.files_settings_pages_decor,
+    },
+    {
+      id: "sidebar",
+      icon: "lucide:panel-left",
+      label: m.files_settings_pages_sidebar,
+    },
+    {
+      id: "contextMenu",
+      icon: "lucide:square-menu",
+      label: m.files_settings_pages_context_menu,
+    },
+    {
+      id: "defaultApp",
+      icon: "lucide:folder-check",
+      label: m.files_settings_pages_default_app,
+    },
+    {
+      id: "terminal",
+      icon: "lucide:square-terminal",
+      label: m.files_settings_pages_terminal,
+    },
+    {
+      id: "transcribe",
+      icon: "lucide:audio-lines",
+      label: m.files_settings_pages_transcribe,
+    },
+    {
+      id: "devices",
+      icon: "lucide:share-2",
+      label: m.files_settings_pages_devices,
+    },
+    { id: "about", icon: "lucide:info", label: m.files_settings_pages_about },
   ]
 
-  let dialog = $state<HTMLDialogElement>()
-  let page = $state("general")
-  let version = $state("")
+  const narrow = new MediaQuery("(width < 40rem)")
+
+  const version = getVersion()
+
+  let page = $state<Page>("general")
   let resetting = $state(false)
 
-  const pages = $derived<PrefsPage[]>(
-    PAGES.map(([id, icon]) => ({
-      id,
-      icon,
-      label: $t(`explorer.settings.pages.${id}`),
-    })),
-  )
-
-  $effect(() => {
-    if (!dialog) {
-      return
-    }
-
-    if (open && !dialog.open) {
-      dialog.showModal()
-      getVersion().then(value => (version = value))
-    } else if (!open && dialog.open) {
-      dialog.close()
-    }
-  })
+  const current = $derived(PAGES.find(entry => entry.id === page) ?? PAGES[0])
 
   const showLog = async () => {
     const file = await logFile().catch(() => null)
     const folder = file && parentOf(file)
 
     if (!file || !folder) {
-      toast($t("explorer.settings.noLog"), "info")
+      toast(m.files_settings_no_log(), "info")
 
       return
     }
@@ -95,132 +119,164 @@
   }
 </script>
 
-{#snippet switchRow(key: Toggle, label: string, hint?: string)}
-  <Row {label} {hint}>
+{#snippet toggleRow(key: Toggle, title: string)}
+  <SettingRow {title}>
     <input
       type="checkbox"
-      class="toggle toggle-primary"
-      aria-label={label}
+      class="toggle toggle-sm toggle-primary"
+      aria-label={title}
       bind:checked={prefs[key]}
     />
-  </Row>
+  </SettingRow>
 {/snippet}
 
-<dialog bind:this={dialog} class="modal" onclose={() => (open = false)}>
-  <div
-    class="modal-box h-[min(44rem,90vh)] w-[min(64rem,94vw)] max-w-none overflow-hidden border border-base-content/10 bg-base-100 p-0"
+{#snippet pageList(row: boolean)}
+  <nav
+    class={["flex gap-0.5 px-2 pb-2", row ? "flex-row" : "flex-col"]}
+    aria-label={m.settings_menu()}
   >
-    <PrefsWindow
-      title={$t("explorer.settings.title")}
-      {pages}
-      bind:page
-      onclose={() => (open = false)}
-    >
-      {#if page === "general"}
-        <Section title={$t("explorer.settings.display")}>
-          {@render switchRow("showHidden", $t("explorer.settings.showHidden"))}
-          {@render switchRow("showExtensions", $t("explorer.settings.showExtensions"))}
-          {@render switchRow(
-            "preview",
-            $t("explorer.settings.previewPane"),
-            $t("explorer.settings.previewPaneHint"),
-          )}
-        </Section>
+    {#each PAGES as entry (entry.id)}
+      {@const selected = page === entry.id}
 
-        <Section title={$t("explorer.settings.toolbar")}>
-          {@render switchRow(
-            "compactToolbar",
-            $t("explorer.settings.compactToolbar"),
-            $t("explorer.settings.compactToolbarHint"),
-          )}
-          {@render switchRow("selectionInMore", $t("explorer.settings.selectionInMore"))}
-        </Section>
-      {:else if page === "appearance"}
+      <button
+        type="button"
+        class={[
+          "flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-field text-sm",
+          row ? "shrink-0 px-3" : "px-2",
+          "transition-colors duration-140",
+          selected
+            ? "bg-primary/8 text-primary"
+            : "text-base-content/75 hover:bg-base-content/8",
+        ]}
+        aria-current={selected ? "page" : undefined}
+        title={entry.label()}
+        onclick={() => (page = entry.id)}
+      >
+        <Icon icon={entry.icon} class="size-4 shrink-0" />
+        <span
+          class={[
+            "min-w-0 text-start",
+            row ? "whitespace-nowrap" : "flex-1 truncate",
+          ]}
+        >
+          {entry.label()}
+        </span>
+      </button>
+    {/each}
+  </nav>
+{/snippet}
+
+<Modal
+  bind:open
+  label={m.files_settings_title()}
+  class={[
+    "w-full overflow-hidden",
+    narrow.current
+      ? "h-dvh max-h-none flex-col rounded-none"
+      : "h-160 max-w-3xl flex-row",
+  ]}
+>
+  {#if narrow.current}
+    <div class="flex shrink-0 items-start bg-base-200/60 pt-2">
+      <div class="min-w-0 flex-1 overflow-x-auto scrollbar-none">
+        {@render pageList(true)}
+      </div>
+
+      <IconButton
+        icon="lucide:x"
+        label={m.common_close()}
+        class="me-1 shrink-0"
+        onclick={() => (open = false)}
+      />
+    </div>
+  {:else}
+    <div class="flex w-44 shrink-0 flex-col bg-base-200/60 pt-3">
+      {@render pageList(false)}
+    </div>
+  {/if}
+
+  <section
+    class="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto p-4 sm:p-5"
+    aria-label={current.label()}
+  >
+    {#if page === "general"}
+      <Section title={m.files_settings_display()}>
+        {@render toggleRow("showHidden", m.files_settings_show_hidden())}
+        {@render toggleRow("showExtensions", m.files_settings_show_extensions())}
+        {@render toggleRow("preview", m.files_settings_preview_pane())}
+      </Section>
+
+      <Section title={m.files_settings_toolbar()}>
+        {@render toggleRow("compactToolbar", m.files_settings_compact_toolbar())}
+        {@render toggleRow(
+          "selectionInMore",
+          m.files_settings_selection_in_more(),
+        )}
+      </Section>
+    {:else if page === "decor"}
+      <DecorSettings />
+    {:else if page === "sidebar"}
+      <SidebarSettings />
+    {:else if page === "contextMenu"}
+      <MenuSettings />
+    {:else if page === "defaultApp"}
+      <Section>
+        <DefaultAppRows />
+      </Section>
+    {:else if page === "terminal"}
+      <TerminalSettings />
+    {:else if page === "transcribe"}
+      <TranscribeSettings />
+    {:else if page === "devices"}
+      <DeviceSettings />
+    {:else}
+      <Section>
+        <SettingRow title={m.files_settings_version()}>
+          {#await version then value}
+            <span class="text-sm text-base-content/60 tabular-nums">{value}</span>
+          {/await}
+        </SettingRow>
+
+        <SettingRow title={m.files_settings_archive_backend()}>
+          <span class="text-sm text-base-content/60">
+            {archives.bandizip
+              ? m.files_settings_archive_bandizip()
+              : m.files_settings_archive_builtin()}
+          </span>
+        </SettingRow>
+
+        <SettingRow title={m.files_settings_log()}>
+          <button type="button" class="btn btn-sm" onclick={showLog}>
+            {m.files_settings_show_log()}
+          </button>
+        </SettingRow>
+
         {#if standalone}
-          <StandaloneTheme {prefs} />
-        {:else}
-          <Section title={$t("explorer.settings.pages.appearance")}>
-            <Row label={$t("explorer.settings.appearanceHosted")}>
-              <span></span>
-            </Row>
-          </Section>
+          <SettingRow title={m.files_settings_rerun_setup()}>
+            <button type="button" class="btn btn-sm" onclick={rerunSetup}>
+              {m.files_settings_run()}
+            </button>
+          </SettingRow>
         {/if}
-      {:else if page === "decor"}
-        <DecorSettings />
-      {:else if page === "sidebar"}
-        <SidebarSettings />
-      {:else if page === "contextMenu"}
-        <MenuSettings />
-      {:else if page === "defaultApp"}
-        <Section title={$t("explorer.settings.defaultApp")}>
-          <DefaultAppRows />
-        </Section>
-      {:else if page === "terminal"}
-        <TerminalSettings />
-      {:else if page === "transcribe"}
-        <TranscribeSettings />
-      {:else if page === "devices"}
-        <DeviceSettings />
-      {:else}
-        <Section title="Atrix Files">
-          <Row label={$t("explorer.settings.version")} value={version}>
-            <span></span>
-          </Row>
 
-          <Row
-            label={$t("explorer.settings.archiveBackend")}
-            value={$t(
-              archives.bandizip
-                ? "explorer.settings.archiveBandizip"
-                : "explorer.settings.archiveBuiltin",
-            )}
+        <SettingRow title={m.files_settings_reset()}>
+          <button
+            type="button"
+            class="btn btn-sm btn-ghost text-error"
+            onclick={() => (resetting = true)}
           >
-            <span></span>
-          </Row>
+            {m.files_settings_reset_action()}
+          </button>
+        </SettingRow>
+      </Section>
+    {/if}
+  </section>
+</Modal>
 
-          <Row label={$t("explorer.settings.log")} hint={$t("explorer.settings.logHint")}>
-            <button type="button" class="btn btn-soft btn-sm" onclick={showLog}>
-              {$t("explorer.settings.showLog")}
-            </button>
-          </Row>
-
-          {#if standalone}
-            <Row
-              label={$t("explorer.settings.rerunSetup")}
-              hint={$t("explorer.settings.rerunSetupHint")}
-            >
-              <button type="button" class="btn btn-soft btn-sm" onclick={rerunSetup}>
-                {$t("explorer.settings.run")}
-              </button>
-            </Row>
-          {/if}
-
-          <Row
-            label={$t("explorer.settings.reset")}
-            hint={$t("explorer.settings.resetHint")}
-          >
-            <button
-              type="button"
-              class="btn btn-soft btn-error btn-sm"
-              onclick={() => (resetting = true)}
-            >
-              {$t("explorer.settings.resetAction")}
-            </button>
-          </Row>
-        </Section>
-      {/if}
-    </PrefsWindow>
-  </div>
-
-  <form method="dialog" class="modal-backdrop">
-    <button type="submit">{$t("common.close")}</button>
-  </form>
-</dialog>
-
-<Confirm
+<ConfirmDialog
   bind:open={resetting}
-  title={$t("explorer.settings.resetTitle")}
-  body={$t("explorer.settings.resetBody")}
-  action={$t("explorer.settings.resetAction")}
+  title={m.files_settings_reset_title()}
+  body={m.files_settings_reset_body()}
+  action={m.files_settings_reset_action()}
   onconfirm={resetPrefs}
 />

@@ -1,173 +1,91 @@
 <script lang="ts">
-  import {
-    Confirm,
-    type PrefsPage,
-    PrefsWindow,
-    Row,
-    Section,
-    StandaloneTheme,
-  } from "@atrix/ui"
-  import { getVersion } from "@tauri-apps/api/app"
-  import { t } from "svelte-i18n"
-  import { prefs, resetPrefs } from "./prefs.svelte"
-  import { defaultShell, session } from "./tabs.svelte"
+import SteppedSetting from "#lib/components/settings/SteppedSetting.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import Modal from "#lib/components/ui/Modal.svelte"
+import Section from "#lib/components/ui/Section.svelte"
+import Select from "#lib/components/ui/Select.svelte"
+import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import {
+  settings,
+  TERMINAL_FONT,
+  TERMINAL_SCROLL,
+  TERMINAL_SIZE,
+  TERMINAL_WEIGHT,
+} from "#lib/store/settings.svelte.ts"
+import { shellIcon } from "../shell-icons"
+import { prefs } from "./prefs.svelte"
+import { defaultShell, session } from "./tabs.svelte"
 
-  const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
-
-  let { standalone = false }: { standalone?: boolean } = $props()
-
-  const PAGES: [string, string][] = [
-    ["general", "lucide:square-terminal"],
-    ["appearance", "lucide:palette"],
-    ["about", "lucide:info"],
-  ]
-
-  let dialog = $state<HTMLDialogElement>()
-  let page = $state("general")
-  let version = $state("")
-  let resetting = $state(false)
-
-  const pages = $derived<PrefsPage[]>(
-    PAGES.map(([id, icon]) => ({
-      id,
-      icon,
-      label: $t(`terminal.settings.${id}`),
-    })),
-  )
-
-  $effect(() => {
-    if (!dialog) {
-      return
-    }
-
-    if (session.settingsOpen && !dialog.open) {
-      dialog.showModal()
-      getVersion().then(value => (version = value))
-    } else if (!session.settingsOpen && dialog.open) {
-      dialog.close()
-    }
-  })
+const shells = $derived(
+  session.shells.map(shell => ({
+    value: shell.id,
+    label: shell.name,
+    icon: shellIcon(shell.id),
+  })),
+)
 </script>
 
-<dialog
-  bind:this={dialog}
-  class="modal"
-  onclose={() => (session.settingsOpen = false)}
+<Modal
+  bind:open={session.settingsOpen}
+  label={m.terminal_settings_title()}
+  class="w-full max-w-xl"
 >
-  <div
-    class="modal-box h-[min(38rem,90vh)] w-[min(56rem,94vw)] max-w-none overflow-hidden border border-base-content/10 bg-base-100 p-0"
-  >
-    <PrefsWindow
-      title={$t("terminal.settings.title")}
-      {pages}
-      bind:page
-      onclose={() => (session.settingsOpen = false)}
-    >
-      {#if page === "general"}
-        <Section title={$t("terminal.settings.general")}>
-          <Row label={$t("terminal.settings.shell")}>
-            <select
-              class="select select-sm w-48"
-              aria-label={$t("terminal.settings.shell")}
-              value={defaultShell(prefs.shell)}
-              onchange={e => (prefs.shell = e.currentTarget.value)}
-            >
-              {#each session.shells as shell (shell.id)}
-                <option value={shell.id}>{shell.name}</option>
-              {/each}
-            </select>
-          </Row>
+  <div class="flex min-h-0 flex-col gap-4 overflow-y-auto p-5">
+    <header class="flex items-center gap-2">
+      <h2 class="min-w-0 flex-1 truncate text-base font-semibold">
+        {m.terminal_settings_title()}
+      </h2>
+      <IconButton
+        icon="lucide:x"
+        label={m.common_close()}
+        onclick={() => (session.settingsOpen = false)}
+      />
+    </header>
 
-          <Row label={$t("terminal.settings.baud")}>
-            <select
-              class="select select-sm w-48"
-              aria-label={$t("terminal.settings.baud")}
-              bind:value={prefs.baud}
-            >
-              {#each BAUDS as baud (baud)}
-                <option value={baud}>{baud}</option>
-              {/each}
-            </select>
-          </Row>
+    <Section title={m.terminal()}>
+      <SettingRow title={m.terminal_settings_shell()}>
+        <Select
+          label={m.terminal_settings_shell()}
+          options={shells}
+          value={defaultShell(prefs.shell)}
+          onchange={shell => (prefs.shell = shell)}
+          class="w-56"
+        />
+      </SettingRow>
+    </Section>
 
-          <Row
-            label={$t("terminal.settings.font")}
-            hint={$t("terminal.settings.fontHint")}
-          >
-            <input
-              class="input input-sm w-48"
-              aria-label={$t("terminal.settings.font")}
-              spellcheck="false"
-              bind:value={prefs.fontFamily}
-            />
-          </Row>
-
-          <Row label={$t("terminal.settings.fontSize")} value={`${prefs.fontSize}`}>
-            <input
-              type="range"
-              class="range range-primary range-xs w-48"
-              aria-label={$t("terminal.settings.fontSize")}
-              min="10"
-              max="24"
-              step="1"
-              bind:value={prefs.fontSize}
-            />
-          </Row>
-
-          <Row
-            label={$t("terminal.settings.claudeChat")}
-            hint={$t("terminal.settings.claudeChatHint")}
-          >
-            <input
-              type="checkbox"
-              class="toggle toggle-primary"
-              aria-label={$t("terminal.settings.claudeChat")}
-              bind:checked={prefs.claudeChat}
-            />
-          </Row>
-        </Section>
-      {:else if page === "appearance"}
-        {#if standalone}
-          <StandaloneTheme {prefs} />
-        {:else}
-          <Section title={$t("terminal.settings.appearance")}>
-            <Row label={$t("terminal.settings.appearanceHosted")}>
-              <span></span>
-            </Row>
-          </Section>
-        {/if}
-      {:else}
-        <Section title="Atrix Terminal">
-          <Row label={$t("terminal.settings.version")} value={version}>
-            <span></span>
-          </Row>
-
-          <Row
-            label={$t("terminal.settings.reset")}
-            hint={$t("terminal.settings.resetHint")}
-          >
-            <button
-              type="button"
-              class="btn btn-soft btn-error btn-sm"
-              onclick={() => (resetting = true)}
-            >
-              {$t("terminal.settings.resetAction")}
-            </button>
-          </Row>
-        </Section>
-      {/if}
-    </PrefsWindow>
+    <Section title={m.terminal_settings_font()}>
+      <SettingRow title={m.appearance_terminal_font()}>
+        <input
+          class="input input-sm w-56"
+          aria-label={m.appearance_terminal_font()}
+          placeholder={TERMINAL_FONT}
+          autocomplete="off"
+          spellcheck="false"
+          value={settings.terminalFont}
+          onchange={e => settings.setTerminalFont(e.currentTarget.value.trim())}
+        />
+      </SettingRow>
+      <SteppedSetting
+        title={m.appearance_terminal_size()}
+        value={settings.terminalSize}
+        range={TERMINAL_SIZE}
+        onchange={settings.setTerminalSize}
+      />
+      <SteppedSetting
+        title={m.appearance_terminal_weight()}
+        value={settings.terminalWeight}
+        range={TERMINAL_WEIGHT}
+        onchange={settings.setTerminalWeight}
+      />
+      <SteppedSetting
+        title={m.appearance_terminal_scroll()}
+        value={settings.terminalScroll}
+        range={TERMINAL_SCROLL}
+        onchange={settings.setTerminalScroll}
+        unit="%"
+      />
+    </Section>
   </div>
-
-  <form method="dialog" class="modal-backdrop">
-    <button type="submit">{$t("common.close")}</button>
-  </form>
-</dialog>
-
-<Confirm
-  bind:open={resetting}
-  title={$t("terminal.settings.resetTitle")}
-  body={$t("terminal.settings.resetBody")}
-  action={$t("terminal.settings.resetAction")}
-  onconfirm={resetPrefs}
-/>
+</Modal>

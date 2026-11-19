@@ -1,20 +1,18 @@
 <script lang="ts" generics="T extends string">
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
+  import { m } from "#lib/paraglide/messages.js"
   import type { Arrangement } from "../../store/prefs.svelte"
 
   let {
     arrangement = $bindable(),
     labelOf,
     iconOf,
-    hintOf,
     locked,
     label,
   }: {
     arrangement: Arrangement<T>
     labelOf: (id: T) => string
     iconOf: (id: T) => string
-    hintOf?: (id: T) => string
     locked?: (id: T) => boolean
     label: string
   } = $props()
@@ -109,7 +107,7 @@
 <ul
   bind:this={list}
   aria-label={label}
-  class="flex flex-col rounded-box border border-base-content/10 p-1"
+  class="-mx-2 flex flex-col py-2"
   {onpointermove}
   onpointerup={drop}
   onpointercancel={release}
@@ -117,18 +115,17 @@
 >
   {#each arrangement.order as id, index (id)}
     {@const shown = !arrangement.hidden.includes(id)}
-    {@const fixed = locked?.(id) ?? false}
+    {@const name = labelOf(id)}
 
     <li
       id="{uid}-row-{id}"
       class={[
-        "relative flex touch-none items-center gap-2 rounded-field px-2 py-1.5",
-        "transition-colors duration-120 select-none hover:bg-base-content/6",
-        "has-focus-visible:bg-base-content/8",
+        "relative flex min-h-10 touch-none items-center gap-3 rounded-field px-2",
+        "transition-colors duration-140 select-none hover:bg-base-content/8",
         "before:absolute before:inset-x-1 before:h-0.5 before:rounded-full",
         "before:bg-primary before:opacity-0",
         dragging === id
-          ? "cursor-grabbing bg-base-content/10 opacity-50"
+          ? "cursor-grabbing bg-base-content/8 opacity-50"
           : "cursor-grab",
         landing === id && "before:-top-0.25 before:opacity-100",
         landing === null &&
@@ -140,8 +137,8 @@
       <button
         type="button"
         id="{uid}-{id}"
-        class="flex shrink-0 cursor-grab text-base-content/35 outline-none"
-        aria-label={labelOf(id)}
+        class="flex shrink-0 cursor-grab text-base-content/40 outline-none"
+        aria-label={name}
         aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
         onkeydown={e => onkeydown(e, id, index)}
       >
@@ -150,30 +147,25 @@
 
       <Icon
         icon={iconOf(id)}
-        class={["size-4 shrink-0", !shown && "text-base-content/35"]}
+        class={["size-4 shrink-0", !shown && "text-base-content/40"]}
       />
 
       <span
         class={[
-          "flex min-w-0 grow flex-col",
-          !shown && "text-base-content/45",
+          "min-w-0 flex-1 truncate text-sm",
+          !shown && "text-base-content/50",
         ]}
+        title={name}
       >
-        <span class="truncate">{labelOf(id)}</span>
-
-        {#if hintOf}
-          <span class="truncate text-xs text-base-content/50">{hintOf(id)}</span>
-        {/if}
+        {name}
       </span>
 
       <input
         type="checkbox"
         class="toggle toggle-sm toggle-primary"
-        aria-label={$t("explorer.settings.order.show", {
-          values: { name: labelOf(id) },
-        })}
+        aria-label={m.files_settings_order_show({ name })}
         checked={shown}
-        disabled={fixed}
+        disabled={locked?.(id) ?? false}
         onchange={e => toggle(id, e.currentTarget.checked)}
       />
     </li>

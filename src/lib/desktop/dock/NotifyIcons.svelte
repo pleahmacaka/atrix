@@ -1,38 +1,47 @@
 <script lang="ts">
-  import type { DockEdge } from "@atrix/settings"
-  import type { MenuItem } from "@atrix/ui"
-  import { ContextMenu } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { flip } from "svelte/animate"
-  import { t } from "svelte-i18n"
-  import { notifyIconClick, notifyIconPromote, notifyIcons, onTrayIcons, type TrayIcon } from "#lib/desktop/native/tray.js"
-  import type { MenuBox } from "./layout.svelte"
+  import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
+  import {
+    notifyIconClick,
+    notifyIconPromote,
+    notifyIcons,
+    onTrayIcons,
+    type TrayIcon,
+  } from "#lib/desktop/native/tray.js"
+  import { m } from "#lib/paraglide/messages.js"
+  import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 
   type Props = {
     compact?: boolean
-    edge?: DockEdge
+    edge?: "top" | "bottom"
+    placement: Placement
     order?: string[]
     hidden?: string[]
-    flat?: boolean
     onreorder?: (order: string[]) => void
     onhide?: (hidden: string[]) => void
-    onmenu?: (rect: MenuBox | null) => void
   }
 
   let {
     compact = false,
     edge = "bottom",
+    placement,
     order = [],
     hidden = [],
-    flat = false,
     onreorder,
     onhide,
-    onmenu,
   }: Props = $props()
 
   const TRAY_ICON = "application/x-atrix-tray-icon"
 
   let icons = $state<TrayIcon[]>([])
+  let stashOpen = $state(false)
+  let showAll = $state(false)
+  let dragId = $state<string | null>(null)
+  let dragStashed = $state(false)
+  let dropId = $state<string | null>(null)
+  let dropBefore = $state(true)
+  let demoting = $state(false)
 
   const refresh = async () => {
     icons = await notifyIcons().catch(() => icons)
@@ -45,9 +54,28 @@
 
     return () => {
       stop.then(off => off()).catch(() => undefined)
-      onmenu?.(null)
     }
   })
+
+  const sorted = $derived.by(() => {
+    const rank = new Map(order.map((id, index) => [id, index]))
+
+    return [...icons].sort(
+      (a, b) =>
+        (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    )
+  })
+
+  const hiddenSet = $derived(new Set(hidden))
+
+  const shown = $derived(sorted.filter(icon => icon.promoted))
+
+  const overflow = $derived(sorted.filter(icon => !icon.promoted))
+
+  const stashed = $derived(overflow.filter(icon => showAll || !hiddenSet.has(icon.id)))
+
+  const hiddenCount = $derived(overflow.filter(icon => hiddenSet.has(icon.id)).length)
 
   const click = (id: string, button: "left" | "right") => {
     notifyIconClick(id, button).catch(() => undefined)
@@ -67,84 +95,17 @@
       setHidden(id, false)
     }
 
-    // the panel is where the icon just went, so keep it up instead of making the user reopen it
     if (overflow.length === 0) {
-      closeStash()
-
-      return
-    }
-
-    stashOpen = true
-  }
-
-  const sorted = $derived.by(() => {
-    const rank = new Map(order.map((id, index) => [id, index]))
-
-    return [...icons].sort(
-      (a, b) =>
-        (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-        (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-    )
-  })
-
-  const hiddenSet = $derived(new Set(hidden))
-
-  let showAll = $state(false)
-
-  const shown = $derived(flat ? sorted : sorted.filter(icon => icon.promoted))
-  const overflow = $derived(flat ? [] : sorted.filter(icon => !icon.promoted))
-  const stashed = $derived(
-    overflow.filter(icon => showAll || !hiddenSet.has(icon.id)),
-  )
-  const hiddenCount = $derived(
-    overflow.filter(icon => hiddenSet.has(icon.id)).length,
-  )
-
-  let stashOpen = $state(false)
-
-  let row = $state<HTMLElement>()
-  let stash = $state<HTMLElement>()
-  let stashHeight = $state(0)
-
-  const closeStash = () => {
-    if (!stashOpen) {
-      return
-    }
-
-    stashOpen = false
-    onmenu?.(null)
-  }
-
-  const toggleStash = () => {
-    stashOpen = !stashOpen
-
-    if (!stashOpen) {
-      onmenu?.(null)
+      stashOpen = false
     }
   }
 
-  $effect(() => {
-    if (stashOpen && stash && stashHeight > 0) {
-      onmenu?.(stash.getBoundingClientRect())
-    }
-  })
-
-  const onwindowdown = (e: MouseEvent) => {
-    if (stashOpen && row && !row.contains(e.target as Node)) {
-      closeStash()
-    }
+  const endDrag = () => {
+    dragId = null
+    dropId = null
+    dragStashed = false
+    demoting = false
   }
-
-  $effect(() => {
-    window.addEventListener("atrix-close-menus", closeStash)
-
-    return () => window.removeEventListener("atrix-close-menus", closeStash)
-  })
-
-  let dragId = $state<string | null>(null)
-  let dragStashed = $state(false)
-  let dropId = $state<string | null>(null)
-  let dropBefore = $state(true)
 
   const dragOver = (e: DragEvent, id: string) => {
     if (!dragId) {
@@ -159,42 +120,7 @@
     dropBefore = e.clientX < box.left + box.width / 2
   }
 
-  const drop = (e: DragEvent) => {
-    e.preventDefault()
-
-    const from = dragId
-    const onto = dropId
-    const before = dropBefore
-    const wasStashed = dragStashed
-
-    dragId = null
-    dropId = null
-    dragStashed = false
-
-    if (!from) {
-      return
-    }
-
-    if (wasStashed) {
-      if (onto && onto !== from) {
-        const ids = sorted.map(icon => icon.id).filter(id => id !== from)
-        const at = ids.indexOf(onto)
-
-        if (at >= 0) {
-          ids.splice(before ? at : at + 1, 0, from)
-          onreorder?.(ids)
-        }
-      }
-
-      void promote(from, true)
-
-      return
-    }
-
-    if (!onto || from === onto) {
-      return
-    }
-
+  const reorder = (from: string, onto: string, before: boolean) => {
     const ids = sorted.map(icon => icon.id).filter(id => id !== from)
     const at = ids.indexOf(onto)
 
@@ -206,65 +132,78 @@
     onreorder?.(ids)
   }
 
-  let iconMenuId = $state<string | null>(null)
-  let iconMenuOpen = $state(false)
-  let iconMenuX = $state(0)
-  let iconMenuY = $state(0)
+  const drop = (e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
 
-  const iconContextMenu = (e: MouseEvent, icon: TrayIcon) => {
+    const from = dragId
+    const onto = dropId
+    const before = dropBefore
+    const wasStashed = dragStashed
+
+    endDrag()
+
+    if (!from) {
+      return
+    }
+
+    if (onto && onto !== from) {
+      reorder(from, onto, before)
+    }
+
+    if (wasStashed) {
+      void promote(from, true)
+    }
+  }
+
+  const demote = (e: DragEvent) => {
     e.preventDefault()
 
+    const from = dragId
+
+    if (from && !dragStashed) {
+      void promote(from, false)
+    }
+
+    endDrag()
+  }
+
+  const iconMenu = (e: MouseEvent, icon: TrayIcon) => {
     if (!e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
       click(icon.id, "right")
 
       return
     }
 
-    iconMenuId = icon.id
-    iconMenuOpen = true
-    iconMenuX = e.clientX
-    iconMenuY = e.clientY
-  }
-
-  const iconMenuItems = $derived.by((): MenuItem[] => {
-    const icon = sorted.find(found => found.id === iconMenuId)
-
-    if (!icon) {
-      return []
-    }
-
     const off = hiddenSet.has(icon.id)
 
-    return [
+    contextMenu.show(e, [
       icon.promoted || !off
         ? {
-            label: $t("tray.icons.hideFromDock"),
+            label: m.dock_tray_hide(),
             icon: "lucide:eye-off",
-            action: () => {
+            run: () => {
               void notifyIconPromote(icon.id, false).catch(() => undefined)
               setHidden(icon.id, true)
             },
           }
         : {
-            label: $t("tray.icons.showInDock"),
+            label: m.dock_tray_show(),
             icon: "lucide:eye",
-            action: () => void promote(icon.id, true),
+            run: () => promote(icon.id, true),
           },
-    ]
-  })
-
-  const closeIconMenu = () => {
-    iconMenuOpen = false
-    iconMenuId = null
-    onmenu?.(null)
+    ])
   }
 </script>
 
-{#snippet trayButton(icon: TrayIcon, small: boolean)}
-  <button type="button"
-    class={["btn btn-ghost btn-square", small ? "btn-sm" : compact ? "btn-xs" : "btn-sm"]}
+{#snippet trayButton(icon: TrayIcon, size: "xs" | "sm")}
+  <button
+    type="button"
+    class={["btn btn-ghost btn-square", size === "xs" ? "btn-xs" : "btn-sm"]}
     title={icon.tooltip}
-    aria-label={icon.tooltip || $t("tray.icons.icon")}
+    aria-label={icon.tooltip || m.dock_tray_icon()}
     draggable="true"
     ondragstart={e => {
       e.dataTransfer?.setData("text/plain", icon.id)
@@ -272,15 +211,12 @@
       dragId = icon.id
       dragStashed = !icon.promoted
     }}
-    onclick={e => {
-      if (e.button !== 0) {
-        return
-      }
-
+    ondragend={endDrag}
+    onclick={() => {
       click(icon.id, "left")
-      closeStash()
+      stashOpen = false
     }}
-    oncontextmenu={e => iconContextMenu(e, icon)}
+    oncontextmenu={e => iconMenu(e, icon)}
   >
     {#if icon.icon}
       <img src={icon.icon} alt="" class="size-4" draggable="false" />
@@ -290,178 +226,124 @@
   </button>
 {/snippet}
 
-<svelte:window
-  onmousedown={onwindowdown}
-  ondragover={e => {
-    if (e.dataTransfer?.types.includes(TRAY_ICON)) {
-      e.preventDefault()
-    }
-  }}
-  ondrop={e => {
-    const dropped = e.dataTransfer?.getData(TRAY_ICON)
-
-    if (!dropped || e.defaultPrevented) {
-      return
-    }
-
-    dragId = null
-    dropId = null
-    dragStashed = false
-    void promote(dropped, true)
-  }}
-/>
-
 {#if icons.length > 0}
   <fieldset
-    class={["relative flex items-center gap-0.25", flat && "flex-wrap justify-end"]}
-    bind:this={row}
-    ondragover={e => e.preventDefault()}
-    ondrop={e => {
-      e.preventDefault()
-
+    class="flex items-center gap-0.5"
+    aria-label={m.dock_tray()}
+    ondragover={e => {
       if (dragId && dragStashed) {
-        promote(dragId, true)
+        e.preventDefault()
       }
-
-      dragId = null
-      dragStashed = false
     }}
+    ondrop={drop}
   >
     {#if overflow.length > 0}
-      <button type="button"
-        class={["btn btn-ghost btn-square", compact ? "btn-xs" : "btn-sm"]}
-        title={$t("tray.icons.hiddenCount", { values: { count: overflow.length } })}
-        aria-label={$t("tray.icons.hidden")}
-        aria-haspopup="true"
-        aria-expanded={stashOpen}
-        onclick={toggleStash}
-        ondragover={e => e.preventDefault()}
-        ondrop={e => {
-          e.preventDefault()
+      <Popover label={m.dock_tray_hidden()} {placement} bind:open={stashOpen}>
+        {#snippet trigger(p)}
+          <button
+            {...p}
+            type="button"
+            class={[
+              "btn btn-ghost btn-square",
+              compact ? "btn-xs" : "btn-sm",
+              (stashOpen || demoting) && "bg-primary/8 text-primary",
+            ]}
+            title={m.dock_tray_hidden_count({ count: overflow.length })}
+            aria-label={m.dock_tray_hidden()}
+            ondragover={e => {
+              if (dragId && !dragStashed) {
+                e.preventDefault()
+                demoting = true
+              }
+            }}
+            ondragleave={() => (demoting = false)}
+            ondrop={demote}
+          >
+            <Icon
+              icon={edge === "top" ? "lucide:chevron-down" : "lucide:chevron-up"}
+              class="size-4"
+            />
+          </button>
+        {/snippet}
 
-          if (dragId && !dragStashed) {
-            promote(dragId, false)
-          }
-
-          dragId = null
-        }}
-      >
-        <Icon
-          icon={edge === "top" ? "lucide:chevron-down" : "lucide:chevron-up"}
-          class="size-4 text-base-content/70"
-        />
-      </button>
-    {/if}
-
-    <ul class="contents">
-    {#each shown as icon (icon.id)}
-      <li
-        animate:flip={{ duration: 120 }}
-        class={[
-          "relative flex transition-opacity duration-100",
-          dragId === icon.id && "opacity-30",
-        ]}
-        ondragover={e => dragOver(e, icon.id)}
-        ondrop={drop}
-        ondragend={() => {
-          dragId = null
-          dropId = null
-        }}
-      >
-        {#if dropId === icon.id && dropBefore}
-          <span
-            class="pointer-events-none absolute inset-y-1 -left-0.5 w-0.5 rounded-full bg-primary"
-          ></span>
-        {/if}
-
-        {#if dropId === icon.id && !dropBefore}
-          <span
-            class="pointer-events-none absolute inset-y-1 -right-0.5 w-0.5 rounded-full bg-primary"
-          ></span>
-        {/if}
-
-        {@render trayButton(icon, false)}
-      </li>
-    {/each}
-    </ul>
-
-    {#if stashOpen && overflow.length > 0}
-      <fieldset
-        bind:this={stash}
-        bind:offsetHeight={stashHeight}
-        class={[
-          "atrix-card absolute right-0 z-50 w-max p-2",
-          edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
-        ]}
-        aria-label={$t("tray.icons.hidden")}
-        ondragover={e => e.preventDefault()}
-        ondrop={e => {
-          e.preventDefault()
-
-          if (dragId && !dragStashed) {
-            promote(dragId, false)
-          }
-
-          dragId = null
-        }}
-      >
-        {#if stashed.length > 0}
-          <ul class="grid grid-cols-6 gap-0.5">
-            {#each stashed as icon (icon.id)}
-              {@const off = hiddenSet.has(icon.id)}
-
-              <li
-                class={["relative", off && "opacity-40"]}
-                ondragend={() => {
-                  dragId = null
-                  dropId = null
-                  dragStashed = false
-                }}
-              >
-                {@render trayButton(icon, true)}
-
-                {#if showAll}
-                  <button
-                    type="button"
-                    class="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-base-300 text-base-content/70 shadow hover:bg-base-content/20"
-                    title={off ? $t("tray.icons.unhide") : $t("tray.icons.hide")}
-                    aria-label={off ? $t("tray.icons.unhide") : $t("tray.icons.hide")}
-                    onclick={e => {
-                      e.stopPropagation()
-                      setHidden(icon.id, !off)
-                    }}
-                  >
-                    <Icon icon={off ? "lucide:eye" : "lucide:eye-off"} class="size-2.5" />
-                  </button>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="px-2 py-2 text-center text-xs text-base-content/40">
-            {$t("tray.icons.allHidden", { values: { count: hiddenCount } })}
-          </p>
-        {/if}
-
-        <label
-          class="mt-2 flex min-w-40 cursor-pointer items-center justify-between gap-3 border-t border-base-content/10 px-1 pt-2 text-xs text-base-content/70"
+        <fieldset
+          class="flex flex-col gap-2 p-2"
+          aria-label={m.dock_tray_hidden()}
+          ondragover={e => {
+            if (dragId && !dragStashed) {
+              e.preventDefault()
+            }
+          }}
+          ondrop={demote}
         >
-          <span>{$t("tray.icons.showAll")}</span>
+          {#if stashed.length > 0}
+            <ul class="grid grid-cols-6 gap-0.5">
+              {#each stashed as icon (icon.id)}
+                {@const off = hiddenSet.has(icon.id)}
 
-          <input type="checkbox" class="toggle toggle-primary toggle-xs" bind:checked={showAll} />
-        </label>
-      </fieldset>
+                <li class={["relative", off && "opacity-40"]}>
+                  {@render trayButton(icon, "sm")}
+
+                  {#if showAll}
+                    <button
+                      type="button"
+                      class={[
+                        "absolute -top-1 -right-1 flex size-4 cursor-pointer items-center",
+                        "justify-center rounded-full bg-base-300 hover:bg-base-content/20",
+                      ]}
+                      title={off ? m.dock_tray_overflow_show() : m.dock_tray_overflow_hide()}
+                      aria-label={off ? m.dock_tray_overflow_show() : m.dock_tray_overflow_hide()}
+                      onclick={e => {
+                        e.stopPropagation()
+                        setHidden(icon.id, !off)
+                      }}
+                    >
+                      <Icon icon={off ? "lucide:eye" : "lucide:eye-off"} class="size-2.5" />
+                    </button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="px-2 py-2 text-center text-xs text-base-content/50">
+              {m.dock_tray_all_hidden({ count: hiddenCount })}
+            </p>
+          {/if}
+
+          <label
+            class={[
+              "flex min-w-40 cursor-pointer items-center justify-between gap-3",
+              "px-1 text-xs text-base-content/70",
+            ]}
+          >
+            <span>{m.dock_tray_show_all()}</span>
+
+            <input type="checkbox" class="toggle toggle-primary toggle-xs" bind:checked={showAll} />
+          </label>
+        </fieldset>
+      </Popover>
     {/if}
-  </fieldset>
 
-  <ContextMenu
-    bind:open={iconMenuOpen}
-    items={iconMenuItems}
-    x={iconMenuX}
-    y={iconMenuY}
-    placement={edge === "top" ? "down" : "up"}
-    label={$t("tray.icons.icon")}
-    onsize={rect => onmenu?.(rect)}
-    onclose={closeIconMenu}
-  />
+    <ul class="flex items-center gap-0.5">
+      {#each shown as icon (icon.id)}
+        <li
+          animate:flip={{ duration: 120 }}
+          class={["relative flex transition-opacity", dragId === icon.id && "opacity-30"]}
+          ondragover={e => dragOver(e, icon.id)}
+          ondrop={drop}
+        >
+          {#if dropId === icon.id}
+            <span
+              class={[
+                "pointer-events-none absolute inset-y-1 w-0.5 rounded-full bg-primary",
+                dropBefore ? "-left-0.5" : "-right-0.5",
+              ]}
+            ></span>
+          {/if}
+
+          {@render trayButton(icon, compact ? "xs" : "sm")}
+        </li>
+      {/each}
+    </ul>
+  </fieldset>
 {/if}

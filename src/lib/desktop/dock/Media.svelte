@@ -1,36 +1,35 @@
 <script lang="ts">
-  import type { DockEdge, SpectrumStyle } from "@atrix/settings"
+  import type { SpectrumStyle } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import { listen } from "@tauri-apps/api/event"
-  import { t } from "svelte-i18n"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
   import * as native from "#lib/desktop/native/index.js"
   import { type MediaAction, type MediaStatus, mediaCommand, mediaStatus } from "#lib/desktop/native/media.js"
+  import { m } from "#lib/paraglide/messages.js"
   import { dockAwake } from "./dock.svelte"
-  import type { MenuBox } from "./layout.svelte"
   import Spectrum from "./Spectrum.svelte"
 
   type Props = {
     compact?: boolean
-    edge?: DockEdge
     spectrum?: boolean
     spectrumStyle?: SpectrumStyle
-    onmenu?: (rect: MenuBox | null) => void
+    placement: Placement
   }
 
-  let {
-    compact = false,
-    edge = "bottom",
-    spectrum = true,
-    spectrumStyle = "bars",
-    onmenu,
-  }: Props = $props()
+  let { compact = false, spectrum = true, spectrumStyle = "bars", placement }: Props = $props()
 
   const POLL = 30_000
   const SETTLE = 1_000
   const STEP = 0.05
+  const BAR_WIDTH = 10
 
   let status = $state<MediaStatus | null>(null)
   let failed = $state(false)
+  let open = $state(false)
+  let volume = $state<native.Volume | null>(null)
+  let stripWidth = $state(0)
+  let cardWidth = $state(0)
   let generation = 0
   let settleUntil = 0
 
@@ -64,6 +63,19 @@
     return () => clearInterval(timer)
   })
 
+  const readVolume = async () => {
+    volume = await native
+      .systemInfo()
+      .then(info => info.volume)
+      .catch(() => null)
+  }
+
+  $effect(() => {
+    if (open) {
+      readVolume()
+    }
+  })
+
   const send = async (action: MediaAction) => {
     const previous = $state.snapshot(status)
 
@@ -95,37 +107,6 @@
     }
   }
 
-  let open = $state(false)
-  let popover = $state<HTMLElement>()
-  let volume = $state<native.Volume | null>(null)
-
-  const readVolume = async () => {
-    volume = await native
-      .systemInfo()
-      .then(info => info.volume)
-      .catch(() => null)
-  }
-
-  const setOpen = (next: boolean) => {
-    if (open === next) {
-      return
-    }
-
-    open = next
-
-    if (next) {
-      readVolume()
-    } else {
-      onmenu?.(null)
-    }
-  }
-
-  $effect(() => {
-    if (open && popover) {
-      onmenu?.(popover.getBoundingClientRect())
-    }
-  })
-
   const setLevel = async (next: number) => {
     const clamped = Math.min(1, Math.max(0, Math.round(next * 100) / 100))
 
@@ -144,147 +125,101 @@
     setLevel(volume.level + (e.deltaY < 0 ? STEP : -STEP))
   }
 
-  const onmousedown = (e: MouseEvent) => {
-    if (open && !(e.target as Element).closest("[data-media]")) {
-      setOpen(false)
-    }
-  }
-
-  const onkeydown = (e: KeyboardEvent) => {
-    if (open && e.key === "Escape") {
-      setOpen(false)
-    }
-  }
-
-  $effect(() => {
-    const close = () => setOpen(false)
-
-    window.addEventListener("atrix-close-menus", close)
-
-    return () => window.removeEventListener("atrix-close-menus", close)
-  })
-
-  const label = $derived.by(() => {
-    if (!status) {
-      return ""
-    }
-
-    return [status.title, status.artist, status.app].filter(Boolean).join(" · ")
-  })
-
-  const subtitle = $derived(
-    status ? [status.artist, status.app].filter(Boolean).join(" · ") : "",
+  const label = $derived(
+    status ? [status.title, status.artist, status.app].filter(Boolean).join(", ") : "",
   )
 
-  const BAR_WIDTH = 10
+  const subtitle = $derived(
+    status ? [status.artist, status.app].filter(Boolean).join(", ") : "",
+  )
 
-  let stripWidth = $state(0)
-  let cardWidth = $state(0)
-
-  const stripBars = $derived(Math.max(4, Math.floor(stripWidth / BAR_WIDTH)))
-  const cardBars = $derived(Math.max(4, Math.floor(cardWidth / BAR_WIDTH)))
+  const level = $derived(Math.round((volume?.level ?? 0) * 100))
 </script>
 
-<svelte:window {onmousedown} {onkeydown} />
+{#snippet controls(size: "xs" | "sm")}
+  <IconButton
+    icon="lucide:skip-back"
+    label={m.dock_media_previous()}
+    {size}
+    iconClass="size-3.5"
+    onclick={() => send("previous")}
+  />
+
+  <IconButton
+    icon={status?.playing ? "lucide:pause" : "lucide:play"}
+    label={status?.playing ? m.dock_media_pause() : m.dock_media_play()}
+    title={failed ? m.dock_media_failed() : label}
+    {size}
+    tone={size === "sm" && open ? "primary" : "ghost"}
+    class={failed ? "text-error" : undefined}
+    onclick={() => send("playpause")}
+  />
+
+  <IconButton
+    icon="lucide:skip-forward"
+    label={m.dock_media_next()}
+    {size}
+    iconClass="size-3.5"
+    onclick={() => send("next")}
+  />
+{/snippet}
 
 {#if status}
-  <div class="relative" data-media>
-    <fieldset
-      bind:clientWidth={stripWidth}
-      class={[
-        "relative isolate flex min-w-0 items-center gap-0.5 overflow-hidden rounded-field border border-base-content/10 px-0.5 transition-colors duration-100",
-        open ? "bg-base-content/10" : "bg-base-content/5 hover:bg-base-content/10",
-      ]}
-      aria-label={$t("tray.media.title")}
-    >
-      {#if spectrum && status.playing}
-        <div
-          class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 flex justify-center opacity-45"
-        >
-          <Spectrum
-            style={spectrumStyle}
-            bars={stripBars}
-            height={28}
-            gap={0}
-            width={BAR_WIDTH}
-          />
-        </div>
-      {/if}
-
-      <button type="button"
-        class="btn btn-ghost btn-square btn-xs"
-        title={$t("tray.media.previous")}
-        aria-label={$t("tray.media.previous")}
-        onclick={() => send("previous")}
-      >
-        <Icon icon="lucide:skip-back" class="size-3.5" />
-      </button>
-
-      <button type="button"
-        class={["btn btn-ghost btn-square btn-sm", failed && "text-error"]}
-        title={failed ? $t("tray.media.failed") : label}
-        aria-label={status.playing ? $t("tray.media.pause") : $t("tray.media.play")}
-        onclick={() => send("playpause")}
-      >
-        <Icon
-          icon={status.playing ? "lucide:pause" : "lucide:play"}
-          class="size-4"
+  <fieldset
+    class={[
+      "relative isolate flex min-w-0 items-center gap-0.5",
+      "overflow-hidden rounded-field",
+    ]}
+    bind:clientWidth={stripWidth}
+    aria-label={m.dock_media()}
+  >
+    {#if spectrum && status.playing}
+      <div class={[
+        "pointer-events-none absolute inset-x-0 bottom-0 -z-10 flex",
+        "justify-center opacity-30",
+      ]}>
+        <Spectrum
+          style={spectrumStyle}
+          bars={Math.max(4, Math.floor(stripWidth / BAR_WIDTH))}
+          height={28}
+          gap={0}
+          width={BAR_WIDTH}
         />
-      </button>
+      </div>
+    {/if}
 
-      <button type="button"
-        class="btn btn-ghost btn-square btn-xs"
-        title={$t("tray.media.next")}
-        aria-label={$t("tray.media.next")}
-        onclick={() => send("next")}
-      >
-        <Icon icon="lucide:skip-forward" class="size-3.5" />
-      </button>
+    {@render controls("xs")}
 
-      {#if !compact && status.title}
-        <button type="button"
-          class="max-w-28 truncate rounded-field px-1.5 py-1 text-xs text-base-content/70"
+    <Popover label={m.dock_now_playing()} {placement} width="w-80" bind:open>
+      {#snippet trigger(p)}
+        <button
+          {...p}
+          type="button"
+          class={[
+            "btn btn-ghost btn-xs max-w-32 justify-start px-1.5 font-normal",
+            compact && "btn-square",
+          ]}
           title={label}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onclick={() => setOpen(!open)}
+          aria-label={m.dock_now_playing()}
           {onwheel}
         >
-          {status.title}
+          {#if compact || !status?.title}
+            <Icon icon="lucide:music" class="size-3.5 shrink-0" />
+          {:else}
+            <span class="truncate text-xs text-base-content/70">{status.title}</span>
+          {/if}
         </button>
-      {:else}
-        <button type="button"
-          class="btn btn-ghost btn-square btn-xs"
-          title={label}
-          aria-label={$t("tray.media.nowPlaying")}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onclick={() => setOpen(!open)}
-          {onwheel}
-        >
-          <Icon icon="lucide:chevron-up" class="size-3.5" />
-        </button>
-      {/if}
-    </fieldset>
+      {/snippet}
 
-    {#if open}
-      <div
-        bind:this={popover}
-        bind:clientWidth={cardWidth}
-        class={[
-          "atrix-card absolute left-0 z-50 w-80 overflow-hidden p-3",
-          edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
-        ]}
-        role="dialog"
-        aria-label={$t("tray.media.nowPlaying")}
-      >
+      <div class="relative isolate flex flex-col gap-3 overflow-hidden p-3" bind:clientWidth={cardWidth}>
         {#if spectrum && status.playing}
-          <div
-            class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 flex justify-center opacity-30"
-          >
+          <div class={[
+            "pointer-events-none absolute inset-x-0 bottom-0 -z-10 flex",
+            "justify-center opacity-20",
+          ]}>
             <Spectrum
               style={spectrumStyle}
-              bars={cardBars}
+              bars={Math.max(4, Math.floor(cardWidth / BAR_WIDTH))}
               height={110}
               gap={0}
               width={BAR_WIDTH}
@@ -292,69 +227,38 @@
           </div>
         {/if}
 
-        <p class="truncate text-sm font-medium">
-          {status.title || $t("tray.media.nothing")}
-        </p>
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium" title={status.title}>
+            {status.title || m.dock_media_nothing()}
+          </p>
 
-        <p class="mt-0.5 truncate text-xs text-base-content/55">
-          {subtitle || $t("tray.media.noInfo")}
-        </p>
-
-        <div class="mt-3 flex items-center justify-center gap-1">
-          <button type="button"
-            class="btn btn-ghost btn-square btn-sm"
-            aria-label={$t("tray.media.previous")}
-            onclick={() => send("previous")}
-          >
-            <Icon icon="lucide:skip-back" class="size-4" />
-          </button>
-
-          <button type="button"
-            class="btn btn-primary btn-square btn-sm"
-            aria-label={status.playing ? $t("tray.media.pause") : $t("tray.media.play")}
-            onclick={() => send("playpause")}
-          >
-            <Icon
-              icon={status.playing ? "lucide:pause" : "lucide:play"}
-              class="size-4"
-            />
-          </button>
-
-          <button type="button"
-            class="btn btn-ghost btn-square btn-sm"
-            aria-label={$t("tray.media.next")}
-            onclick={() => send("next")}
-          >
-            <Icon icon="lucide:skip-forward" class="size-4" />
-          </button>
+          <p class="truncate text-xs text-base-content/60" title={subtitle}>
+            {subtitle || m.dock_media_no_info()}
+          </p>
         </div>
 
-        <div
-          class="mt-3 flex items-center gap-2 border-t border-base-content/10 pt-3"
-        >
-          <Icon
-            icon="lucide:volume-2"
-            class="size-4 shrink-0 text-base-content/60"
-          />
+        <div class="flex items-center justify-center gap-1">
+          {@render controls("sm")}
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Icon icon="lucide:volume-2" class="size-4 shrink-0 text-base-content/60" />
 
           <input
             type="range"
             class="range range-primary range-xs grow"
             min="0"
             max="100"
-            value={Math.round((volume?.level ?? 0) * 100)}
-            aria-label={$t("tray.volume.title")}
-            oninput={e =>
-              setLevel(Number((e.currentTarget as HTMLInputElement).value) / 100)}
+            value={level}
+            aria-label={m.dock_volume()}
+            oninput={e => setLevel(Number(e.currentTarget.value) / 100)}
           />
 
-          <span
-            class="w-9 shrink-0 text-right text-xs tabular-nums text-base-content/70"
-          >
-            {Math.round((volume?.level ?? 0) * 100)}%
+          <span class="w-10 shrink-0 text-right text-xs tabular-nums text-base-content/70">
+            {level}%
           </span>
         </div>
       </div>
-    {/if}
-  </div>
+    </Popover>
+  </fieldset>
 {/if}

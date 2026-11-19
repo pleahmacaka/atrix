@@ -1,4 +1,5 @@
 import { untrack } from "svelte"
+import { m } from "#lib/paraglide/messages.js"
 import type { Item } from "../items"
 import { CLOUD_ONLY, extensionOf, sameLocation } from "../locations"
 import { cleanupPlan, installers } from "../native"
@@ -15,9 +16,9 @@ const INSTALLER_EXTENSIONS = new Set([".exe", ".msi"])
 export const CLEANUP_HOURS = [6, 12, 24, 48, 72]
 
 export const DELAYS = [
-  { hours: 1, label: "deleteIn" },
-  { hours: 24, label: "deleteAfterDay" },
-  { hours: 168, label: "deleteAfterWeek" },
+  { hours: 1, label: () => m.files_decor_delete_in({ hours: 1 }) },
+  { hours: 24, label: m.files_decor_delete_after_day },
+  { hours: 168, label: m.files_decor_delete_after_week },
 ]
 
 export const clock = $state({ now: Date.now() })

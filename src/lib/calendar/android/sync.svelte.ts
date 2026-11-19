@@ -288,7 +288,7 @@ const SYNC_INTERVAL = 60_000
 
 const DEBOUNCE = 1500
 
-export const startCalendarSync = () => {
+export const startAndroidSync = () => {
   if (platform !== "android") {
     return
   }

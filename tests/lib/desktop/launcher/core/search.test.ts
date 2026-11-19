@@ -92,7 +92,11 @@ describe("groupResults", () => {
       result({ id: "w1", kind: "web", score: 0 }),
       result({ id: "c1", kind: "command", score: 950 }),
     ]
-    const groups = groupResults(items, kind => (kind === "app" ? 2 : 5))
+    const groups = groupResults(
+      items,
+      kind => (kind === "app" ? 2 : 5),
+      kind => kind,
+    )
 
     expect(groups.map(g => g.kind)).toEqual(["command", "app", "web"])
     expect(groups[1].items.map(r => r.id)).toEqual(["a2", "a3"])

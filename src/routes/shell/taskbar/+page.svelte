@@ -10,22 +10,28 @@
   import { getCurrentWindow, Window } from "@tauri-apps/api/window"
   import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart"
   import { tick, untrack } from "svelte"
-  import { t } from "svelte-i18n"
-  import { events, live, migrateTodos, scheduleReminders } from "#lib/desktop/data/index.js"
   import { ensureDevice } from "#lib/desktop/device.js"
-  import { DockBar, DockLayout, dockAwake, previewHover, startDock } from "#lib/desktop/dock/index.js"
+  import {
+    DockBar,
+    DockLayout,
+    dockAwake,
+    previewHover,
+    startDock,
+    TrayStatus,
+    watchPopovers,
+  } from "#lib/desktop/dock/index.js"
   import { watchEdit } from "#lib/desktop/edit/index.js"
   import { startTimerWatch } from "#lib/desktop/launcher/index.js"
   import * as native from "#lib/desktop/native/index.js"
-  import { announceUpdate } from "#lib/desktop/updates.js"
 
-  const HIDE_SLIDE = 120
-  const RESYNC = 50
+  const HIDE_SLIDE = 140
   const REOPEN_GUARD = 400
 
   document.documentElement.dataset.surface = "dock"
 
   const layout = new DockLayout()
+
+  const status = new TrayStatus(() => layout.device.showNotifications && dockAwake.visible)
 
   let profile = $state<Profile>(defaultProfile)
   let ready = $state(false)
@@ -36,26 +42,16 @@
   let pageHidden = $state(false)
   let peeking = $state(false)
   let hiddenAt = 0
-  let sharing = $state(false)
-
-  const eventLive = live(events)
 
   const device = $derived(layout.device)
 
-  const gather = $derived(device.dockHideGather && profile.appearance.motion)
-
-  const hotkey = $derived(
-    `${device.launcherTrigger}|${device.launcherShortcut}`,
-  )
+  const hotkey = $derived(`${device.launcherTrigger}|${device.launcherShortcut}`)
 
   $effect(() => {
     const box = layout.menuBox
 
     native
-      .extendTaskbar(
-        layout.lift,
-        box ? [box.left, box.top, box.right, box.bottom] : null,
-      )
+      .extendTaskbar(layout.lift, box ? [box.left, box.top, box.right, box.bottom] : null)
       .catch(() => undefined)
   })
 
@@ -98,7 +94,6 @@
       layout.device = d
       ready = true
     })
-    migrateTodos().catch(() => undefined)
     native
       .dockMaximized()
       .then(maximized => {
@@ -108,6 +103,7 @@
     loadProfile().then(p => {
       profile = p
     })
+
     const stops = [
       onDevice(d => {
         layout.device = d
@@ -115,18 +111,11 @@
       onProfile(p => {
         profile = p
       }),
-      native.watchScreenShare(value => {
-        sharing = value
-      }),
       native.onWindowShown("panel", refreshVisibility),
       native.onWindowShown("launcher", refreshVisibility),
       listen<string>("window-hidden", e => {
         if (e.payload === "panel") {
           hiddenAt = Date.now()
-        }
-
-        if (e.payload === "settings") {
-          peeking = false
         }
 
         refreshVisibility()
@@ -177,6 +166,7 @@
         }
       }),
     ]
+    const stopPopovers = watchPopovers(layout.claim)
     const stopDock = startDock()
     const stopTimers = startTimerWatch()
     const stopEditWatch = watchEdit()
@@ -184,6 +174,7 @@
     refreshVisibility()
 
     return () => {
+      stopPopovers()
       stopDock()
       stopTimers()
       stopEditWatch()
@@ -191,8 +182,6 @@
       for (const stop of stops) {
         stop.then(fn => fn())
       }
-
-      eventLive.stop()
     }
   })
 
@@ -207,11 +196,6 @@
     }
 
     clearTimeout(applyTimer)
-
-    if (layout.scrubbing) {
-      return
-    }
-
     applyTimer = setTimeout(() => untrack(layout.applyLayout), 60)
 
     return () => clearTimeout(applyTimer)
@@ -228,9 +212,7 @@
     native
       .setLauncherShortcut(launcher && trigger !== "win" ? shortcut : null)
       .catch(() => undefined)
-    native
-      .setWinKeyCapture(launcher && trigger !== "shortcut")
-      .catch(() => undefined)
+    native.setWinKeyCapture(launcher && trigger !== "shortcut").catch(() => undefined)
   })
 
   $effect(() => {
@@ -242,11 +224,7 @@
   })
 
   $effect(() => {
-    if (!ready) {
-      return
-    }
-
-    if (!device.onboarded) {
+    if (!ready || !device.onboarded) {
       return
     }
 
@@ -255,19 +233,6 @@
     isEnabled()
       .then(on => (on === wanted ? undefined : wanted ? enable() : disable()))
       .catch(() => undefined)
-  })
-
-  $effect(() => {
-    if (!ready || !device.onboarded) {
-      return
-    }
-
-    untrack(() =>
-      announceUpdate(version => ({
-        title: $t("tray.update.title"),
-        body: $t("tray.update.body", { values: { version } }),
-      })),
-    )
   })
 
   const stay = $derived(
@@ -281,67 +246,17 @@
       layout.menuBox !== null,
   )
 
-  const root = document.documentElement
-
   let motionRun = 0
 
   const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
-
-  const gatherAnimations = () =>
-    document
-      .getAnimations()
-      .filter(
-        (a): a is CSSAnimation =>
-          a instanceof CSSAnimation && a.animationName.startsWith("dock-gather"),
-      )
-
-  // updatePlaybackRate keeps compositor-run opacity in sync; assigning playbackRate shows the base style until the next commit
-  const steer = async (rate: number) => {
-    const list = gatherAnimations()
-    const shell = list.find(a => a.animationName === "dock-gather")
-
-    if (!shell) {
-      return
-    }
-
-    const time = Number(shell.currentTime ?? 0)
-    const end = Number(shell.effect?.getComputedTiming().endTime ?? 0)
-
-    for (const a of list) {
-      if (Math.abs(Number(a.currentTime ?? 0) - time) > RESYNC) {
-        a.currentTime = time
-      }
-
-      a.updatePlaybackRate(rate)
-    }
-
-    if (rate > 0 ? time >= end : time <= 0) {
-      return
-    }
-
-    for (const a of list) {
-      a.play()
-    }
-
-    await shell.finished.catch(() => undefined)
-  }
 
   const conceal = async () => {
     const run = ++motionRun
 
     layout.closeMenus()
 
-    if (!device.dockHideAnimation) {
-      layout.collapsed = true
-
-      return
-    }
-
-    root.dataset.dockHiding = gather ? "gather" : "slide"
-
-    if (gather) {
-      await steer(1)
-    } else {
+    if (device.dockHideAnimation && profile.appearance.motion) {
+      layout.hiding = true
       await new Promise(resolve => setTimeout(resolve, HIDE_SLIDE))
     }
 
@@ -352,12 +267,11 @@
 
   const reveal = async () => {
     const run = ++motionRun
-    const style = root.dataset.dockHiding
     const regrow = layout.collapsed
 
     layout.collapsed = false
 
-    if (!style) {
+    if (!layout.hiding) {
       return
     }
 
@@ -367,12 +281,8 @@
       await frame()
     }
 
-    if (style === "gather" && run === motionRun) {
-      await steer(-device.dockGatherHideMs / device.dockGatherShowMs)
-    }
-
     if (run === motionRun) {
-      delete root.dataset.dockHiding
+      layout.hiding = false
     }
   }
 
@@ -393,32 +303,8 @@
   })
 
   $effect(() => {
-    root.style.setProperty("--gather-ms", `${device.dockGatherHideMs}ms`)
-    root.dataset.dockIslands = String(device.dockIslands)
-  })
-
-  $effect(() => {
     dockAwake.visible = !layout.dockHidden && !pageHidden
   })
-
-  const watchShare = $derived(
-    device.features.calendar &&
-      profile.calendar.tags.some(tag => tag.hideWhileSharing),
-  )
-
-  $effect(() => {
-    native.setShareWatch(watchShare).catch(() => undefined)
-  })
-
-  const calendar = $derived(JSON.stringify(profile.calendar))
-
-  $effect(() =>
-    scheduleReminders(
-      device.features.calendar ? $state.snapshot(eventLive.items) : [],
-      JSON.parse(calendar),
-      sharing,
-    ),
-  )
 </script>
 
 <svelte:document
@@ -435,4 +321,4 @@
   }}
 />
 
-<DockBar {layout} {panelOpen} onclock={togglePanel} />
+<DockBar {layout} {status} {panelOpen} onclock={togglePanel} />

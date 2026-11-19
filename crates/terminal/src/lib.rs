@@ -1,13 +1,18 @@
 use tauri::plugin::{Builder, TauriPlugin};
-use tauri::{Manager, Runtime, WindowEvent};
+use tauri::{AppHandle, Manager, Runtime, WindowEvent};
 
-mod claude;
 mod pty;
 mod serial;
 mod shells;
 mod windows;
 
 pub use windows::open_window;
+
+pub fn close_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    if let Some(sessions) = app.try_state::<pty::Sessions>() {
+        sessions.close_window(label);
+    }
+}
 
 pub fn init<R: Runtime>(route: &str) -> TauriPlugin<R> {
     let route = route.to_string();
@@ -20,9 +25,6 @@ pub fn init<R: Runtime>(route: &str) -> TauriPlugin<R> {
             pty::kill,
             pty::attach,
             pty::detach,
-            claude::claude_chat,
-            claude::claude_transcript,
-            claude::claude_commands,
             shells::shells,
             serial::serial_ports,
             windows::take_intent,

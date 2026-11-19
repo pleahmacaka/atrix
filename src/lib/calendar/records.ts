@@ -18,9 +18,9 @@ export const putEvent = async (backend: Backend, event: CalendarEvent) => {
 
   await backend.dsExecute(
     CALENDAR,
-    `INSERT INTO events (id, title, "start", "end", all_day, note, color, created_by, recurrence, exdates, until, shift, series_id, original_date, tags, notes_sync, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
-     ON CONFLICT(id) DO UPDATE SET title = ?2, "start" = ?3, "end" = ?4, all_day = ?5, note = ?6, color = ?7, created_by = ?8, recurrence = ?9, exdates = ?10, until = ?11, shift = ?12, series_id = ?13, original_date = ?14, tags = ?15, notes_sync = ?16, updated_at = ?17`,
+    `INSERT INTO events (id, title, "start", "end", all_day, note, color, created_by, recurrence, exdates, until, shift, series_id, original_date, tags, notes_sync, updated_at, reminder)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+     ON CONFLICT(id) DO UPDATE SET title = ?2, "start" = ?3, "end" = ?4, all_day = ?5, note = ?6, color = ?7, created_by = ?8, recurrence = ?9, exdates = ?10, until = ?11, shift = ?12, series_id = ?13, original_date = ?14, tags = ?15, notes_sync = ?16, updated_at = ?17, reminder = ?18`,
     [
       id,
       rest.title,
@@ -39,6 +39,7 @@ export const putEvent = async (backend: Backend, event: CalendarEvent) => {
       rest.tags,
       rest.notesSync,
       rest.updatedAt,
+      rest.reminder,
     ],
   )
 }

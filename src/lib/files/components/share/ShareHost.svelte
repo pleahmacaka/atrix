@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte"
+  import { m } from "#lib/paraglide/messages.js"
   import type { Explorer } from "../../store/explorer.svelte"
   import BrowseAsks from "./BrowseAsks.svelte"
   import { share, startShare } from "./share.svelte"
@@ -7,22 +7,16 @@
   let { explorer }: { explorer: Explorer } = $props()
 
   $effect(() => startShare())
-
-  $effect(() => {
-    if (share.center) {
-      untrack(() => {
-        share.center = false
-
-        if (share.state.pendingPair) {
-          explorer.settingsOpen = true
-        }
-      })
-    }
-  })
 </script>
 
-{#if share.state.browseAsks.length > 0}
-  <div class="fixed right-4 bottom-12 z-50 flex w-80 flex-col gap-2 rounded-box bg-base-100 shadow-lg">
+{#if share.state.browseAsks.length > 0 && !explorer.settingsOpen}
+  <section
+    class="island fixed right-4 bottom-12 z-50 flex w-80 flex-col px-4 pt-3"
+    aria-label={m.files_devices_requests()}
+  >
+    <h2 class="text-sm font-medium text-base-content/70">
+      {m.files_devices_requests()}
+    </h2>
     <BrowseAsks />
-  </div>
+  </section>
 {/if}

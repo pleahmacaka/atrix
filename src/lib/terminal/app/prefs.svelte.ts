@@ -1,62 +1,27 @@
-import {
-  type Appearance,
-  standaloneLook,
-  type ThemeMode,
-} from "@atrix/settings"
-import { cloneDeep } from "es-toolkit"
-import { DEFAULT_FONT } from "../ready"
-
 export type Prefs = {
   shell: string | null
   baud: number
-  fontFamily: string
-  fontSize: number
-  followAtrix: boolean
-  claudeChat: boolean
-  mode: ThemeMode
-  look: Appearance
 }
 
 const KEY = "atrix-terminal.prefs"
-
-const defaults: Prefs = {
-  shell: null,
-  baud: 115200,
-  fontFamily: DEFAULT_FONT,
-  fontSize: 14,
-  followAtrix: true,
-  claudeChat: false,
-  mode: "system",
-  look: standaloneLook,
-}
 
 const read = (): Prefs => {
   try {
     const saved: Partial<Prefs> = JSON.parse(localStorage.getItem(KEY) ?? "{}")
 
-    return {
-      ...defaults,
-      ...saved,
-      look: {
-        ...standaloneLook,
-        mode: saved.mode ?? defaults.mode,
-        ...saved.look,
-      },
-    }
+    return { shell: saved.shell ?? null, baud: saved.baud ?? 115200 }
   } catch {
-    return cloneDeep(defaults)
+    return { shell: null, baud: 115200 }
   }
 }
 
 export const prefs = $state<Prefs>(read())
 
-export const resetPrefs = () => {
-  Object.assign(prefs, cloneDeep(defaults))
-}
-
-export const savePrefs = (snapshot: string) => {
-  localStorage.setItem(KEY, snapshot)
-}
+$effect.root(() => {
+  $effect(() => {
+    localStorage.setItem(KEY, JSON.stringify(prefs))
+  })
+})
 
 window.addEventListener("storage", e => {
   if (e.key === KEY) {

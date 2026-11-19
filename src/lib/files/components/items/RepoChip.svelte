@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  import { m } from "#lib/paraglide/messages.js"
   import { gitUser } from "../../native"
 
   const owner = $state<{ name: string | null; asked: boolean }>({
@@ -18,7 +19,6 @@
 
 <script lang="ts">
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
   import { hostOf } from "../../hosts"
   import { type GitHead, runAddress } from "../../native"
   import { prefs } from "../../store/prefs.svelte"
@@ -41,7 +41,7 @@
 
   const repoName = $derived.by(() => {
     if (!host.path) {
-      return $t("explorer.decor.repo")
+      return m.files_decor_repo()
     }
 
     const cut = host.path.lastIndexOf("/")
@@ -63,7 +63,7 @@
   )
 
   const forkLabel = $derived(
-    host.fork ? $t("explorer.decor.forkOf", { values: { upstream: host.fork } }) : "",
+    host.fork ? m.files_decor_fork_of({ upstream: host.fork }) : "",
   )
 
   const CHIP = [
@@ -85,7 +85,7 @@
 {#snippet content()}
   {#if kind === "submodule"}
     <Icon icon="lucide:folder-git-2" class="size-3 shrink-0" />
-    {$t("explorer.decor.submodule")}
+    {m.files_decor_submodule()}
   {/if}
 
   {#each parts as part (part)}
@@ -93,7 +93,7 @@
       <Icon
         icon={host.icon}
         class="size-3 shrink-0"
-        aria-label={host.name ?? host.domain ?? $t("explorer.decor.repo")}
+        aria-label={host.name ?? host.domain ?? m.files_decor_repo()}
       />
     {:else if part === "host" && kind === "repo" && (host.name || host.domain)}
       <span class="max-w-32 truncate">{host.name ?? host.domain}</span>

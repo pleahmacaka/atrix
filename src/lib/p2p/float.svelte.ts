@@ -487,33 +487,43 @@ export const floatOut = async (session: Session, title: string) => {
   )
 }
 
+const shareHosts = (label: string, keep: (event: HostEvent) => boolean) => {
+  const emit = () => {
+    emitTo(label, "float:hosts", hostEntries()).catch(e =>
+      logFailure("float hosts", e),
+    )
+  }
+
+  $effect(emit)
+
+  const ready = getCurrentWebviewWindow().listen<string>(
+    "float:ready",
+    ({ payload }) => {
+      if (payload === label) {
+        emit()
+      }
+    },
+  )
+
+  tapHosts(label, keep)
+
+  return () => {
+    ready.then(f => f())
+  }
+}
+
 export const floatNew = async (title: string) => {
   await openWindow(`new:${crypto.randomUUID()}`, { new: "1" }, title, label =>
-    $effect.root(() => {
-      const emit = () => {
-        emitTo(label, "float:hosts", hostEntries()).catch(e =>
-          logFailure("float hosts", e),
-        )
-      }
-
-      $effect(emit)
-
-      const ready = getCurrentWebviewWindow().listen<string>(
-        "float:ready",
-        ({ payload }) => {
-          if (payload === label) {
-            emit()
-          }
-        },
-      )
-
-      tapHosts(label, () => true)
-
-      return () => {
-        ready.then(f => f())
-      }
-    }),
+    $effect.root(() => shareHosts(label, () => true)),
   )
+}
+
+export const serveWindow = (
+  label: string,
+  keep: (event: HostEvent) => boolean,
+) => {
+  serve()
+  $effect.root(() => shareHosts(label, keep))
 }
 
 export const floatChat = async (id: string, title: string) => {

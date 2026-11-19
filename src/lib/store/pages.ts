@@ -1,4 +1,5 @@
 import { m } from "#lib/paraglide/messages.js"
+import { platform } from "#lib/platform.ts"
 import type { Page } from "./nav.svelte.ts"
 
 type PageInfo = { id: Page; label: () => string; icon: string }
@@ -14,6 +15,11 @@ export const CALENDAR_PAGE: PageInfo = {
   label: m.shell_page_calendar,
   icon: "lucide:calendar",
 }
+
+export const ANDROID_PAGES: PageInfo[] =
+  platform === "android"
+    ? [{ id: "files", label: m.files_share_files, icon: "lucide:folder" }]
+    : []
 
 export const SETTINGS_PAGE = {
   label: m.common_settings,

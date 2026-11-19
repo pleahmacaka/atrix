@@ -1,202 +1,207 @@
 <script lang="ts">
-  import { Aura } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
-  import { tick } from "svelte"
-  import { t } from "svelte-i18n"
-  import { longDay } from "#lib/desktop/calendar/index.js"
-  import { dateKey } from "#lib/desktop/data/index.js"
-  import * as native from "#lib/desktop/native/index.js"
-  import {
-    CompactPanel,
-    MonthGrid,
-    Morph,
-    Panel,
-    PanelAside,
-    PanelHeader,
-  } from "#lib/desktop/panel/index.js"
+import {
+  type DeviceSettings,
+  defaultDevice,
+  loadDevice,
+  onDevice,
+} from "@atrix/settings"
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { calendar, WEEKS } from "#lib/calendar/calendar.svelte.ts"
+import { addDays, startOfDay } from "#lib/calendar/dates.ts"
+import { CalendarEditor } from "#lib/calendar/editor.svelte.ts"
+import { format } from "#lib/calendar/format.ts"
+import DayAgenda from "#lib/components/calendar/DayAgenda.svelte"
+import MonthGrid from "#lib/components/calendar/MonthGrid.svelte"
+import TaskList from "#lib/components/calendar/TaskList.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { askAtrix } from "#lib/desktop/launcher/atrix.ts"
+import { hideWindow, onWindowShown } from "#lib/desktop/native/windows.ts"
+import QuickMemo from "#lib/desktop/panel/QuickMemo.svelte"
+import { overlayOpen, windowRegion } from "#lib/desktop/panel/region.ts"
+import { logFailure } from "#lib/logging.ts"
+import { askNav, type HostEntry, RemoteHosts } from "#lib/p2p/float.svelte.ts"
+import { hostList } from "#lib/p2p/hosts.svelte.ts"
+import { m } from "#lib/paraglide/messages.js"
 
-  const PICKER_TYPES = ["date", "datetime-local", "time", "color", "file"]
-  const BLUR_GRACE = 400
+const PICKERS = ["date", "datetime-local", "time", "color", "file"]
 
-  document.documentElement.dataset.surface = "panel"
+const BLUR_GRACE_MS = 400
 
-  const appWindow = getCurrentWindow()
-  const panel = new Panel()
-  const morph = new Morph()
+const POSITIONS: Record<DeviceSettings["panelPosition"], string> = {
+  left: "left-0",
+  center: "left-1/2 -translate-x-1/2",
+  right: "right-0",
+}
 
-  let focusLanded = false
-  let shownAt = 0
+const win = getCurrentWindow()
 
-  const position = $derived(panel.device.panelPosition)
+const remotes = new RemoteHosts()
 
-  const isPicker = (el: Element | null) =>
-    el instanceof HTMLSelectElement ||
-    (el instanceof HTMLInputElement && PICKER_TYPES.includes(el.type))
+let device = $state<DeviceSettings>(defaultDevice)
 
-  const hide = () => {
-    focusLanded = false
-    native.hideWindow("panel")
+let landed = false
+
+let shownAt = 0
+
+const hide = () => {
+  landed = false
+  hideWindow("panel").catch(e => logFailure("panel hide", e))
+}
+
+const openDoc = (id: string) => {
+  askAtrix({ kind: "doc", id }).catch(e => logFailure("panel open doc", e))
+  hide()
+}
+
+const editor = new CalendarEditor(() => hostList().map(h => h.view), openDoc)
+
+const title = $derived(
+  format(addDays(calendar.start, 7), { year: "numeric", month: "long" }),
+)
+
+const anchorTop = $derived(
+  device.dockEdge === "top" || (device.topBar && device.features.dock),
+)
+
+const shift = (pages: number) => {
+  calendar.start = addDays(calendar.start, pages * WEEKS * 7)
+}
+
+const today = () => editor.choose(startOfDay(new Date()))
+
+const isPicker = (el: Element | null) =>
+  el instanceof HTMLSelectElement ||
+  (el instanceof HTMLInputElement && PICKERS.includes(el.type))
+
+const keydown = (e: KeyboardEvent) => {
+  if (e.key !== "Escape" || e.defaultPrevented || overlayOpen()) {
+    return
   }
 
-  const rest = () =>
-    morph.snap(panel.device.panelStart === "full", () => {
-      panel.revealedDays = []
-      panel.close()
+  if (editor.editing) {
+    editor.editing = null
+  } else {
+    hide()
+  }
+}
+
+$effect(() => {
+  const stop = getCurrentWebviewWindow().listen<HostEntry[]>(
+    "float:hosts",
+    ({ payload }) => remotes.connect(payload),
+  )
+
+  stop.then(() => askNav()).catch(e => logFailure("panel hosts", e))
+
+  return () => {
+    stop.then(f => f())
+    remotes.stop()
+  }
+})
+
+$effect(() => {
+  loadDevice()
+    .then(d => {
+      device = d
     })
+    .catch(e => logFailure("panel device", e))
 
-  const collapse = () => {
-    panel.close()
-    morph.collapse()
-  }
-
-  const onkeydown = (e: KeyboardEvent) => {
-    if (e.key !== "Escape") {
-      return
-    }
-
-    if (panel.asking) {
-      panel.asking.answer(null)
-    } else if (panel.detailOpen) {
-      panel.close()
-    } else if (morph.expanded && panel.calendarOn && panel.device.panelStart === "compact") {
-      collapse()
-    } else {
-      hide()
-    }
-  }
-
-  $effect(() => {
-    void [position, panel.anchorTop]
-    tick().then(morph.fit)
-  })
-
-  $effect(() => {
-    native.takeIntent("panel").catch(() => undefined)
-    import("@atrix/markdown")
-
-    const stop = panel.start()
-
-    const stops = [
-      appWindow.onFocusChanged(({ payload: focused }) => {
-        if (focused) {
-          if (!focusLanded) {
-            focusLanded = true
-            shownAt = Date.now()
-          }
-
-          return
+  const stops = [
+    onDevice(d => {
+      device = d
+    }),
+    win.onFocusChanged(({ payload: focused }) => {
+      if (focused) {
+        if (!landed) {
+          landed = true
+          shownAt = Date.now()
         }
 
-        const settling = Date.now() - shownAt < BLUR_GRACE
-
-        if (focusLanded && !settling && !isPicker(document.activeElement)) {
-          hide()
-        }
-      }),
-      native.onWindowShown("panel", () => {
-        focusLanded = false
-        shownAt = Date.now()
-        panel.reset()
-      }),
-      native.onWindowHidden("panel", rest),
-    ]
-
-    return () => {
-      stop()
-
-      for (const unlisten of stops) {
-        unlisten.then(fn => fn())
+        return
       }
+
+      const settling = Date.now() - shownAt < BLUR_GRACE_MS
+
+      if (landed && !settling && !isPicker(document.activeElement)) {
+        hide()
+      }
+    }),
+    onWindowShown("panel", () => {
+      landed = false
+      shownAt = Date.now()
+      today()
+    }),
+  ]
+
+  return () => {
+    for (const stop of stops) {
+      stop.then(f => f())
     }
-  })
+  }
+})
 </script>
 
-<svelte:window {onkeydown} onresize={morph.fit} />
+<svelte:window onkeydown={keydown} />
 
-{#if !panel.calendarOn}
-  <main
-    {@attach morph.card}
-    class="panel-surface flex min-h-0 flex-col"
-  >
-    <header class="flex items-center justify-end px-3 py-2">
-      <button type="button"
-        class="btn btn-ghost btn-square btn-xs"
-        aria-label={$t("common.close")}
-        onclick={hide}
-      >
-        <Icon icon="lucide:x" class="size-3.5" />
+<main
+  {@attach windowRegion}
+  class={[
+    "fixed flex h-128 w-3xl gap-2 rounded-box border border-base-300 bg-base-200 p-2",
+    "shadow-xl select-none",
+    anchorTop ? "top-0" : "bottom-0",
+    POSITIONS[device.panelPosition],
+  ]}
+>
+  <div class="flex min-w-0 flex-1 flex-col gap-2">
+    <header
+      class={[
+        "flex h-10 shrink-0 items-center gap-1 ps-3 pe-1.5",
+        "rounded-box border border-base-300 bg-base-100",
+      ]}
+    >
+      <h1 class="min-w-0 flex-1 truncate text-sm font-semibold tabular-nums">
+        {title}
+      </h1>
+      {#if !editor.ready}
+        <span class="loading loading-spinner loading-xs opacity-60"></span>
+      {/if}
+      <IconButton
+        icon="lucide:chevron-left"
+        label={m.calendar_prev()}
+        onclick={() => shift(-1)}
+      />
+      <button type="button" class="btn btn-ghost btn-sm" onclick={today}>
+        {m.calendar_today()}
       </button>
+      <IconButton
+        icon="lucide:chevron-right"
+        label={m.calendar_next()}
+        onclick={() => shift(1)}
+      />
+      <IconButton icon="lucide:x" label={m.common_close()} onclick={hide} />
     </header>
-
     <div
-      class={[
-        "flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5",
-        "px-6 pb-4 text-center",
-      ]}
+      class={["flex min-h-0 flex-1 flex-col gap-2", !editor.ready && "opacity-60"]}
+      inert={!editor.ready}
     >
-      <p class="text-2xl font-semibold tracking-tight text-balance">
-        {longDay(panel.today)}
-      </p>
-      <p class="text-sm tabular-nums text-base-content/55">
-        {dateKey(panel.today)}
-      </p>
+      <div class="flex shrink-0">
+        <MonthGrid
+          start={calendar.start}
+          selected={calendar.selected}
+          events={editor.events}
+          tags={editor.tags}
+          onpick={editor.choose}
+        />
+      </div>
+      <TaskList {editor} class="min-h-0 flex-1 overflow-y-auto" />
     </div>
-  </main>
-{:else}
-  <div
-    class={[
-      "absolute flex gap-3 select-none [&_.siri-aura]:mask-none",
-      "transition-opacity ease-[ease-out]",
-      panel.anchorTop ? "top-0 items-start" : "bottom-0 items-end",
-      position === "left"
-        ? "left-0"
-        : position === "center"
-          ? "left-1/2 -translate-x-1/2"
-          : "right-0",
-      morph.expanded
-        ? "pointer-events-none opacity-0 duration-140"
-        : "duration-200 delay-160",
-    ]}
-    inert={morph.expanded}
-  >
-    <CompactPanel {panel} {morph} />
   </div>
-
   <div
-    class={[
-      "absolute inset-0 select-none [&_.siri-aura]:mask-none",
-      "transition-[clip-path,opacity]",
-      morph.expanded
-        ? "duration-[380ms,120ms] ease-[cubic-bezier(0.2,0.9,0.1,1),ease-out]"
-        : [
-            "pointer-events-none opacity-0 duration-[380ms,140ms]",
-            "ease-[cubic-bezier(0.2,0.9,0.1,1),ease-in] delay-[0ms,240ms]",
-          ],
-    ]}
-    style:clip-path={morph.clipPath}
-    inert={!morph.expanded}
-    ontransitionend={morph.settle}
+    class={["flex w-xs shrink-0 flex-col gap-2", !editor.ready && "opacity-60"]}
+    inert={!editor.ready}
   >
-    <div
-      {@attach morph.fullCard}
-      class={[
-        "absolute inset-x-0 h-152 max-h-full",
-        "grid grid-cols-[minmax(0,1fr)_22rem] gap-3",
-        panel.anchorTop ? "top-0" : "bottom-0",
-      ]}
-    >
-      <main class="panel-surface flex min-h-0 flex-col">
-        <Aura />
-        <PanelHeader {panel} {collapse} {hide} />
-
-        <div class="flex min-h-0 flex-1 flex-col px-2 pb-2">
-          <MonthGrid {panel} />
-        </div>
-      </main>
-
-      <PanelAside {panel} />
-    </div>
-
+    <DayAgenda {editor} class="min-h-0 flex-1 overflow-y-auto" />
+    <QuickMemo onopen={openDoc} />
   </div>
-{/if}
+</main>

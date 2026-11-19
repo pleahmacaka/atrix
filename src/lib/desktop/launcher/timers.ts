@@ -1,5 +1,3 @@
-import { currentLocale, tr } from "@atrix/i18n"
-import type { TimerKind } from "#lib/desktop/launcher/core/index.ts"
 import { emit, listen } from "@tauri-apps/api/event"
 import {
   isPermissionGranted,
@@ -7,8 +5,14 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification"
 import { load } from "@tauri-apps/plugin-store"
+import type { TimerKind } from "#lib/desktop/launcher/core/index.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { getLocale } from "#lib/paraglide/runtime.js"
 
 export type { TimerKind }
+
+export const timerKindLabel = (kind: TimerKind) =>
+  kind === "alarm" ? m.launcher_timer_alarm() : m.launcher_timer_timer()
 
 export type Timer = {
   id: string
@@ -52,7 +56,7 @@ export const formatDuration = (ms: number) => {
 }
 
 export const formatClock = (at: number) =>
-  new Date(at).toLocaleTimeString(currentLocale(), {
+  new Date(at).toLocaleTimeString(getLocale(), {
     hour: "numeric",
     minute: "2-digit",
   })
@@ -284,11 +288,7 @@ const announce = async (due: Timer[]) => {
 
   for (const timer of due) {
     sendNotification({
-      title: tr(
-        timer.kind === "alarm"
-          ? "launcher.timer.alarm"
-          : "launcher.timer.timer",
-      ),
+      title: timerKindLabel(timer.kind),
       body: timer.label,
     })
   }

@@ -1,120 +1,120 @@
 <script lang="ts">
-  import { T, useThrelte } from "@threlte/core"
-  import { Grid, OrbitControls } from "@threlte/extras"
-  import {
-    PCFShadowMap,
-    type PerspectiveCamera,
-    PMREMGenerator,
-    Vector3,
-  } from "three"
-  import type { OrbitControls as Orbit } from "three/examples/jsm/controls/OrbitControls.js"
-  import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js"
-  import { dress, type MaterialSet, type Model } from "./mesh"
-  import { fitDistance } from "./model"
+import { T, useThrelte } from "@threlte/core"
+import { Grid, OrbitControls } from "@threlte/extras"
+import {
+  PCFShadowMap,
+  type PerspectiveCamera,
+  PMREMGenerator,
+  Vector3,
+} from "three"
+import type { OrbitControls as Orbit } from "three/examples/jsm/controls/OrbitControls.js"
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js"
+import { dress, type MaterialSet, type Model } from "./mesh"
+import { fitDistance } from "./model"
 
-  let {
-    model,
-    materials,
-    revision,
-    wireframe,
-    flat,
-    guides,
-    gridColors,
-    lighting,
-    brightness,
-  }: {
-    model: Model
-    materials: MaterialSet | null
-    revision: number
-    wireframe: boolean
-    flat: boolean
-    guides: boolean
-    gridColors: { cell: string; section: string }
-    lighting: boolean
-    brightness: number
-  } = $props()
+let {
+  model,
+  materials,
+  revision,
+  wireframe,
+  flat,
+  guides,
+  gridColors,
+  lighting,
+  brightness,
+}: {
+  model: Model
+  materials: MaterialSet | null
+  revision: number
+  wireframe: boolean
+  flat: boolean
+  guides: boolean
+  gridColors: { cell: string; section: string }
+  lighting: boolean
+  brightness: number
+} = $props()
 
-  const VIEW = new Vector3(0.9, 0.6, 1.2).normalize()
+const VIEW = new Vector3(0.9, 0.6, 1.2).normalize()
 
-  const { invalidate, renderer, scene, size } = useThrelte()
+const { invalidate, renderer, scene, size } = useThrelte()
 
-  renderer.shadowMap.type = PCFShadowMap
+renderer.shadowMap.type = PCFShadowMap
 
-  let camera = $state.raw<PerspectiveCamera>()
-  let controls = $state.raw<Orbit>()
+let camera = $state.raw<PerspectiveCamera>()
+let controls = $state.raw<Orbit>()
 
-  const unit = $derived(10 ** Math.floor(Math.log10(model.radius)))
+const unit = $derived(10 ** Math.floor(Math.log10(model.radius)))
 
-  export const frame = () => {
-    if (!camera || !controls) {
-      return
-    }
-
-    const [x, y, z] = model.center
-    const { width, height } = size.current
-    const distance =
-      fitDistance(model.radius, camera.fov, width / height) * 1.2
-
-    camera.near = distance / 100
-    camera.far = distance * 100
-    camera.position.set(x, y, z).addScaledVector(VIEW, distance)
-    camera.updateProjectionMatrix()
-
-    controls.target.set(x, y, z)
-    controls.update()
-    invalidate()
+export const frame = () => {
+  if (!camera || !controls) {
+    return
   }
 
-  $effect(() => {
-    model
-    frame()
-  })
+  const [x, y, z] = model.center
+  const { width, height } = size.current
+  const distance =
+    fitDistance(model.radius, camera.fov, width / height) * 1.2
 
-  $effect(() => {
-    for (const { object } of model.slots) {
-      object.castShadow = true
-    }
-  })
+  camera.near = distance / 100
+  camera.far = distance * 100
+  camera.position.set(x, y, z).addScaledVector(VIEW, distance)
+  camera.updateProjectionMatrix()
 
-  $effect(() => {
-    revision
-    dress(model, materials, { wireframe, flat })
+  controls.target.set(x, y, z)
+  controls.update()
+  invalidate()
+}
+
+$effect(() => {
+  model
+  frame()
+})
+
+$effect(() => {
+  for (const { object } of model.slots) {
+    object.castShadow = true
+  }
+})
+
+$effect(() => {
+  revision
+  dress(model, materials, { wireframe, flat })
+  invalidate()
+})
+
+$effect(() => {
+  if (!lighting) {
+    return
+  }
+
+  const pmrem = new PMREMGenerator(renderer)
+  const room = new RoomEnvironment()
+  const target = pmrem.fromScene(room, 0.04)
+
+  room.dispose()
+  pmrem.dispose()
+  scene.environment = target.texture
+  invalidate()
+
+  return () => {
+    scene.environment = null
+    target.dispose()
     invalidate()
-  })
+  }
+})
 
-  $effect(() => {
-    if (!lighting) {
-      return
-    }
+$effect(() => {
+  scene.environmentIntensity = 0.6 * brightness
+  invalidate()
+})
 
-    const pmrem = new PMREMGenerator(renderer)
-    const room = new RoomEnvironment()
-    const target = pmrem.fromScene(room, 0.04)
-
-    room.dispose()
-    pmrem.dispose()
-    scene.environment = target.texture
-    invalidate()
-
-    return () => {
-      scene.environment = null
-      target.dispose()
-      invalidate()
-    }
-  })
-
-  $effect(() => {
-    scene.environmentIntensity = 0.6 * brightness
-    invalidate()
-  })
-
-  $effect(() => {
-    guides
-    gridColors
-    lighting
-    brightness
-    invalidate()
-  })
+$effect(() => {
+  guides
+  gridColors
+  lighting
+  brightness
+  invalidate()
+})
 </script>
 
 <T.PerspectiveCamera makeDefault fov={35} bind:ref={camera}>

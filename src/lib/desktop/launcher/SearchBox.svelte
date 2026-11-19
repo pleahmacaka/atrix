@@ -1,45 +1,58 @@
 <script lang="ts">
-  import { updateDevice, type WebSearchEngine } from "@atrix/settings"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { EditSpot } from "#lib/desktop/edit/index.js"
-  import type { Launcher } from "./launcher.svelte"
-  import { timerKindLabel } from "./providers"
+import { updateDevice, type WebSearchEngine } from "@atrix/settings"
+import type { Attachment } from "svelte/attachments"
+import SearchField from "#lib/components/ui/SearchField.svelte"
+import Select from "#lib/components/ui/Select.svelte"
+import Stepper from "#lib/components/ui/Stepper.svelte"
+import { EditSpot } from "#lib/desktop/edit/index.js"
+import { m } from "#lib/paraglide/messages.js"
+import type { Launcher } from "./launcher.svelte"
+import { engineName } from "./providers"
+import { timerKindLabel } from "./timers"
 
-  let { launcher }: { launcher: Launcher } = $props()
+let { launcher }: { launcher: Launcher } = $props()
 
-  type LauncherBool = "showWindows" | "showCommands" | "showTodos" | "calculator"
+type LauncherBool = "showWindows" | "showCommands" | "showTodos" | "calculator"
 
-  const ENGINE_NAMES: Record<WebSearchEngine, string> = {
-    google: "Google",
-    duckduckgo: "DuckDuckGo",
-    bing: "Bing",
-    naver: "Naver",
+const RESULTS = { min: 3, max: 12, step: 1, base: 6 }
+
+const ENGINES: WebSearchEngine[] = ["google", "duckduckgo", "bing", "naver"]
+
+const engineOptions = ENGINES.map(value => ({ value, label: engineName(value) }))
+
+const MODE_LABELS = {
+  run: m.launcher_mode_run,
+  todo: m.launcher_mode_todo,
+  calc: m.launcher_mode_calc,
+  clip: m.launcher_mode_clip,
+  emoji: m.launcher_mode_emoji,
+}
+
+const route = $derived(launcher.route)
+
+const modeLabel = $derived(
+  route.mode === "timer"
+    ? timerKindLabel(route.kind)
+    : route.mode === "search"
+      ? ""
+      : MODE_LABELS[route.mode](),
+)
+
+const field: Attachment<HTMLElement> = node => {
+  launcher.input = node.querySelector("input") ?? undefined
+
+  return () => {
+    launcher.input = undefined
   }
-
-  const engineOptions = Object.entries(ENGINE_NAMES).map(([value, label]) => ({
-    value: value as WebSearchEngine,
-    label,
-  }))
-
-  const route = $derived(launcher.route)
-
-  const modeLabel = $derived(
-    route.mode === "timer"
-      ? timerKindLabel(route.kind)
-      : route.mode === "search"
-        ? ""
-        : $t(`launcher.modes.${route.mode}`),
-  )
+}
 </script>
 
-{#snippet launcherToggle(key: LauncherBool, label: string)}
-  <label class="flex items-center justify-between gap-3 py-1 text-xs">
-    <span>{label}</span>
-
+{#snippet toggle(key: LauncherBool, label: string)}
+  <label class="flex min-h-8 cursor-pointer items-center justify-between gap-3 text-sm">
+    <span class="min-w-0 truncate">{label}</span>
     <input
       type="checkbox"
-      class="toggle toggle-primary toggle-xs"
+      class="toggle toggle-primary toggle-sm"
       checked={launcher.profile.launcher[key]}
       onchange={e => launcher.patchLauncher(key, e.currentTarget.checked)}
     />
@@ -47,98 +60,60 @@
 {/snippet}
 
 {#snippet searchOptions()}
-  <label class="flex flex-col gap-1 py-1 text-xs">
-    <span class="flex justify-between">
-      <span>{$t("settings.rows.resultsPerGroup")}</span>
-
-      <span class="text-base-content/60 tabular-nums">{launcher.profile.launcher.maxResults}</span>
-    </span>
-
-    <input
-      type="range"
-      class="range range-primary range-xs"
-      min="3"
-      max="12"
-      step="1"
+  <div class="flex min-h-8 items-center justify-between gap-3 text-sm">
+    <span class="min-w-0 truncate">{m.launcher_opt_results()}</span>
+    <Stepper
+      label={m.launcher_opt_results()}
       value={launcher.profile.launcher.maxResults}
-      onchange={e => launcher.patchLauncher("maxResults", Number(e.currentTarget.value))}
+      range={RESULTS}
+      onchange={value => launcher.patchLauncher("maxResults", value)}
     />
-  </label>
-
-  {@render launcherToggle("showWindows", $t("settings.rows.openWindows"))}
-  {@render launcherToggle("showCommands", $t("settings.rows.commands"))}
-  {@render launcherToggle("showTodos", $t("settings.rows.todos"))}
-  {@render launcherToggle("calculator", $t("settings.rows.calculator"))}
-
-  <label class="flex items-center justify-between gap-3 py-1 text-xs">
-    <span class="shrink-0">{$t("settings.rows.webSearch")}</span>
-
-    <select
-      class="select select-xs w-32"
+  </div>
+  {@render toggle("showWindows", m.launcher_opt_windows())}
+  {@render toggle("showCommands", m.launcher_opt_commands())}
+  {@render toggle("showTodos", m.launcher_opt_todos())}
+  {@render toggle("calculator", m.launcher_opt_calculator())}
+  <div class="flex min-h-8 items-center justify-between gap-3 text-sm">
+    <span class="min-w-0 truncate">{m.launcher_opt_web()}</span>
+    <Select
+      class="w-36"
+      label={m.launcher_opt_web()}
+      options={engineOptions}
       value={launcher.profile.launcher.webSearch}
-      onchange={e => launcher.patchLauncher("webSearch", e.currentTarget.value as WebSearchEngine)}
-    >
-      {#each engineOptions as option (option.value)}
-        <option value={option.value}>{option.label}</option>
-      {/each}
-    </select>
-  </label>
-
-  <label class="flex items-center justify-between gap-3 py-1 text-xs">
-    <span>{$t("settings.rows.showKeymap")}</span>
-
+      onchange={value => launcher.patchLauncher("webSearch", value)}
+    />
+  </div>
+  <label class="flex min-h-8 cursor-pointer items-center justify-between gap-3 text-sm">
+    <span class="min-w-0 truncate">{m.launcher_opt_keymap()}</span>
     <input
       type="checkbox"
-      class="toggle toggle-primary toggle-xs"
+      class="toggle toggle-primary toggle-sm"
       checked={launcher.device.showKeymap}
       onchange={e => updateDevice(d => ({ ...d, showKeymap: e.currentTarget.checked }))}
     />
   </label>
 {/snippet}
 
-<EditSpot id="search" label={$t("edit.spots.search")} placement="down" align="start" options={searchOptions}>
-<label
-  data-launcher
-  class="input input-lg flex h-14 w-full shrink-0 items-center gap-3 atrix-card px-4 outline-none transition-[border-color,box-shadow] duration-100 focus-within:border-primary/40 focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/20"
+<EditSpot
+  id="search"
+  label={m.launcher_spot_search()}
+  placement="down"
+  align="start"
+  class="shrink-0"
+  options={searchOptions}
 >
-  <Icon icon="lucide:search" class="size-5 shrink-0 text-base-content/60" />
-
-  <span class="sr-only">{$t("launcher.placeholder")}</span>
-
-  <input
-    bind:this={launcher.input}
-    bind:value={launcher.query}
-    oninput={() => launcher.reset()}
-    type="text"
-    placeholder={$t("launcher.placeholder")}
-    spellcheck="false"
-    autocomplete="off"
-    autocapitalize="off"
-    class="min-w-0 grow select-text bg-transparent text-lg outline-none placeholder:text-base-content/40"
-  />
-
-  {#if modeLabel}
-    <span class="badge badge-soft badge-primary badge-sm shrink-0">{modeLabel}</span>
-  {/if}
-
-  {#if !launcher.query}
-    <kbd class="kbd kbd-sm shrink-0 text-base-content/60">
-      {launcher.device.launcherTrigger === "shortcut"
-        ? launcher.device.launcherShortcut
-        : "Win"}
-    </kbd>
-  {/if}
-
-  {#if launcher.query}
-    <button
-      type="button"
-      class="btn btn-circle btn-ghost btn-xs shrink-0"
-      aria-label={$t("launcher.clear")}
-      tabindex="-1"
-      onclick={() => launcher.setQuery("")}
-    >
-      <Icon icon="lucide:x" class="size-4" />
-    </button>
-  {/if}
-</label>
+  <div class="flex min-w-0 flex-1 items-center gap-1" {@attach field}>
+    <SearchField
+      bind:value={launcher.query}
+      label={m.launcher_placeholder()}
+      class="h-10 flex-1"
+      autocapitalize="off"
+      oninput={() => launcher.reset()}
+    />
+    {#if modeLabel}
+      <span class="badge badge-soft badge-primary badge-sm shrink-0 whitespace-nowrap">
+        {modeLabel}
+      </span>
+    {/if}
+  </div>
 </EditSpot>

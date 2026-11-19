@@ -65,16 +65,14 @@
     `translateY(${rem(-Math.round(level * (height - 4)))}) scaleY(${(Math.round(level * 4) + 2) / DOT})`
 </script>
 
-<div
-  class="flex items-end"
-  style:height={rem(height)}
-  style:gap={rem(gap)}
-  aria-hidden="true"
->
+<div class="flex items-end" style:height={rem(height)} style:gap={rem(gap)} aria-hidden="true">
   {#each shown as level, index (index)}
     {#if style === "dots"}
       <span
-        class="shrink-0 origin-bottom rounded-full bg-primary transition-[transform,opacity] duration-75"
+        class={[
+          "shrink-0 origin-bottom rounded-full bg-primary",
+          "transition-transform duration-120",
+        ]}
         style:width={rem(width)}
         style:height={rem(DOT)}
         style:opacity={0.25 + level * 0.75}
@@ -87,27 +85,39 @@
         style:height={rem(height)}
       >
         <span
-          class="w-full origin-bottom rounded-full bg-primary/70 transition-transform duration-75"
+          class={[
+            "w-full origin-bottom rounded-full bg-primary/70",
+            "transition-transform duration-120",
+          ]}
           style:height={rem(height / 2)}
           style:transform="scaleY({scale(level)})"
         ></span>
 
         <span
-          class="w-full origin-top rounded-full bg-primary/40 transition-transform duration-75"
+          class={[
+            "w-full origin-top rounded-full bg-primary/40",
+            "transition-transform duration-120",
+          ]}
           style:height={rem(height / 2)}
           style:transform="scaleY({scale(level)})"
         ></span>
       </span>
     {:else if style === "wave"}
       <span
-        class="shrink-0 origin-bottom rounded-full bg-gradient-to-t from-primary/30 to-primary transition-transform duration-100"
+        class={[
+          "shrink-0 origin-bottom rounded-full bg-linear-to-t",
+          "from-primary/30 to-primary transition-transform duration-120",
+        ]}
         style:width={rem(width)}
         style:height={rem(height)}
         style:transform="scaleY({scale(level)})"
       ></span>
     {:else}
       <span
-        class="shrink-0 origin-bottom rounded-sm bg-primary transition-transform duration-75"
+        class={[
+          "shrink-0 origin-bottom rounded-sm bg-primary",
+          "transition-transform duration-120",
+        ]}
         style:width={rem(width)}
         style:height={rem(height)}
         style:transform="scaleY({scale(level)})"

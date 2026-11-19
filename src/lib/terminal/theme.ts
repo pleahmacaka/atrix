@@ -2,31 +2,37 @@ import type { ITheme } from "ghostty-web"
 
 type Palette = Record<keyof ITheme, string>
 
+type Hues = Record<
+  "red" | "green" | "yellow" | "blue" | "magenta" | "cyan",
+  string
+>
+
 const ink = (percent: number) =>
-  `color-mix(in oklch, var(--color-base-content) ${percent}%, var(--color-base-100))`
+  `color-mix(in oklab, var(--color-base-content) ${percent}%, var(--color-base-100))`
 
-const brighter = (color: string) =>
-  `color-mix(in oklch, ${color}, var(--color-base-content) 22%)`
+const toward = (color: string, percent: number) =>
+  `color-mix(in oklab, ${color}, var(--color-base-content) ${percent}%)`
 
-const tones = (light: boolean) => ({
-  black: ink(light ? 100 : 26),
-  brightBlack: ink(light ? 62 : 52),
-  white: ink(light ? 34 : 84),
-  brightWhite: ink(light ? 18 : 100),
-  magenta: light ? "oklch(52% 0.18 330)" : "oklch(74% 0.16 330)",
-  cyan: light ? "oklch(54% 0.11 200)" : "oklch(80% 0.11 200)",
+const shift = (hues: Hues, percent: number): Hues => ({
+  red: toward(hues.red, percent),
+  green: toward(hues.green, percent),
+  yellow: toward(hues.yellow, percent),
+  blue: toward(hues.blue, percent),
+  magenta: toward(hues.magenta, percent),
+  cyan: toward(hues.cyan, percent),
 })
 
-const css = (light: boolean): Palette => {
-  const tone = tones(light)
-  const named = {
+const css = (dark: boolean): Palette => {
+  const tokens: Hues = {
     red: "var(--color-error)",
     green: "var(--color-success)",
     yellow: "var(--color-warning)",
     blue: "var(--color-info)",
-    magenta: tone.magenta,
-    cyan: tone.cyan,
+    magenta: dark ? "oklch(74% 0.14 320)" : "oklch(62% 0.17 320)",
+    cyan: "var(--color-accent)",
   }
+  const normal = dark ? tokens : shift(tokens, 30)
+  const bright = dark ? shift(tokens, 25) : tokens
 
   return {
     foreground: "var(--color-base-content)",
@@ -34,26 +40,28 @@ const css = (light: boolean): Palette => {
     cursor: "var(--color-primary)",
     cursorAccent: "var(--color-primary-content)",
     selectionBackground:
-      "color-mix(in oklch, var(--color-primary) 38%, var(--color-base-100))",
+      "color-mix(in oklab, var(--color-primary) 30%, var(--color-base-100))",
     selectionForeground: "var(--color-base-content)",
-    black: tone.black,
-    white: tone.white,
-    brightBlack: tone.brightBlack,
-    brightWhite: tone.brightWhite,
-    ...named,
-    brightRed: brighter(named.red),
-    brightGreen: brighter(named.green),
-    brightYellow: brighter(named.yellow),
-    brightBlue: brighter(named.blue),
-    brightMagenta: brighter(named.magenta),
-    brightCyan: brighter(named.cyan),
+    black: ink(dark ? 26 : 100),
+    brightBlack: ink(dark ? 52 : 62),
+    white: ink(dark ? 84 : 34),
+    brightWhite: ink(dark ? 100 : 18),
+    ...normal,
+    brightRed: bright.red,
+    brightGreen: bright.green,
+    brightYellow: bright.yellow,
+    brightBlue: bright.blue,
+    brightMagenta: bright.magenta,
+    brightCyan: bright.cyan,
   }
 }
 
 const hex = (channel: number) => channel.toString(16).padStart(2, "0")
 
+export const THEME_ATTRIBUTES = ["data-theme", "data-effect", "style"]
+
 export const terminalTheme = (): ITheme => {
-  const light = document.documentElement.dataset.mode === "light"
+  const dark = document.documentElement.dataset.theme !== "atrix-light"
   const probe = document.createElement("span")
   const canvas = document.createElement("canvas")
   const context = canvas.getContext("2d", { willReadFrequently: true })
@@ -80,7 +88,7 @@ export const terminalTheme = (): ITheme => {
   }
 
   const theme = Object.fromEntries(
-    Object.entries(css(light)).map(([key, color]) => [key, resolve(color)]),
+    Object.entries(css(dark)).map(([key, color]) => [key, resolve(color)]),
   )
 
   probe.remove()

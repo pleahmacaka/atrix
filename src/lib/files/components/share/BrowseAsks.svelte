@@ -1,34 +1,44 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
-  import { answerBrowse } from "./share"
+  import Icon from "@iconify/svelte"
+  import { toast } from "#lib/files/store/toast.svelte.ts"
+  import { m } from "#lib/paraglide/messages.js"
+  import { shareError } from "./errors"
+  import { type Answer, answerBrowse } from "./share"
   import { share } from "./share.svelte"
+
+  const ANSWERS: { answer: Answer; label: () => string; tone: string }[] = [
+    { answer: "once", label: m.files_devices_allow_once, tone: "btn-primary" },
+    { answer: "always", label: m.files_devices_allow_always, tone: "btn-soft" },
+    { answer: "deny", label: m.files_devices_deny, tone: "btn-ghost" },
+  ]
+
+  const reply = (device: string, answer: Answer) =>
+    answerBrowse(device, answer).catch(reason =>
+      toast(shareError(reason), "error"),
+    )
 </script>
 
-{#each share.state.browseAsks as ask (ask.id)}
-  <div class="flex flex-col gap-2 rounded-box border border-primary/30 bg-primary/5 p-3">
-    <span class="text-sm">{$t("devices.browseRequest", { values: { name: ask.name } })}</span>
-    <div class="flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="btn btn-xs btn-primary"
-        onclick={() => answerBrowse(ask.id, "once").catch(() => undefined)}
-      >
-        {$t("devices.allowOnce")}
-      </button>
-      <button
-        type="button"
-        class="btn btn-xs btn-soft"
-        onclick={() => answerBrowse(ask.id, "always").catch(() => undefined)}
-      >
-        {$t("devices.allowAlways")}
-      </button>
-      <button
-        type="button"
-        class="btn btn-xs btn-ghost"
-        onclick={() => answerBrowse(ask.id, "deny").catch(() => undefined)}
-      >
-        {$t("devices.deny")}
-      </button>
-    </div>
-  </div>
-{/each}
+<ul class="flex flex-col">
+  {#each share.state.browseAsks as ask (ask.id)}
+    {@const text = m.files_devices_browse_request({ name: ask.name })}
+
+    <li class="flex flex-col gap-2 py-3">
+      <span class="flex min-w-0 items-center gap-2 text-sm">
+        <Icon icon="lucide:folder-search" class="size-4 shrink-0 text-primary" />
+        <span class="min-w-0 truncate" title={text}>{text}</span>
+      </span>
+
+      <div class="flex flex-wrap gap-2">
+        {#each ANSWERS as option (option.answer)}
+          <button
+            type="button"
+            class={["btn btn-sm", option.tone]}
+            onclick={() => reply(ask.id, option.answer)}
+          >
+            {option.label()}
+          </button>
+        {/each}
+      </div>
+    </li>
+  {/each}
+</ul>

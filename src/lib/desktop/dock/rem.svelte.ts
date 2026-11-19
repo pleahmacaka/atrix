@@ -1,4 +1,5 @@
-import { rootRem } from "@atrix/ui"
+const rootRem = () =>
+  Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
 
 const root = $state({ fontSize: rootRem() })
 

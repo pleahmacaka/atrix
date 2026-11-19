@@ -1,224 +1,202 @@
 use std::os::windows::process::CommandExt;
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
+use std::ptr::{null, null_mut};
+use std::time::Duration;
 
-use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+use windows_sys::Win32::UI::Shell::{SHAppBarMessage, ABM_SETSTATE, APPBARDATA};
+use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowExW, ShowWindow, SW_SHOW};
+use winreg::enums::HKEY_CURRENT_USER;
 use winreg::RegKey;
 
-use crate::apps::App;
-use crate::{fail, invocation};
+use crate::{fail, wait, VERSION};
 
-pub const MANIFEST_KEY: &str = "atrix-installer-windows-x86_64";
+pub const NAME: &str = "windows";
 
-const UNINSTALL: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall";
+const UNINSTALL: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Atrix";
 
-const UPDATE_PREFIX: &str = "atrix-installer-update-";
+const IMAGE: &str = "atrix.exe";
 
-// CREATE_NO_WINDOW: a GUI process otherwise flashes a console for tasklist
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-struct Msi {
-    product_code: String,
-    version: String,
-}
-
-fn nsis(app: &App) -> Option<String> {
-    RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey(format!(r"{UNINSTALL}\{}", app.product))
+fn entry(name: &str) -> Option<String> {
+    let value: String = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(UNINSTALL)
         .ok()?
-        .get_value("DisplayVersion")
-        .ok()
+        .get_value(name)
+        .ok()?;
+
+    Some(value.trim_matches('"').to_string())
 }
 
-fn msi(app: &App) -> Option<Msi> {
-    [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE]
-        .into_iter()
-        .filter_map(|hive| RegKey::predef(hive).open_subkey(UNINSTALL).ok())
-        .find_map(|uninstall| {
-            uninstall.enum_keys().flatten().find_map(|code| {
-                let entry = uninstall.open_subkey(&code).ok()?;
-                let name: String = entry.get_value("DisplayName").ok()?;
-                let packaged: u32 = entry.get_value("WindowsInstaller").ok()?;
-
-                (packaged == 1 && name == app.product).then(|| Msi {
-                    version: entry.get_value("DisplayVersion").unwrap_or_default(),
-                    product_code: code,
-                })
-            })
-        })
+fn exe() -> Result<PathBuf, String> {
+    entry("InstallLocation")
+        .map(|dir| PathBuf::from(dir).join(IMAGE))
+        .ok_or_else(|| "Atrix is not installed".to_string())
 }
 
-pub fn installed(app: &App) -> Option<String> {
-    nsis(app).or_else(|| msi(app).map(|found| found.version))
-}
+fn hidden(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut command = Command::new(program);
 
-fn status(mut command: Command) -> Result<(), String> {
-    match command.status() {
-        Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(format!("exited with {status}")),
-        Err(error) => Err(error.to_string()),
-    }
-}
-
-fn command_line() -> String {
-    let line = unsafe { windows_sys::Win32::System::Environment::GetCommandLineW() };
-    let length = (0..)
-        .take_while(|&at| unsafe { *line.add(at) } != 0)
-        .count();
-
-    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(line, length) })
-}
-
-fn arguments(line: &str) -> &str {
-    match line.strip_prefix('"') {
-        Some(quoted) => quoted.split_once('"').map_or("", |(_, rest)| rest),
-        None => line.split_once(' ').map_or("", |(_, rest)| rest),
-    }
-}
-
-// the updater quotes its forwarded args for NSIS, so the tail must be passed on verbatim
-fn from_flag<'a>(args: &'a str, flag: &str) -> Option<&'a str> {
-    args.match_indices(flag)
-        .map(|(at, _)| at)
-        .find(|&at| {
-            let before = args[..at].chars().next_back();
-            let after = args[at + flag.len()..].chars().next();
-
-            before.is_none_or(char::is_whitespace) && after.is_none_or(char::is_whitespace)
-        })
-        .map(|at| &args[at..])
-}
-
-fn binary(app: &App) -> String {
-    match app.id {
-        "atrix" => "atrix.exe".to_string(),
-        id => format!("atrix-{id}.exe"),
-    }
-}
-
-fn running(app: &App) -> bool {
-    let image = binary(app);
-
-    Command::new("tasklist")
-        .args(["/FI", &format!("IMAGENAME eq {image}"), "/NH"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .is_ok_and(|out| {
-            String::from_utf8_lossy(&out.stdout)
-                .to_lowercase()
-                .contains(&image)
-        })
-}
-
-// the NSIS template kills a running app under /P and /S, so anything running is relaunched with /R
-fn setup_command(app: &App, setup: &Path) -> Command {
-    let call = invocation();
-    let line = command_line();
-    let mut command = Command::new(setup);
-
-    command.arg(if call.update && !call.quiet {
-        "/P"
-    } else {
-        "/S"
-    });
-
-    if nsis(app).is_some() {
-        command.arg("/UPDATE");
-    }
-
-    match (app.id, call.update) {
-        ("atrix", true) => {
-            if let Some(tail) = from_flag(arguments(&line), "/R") {
-                command.raw_arg(tail);
-            }
-        }
-        ("atrix", false) => {
-            command.arg("/R");
-        }
-        _ if running(app) => {
-            command.arg("/R");
-        }
-        _ => {}
-    }
+    command.creation_flags(CREATE_NO_WINDOW);
 
     command
 }
 
-// releases up to 0.3.12 also shipped an MSI; remove it so the NSIS install does not land beside it
-fn remove_msi(app: &App) -> Result<(), String> {
-    let Some(found) = msi(app) else {
-        return Ok(());
-    };
-    let mut command = Command::new("msiexec");
+fn run(mut command: Command) -> Result<(), String> {
+    let status = command.status().map_err(fail)?;
 
-    command.args(["/x", &found.product_code, "/passive", "/norestart"]);
-
-    status(command).map_err(|error| format!("removing the MSI install failed: {error}"))
-}
-
-fn run_setup(app: &App, payload: &[u8]) -> Result<(), String> {
-    remove_msi(app)?;
-
-    let dir = tempfile::Builder::new()
-        .prefix("atrix-installer-")
-        .tempdir()
-        .map_err(fail)?;
-    let setup = dir.path().join(format!("{}-setup.exe", app.id));
-
-    std::fs::write(&setup, payload).map_err(fail)?;
-
-    status(setup_command(app, &setup)).map_err(|error| format!("setup {error}"))
-}
-
-fn relaunch_atrix() {
-    let line = command_line();
-    let args =
-        from_flag(arguments(&line), "/ARGS").map_or("", |tail| tail["/ARGS".len()..].trim_start());
-    let dir: Option<String> = RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey(r"Software\atrix\atrix")
-        .ok()
-        .and_then(|key| key.get_value("").ok());
-
-    if let Some(dir) = dir {
-        let _ = Command::new(Path::new(&dir).join("atrix.exe"))
-            .raw_arg(args)
-            .spawn();
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} exited with {status}",
+            command.get_program().to_string_lossy()
+        ))
     }
 }
 
-pub fn install(app: &App, payload: &[u8]) -> Result<(), String> {
-    let result = run_setup(app, payload);
-
-    // Atrix's updater already exited, so a failed atrix setup must not leave the user without the shell
-    if result.is_err() && app.id == "atrix" && invocation().update {
-        relaunch_atrix();
-    }
-
-    result
+fn numbers(version: &str) -> Vec<u64> {
+    version
+        .split(['.', '-', '+'])
+        .map_while(|part| part.parse().ok())
+        .collect()
 }
 
-pub fn launch_installer(bytes: &[u8], version: &str) -> Result<(), String> {
-    let temp = std::env::temp_dir();
+pub fn installed() -> bool {
+    entry("DisplayVersion").is_some()
+}
 
-    for stale in std::fs::read_dir(&temp).into_iter().flatten().flatten() {
-        if stale
-            .file_name()
-            .to_string_lossy()
-            .starts_with(UPDATE_PREFIX)
-        {
-            let _ = std::fs::remove_dir_all(stale.path());
+pub fn outdated() -> bool {
+    entry("DisplayVersion").is_some_and(|installed| numbers(&installed) < numbers(VERSION))
+}
+
+pub fn running() -> bool {
+    hidden("tasklist")
+        .args(["/FI", &format!("IMAGENAME eq {IMAGE}"), "/NH"])
+        .output()
+        .is_ok_and(|out| {
+            String::from_utf8_lossy(&out.stdout)
+                .to_lowercase()
+                .contains(IMAGE)
+        })
+}
+
+fn wide(text: &str) -> Vec<u16> {
+    text.encode_utf16().chain([0]).collect()
+}
+
+fn saved_shell_state() -> Option<u64> {
+    let store = PathBuf::from(std::env::var_os("APPDATA")?)
+        .join("com.arixlab.atrix")
+        .join("settings.json");
+    let json: serde_json::Value = serde_json::from_slice(&std::fs::read(store).ok()?).ok()?;
+
+    json.get("shellTaskbarState")?.as_u64()
+}
+
+// a force-stopped shell never restores explorer's taskbar, which it left hidden and in auto-hide
+fn restore_taskbar() {
+    let mut primary: HWND = null_mut();
+
+    for class in ["Shell_TrayWnd", "Shell_SecondaryTrayWnd"] {
+        let class = wide(class);
+        let mut previous = null_mut();
+
+        loop {
+            let hwnd = unsafe { FindWindowExW(null_mut(), previous, class.as_ptr(), null()) };
+
+            if hwnd.is_null() {
+                break;
+            }
+
+            unsafe { ShowWindow(hwnd, SW_SHOW) };
+
+            if primary.is_null() {
+                primary = hwnd;
+            }
+
+            previous = hwnd;
         }
     }
 
-    let dir = tempfile::Builder::new()
-        .prefix(UPDATE_PREFIX)
-        .tempdir_in(&temp)
-        .map_err(fail)?
-        .keep();
-    let path = dir.join(format!("Atrix_{version}_installer.exe"));
+    let Some(state) = saved_shell_state() else {
+        return;
+    };
 
-    std::fs::write(&path, bytes).map_err(fail)?;
-    Command::new(path).spawn().map_err(fail)?;
+    if primary.is_null() {
+        return;
+    }
+
+    let mut data: APPBARDATA = unsafe { std::mem::zeroed() };
+
+    data.cbSize = size_of::<APPBARDATA>() as u32;
+    data.hWnd = primary;
+    data.lParam = state as isize;
+
+    unsafe { SHAppBarMessage(ABM_SETSTATE, &mut data) };
+}
+
+pub fn stop(shell: bool) -> Result<(), String> {
+    let _ = hidden("taskkill").args(["/IM", IMAGE, "/F"]).status();
+
+    if !wait(|| !running(), Duration::from_secs(10)) {
+        return Err("Atrix is still running".to_string());
+    }
+
+    if shell {
+        restore_taskbar();
+    }
+
+    Ok(())
+}
+
+pub fn install(payload: &[u8]) -> Result<(), String> {
+    let dir = tempfile::Builder::new()
+        .prefix("atrix-setup-")
+        .tempdir()
+        .map_err(fail)?;
+    let setup = dir.path().join("atrix-setup.exe");
+
+    std::fs::write(&setup, payload).map_err(fail)?;
+
+    let mut command = Command::new(&setup);
+
+    command.arg("/S");
+    run(command)?;
+
+    if outdated() || !installed() {
+        return Err("setup finished without installing Atrix".to_string());
+    }
+
+    Ok(())
+}
+
+// the NSIS uninstaller relaunches itself from a temp copy, so its own exit says nothing about completion
+pub fn uninstall() -> Result<(), String> {
+    let uninstaller = entry("UninstallString").ok_or("Atrix is not installed")?;
+    let mut command = Command::new(uninstaller);
+
+    command.arg("/S");
+    run(command)?;
+
+    if !wait(|| !installed(), Duration::from_secs(120)) {
+        return Err("uninstall did not finish".to_string());
+    }
+
+    Ok(())
+}
+
+pub fn default_app(enabled: bool) -> Result<(), String> {
+    let mut command = hidden(exe()?);
+
+    command.args(["--default-app", if enabled { "on" } else { "off" }]);
+
+    run(command)
+}
+
+pub fn launch() -> Result<(), String> {
+    Command::new(exe()?).spawn().map_err(fail)?;
 
     Ok(())
 }

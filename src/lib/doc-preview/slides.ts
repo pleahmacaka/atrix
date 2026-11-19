@@ -1,4 +1,5 @@
 import JSZip from "jszip"
+import { m } from "#lib/paraglide/messages.js"
 import { rem } from "./rem"
 
 const CLASS = "atrix-slides"
@@ -26,7 +27,7 @@ const SKIPPED_TYPES = new Set(["sldNum", "dt", "ftr"])
 
 const STYLE = `
 .${CLASS} {
-  --line: color-mix(in srgb, currentColor 14%, transparent);
+  --line: var(--color-base-300, color-mix(in oklab, currentColor 14%, transparent));
   height: 100%;
   overflow: auto;
   padding: 1rem;
@@ -37,8 +38,9 @@ const STYLE = `
   font: inherit;
 }
 .${CLASS}-card {
-  border: 0.0625rem solid var(--line);
-  border-radius: 0.5rem;
+  border: var(--border, 0.0625rem) solid var(--line);
+  border-radius: var(--radius-box, 0.5rem);
+  background: var(--raised, transparent);
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -207,7 +209,7 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 const card = (slide: Slide, index: number, urls: string[]) => {
   const root = element("article", `${CLASS}-card`)
   const head = element("header", `${CLASS}-head`)
-  const title = slide.title || (slide.lines.length ? "" : "제목 없음")
+  const title = slide.title || (slide.lines.length ? "" : m.common_untitled())
 
   head.append(element("span", `${CLASS}-number`, String(index + 1)))
 
@@ -268,7 +270,7 @@ export const renderSlides = async (bytes: Uint8Array, host: HTMLElement) => {
   root.append(...slides.map((slide, i) => card(slide, i, urls)))
 
   if (!slides.length) {
-    root.append(element("div", `${CLASS}-empty`, "슬라이드 없음"))
+    root.append(element("div", `${CLASS}-empty`, m.files_doc_no_slides()))
   }
 
   return cleanup(host, urls)

@@ -77,6 +77,18 @@ jobs:
           releaseDraft: false
           prerelease: false
 
+      - name: Build installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p apps/installer/src-tauri/payload
+          cp "target/release/bundle/nsis/Atrix_${VERSION}_x64-setup.exe" apps/installer/src-tauri/payload/atrix.exe
+          (cd apps/installer && bun run tauri build --no-bundle)
+          cp target/release/atrix-installer.exe "Atrix_${VERSION}_x64-installer.exe"
+          gh release upload "$VERSION" "Atrix_${VERSION}_x64-installer.exe" --clobber --repo "$GITHUB_REPOSITORY"
+
   linux:
     needs: [version, windows]
     if: needs.version.outputs.released == 'false'
@@ -113,6 +125,63 @@ jobs:
           releaseCommitish: ${{ github.sha }}
           releaseDraft: false
           prerelease: false
+
+      - name: Build installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p apps/installer/src-tauri/payload
+          cp "target/release/bundle/appimage/Atrix_${VERSION}_amd64.AppImage" apps/installer/src-tauri/payload/atrix.AppImage
+          (cd apps/installer && bun run tauri build --bundles appimage)
+          installer=$(find target/release/bundle/appimage -maxdepth 1 -iname '*installer*.AppImage' | head -n 1)
+          cp "$installer" "Atrix_${VERSION}_amd64-installer.AppImage"
+          gh release upload "$VERSION" "Atrix_${VERSION}_amd64-installer.AppImage" --clobber --repo "$GITHUB_REPOSITORY"
+
+  macos:
+    needs: [version, linux]
+    if: needs.version.outputs.released == 'false'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: oven-sh/setup-bun@v2.2.0
+
+      - run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: . -> target
+          shared-key: atrix-macos
+          cache-on-failure: true
+
+      - run: bun install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: bun run tauri
+          args: --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          tagName: ${{ needs.version.outputs.version }}
+          releaseName: Atrix ${{ needs.version.outputs.version }}
+          releaseCommitish: ${{ github.sha }}
+          releaseDraft: false
+          prerelease: false
+
+      - name: Build installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p apps/installer/src-tauri/payload
+          cp target/release/bundle/macos/Atrix.app.tar.gz apps/installer/src-tauri/payload/atrix.app.tar.gz
+          (cd apps/installer && bun run tauri build --bundles dmg)
+          installer=$(find target/release/bundle/dmg -maxdepth 1 -iname '*installer*.dmg' | head -n 1)
+          cp "$installer" "Atrix_${VERSION}_aarch64-installer.dmg"
+          gh release upload "$VERSION" "Atrix_${VERSION}_aarch64-installer.dmg" --clobber --repo "$GITHUB_REPOSITORY"
 
   android:
     needs: [version, windows]

@@ -16,7 +16,13 @@ import {
   openSettings,
   type Page,
 } from "#lib/store/nav.svelte.ts"
-import { APPS_PAGE, CALENDAR_PAGE, PAGES, SETTINGS_PAGE } from "#lib/store/pages.ts"
+import {
+  ANDROID_PAGES,
+  APPS_PAGE,
+  CALENDAR_PAGE,
+  PAGES,
+  SETTINGS_PAGE,
+} from "#lib/store/pages.ts"
 import { shell } from "#lib/store/shell.svelte.ts"
 import { type ShortcutId, withKeys } from "#lib/store/shortcuts.ts"
 import { persisted, Stored } from "#lib/store/stored.svelte.ts"
@@ -76,6 +82,7 @@ const PAGE_ACTIONS: Record<Page, Action[]> = {
   ],
   calendar: [],
   data: [],
+  files: [],
   knowledge: [],
 }
 
@@ -88,7 +95,7 @@ const pageItem = (page: (typeof PAGES)[number]): Item => ({
   run: () => {
     goPage(page.id)
 
-    if ((rail || shell.narrow) && page.id !== "chat" && page.id !== "calendar") {
+    if ((rail || shell.narrow) && page.id !== "chat" && page.id !== "calendar" && page.id !== "files") {
       shell.drawer = true
       shell.peek = false
     }
@@ -112,7 +119,7 @@ const items = $derived<Item[]>([
     pressed: nav.page === "apps",
     run: () => goPage("apps"),
   },
-  ...[...PAGES, CALENDAR_PAGE].map(pageItem),
+  ...[...PAGES, CALENDAR_PAGE, ...ANDROID_PAGES].map(pageItem),
   {
     id: "settings",
     label: SETTINGS_PAGE.label(),

@@ -1,329 +1,301 @@
 <script lang="ts">
-  import { type DeviceSettings, defaultDevice, onDevice } from "@atrix/settings"
-  import Icon from "@iconify/svelte"
-  import { listen } from "@tauri-apps/api/event"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
-  import { flip } from "svelte/animate"
-  import { cubicOut } from "svelte/easing"
-  import { fly } from "svelte/transition"
-  import { t } from "svelte-i18n"
-  import { ensureDevice } from "#lib/desktop/device.js"
-  import { relativeTime } from "#lib/desktop/launcher/providers.js"
-  import * as native from "#lib/desktop/native/index.js"
-  import type { Notice } from "#lib/desktop/native/notices.js"
+import Icon from "@iconify/svelte"
+import { listen } from "@tauri-apps/api/event"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { flip } from "svelte/animate"
+import { fade } from "svelte/transition"
+import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { appIcon } from "#lib/desktop/apps.js"
+import { relativeTime } from "#lib/desktop/launcher/relative.js"
+import { type AppEntry, listApps } from "#lib/desktop/native/apps.js"
+import {
+  type Notice,
+  noticesActivate,
+  noticesDismiss,
+  noticesList,
+  noticesSeen,
+  noticesUnseen,
+} from "#lib/desktop/native/notices.js"
+import {
+  hideWindow,
+  onWindowHidden,
+  onWindowShown,
+} from "#lib/desktop/native/windows.js"
+import { m } from "#lib/paraglide/messages.js"
 
-  const appWindow = getCurrentWindow()
-  const BLUR_GRACE = 400
-  const REVEAL_MS = 260
-  const STAGGER_MS = 35
-  const STAGGER_LIMIT = 8
-  const EASE = "cubic-bezier(0.2, 0.9, 0.1, 1)"
+const BLUR_GRACE = 400
 
-  type Group = { app: string; notices: Notice[] }
+const MOTION = { duration: 140 }
 
-  let items = $state<Notice[]>([])
-  let device = $state<DeviceSettings>(defaultDevice)
-  let now = $state(Date.now())
-  let list = $state<HTMLElement>()
-  let focusLanded = false
-  let shownAt = 0
+type Group = { app: string; name: string; path?: string; notices: Notice[] }
 
-  const groups = $derived(
-    items.reduce<Group[]>((all, notice) => {
-      const group = all.find(g => g.app === notice.app)
+const appWindow = getCurrentWindow()
 
-      if (group) {
-        group.notices.push(notice)
-      } else {
-        all.push({ app: notice.app, notices: [notice] })
-      }
+let items = $state.raw<Notice[]>([])
 
-      return all
-    }, []),
-  )
+let fresh = $state.raw(new Set<number>())
 
-  const calm = () => document.documentElement.dataset.motion === "false"
+let apps = $state.raw<AppEntry[]>([])
 
-  const hue = (name: string) =>
-    [...name].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) % 360, 7)
+let icons = $state<Record<string, string>>({})
 
-  const initial = (name: string) => [...name.trim()][0]?.toUpperCase() ?? "?"
+let now = $state(Date.now())
 
-  const origin = () => {
-    const x = { left: "left", center: "center", right: "right" }[
-      device.panelPosition
-    ]
-    const y = device.dockEdge === "top" ? "top" : "bottom"
+let loaded = $state(false)
 
-    return `${x} ${y}`
-  }
+let focusLanded = false
 
-  const reveal = () => {
-    const shell = document.querySelector<HTMLElement>(".siri-shell")
+let shownAt = 0
 
-    if (!shell || calm()) {
-      return
+const groups = $derived.by(() => {
+  const byApp = new Map<string, Group>()
+
+  for (const notice of items) {
+    const group = byApp.get(notice.app)
+
+    if (group) {
+      group.notices.push(notice)
+
+      continue
     }
 
-    const rise = device.dockEdge === "top" ? "-0.75rem" : "0.75rem"
+    const id = notice.app.toLowerCase()
+    const entry = apps.find(a => a.app_id?.toLowerCase() === id)
 
-    shell.style.transformOrigin = origin()
-    shell.animate(
-      [
-        { transform: `translateY(${rise}) scale(0.96)` },
-        { transform: "none" },
-      ],
-      { duration: REVEAL_MS, easing: EASE },
-    )
-
-    const rows = list?.querySelectorAll<HTMLElement>("[data-reveal]") ?? []
-
-    rows.forEach((row, at) => {
-      row.animate(
-        [
-          { opacity: 0, transform: `translateY(${rise})` },
-          { opacity: 1, transform: "none" },
-        ],
-        {
-          duration: REVEAL_MS,
-          delay: 60 + Math.min(at, STAGGER_LIMIT) * STAGGER_MS,
-          easing: EASE,
-          fill: "backwards",
-        },
-      )
+    byApp.set(notice.app, {
+      app: notice.app,
+      name: entry?.name ?? notice.app,
+      path: entry?.path,
+      notices: [notice],
     })
   }
 
-  const leave = (node: Element) =>
-    calm()
-      ? { duration: 0 }
-      : fly(node, { x: "2rem", duration: 140, easing: cubicOut })
+  return [...byApp.values()]
+})
 
-  const refresh = async () => {
-    items = await native.noticesList().catch(() => items)
-    now = Date.now()
+const initial = (name: string) => [...name.trim()][0]?.toUpperCase() ?? "?"
+
+const refresh = async () => {
+  const [list, unseen] = await Promise.all([noticesList(), noticesUnseen()]).catch(
+    () => [items, 0] as const,
+  )
+  const newest = list.toSorted((a, b) => b.arrived - a.arrived).slice(0, unseen)
+
+  items = list
+  loaded = true
+  now = Date.now()
+
+  if (newest.length) {
+    fresh = new Set([...fresh, ...newest.map(n => n.id)])
+    noticesSeen().catch(() => undefined)
   }
+}
 
-  const hide = () => {
-    focusLanded = false
-    native.hideWindow("notices").catch(() => undefined)
+const hide = () => {
+  focusLanded = false
+  hideWindow("notices").catch(() => undefined)
+}
+
+const dismiss = async (ids: number[]) => {
+  items = items.filter(n => !ids.includes(n.id))
+  await noticesDismiss(ids).catch(() => undefined)
+}
+
+const activate = async (id: number) => {
+  try {
+    await noticesActivate(id)
+    items = items.filter(n => n.id !== id)
+  } catch {
+    refresh()
   }
+}
 
-  const dismiss = async (ids: number[]) => {
-    items = items.filter(notice => !ids.includes(notice.id))
-    await native.noticesDismiss(ids).catch(() => undefined)
-  }
+$effect(() => {
+  for (const group of groups) {
+    const path = group.path
 
-  const activate = async (id: number) => {
-    try {
-      await native.noticesActivate(id)
-      items = items.filter(notice => notice.id !== id)
-    } catch {
-      refresh()
+    if (path && !icons[path]) {
+      appIcon(path)
+        .then(icon => {
+          if (icon) {
+            icons[path] = icon
+          }
+        })
+        .catch(() => undefined)
     }
   }
+})
 
-  const dismissAll = () => dismiss(items.map(notice => notice.id))
+$effect(() => {
+  refresh()
+  listApps()
+    .then(list => {
+      apps = list
+    })
+    .catch(() => undefined)
 
-  const onkeydown = (e: KeyboardEvent) => {
+  const tick = setInterval(() => {
+    now = Date.now()
+  }, 30_000)
+
+  const stops = [
+    listen("notices-changed", refresh),
+    onWindowShown("notices", () => {
+      focusLanded = false
+      shownAt = Date.now()
+      refresh()
+    }),
+    onWindowHidden("notices", () => {
+      fresh = new Set()
+    }),
+    appWindow.onFocusChanged(({ payload: focused }) => {
+      if (focused) {
+        if (!focusLanded) {
+          focusLanded = true
+          shownAt = Date.now()
+        }
+
+        return
+      }
+
+      if (focusLanded && Date.now() - shownAt >= BLUR_GRACE) {
+        hide()
+      }
+    }),
+  ]
+
+  return () => {
+    clearInterval(tick)
+
+    for (const stop of stops) {
+      stop.then(fn => fn()).catch(() => undefined)
+    }
+  }
+})
+</script>
+
+<svelte:window
+  onkeydown={e => {
     if (e.key === "Escape") {
       hide()
     }
-  }
+  }}
+/>
 
-  $effect(() => {
-    ensureDevice()
-      .then(next => {
-        device = next
-      })
-      .catch(() => undefined)
-    refresh()
-    native.noticesSeen().catch(() => undefined)
-
-    const tick = setInterval(() => {
-      now = Date.now()
-    }, 30_000)
-
-    const stops = [
-      onDevice(next => {
-        device = next
-      }),
-      listen("notices-changed", refresh),
-      native.onWindowShown("notices", async () => {
-        focusLanded = false
-        shownAt = Date.now()
-        requestAnimationFrame(reveal)
-        await refresh()
-        native.noticesSeen().catch(() => undefined)
-      }),
-      appWindow.onFocusChanged(({ payload: focused }) => {
-        if (focused) {
-          if (!focusLanded) {
-            focusLanded = true
-            shownAt = Date.now()
-          }
-
-          return
-        }
-
-        if (focusLanded && Date.now() - shownAt >= BLUR_GRACE) {
-          hide()
-        }
-      }),
-    ]
-
-    return () => {
-      clearInterval(tick)
-
-      for (const stop of stops) {
-        stop.then(fn => fn()).catch(() => undefined)
-      }
-    }
-  })
-</script>
-
-<svelte:window {onkeydown} />
-
-<main class="flex h-full min-h-0 flex-col">
-  <header class="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
-    <div class="flex items-center gap-2">
-      <h2 class="text-base font-semibold tracking-tight">
-        {$t("tray.notifications.title")}
-      </h2>
-
-      {#if items.length > 0}
-        <span class="badge badge-primary badge-sm tabular-nums">
-          {items.length}
-        </span>
-      {/if}
-    </div>
-
-    <div class="flex items-center gap-0.5">
-      {#if items.length > 0}
-        <button type="button"
-          class="btn btn-ghost btn-xs rounded-full"
-          onclick={dismissAll}
-        >
-          <Icon icon="lucide:check-check" class="size-3.5" />
-          {$t("panel.notifications.clearAll")}
-        </button>
-      {/if}
-
-      <button type="button"
-        class="btn btn-ghost btn-square btn-xs rounded-full"
-        aria-label={$t("common.close")}
-        onclick={hide}
+<main
+  class={[
+    "m-2 flex min-h-0 flex-1 flex-col gap-2 p-2",
+    "rounded-box border border-base-300 bg-base-200 shadow-xl",
+  ]}
+>
+  <header
+    class={[
+      "flex h-10 shrink-0 items-center gap-1 ps-3 pe-1.5",
+      "rounded-box border border-base-300 bg-base-100",
+    ]}
+  >
+    <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{m.notices_title()}</h1>
+    {#if items.length > 0}
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        onclick={() => dismiss(items.map(n => n.id))}
       >
-        <Icon icon="lucide:x" class="size-3.5" />
+        <Icon icon="lucide:check-check" class="size-4" />
+        {m.notices_clear_all()}
       </button>
-    </div>
+    {/if}
+    <IconButton icon="lucide:x" label={m.common_close()} onclick={hide} />
   </header>
 
-  <div class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2.5" bind:this={list}>
-    {#if items.length === 0}
-      <div
-        class={[
-          "flex h-full flex-col items-center justify-center gap-3",
-          "text-base-content/40",
-        ]}
-        data-reveal
-      >
-        <div
-          class={[
-            "grid size-14 place-items-center rounded-full",
-            "bg-base-content/5 inset-ring inset-ring-base-content/10",
-          ]}
-        >
-          <Icon icon="lucide:bell-off" class="size-6" />
-        </div>
-
-        <p class="text-sm">{$t("panel.notifications.empty")}</p>
-      </div>
-    {:else}
-      <ul class="flex flex-col gap-3">
-        {#each groups as group (group.app)}
-          <li class="flex flex-col gap-1.5" animate:flip={{ duration: 200 }} data-reveal>
-            <div class="group/app flex items-center gap-2 px-1">
-              <span
-                class={[
-                  "grid size-5 shrink-0 place-items-center rounded-full",
-                  "text-2xs font-semibold text-white",
-                ]}
-                style:background-color="oklch(62% 0.14 {hue(group.app)})"
-                aria-hidden="true"
-              >
-                {initial(group.app)}
-              </span>
-
-              <span class="min-w-0 flex-1 truncate text-xs font-medium text-base-content/70" title={group.app}>
-                {group.app}
-              </span>
-
-              <button type="button"
-                class={[
-                  "btn btn-ghost btn-square btn-xs rounded-full",
-                  "opacity-0 transition-opacity duration-140",
-                  "group-hover/app:opacity-100 focus-visible:opacity-100",
-                ]}
-                aria-label={$t("panel.notifications.dismissApp", {
-                  values: { app: group.app },
-                })}
-                onclick={() => dismiss(group.notices.map(notice => notice.id))}
-              >
-                <Icon icon="lucide:trash-2" class="size-3.5" />
-              </button>
-            </div>
-
-            <ul class="flex flex-col gap-1">
-              {#each group.notices as notice (notice.id)}
-                <li
-                  class={[
-                    "group atrix-card relative flex items-start gap-2 rounded-box",
-                    "px-3.5 py-3 transition duration-140",
-                    "hover:-translate-y-0.25 hover:inset-ring-base-content/20",
-                  ]}
-                  animate:flip={{ duration: 200 }}
-                  out:leave
-                >
-                  <button
-                    type="button"
-                    class="min-w-0 flex-1 cursor-pointer text-left"
-                    onclick={() => activate(notice.id)}
-                  >
-                    <div class="flex items-baseline justify-between gap-2">
-                      <p class="min-w-0 truncate text-sm font-semibold" title={notice.title}>
-                        {notice.title}
-                      </p>
-
-                      <span class="shrink-0 whitespace-nowrap text-2xs tabular-nums text-base-content/45">
-                        {relativeTime(notice.arrived, now)}
-                      </span>
-                    </div>
-
-                    {#if notice.body}
-                      <p class="mt-1 line-clamp-3 text-xs leading-relaxed text-base-content/65">
-                        {notice.body}
-                      </p>
-                    {/if}
-                  </button>
-
-                  <button type="button"
-                    class={[
-                      "btn btn-ghost btn-square btn-xs -mt-1 -mr-1.5 shrink-0 rounded-full",
-                      "opacity-0 transition-opacity duration-140",
-                      "group-hover:opacity-100 focus-visible:opacity-100",
-                    ]}
-                    aria-label={$t("panel.notifications.dismiss")}
-                    onclick={() => dismiss([notice.id])}
-                  >
-                    <Icon icon="lucide:x" class="size-3.5" />
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          </li>
-        {/each}
-      </ul>
+  <div class="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+    {#if loaded && items.length === 0}
+      <EmptyState
+        icon="lucide:bell-off"
+        text={m.notices_empty()}
+        centered
+        class="absolute inset-0"
+      />
     {/if}
+    {#each groups as group (group.app)}
+      <section
+        class="shrink-0 rounded-box border border-base-300 bg-base-100 p-1.5"
+        animate:flip={{ duration: 160 }}
+        transition:fade={MOTION}
+      >
+        <header class="group/app flex min-h-8 items-center gap-2 pl-2">
+          {#if group.path && icons[group.path]}
+            <img src={icons[group.path]} alt="" class="size-5 shrink-0 object-contain" />
+          {:else}
+            <span
+              class={[
+                "grid size-5 shrink-0 place-items-center rounded-field",
+                "bg-base-content/8 text-xs font-semibold text-base-content/70",
+              ]}
+              aria-hidden="true"
+            >
+              {initial(group.name)}
+            </span>
+          {/if}
+          <h2
+            class="min-w-0 flex-1 truncate text-xs font-medium text-base-content/60"
+            title={group.name}
+          >
+            {group.name}
+          </h2>
+          <IconButton
+            icon="lucide:trash-2"
+            label={m.notices_dismiss_app({ app: group.name })}
+            size="xs"
+            class="opacity-0 group-hover/app:opacity-100 focus-visible:opacity-100"
+            onclick={() => dismiss(group.notices.map(n => n.id))}
+          />
+        </header>
+
+        {#each group.notices as notice (notice.id)}
+          <div
+            class="group relative flex items-start gap-1 rounded-field hover:bg-base-content/8"
+            animate:flip={{ duration: 160 }}
+            transition:fade={MOTION}
+          >
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 px-2 py-2 text-left"
+              onclick={() => activate(notice.id)}
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <span class="min-w-0 flex-1 truncate text-sm font-medium" title={notice.title}>
+                  {notice.title}
+                </span>
+                {#if fresh.has(notice.id)}
+                  <span
+                    class="size-2 shrink-0 rounded-full bg-primary"
+                    role="img"
+                    aria-label={m.notices_unseen()}
+                  ></span>
+                {/if}
+                <span class="shrink-0 whitespace-nowrap text-xs tabular-nums text-base-content/50">
+                  {relativeTime(notice.arrived, now)}
+                </span>
+              </span>
+              {#if notice.body}
+                <span class="line-clamp-3 text-xs text-base-content/60">{notice.body}</span>
+              {/if}
+            </button>
+            <IconButton
+              icon="lucide:x"
+              label={m.notices_dismiss()}
+              size="xs"
+              class={[
+                "mt-1.5 mr-1 shrink-0 opacity-0",
+                "group-hover:opacity-100 focus-visible:opacity-100",
+              ]}
+              onclick={() => dismiss([notice.id])}
+            />
+          </div>
+        {/each}
+      </section>
+    {/each}
   </div>
 </main>

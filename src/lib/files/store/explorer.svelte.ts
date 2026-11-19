@@ -1,7 +1,8 @@
-import { currentLocale, tr } from "@atrix/i18n"
-import { toast } from "@atrix/ui"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { writeText } from "@tauri-apps/plugin-clipboard-manager"
+import { toast } from "#lib/files/store/toast.svelte.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { currentLocale } from "#lib/store/locale.ts"
 import { fetchRemote } from "../components/share/share"
 import { displayName, type Item, packedEntry } from "../items"
 import { baseName, HOME, RECYCLE_BIN, splitDevice } from "../locations"
@@ -47,7 +48,7 @@ const fetchDevice = async (item: Item) => {
     const saved = await fetchRemote(device.id, device.path)
 
     if (saved !== null) {
-      toast(tr("remote.saved"), "success")
+      toast(m.files_remote_saved(), "success")
 
       return saved
     }
@@ -80,7 +81,7 @@ const transferServices: transferring.TransferServices = {
   confirmAll,
   archiveNotice: done =>
     toast(
-      tr(`explorer.bandizip.${done ? "done" : "working"}`),
+      done ? m.files_bandizip_done() : m.files_bandizip_working(),
       done ? "success" : undefined,
     ),
 }
@@ -104,7 +105,7 @@ const shellServices: shell.ShellServices = {
   network: () => places.network,
   refreshPlaces,
   pinnedKey: location => pinnedEntry(location)?.key,
-  newFolderName: () => tr("explorer.commands.newFolder"),
+  newFolderName: () => m.files_commands_new_folder(),
   openProperties,
 }
 
@@ -260,9 +261,9 @@ export class Explorer {
 
     this.cut = new Set(cut ? keys : [])
     toast(
-      tr(`explorer.clipboard.${cut ? "cut" : "copied"}`, {
-        count: keys.length,
-      }),
+      cut
+        ? m.files_clipboard_cut({ count: keys.length })
+        : m.files_clipboard_copied({ count: keys.length }),
       "success",
     )
   }
@@ -403,8 +404,8 @@ export class Explorer {
     return shell.changePlaces(this, run, shellServices)
   }
 
-  title(tab: Tab, translate: (key: string) => string) {
-    const named = placeName(tab.location, translate)
+  title(tab: Tab) {
+    const named = placeName(tab.location)
 
     if (named) {
       return named

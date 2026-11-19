@@ -1,4 +1,4 @@
-import { DEFAULT_FONT, loadShells, openTab, session } from "#lib/terminal/index.ts"
+import { loadShells, openTab, session } from "#lib/terminal/index.ts"
 import { packageManagers } from "../native"
 import { persisted } from "./persisted.svelte"
 
@@ -7,7 +7,6 @@ export type TerminalPosition = "bottom" | "side"
 export type TerminalPrefs = {
   position: TerminalPosition
   shell: string | null
-  fontFamily: string
   height: number
   width: number
   packageManager: string | null
@@ -16,7 +15,6 @@ export type TerminalPrefs = {
 export const terminalPrefs = persisted<TerminalPrefs>("atrix-files.terminal", {
   position: "bottom",
   shell: null,
-  fontFamily: DEFAULT_FONT,
   height: 16,
   width: 30,
   packageManager: null,

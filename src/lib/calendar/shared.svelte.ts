@@ -1,6 +1,12 @@
 import { untrack } from "svelte"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
-import { type EventTag, listEvents, listTags } from "./store.ts"
+import {
+  type EventTag,
+  listEvents,
+  listTags,
+  listTasks,
+  type Task,
+} from "./store.ts"
 import type { HolidayCheck, Occurrence } from "./types.ts"
 
 export type SharedEvent = Occurrence & { host: HostView }
@@ -64,5 +70,39 @@ export const watchShared = (
         onData(events, tags)
       }),
     )
+  })
+}
+
+export type SharedTask = Task & { host: HostView }
+
+const NO_DUE = "9999-12-31"
+
+const byTask = (a: Task, b: Task) =>
+  Number(a.done) - Number(b.done) ||
+  (a.done
+    ? b.updatedAt - a.updatedAt
+    : (a.due ?? NO_DUE).localeCompare(b.due ?? NO_DUE) ||
+      a.updatedAt - b.updatedAt)
+
+export const listSharedTasks = async (
+  hosts: HostView[],
+): Promise<SharedTask[]> =>
+  settle(
+    hosts.map(async host => (await listTasks(host)).map(t => ({ ...t, host }))),
+  ).then(all => all.toSorted(byTask))
+
+export const watchTasks = (
+  hosts: () => HostView[],
+  load: (work: () => Promise<void>) => unknown,
+  onData: (tasks: SharedTask[]) => void,
+) => {
+  $effect(() => {
+    const list = hosts()
+
+    for (const host of list) {
+      void host.dsChange
+    }
+
+    untrack(() => load(async () => onData(await listSharedTasks(list))))
   })
 }

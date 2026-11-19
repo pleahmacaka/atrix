@@ -1,79 +1,62 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
-  import type { Launcher } from "./launcher.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import type { Launcher } from "./launcher.svelte"
 
-  let { launcher }: { launcher: Launcher } = $props()
+let { launcher }: { launcher: Launcher } = $props()
 
-  const HINTS: [string, string][] = [
-    [">", "run"],
-    ["t", "todo"],
-    ["=", "calc"],
-    [":", "emoji"],
-    ["v", "clip"],
-    ["timer", "timer"],
-  ]
+const PREFIXES: [string, () => string][] = [
+  ["> ", m.launcher_mode_run],
+  ["t ", m.launcher_mode_todo],
+  ["=", m.launcher_mode_calc],
+  [":", m.launcher_mode_emoji],
+  ["v ", m.launcher_mode_clip],
+  ["timer ", m.launcher_mode_timer],
+]
 
-  const enterLabel = $derived(
-    launcher.route.mode === "clip"
-      ? $t("launcher.enter.paste")
-      : launcher.route.mode === "emoji"
-        ? $t("launcher.enter.copy")
-        : $t("launcher.enter.open"),
-  )
-
-  const current = $derived(launcher.flat[launcher.active])
+const current = $derived(launcher.current)
 </script>
 
-{#if launcher.error || launcher.query || launcher.device.showKeymap}
+{#snippet key(keys: string, label: string)}
+  <span class="flex shrink-0 items-center gap-1 whitespace-nowrap">
+    <kbd class="kbd kbd-xs">{keys}</kbd>
+    {label}
+  </span>
+{/snippet}
+
 <footer
-  data-launcher
-  class="flex h-7 shrink-0 items-center justify-between gap-3 overflow-hidden border-t border-base-content/10 px-3 text-xs text-base-content/50"
+  class={[
+    "flex h-7 shrink-0 items-center justify-between gap-3 overflow-hidden px-2",
+    "text-xs text-base-content/50",
+  ]}
 >
-{#if launcher.error}
-  <span class="truncate text-error">{launcher.error}</span>
-{:else if launcher.query}
-  <span class="tabular-nums">
-    {$t("launcher.resultCount", { values: { count: launcher.flat.length } })}
-  </span>
-{:else if launcher.device.showKeymap}
-  <div class="flex items-center gap-x-3 overflow-hidden">
-    {#each HINTS as [key, label] (key)}
-      <button
-        type="button"
-        class="flex items-center gap-1 transition-colors duration-100 hover:text-base-content"
-        tabindex="-1"
-        onclick={() => launcher.insertPrefix(key === ":" ? key : `${key} `)}
-      >
-        <kbd class="kbd kbd-xs">{key}</kbd>
-        {$t(`launcher.hints.${label}`)}
-      </button>
-    {/each}
-  </div>
-{/if}
-
-{#if launcher.query && launcher.device.showKeymap}
-  <div class="flex shrink-0 items-center gap-3">
-    <span class="flex items-center gap-1">
-      <kbd class="kbd kbd-xs">↵</kbd>
-      {enterLabel}
-    </span>
-
-    {#if launcher.secondary(current, "admin")}
-      <span class="flex items-center gap-1">
-        <kbd class="kbd kbd-xs">⇧↵</kbd> {$t("launcher.footer.admin")}
-      </span>
-    {/if}
-
-    {#if launcher.secondary(current, "location")}
-      <span class="flex items-center gap-1">
-        <kbd class="kbd kbd-xs">⌃↵</kbd> {$t("launcher.footer.location")}
-      </span>
-    {/if}
-  </div>
-{:else if launcher.groups.length > 1 && launcher.device.showKeymap}
-  <span class="flex shrink-0 items-center gap-1">
-    <kbd class="kbd kbd-xs">Tab</kbd> {$t("launcher.footer.groups")}
-  </span>
-{/if}
+  {#if launcher.query}
+    <div class="flex min-w-0 items-center gap-3">
+      {#if current}
+        {@render key("↵", launcher.primaryLabel(current))}
+      {/if}
+      {#if launcher.secondary(current, "admin")}
+        {@render key("Shift ↵", m.launcher_key_admin())}
+      {/if}
+      {#if launcher.secondary(current, "location")}
+        {@render key("Ctrl ↵", m.launcher_key_location())}
+      {/if}
+    </div>
+  {:else}
+    <div class="flex min-w-0 items-center gap-3">
+      {#each PREFIXES as [prefix, label] (prefix)}
+        <button
+          type="button"
+          tabindex="-1"
+          class="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap hover:text-base-content"
+          onclick={() => launcher.insertPrefix(prefix)}
+        >
+          <kbd class="kbd kbd-xs">{prefix.trim()}</kbd>
+          {label()}
+        </button>
+      {/each}
+    </div>
+  {/if}
+  {#if launcher.groups.length > 1}
+    {@render key("Tab", m.launcher_key_groups())}
+  {/if}
 </footer>
-{/if}

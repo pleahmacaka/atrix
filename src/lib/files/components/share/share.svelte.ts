@@ -12,13 +12,9 @@ export const share = $state<{
   center: boolean
 }>({
   state: {
-    name: "",
     devices: [],
-    pendingPair: null,
-    senior: false,
     browse: { scope: "drives", folders: [], always: [] },
     browseAsks: [],
-    members: [],
   },
   problem: null,
   center: false,
@@ -53,10 +49,7 @@ export const startShare = () => {
   }
 }
 
-export const browsable = (): Member[] => [
-  ...share.state.devices.map(({ id, name }) => ({ id, name })),
-  ...share.state.members,
-]
+export const browsable = (): Member[] => share.state.devices
 
 export const memberName = (id: string) =>
   browsable().find(member => member.id === id)?.name ?? id.slice(0, 8)

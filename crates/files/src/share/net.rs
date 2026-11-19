@@ -3,9 +3,9 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use iroh::endpoint::{presets, Connection};
-use iroh::protocol::{AcceptError, ProtocolHandler, Router};
-use iroh::{Endpoint, EndpointId, SecretKey};
+use iroh::endpoint::Connection;
+use iroh::protocol::{AcceptError, ProtocolHandler, RouterBuilder};
+use iroh::{Endpoint, EndpointId};
 use iroh_blobs::api::downloader::Downloader;
 use iroh_blobs::protocol::GetRequest;
 use iroh_blobs::provider::events::{
@@ -15,18 +15,19 @@ use iroh_blobs::store::fs::options::Options;
 use iroh_blobs::store::fs::FsStore;
 use iroh_blobs::store::GcConfig;
 use iroh_blobs::BlobsProtocol;
+use tauri::{AppHandle, Manager};
 use tokio::time::timeout;
 
 use super::wire::{self, fail, Reply, Request, REPLY_LIMIT, REQUEST_LIMIT};
-use super::Node;
+use super::{node, Node};
 use crate::error::{Error, Result};
 
-pub(super) const DIAL_TIMEOUT: Duration = Duration::from_secs(20);
+const DIAL_TIMEOUT: Duration = Duration::from_secs(20);
 const SERVE_TIMEOUT: Duration = Duration::from_secs(30);
 const GC_INTERVAL: Duration = Duration::from_secs(3_600);
 
 pub(super) struct Net {
-    pub(super) router: Router,
+    pub(super) endpoint: Endpoint,
     pub(super) store: FsStore,
     pub(super) downloader: Downloader,
 }
@@ -62,10 +63,10 @@ fn verdict(allowed: bool) -> std::result::Result<(), AbortReason> {
 }
 
 fn guard(node: Arc<Node>) -> EventSender {
-    // iroh-blobs 0.103 gates every request kind on `mask.get`, so get_many, push and observe arrive here too
     let mask = EventMask {
         connected: ConnectMode::Intercept,
         get: RequestMode::Intercept,
+        get_many: RequestMode::Disabled,
         ..EventMask::DEFAULT
     };
 
@@ -93,15 +94,6 @@ fn guard(node: Arc<Node>) -> EventSender {
 
                     message.tx.send(verdict(allowed)).await.ok();
                 }
-                ProviderMessage::GetManyRequestReceived(message) => {
-                    message.tx.send(verdict(false)).await.ok();
-                }
-                ProviderMessage::PushRequestReceived(message) => {
-                    message.tx.send(verdict(false)).await.ok();
-                }
-                ProviderMessage::ObserveRequestReceived(message) => {
-                    message.tx.send(verdict(false)).await.ok();
-                }
                 _ => {}
             }
         }
@@ -110,54 +102,61 @@ fn guard(node: Arc<Node>) -> EventSender {
     sender
 }
 
-impl Node {
-    pub(super) async fn net(self: &Arc<Self>) -> Result<&Net> {
-        self.net
-            .get_or_try_init(|| async {
-                let blobs = self.dir.join("blobs");
-                let mut options = Options::new(&blobs);
-
-                options.gc = Some(GcConfig {
-                    interval: GC_INTERVAL,
-                    add_protected: None,
-                });
-
-                let store = FsStore::load_with_opts(blobs.join("blobs.db"), options)
-                    .await
-                    .map_err(fail)?;
-
-                let key = SecretKey::from_bytes(&self.lock().key);
-
-                let endpoint = Endpoint::builder(presets::N0)
-                    .secret_key(key)
-                    .bind()
-                    .await
-                    .map_err(fail)?;
-
-                let downloader = store.downloader(&endpoint);
-                let provider = BlobsProtocol::new(&store, Some(guard(self.clone())));
-
-                let router = Router::builder(endpoint)
-                    .accept(wire::ALPN, Control(self.clone()))
-                    .accept(iroh_blobs::ALPN, provider)
-                    .spawn();
-
-                Ok::<_, Error>(Net {
-                    router,
-                    store,
-                    downloader,
-                })
-            })
-            .await
+pub async fn mount(app: &AppHandle, router: RouterBuilder) -> RouterBuilder {
+    if app.try_state::<crate::Host>().is_none() {
+        return router;
     }
 
-    pub(super) async fn call(self: &Arc<Self>, to: EndpointId, request: Request) -> Result<Reply> {
-        let net = self.net().await?;
+    match attach(app, router.endpoint()).await {
+        Ok((node, blobs)) => router
+            .accept(wire::ALPN, Control(node))
+            .accept(iroh_blobs::ALPN, blobs),
+        Err(error) => {
+            log::warn!("file sharing unavailable: {error}");
+
+            router
+        }
+    }
+}
+
+async fn attach(app: &AppHandle, endpoint: &Endpoint) -> Result<(Arc<Node>, BlobsProtocol)> {
+    let node = node(app)?;
+    let blobs = node.dir.join("blobs");
+    let mut options = Options::new(&blobs);
+
+    options.gc = Some(GcConfig {
+        interval: GC_INTERVAL,
+        add_protected: None,
+    });
+
+    let store = FsStore::load_with_opts(blobs.join("blobs.db"), options)
+        .await
+        .map_err(fail)?;
+
+    let provider = BlobsProtocol::new(&store, Some(guard(node.clone())));
+
+    let net = Net {
+        endpoint: endpoint.clone(),
+        downloader: store.downloader(endpoint),
+        store,
+    };
+
+    node.net.set(net).map_err(|_| Error::Busy)?;
+
+    Ok((node, provider))
+}
+
+impl Node {
+    pub(super) fn net(&self) -> Result<&Net> {
+        self.net.get().ok_or(Error::Unreachable)
+    }
+
+    pub(super) async fn call(&self, to: EndpointId, request: Request) -> Result<Reply> {
+        let net = self.net()?;
 
         let exchange = async {
             let connection = net
-                .router
-                .endpoint()
+                .endpoint
                 .connect(to, wire::ALPN)
                 .await
                 .map_err(|_| Error::Unreachable)?;
@@ -185,22 +184,15 @@ impl Node {
         let reply = match request {
             Request::Browse { path } => self.browsed(remote, path).await,
             Request::Fetch { path } => self.fetched(remote, path).await,
-            request => self.answer(remote, request),
+            Request::Unknown => Reply::Denied,
         };
 
         wire::write(&mut send, &reply).await
     }
 
-    fn answer(self: &Arc<Self>, remote: EndpointId, request: Request) -> Reply {
-        match request {
-            Request::Pair { secret, name } => self.pair(remote, secret, name),
-            _ if !self.knows(&remote) => Reply::Denied,
-            Request::Evict { device } => self.evicted(remote, &device),
-            Request::Browse { .. } | Request::Fetch { .. } | Request::Unknown => Reply::Denied,
-        }
-    }
-
     fn may_serve(&self, peer: &EndpointId, request: &GetRequest) -> bool {
-        request.ranges.is_blob() && self.gate.lock().unwrap().holds(peer, &request.hash)
+        request.ranges.is_blob()
+            && self.member_name(peer).is_some()
+            && self.gate.lock().unwrap().holds(peer, &request.hash)
     }
 }

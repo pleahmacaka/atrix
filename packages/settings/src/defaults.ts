@@ -36,127 +36,6 @@ export const defaultAppearance: Appearance = {
   motion: true,
 }
 
-const classic: Appearance = {
-  ...defaultAppearance,
-  mode: "system",
-  background: "aura",
-  useSystemAccent: true,
-  accentHue: 215,
-  accentSpread: 14,
-  vividness: 0.06,
-  texture: 0.3,
-  radius: 1,
-}
-
-const tinted = (look: Partial<Appearance>): Appearance => ({
-  ...classic,
-  useSystemAccent: false,
-  ...look,
-})
-
-export const presetAppearances: Record<string, Appearance> = {
-  arix: defaultAppearance,
-  aurora: classic,
-  glass: {
-    ...classic,
-    mode: "light",
-    background: "glass",
-    accentHue: 225,
-    accentSpread: 24,
-    vividness: 0.05,
-    texture: 0.12,
-    radius: 1.2,
-    blur: 1.4,
-  },
-  mica: {
-    ...classic,
-    mode: "system",
-    background: "solid",
-    accentHue: 206,
-    accentSpread: 0,
-    vividness: 0.04,
-    texture: 0.2,
-    radius: 0.6,
-    blur: 0.6,
-  },
-  nord: tinted({
-    background: "solid",
-    accentHue: 230,
-    accentSpread: 30,
-    vividness: 0.05,
-    texture: 0.1,
-    radius: 0.5,
-    blur: 0.8,
-  }),
-  catppuccin: tinted({
-    accentHue: 305,
-    accentSpread: 40,
-    vividness: 0.09,
-    texture: 0.15,
-    radius: 1.4,
-    blur: 1.1,
-  }),
-  dracula: tinted({
-    accentHue: 290,
-    accentSpread: 50,
-    vividness: 0.14,
-    texture: 0.25,
-    radius: 0.8,
-  }),
-  solarized: tinted({
-    mode: "light",
-    background: "solid",
-    accentHue: 80,
-    accentSpread: 20,
-    vividness: 0.1,
-    texture: 0.35,
-    radius: 0.5,
-    blur: 0.6,
-  }),
-  mono: tinted({
-    background: "solid",
-    accentHue: 0,
-    accentSpread: 0,
-    vividness: 0,
-    texture: 0.4,
-    radius: 0.25,
-    blur: 0.5,
-    density: "compact",
-  }),
-  neon: tinted({
-    accentHue: 325,
-    accentSpread: 90,
-    vividness: 0.2,
-    texture: 0.15,
-    radius: 1.6,
-    blur: 1.3,
-  }),
-  sunset: tinted({
-    accentHue: 35,
-    accentSpread: 45,
-    vividness: 0.14,
-    texture: 0.3,
-    radius: 1.2,
-    blur: 1.1,
-  }),
-  forest: tinted({
-    accentHue: 150,
-    accentSpread: 30,
-    vividness: 0.09,
-    texture: 0.4,
-    radius: 0.9,
-    blur: 0.9,
-  }),
-  ocean: tinted({
-    accentHue: 200,
-    accentSpread: 40,
-    vividness: 0.11,
-    texture: 0.2,
-    radius: 1.1,
-    blur: 1.2,
-  }),
-}
-
 export const WINDOW_BACKGROUNDS = {
   launcher: "launcherBackground",
   panel: "panelBackground",
@@ -169,7 +48,6 @@ export const WINDOW_BACKGROUNDS = {
 export type WindowSurface = keyof typeof WINDOW_BACKGROUNDS
 
 export const defaultProfile: Profile = {
-  presetId: "arix",
   appearance: defaultAppearance,
   launcher: {
     maxResults: 8,
@@ -201,7 +79,6 @@ export const defaultDevice: DeviceSettings = {
   deviceId: "",
   deviceName: "",
   onboarded: false,
-  language: "system",
   dockStyle: "windows",
   dockEdge: "bottom",
   dockAlign: "center",
@@ -214,7 +91,7 @@ export const defaultDevice: DeviceSettings = {
   dockEdgeOnly: "never",
   dockHideAnimation: true,
   dockHideGather: true,
-  dockHideDelay: 1080,
+  dockHideDelay: 1000,
   dockGatherHideMs: 440,
   dockGatherShowMs: 260,
   dockIcon: null,
@@ -283,6 +160,7 @@ export const defaultDevice: DeviceSettings = {
     "settings",
     "desktop",
   ],
+  shellLayouts: {},
 }
 
 export const DOCK_STYLES: DockStyle[] = ["windows", "mac"]
@@ -304,5 +182,3 @@ export const standaloneLook: Appearance = {
 }
 
 export const SYSTEM_FONT = "system"
-
-export const CUSTOM_PRESET = "custom"

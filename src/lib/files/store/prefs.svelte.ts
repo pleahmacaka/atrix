@@ -1,8 +1,3 @@
-import {
-  type Appearance,
-  standaloneLook,
-  type ThemeMode,
-} from "@atrix/settings"
 import { cloneDeep } from "es-toolkit"
 import { known, persisted } from "./persisted.svelte"
 
@@ -140,9 +135,6 @@ export type Prefs = {
   navWidth: number
   previewWidth: number
   columns: Record<SortKey, number>
-  followAtrix: boolean
-  mode: ThemeMode
-  look: Appearance
   setupDone: boolean
   sidebar: Sidebar
   driveNames: Record<string, string>
@@ -247,9 +239,6 @@ const defaults: Prefs = {
   navWidth: 15,
   previewWidth: 20,
   columns: { name: 20, modified: 10, kind: 10, size: 6 },
-  followAtrix: true,
-  mode: "system",
-  look: standaloneLook,
   setupDone: false,
   sidebar: { hidden: [], hiddenPaths: [], order: [] },
   driveNames: {},
@@ -289,11 +278,6 @@ export const prefs = persisted(KEY, defaults, saved => ({
   repoChip: arrangement(REPO_PARTS, saved.repoChip ?? defaults.repoChip),
   menuLayout: arrangement(MENU_SECTIONS, saved.menuLayout),
   menuItems: menuItems(saved.menuItems, saved.shellVerbs),
-  look: {
-    ...standaloneLook,
-    mode: saved.mode ?? standaloneLook.mode,
-    ...saved.look,
-  },
   setupDone: saved.setupDone ?? !fresh,
 }))
 

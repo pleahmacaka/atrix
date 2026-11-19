@@ -1,5 +1,6 @@
-import { tr } from "@atrix/i18n"
-import type { MenuAction } from "@atrix/ui"
+import { m } from "#lib/paraglide/messages.js"
+import type { MenuAction } from "#lib/store/contextMenu.svelte.ts"
+import { VIEW_LABELS } from "../labels"
 import type { Explorer } from "./explorer.svelte"
 import {
   prefs,
@@ -11,7 +12,7 @@ import {
 import { toggleTerminal } from "./terminal.svelte"
 
 export type Command = {
-  label: string
+  label: () => string
   icon: string
   keys?: string[]
   globalKeys?: string[]
@@ -28,7 +29,7 @@ const local = (x: Explorer) =>
 const editable = (x: Explorer) => selected(x) && local(x)
 
 const viewCommand = (mode: ViewMode): Command => ({
-  label: `explorer.views.${mode}`,
+  label: VIEW_LABELS[mode],
   icon: VIEW_ICONS[mode],
   globalKeys: [`Ctrl+Shift+${VIEW_KEYS[mode]}`],
   enabled: x => x.arrangeable,
@@ -37,50 +38,50 @@ const viewCommand = (mode: ViewMode): Command => ({
 
 const BASE = {
   refresh: {
-    label: "explorer.nav.refresh",
+    label: m.files_nav_refresh,
     icon: "lucide:rotate-cw",
     globalKeys: ["F5", "Ctrl+R"],
     run: x => x.tab.refresh(),
   },
   newTab: {
-    label: "explorer.tabs.new",
+    label: m.files_tabs_new,
     icon: "lucide:plus",
     globalKeys: ["Ctrl+T"],
     run: x => x.newTab(),
   },
   closeTab: {
-    label: "explorer.tabs.close",
+    label: m.files_tabs_close,
     icon: "lucide:x",
     globalKeys: ["Ctrl+W"],
     run: x => x.close(),
   },
   nextTab: {
-    label: "explorer.tabs.next",
+    label: m.files_tabs_next,
     icon: "lucide:chevron-right",
     globalKeys: ["Ctrl+Tab"],
     run: x => x.cycleTab(1),
   },
   previousTab: {
-    label: "explorer.tabs.previous",
+    label: m.files_tabs_previous,
     icon: "lucide:chevron-left",
     globalKeys: ["Ctrl+Shift+Tab"],
     run: x => x.cycleTab(-1),
   },
   newFolder: {
-    label: "explorer.commands.newFolder",
+    label: m.files_commands_new_folder,
     icon: "lucide:folder-plus",
     globalKeys: ["Ctrl+Shift+N"],
     enabled: x => x.filesystem,
     run: x => x.newFolder(),
   },
   newWindow: {
-    label: "explorer.commands.newWindow",
+    label: m.files_commands_new_window,
     icon: "lucide:app-window",
     globalKeys: ["Ctrl+N"],
     run: x => x.openWindow(x.tab.location),
   },
   back: {
-    label: "explorer.nav.back",
+    label: m.files_nav_back,
     icon: "lucide:arrow-left",
     globalKeys: ["Alt+ArrowLeft"],
     keys: ["Backspace"],
@@ -88,21 +89,21 @@ const BASE = {
     run: x => x.tab.back(),
   },
   forward: {
-    label: "explorer.nav.forward",
+    label: m.files_nav_forward,
     icon: "lucide:arrow-right",
     globalKeys: ["Alt+ArrowRight"],
     enabled: x => x.tab.canForward,
     run: x => x.tab.forward(),
   },
   up: {
-    label: "explorer.nav.up",
+    label: m.files_nav_up,
     icon: "lucide:arrow-up",
     globalKeys: ["Alt+ArrowUp"],
     enabled: x => x.tab.canUp,
     run: x => x.tab.up(),
   },
   preview: {
-    label: "explorer.commands.preview",
+    label: m.files_commands_preview,
     icon: "lucide:panel-right",
     globalKeys: ["Alt+P"],
     run: () => {
@@ -110,104 +111,104 @@ const BASE = {
     },
   },
   properties: {
-    label: "explorer.commands.properties",
+    label: m.files_commands_properties,
     icon: "lucide:info",
     globalKeys: ["Alt+Enter"],
     enabled: local,
     run: x => x.properties(),
   },
   open: {
-    label: "explorer.commands.open",
+    label: m.files_commands_open,
     icon: "lucide:square-arrow-out-up-right",
     keys: ["Enter"],
     enabled: selected,
     run: x => x.openSelected(),
   },
   rename: {
-    label: "explorer.commands.rename",
+    label: m.files_commands_rename,
     icon: "lucide:pencil",
     keys: ["F2"],
     enabled: x => x.selected.length === 1 && x.renamable(x.selected[0]),
     run: x => x.rename(),
   },
   delete: {
-    label: "explorer.commands.delete",
+    label: m.files_commands_delete,
     icon: "lucide:trash-2",
     keys: ["Delete"],
     enabled: editable,
     run: x => x.remove(false),
   },
   deletePermanently: {
-    label: "explorer.commands.deletePermanently",
+    label: m.files_commands_delete_permanently,
     icon: "lucide:trash-2",
     keys: ["Shift+Delete"],
     enabled: editable,
     run: x => x.remove(true),
   },
   cut: {
-    label: "explorer.commands.cut",
+    label: m.files_commands_cut,
     icon: "lucide:scissors",
     keys: ["Ctrl+X"],
     enabled: editable,
     run: x => x.clip(true),
   },
   copy: {
-    label: "explorer.commands.copy",
+    label: m.files_commands_copy,
     icon: "lucide:copy",
     keys: ["Ctrl+C"],
     enabled: editable,
     run: x => x.clip(false),
   },
   copyPath: {
-    label: "explorer.commands.copyPath",
+    label: m.files_commands_copy_path,
     icon: "lucide:link",
     keys: ["Ctrl+Shift+C"],
     enabled: selected,
     run: x => x.copyPath(),
   },
   paste: {
-    label: "explorer.commands.paste",
+    label: m.files_commands_paste,
     icon: "lucide:clipboard-paste",
     keys: ["Ctrl+V"],
     enabled: x => x.filesystem,
     run: x => x.paste(),
   },
   selectAll: {
-    label: "explorer.commands.selectAll",
+    label: m.files_commands_select_all,
     icon: "lucide:check-check",
     keys: ["Ctrl+A"],
     run: x => x.selectAll(),
   },
   selectNone: {
-    label: "explorer.commands.selectNone",
+    label: m.files_commands_select_none,
     icon: "lucide:square-dashed",
     run: x => x.tab.select([]),
   },
   invertSelection: {
-    label: "explorer.commands.invertSelection",
+    label: m.files_commands_invert_selection,
     icon: "lucide:arrow-left-right",
     run: x => x.invertSelection(),
   },
   restore: {
-    label: "explorer.commands.restore",
+    label: m.files_commands_restore,
     icon: "lucide:undo-2",
     enabled: selected,
     run: x => x.restore(),
   },
   emptyBin: {
-    label: "explorer.commands.emptyRecycleBin",
+    label: m.files_commands_empty_recycle_bin,
     icon: "lucide:trash",
     run: x => x.emptyBin(),
   },
   settings: {
-    label: "explorer.commands.settings",
+    label: m.files_commands_settings,
     icon: "lucide:settings",
     run: x => {
       x.settingsOpen = true
     },
   },
   terminal: {
-    label: "terminal.title",
+    label: m.files_terminal_title,
     icon: "lucide:square-terminal",
     captureKeys: ["Ctrl+Backquote"],
     run: () => toggleTerminal(),
@@ -291,9 +292,9 @@ export const hintOf = (id: CommandId) => {
 }
 
 export const menuItem = (id: CommandId, x: Explorer): MenuAction => ({
-  label: tr(COMMANDS[id].label),
+  label: COMMANDS[id].label(),
   icon: COMMANDS[id].icon,
   hint: hintOf(id),
   disabled: !usable(id, x),
-  action: () => COMMANDS[id].run(x),
+  run: () => COMMANDS[id].run(x),
 })

@@ -1,5 +1,3 @@
-import type { Language } from "@atrix/i18n"
-
 export type DockStyle = "windows" | "mac"
 export type DockEdge = "bottom" | "top"
 export type DockEdgeOnly = "never" | "maximized" | "always"
@@ -9,6 +7,8 @@ export type ClockAlign = "start" | "center" | "end"
 export type DockBackground = "inherit" | Background
 export type SpectrumStyle = "bars" | "mirror" | "wave" | "dots"
 export type LauncherTrigger = "win" | "shortcut" | "both"
+export type PanelPosition = "left" | "center" | "right"
+export type PanelStart = "compact" | "full"
 export type ThemeMode = "dark" | "light" | "system"
 export type Background = "aura" | "glass" | "solid"
 export type Density = "compact" | "cozy"
@@ -29,6 +29,44 @@ export type DockWidget = {
   kind: DockWidgetKind
   size: number
 }
+
+export type ShellItemKind =
+  | "launcher"
+  | "apps"
+  | "taskview"
+  | "claude"
+  | "tray"
+  | "media"
+  | "input"
+  | "meters"
+  | "network"
+  | "bluetooth"
+  | "battery"
+  | "volume"
+  | "clock"
+  | "bell"
+  | "settings"
+  | "desktop"
+  | "separator"
+
+export type ShellItem = { id: string; kind: ShellItemKind }
+
+export type ShellGroup = { id: string; items: ShellItem[] }
+
+export type ShellZoneId = "start" | "center" | "end"
+
+export type ShellZoneSize = "auto" | "compact" | "regular"
+
+export type ShellZone = {
+  align: ShellZoneId
+  size: ShellZoneSize
+  groups: ShellGroup[]
+}
+
+export type ShellBar = Record<ShellZoneId, ShellZone>
+
+export type ShellLayout = { dock: ShellBar; top: ShellBar }
+
 export type WebSearchEngine = "google" | "duckduckgo" | "bing" | "naver"
 export type TerminalApp =
   | "auto"
@@ -65,7 +103,6 @@ export type DeviceSettings = {
   deviceId: string
   deviceName: string
   onboarded: boolean
-  language: Language
   dockStyle: DockStyle
   dockEdge: DockEdge
   dockAlign: DockAlign
@@ -86,8 +123,8 @@ export type DeviceSettings = {
   dockIslandGap: number
   dockDesktop: boolean
   topBar: boolean
-  panelPosition: "left" | "center" | "right"
-  panelStart: "compact" | "full"
+  panelPosition: PanelPosition
+  panelStart: PanelStart
   dockSeparators: boolean
   clockAlign: ClockAlign
   editMode: boolean
@@ -129,6 +166,7 @@ export type DeviceSettings = {
   trayOrder: string[]
   trayHidden: string[]
   traySlots: TraySlot[]
+  shellLayouts: Record<string, ShellLayout>
 }
 
 export type Appearance = {
@@ -160,17 +198,18 @@ export type Appearance = {
   motion: boolean
 }
 
+export type LauncherPrefs = {
+  maxResults: number
+  showWindows: boolean
+  showCommands: boolean
+  showTodos: boolean
+  calculator: boolean
+  webSearch: WebSearchEngine
+}
+
 export type Profile = {
-  presetId: string
   appearance: Appearance
-  launcher: {
-    maxResults: number
-    showWindows: boolean
-    showCommands: boolean
-    showTodos: boolean
-    calculator: boolean
-    webSearch: WebSearchEngine
-  }
+  launcher: LauncherPrefs
   calendar: {
     weekStartsOn: 0 | 1
     showWeekNumbers: boolean
@@ -190,14 +229,6 @@ export type PinSection = "appearance" | "launcher" | "calendar"
 export type PinPath = {
   [S in PinSection]: `${S}.${keyof Profile[S] & string}`
 }[PinSection]
-
-// the synced values hidden behind this PC's own, so only the sync boundary sees them
-export type Pins = {
-  presetId?: string
-  appearance?: Partial<Appearance>
-  launcher?: Partial<Profile["launcher"]>
-  calendar?: Partial<Profile["calendar"]>
-}
 
 export type AtrixStyle = { linked: boolean; profile: Partial<Profile> | null }
 

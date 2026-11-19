@@ -1,4 +1,7 @@
+use std::fmt;
+
 use iroh::endpoint::{Connection, Side};
+use iroh::protocol::{AcceptError, ProtocolHandler};
 use n0_future::task::spawn;
 use n0_future::time::{Duration, sleep, timeout};
 use tokio::sync::{mpsc, oneshot};
@@ -13,6 +16,26 @@ const SWEEP: Duration = Duration::from_secs(5);
 const RETRY_MIN_MS: u64 = 5_000;
 
 const RETRY_MAX_MS: u64 = 300_000;
+
+pub(crate) struct Accept(pub(crate) Node);
+
+impl fmt::Debug for Accept {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Accept")
+    }
+}
+
+impl ProtocolHandler for Accept {
+    async fn accept(&self, conn: Connection) -> Result<(), AcceptError> {
+        if conn.alpn() == PAIR_ALPN {
+            self.0.answer_pair(conn).await;
+        } else {
+            self.0.adopt(conn);
+        }
+
+        Ok(())
+    }
+}
 
 impl Node {
     pub fn set_info(&self, info: Info) {
@@ -76,27 +99,6 @@ impl Node {
 
         for feed in feeds {
             let _ = feed.send(frame.clone());
-        }
-    }
-
-    pub(crate) async fn accept_loop(self) {
-        while let Some(incoming) = self.0.endpoint.accept().await {
-            let node = self.clone();
-
-            spawn(async move {
-                let Ok(accepting) = incoming.accept() else {
-                    return;
-                };
-                let Ok(conn) = accepting.await else {
-                    return;
-                };
-
-                if conn.alpn() == PAIR_ALPN {
-                    node.answer_pair(conn).await;
-                } else if conn.alpn() == HOST_ALPN {
-                    node.adopt(conn);
-                }
-            });
         }
     }
 

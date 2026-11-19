@@ -2,11 +2,11 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atrix Installer",
   "mainBinaryName": "atrix-installer",
-  "version": "../package.json",
+  "version": "../../../package.json",
   "identifier": "com.arixlab.atrix.installer",
   "build": {
     "frontendDist": "../build",
-    "devUrl": "http://localhost:1460",
+    "devUrl": "http://localhost:1470",
     "beforeDevCommand": "bun run dev",
     "beforeBuildCommand": "bun run build",
     "windows": {
@@ -20,10 +20,10 @@
         "label": "main",
         "title": "Atrix",
         "width": 560,
-        "height": 640,
+        "height": 600,
         "resizable": false,
-        "center": true,
-        "visible": false
+        "maximizable": false,
+        "center": true
       }
     ],
     "security": {
@@ -33,24 +33,16 @@
   "bundle": {
     "publisher": "ArixLab",
     "active": true,
-    "targets": [
-      "appimage",
-      "dmg"
-    ],
+    "targets": ["appimage", "dmg"],
     "icon": [
       "../../../src-tauri/icons/32x32.png",
       "../../../src-tauri/icons/128x128.png",
       "../../../src-tauri/icons/128x128@2x.png",
       "../../../src-tauri/icons/icon.icns",
       "../../../src-tauri/icons/icon.ico"
-    ]
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "",
-      "endpoints": [
-        "https://github.com/pleahmacaka/atrix/releases/latest/download/latest.json"
-      ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
     }
   }
 }

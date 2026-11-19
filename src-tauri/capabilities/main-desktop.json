@@ -5,6 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "store:default",
+    "notification:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
     "atrix-terminal:default",
     "atrix-files:default"
   ]

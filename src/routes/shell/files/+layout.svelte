@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { registerFilesMessages } from "#lib/files/index.ts"
-  import { Toasts } from "@atrix/ui"
+import type { Snippet } from "svelte"
+import Toasts from "#lib/files/components/window/Toasts.svelte"
 
-  let { children } = $props()
-
-  registerFilesMessages()
+let { children }: { children: Snippet } = $props()
 </script>
 
 {@render children()}

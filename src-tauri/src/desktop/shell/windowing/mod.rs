@@ -350,7 +350,7 @@ fn show_now(app: &AppHandle, label: &str) {
     };
 
     let _ = match label {
-        "launcher" | "settings" | "onboarding" => geometry::center_on_cursor_monitor(&window),
+        "launcher" | "onboarding" => geometry::center_on_cursor_monitor(&window),
         "panel" | "notices" => geometry::dock_panel(app, &window),
         _ => Ok(()),
     };

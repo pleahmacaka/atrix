@@ -1,10 +1,13 @@
 import type { GitState } from "../../git"
 import type { CleanupColor } from "../../store/prefs.svelte"
 
-const DUPLICATE_HUE_OFFSETS = [72, 126, 180, 234, 288]
-
-export const duplicateTint = (index: number) =>
-  `oklch(72% 0.15 calc(var(--accent-hue) + ${DUPLICATE_HUE_OFFSETS[index % DUPLICATE_HUE_OFFSETS.length]}))`
+export const DUPLICATE_TINTS = [
+  "bg-info/10 hover:bg-info/16",
+  "bg-success/10 hover:bg-success/16",
+  "bg-warning/12 hover:bg-warning/18",
+  "bg-accent/10 hover:bg-accent/16",
+  "bg-secondary/10 hover:bg-secondary/16",
+]
 
 export const GIT_TONES: Record<GitState, string> = {
   ignored: "text-base-content/40",

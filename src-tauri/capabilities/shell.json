@@ -8,7 +8,6 @@
     "topbar",
     "panel",
     "notices",
-    "settings",
     "preview",
     "edit",
     "onboarding"
@@ -39,7 +38,6 @@
     "dialog:allow-open",
     "process:allow-exit",
     "process:allow-restart",
-    "updater:default",
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-text",
     {

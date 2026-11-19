@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use atrix_net::{Event, Info, Key, Member, Node, Pairing};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::sync::OnceCell;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::error::{Error, Result};
@@ -18,7 +19,7 @@ type Sink = Arc<Mutex<Option<Channel<Event>>>>;
 
 #[derive(Default)]
 pub struct Net {
-    node: tauri::async_runtime::Mutex<Option<Node>>,
+    node: OnceCell<Node>,
     sink: Sink,
 }
 
@@ -68,11 +69,12 @@ fn save_peers(roster: &Path, peers: &[Member]) {
     }
 }
 
-fn forward(mut events: UnboundedReceiver<Event>, sink: Sink, roster: PathBuf) {
+fn forward(app: AppHandle, mut events: UnboundedReceiver<Event>, sink: Sink, roster: PathBuf) {
     tauri::async_runtime::spawn(async move {
         while let Some(event) = events.recv().await {
             if let Event::Peers { peers } = &event {
                 save_peers(&roster, peers);
+                let _ = app.emit("share-changed", ());
             }
 
             deliver(&sink, event);
@@ -94,8 +96,43 @@ fn issue_headless_pairs(node: Node) {
     });
 }
 
-async fn node(net: &State<'_, Net>) -> Result<Node> {
-    net.node.lock().await.clone().ok_or("net_stopped:".into())
+fn node<'a>(net: &'a State<'_, Net>) -> Result<&'a Node> {
+    net.node.get().ok_or("net_stopped:".into())
+}
+
+#[cfg(desktop)]
+pub fn paired(app: &AppHandle) -> Vec<(String, String)> {
+    let Some(node) = app.state::<Net>().inner().node.get() else {
+        return Vec::new();
+    };
+
+    node.peers()
+        .into_iter()
+        .filter(|m| !m.removed)
+        .map(|m| (m.id, m.info.name))
+        .collect()
+}
+
+async fn launch(app: &AppHandle, sink: Sink, info: Info) -> Result<Node> {
+    let dir = app.path().app_data_dir()?.join("net");
+
+    fs::create_dir_all(&dir)?;
+
+    let router = atrix_net::bind(load_key(&dir.join("key"))?).await?;
+    #[cfg(desktop)]
+    let router = tauri_plugin_atrix_files::mount_share(app, router).await;
+    let roster = dir.join("peers.json");
+    let (node, events) = Node::serve(router, load_peers(&roster), info);
+
+    forward(app.clone(), events, sink, roster);
+
+    if app.state::<crate::launch::Launch>().headless {
+        issue_headless_pairs(node.clone());
+    }
+
+    node.announce();
+
+    Ok(node)
 }
 
 #[tauri::command]
@@ -107,84 +144,67 @@ pub async fn net_start(
 ) -> Result<String> {
     *net.sink.lock().unwrap_or_else(|e| e.into_inner()) = Some(channel);
 
-    let mut slot = net.node.lock().await;
-
-    if let Some(node) = slot.as_ref() {
+    if let Some(node) = net.node.get() {
         node.set_info(info);
         node.announce();
 
         return Ok(node.id());
     }
 
-    let dir = app.path().app_data_dir()?.join("net");
+    let node = net
+        .node
+        .get_or_try_init(|| launch(&app, net.sink.clone(), info))
+        .await?;
 
-    fs::create_dir_all(&dir)?;
-
-    let key = load_key(&dir.join("key"))?;
-    let roster = dir.join("peers.json");
-    let (node, events) = Node::start(key, load_peers(&roster), info).await?;
-
-    forward(events, net.sink.clone(), roster);
-
-    if app.state::<crate::launch::Launch>().headless {
-        issue_headless_pairs(node.clone());
-    }
-
-    let id = node.id();
-
-    node.announce();
-
-    *slot = Some(node);
-
-    Ok(id)
+    Ok(node.id())
 }
 
 #[tauri::command]
 pub async fn net_info(net: State<'_, Net>, info: Info) -> Result<()> {
-    node(&net).await?.set_info(info);
+    node(&net)?.set_info(info);
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn net_send(net: State<'_, Net>, to: Option<String>, data: String) -> Result<()> {
-    node(&net).await?.send(to.as_deref(), data)?;
+    node(&net)?.send(to.as_deref(), data)?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn net_request(net: State<'_, Net>, to: String, data: String) -> Result<String> {
-    Ok(node(&net).await?.request(&to, data).await?)
+    Ok(node(&net)?.request(&to, data).await?)
 }
 
 #[tauri::command]
 pub async fn net_reply(net: State<'_, Net>, id: u64, data: String) -> Result<()> {
-    node(&net).await?.reply(id, data);
+    node(&net)?.reply(id, data);
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn net_issue(net: State<'_, Net>, minutes: u64) -> Result<Pairing> {
-    Ok(node(&net).await?.issue(minutes).await)
+    Ok(node(&net)?.issue(minutes).await)
 }
 
 #[tauri::command]
 pub async fn net_cancel(net: State<'_, Net>) -> Result<()> {
-    node(&net).await?.cancel();
+    node(&net)?.cancel();
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn net_join(net: State<'_, Net>, code: String) -> Result<String> {
-    Ok(node(&net).await?.join(&code).await?)
+    Ok(node(&net)?.join(&code).await?)
 }
 
 #[tauri::command]
 pub async fn net_unpair(net: State<'_, Net>, id: String) -> Result<()> {
-    node(&net).await?.unpair(&id);
+    node(&net)?.unpair(&id);
 
     Ok(())
 }

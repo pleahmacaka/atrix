@@ -1,45 +1,45 @@
 <script lang="ts">
-  import type { GraphEdge, GraphRow } from "../../gitgraph"
+import type { GraphEdge, GraphRow } from "../../gitgraph"
 
-  let { row, lanes }: { row: GraphRow; lanes: number } = $props()
+let { row, lanes }: { row: GraphRow; lanes: number } = $props()
 
-  const LANE = 12
-  const HEIGHT = 44
-  const MIDDLE = HEIGHT / 2
+const LANE = 12
+const HEIGHT = 44
+const MIDDLE = HEIGHT / 2
 
-  const COLORS = [
-    "text-primary",
-    "text-secondary",
-    "text-accent",
-    "text-info",
-    "text-success",
-    "text-warning",
-  ]
+const COLORS = [
+  "text-primary",
+  "text-secondary",
+  "text-accent",
+  "text-info",
+  "text-success",
+  "text-warning",
+]
 
-  const x = (lane: number) => lane * LANE + LANE / 2
+const x = (lane: number) => lane * LANE + LANE / 2
 
-  const color = (lane: number) => COLORS[lane % COLORS.length]
+const color = (lane: number) => COLORS[lane % COLORS.length]
 
-  const span = (edge: GraphEdge) => {
-    if (edge.half === "top") {
-      return [0, MIDDLE]
-    }
-
-    return edge.half === "bottom" ? [MIDDLE, HEIGHT] : [0, HEIGHT]
+const span = (edge: GraphEdge) => {
+  if (edge.half === "top") {
+    return [0, MIDDLE]
   }
 
-  const path = (edge: GraphEdge) => {
-    const [top, bottom] = span(edge)
-    const [from, to] = [x(edge.from), x(edge.to)]
+  return edge.half === "bottom" ? [MIDDLE, HEIGHT] : [0, HEIGHT]
+}
 
-    if (from === to) {
-      return `M ${from} ${top} V ${bottom}`
-    }
+const path = (edge: GraphEdge) => {
+  const [top, bottom] = span(edge)
+  const [from, to] = [x(edge.from), x(edge.to)]
 
-    const bend = (top + bottom) / 2
-
-    return `M ${from} ${top} C ${from} ${bend} ${to} ${bend} ${to} ${bottom}`
+  if (from === to) {
+    return `M ${from} ${top} V ${bottom}`
   }
+
+  const bend = (top + bottom) / 2
+
+  return `M ${from} ${top} C ${from} ${bend} ${to} ${bend} ${to} ${bottom}`
+}
 </script>
 
 <svg

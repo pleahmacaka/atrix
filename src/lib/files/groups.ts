@@ -1,6 +1,8 @@
-import { currentLocale, tr } from "@atrix/i18n"
+import { m } from "#lib/paraglide/messages.js"
+import { currentLocale } from "#lib/store/locale.ts"
 import { collator } from "./format"
 import type { Item } from "./items"
+import { GROUP_LABELS } from "./labels"
 
 export type Section = { id: string; label: string; items: Item[] }
 
@@ -71,12 +73,12 @@ export const byDate = (items: Item[], newestFirst: boolean): Section[] => {
   return order.flatMap(id => {
     const list = found.get(id)
 
-    return list ? [{ id, label: tr(`explorer.groups.${id}`), items: list }] : []
+    return list ? [{ id, label: GROUP_LABELS[id](), items: list }] : []
   })
 }
 
 export const byKind = (items: Item[], ascending: boolean): Section[] => {
-  const other = tr("explorer.groups.other")
+  const other = m.files_groups_other()
   const found = bucket(items, item => item.kind || other)
   const compare = collator(currentLocale()).compare
   const labels = [...found.keys()].sort(
@@ -100,6 +102,6 @@ export const byOrder = (
   return ids.flatMap(id => {
     const list = found.get(id)
 
-    return list ? [{ id, label: tr(`explorer.groups.${id}`), items: list }] : []
+    return list ? [{ id, label: GROUP_LABELS[id](), items: list }] : []
   })
 }

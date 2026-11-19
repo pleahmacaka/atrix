@@ -1,50 +1,37 @@
 <script lang="ts">
-  import type { DockEdge } from "@atrix/settings"
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import MenuItem from "#lib/components/ui/MenuItem.svelte"
+  import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
   import * as native from "#lib/desktop/native/index.js"
-  import type { MenuBox } from "./layout.svelte"
+  import { m } from "#lib/paraglide/messages.js"
 
   type Props = {
     volume: native.Volume
-    edge?: DockEdge
-    onmenu?: (rect: MenuBox | null) => void
+    compact?: boolean
+    placement: Placement
     onchange: (volume: native.Volume) => void
+    ontogglemute: () => void
   }
 
-  let { volume, edge = "bottom", onmenu, onchange }: Props = $props()
+  let { volume, compact = false, placement, onchange, ontogglemute }: Props =
+    $props()
 
   const STEP = 0.05
 
   let open = $state(false)
-  let popover = $state<HTMLElement>()
-  let popoverHeight = $state(0)
   let devices = $state<native.AudioDevice[]>([])
   let switching = $state<string | null>(null)
-
-  const setOpen = (next: boolean) => {
-    if (open === next) {
-      return
-    }
-
-    open = next
-
-    if (next) {
-      loadDevices()
-    } else {
-      onmenu?.(null)
-    }
-  }
-
-  $effect(() => {
-    if (open && popover && popoverHeight > 0) {
-      onmenu?.(popover.getBoundingClientRect())
-    }
-  })
 
   const loadDevices = async () => {
     devices = await native.audioDevices().catch(() => [])
   }
+
+  $effect(() => {
+    if (open) {
+      loadDevices()
+    }
+  })
 
   const level = $derived(Math.round(volume.level * 100))
 
@@ -61,9 +48,7 @@
   })
 
   const label = $derived(
-    volume.muted
-      ? $t("tray.volume.muted")
-      : $t("tray.volume.level", { values: { percent: level } }),
+    volume.muted ? m.dock_volume_muted() : m.dock_volume_level({ percent: level }),
   )
 
   const apply = async (next: number) => {
@@ -71,17 +56,6 @@
 
     onchange({ level: clamped, muted: false })
     await native.setVolume(clamped).catch(() => undefined)
-  }
-
-  const onslide = (e: Event) => {
-    const input = e.currentTarget as HTMLInputElement
-
-    apply(Number(input.value) / 100)
-  }
-
-  const toggleMute = async () => {
-    onchange({ ...volume, muted: !volume.muted })
-    await native.toggleMute().catch(() => undefined)
   }
 
   const onwheel = (e: WheelEvent) => {
@@ -99,127 +73,81 @@
     await loadDevices()
     switching = null
   }
-
-  const onmousedown = (e: MouseEvent) => {
-    if (open && !(e.target as Element).closest("[data-volume]")) {
-      setOpen(false)
-    }
-  }
-
-  const onkeydown = (e: KeyboardEvent) => {
-    if (open && e.key === "Escape") {
-      setOpen(false)
-    }
-  }
-
-  $effect(() => {
-    const close = () => setOpen(false)
-
-    window.addEventListener("atrix-close-menus", close)
-
-    return () => window.removeEventListener("atrix-close-menus", close)
-  })
 </script>
 
-<svelte:window {onmousedown} {onkeydown} />
-
-<div class="relative" data-volume>
-  <button type="button"
-    class={["btn btn-ghost btn-square btn-sm", volume.muted && "text-base-content/50"]}
-    title={label}
-    aria-label={label}
-    aria-haspopup="dialog"
-    aria-expanded={open}
-    onclick={() => setOpen(!open)}
-    {onwheel}
-  >
-    <Icon {icon} class="size-4" />
-  </button>
-
-  {#if open}
-    <div
-      bind:this={popover}
-      bind:offsetHeight={popoverHeight}
+<Popover label={m.dock_sound()} {placement} width="w-72" bind:open>
+  {#snippet trigger(p)}
+    <button
+      {...p}
+      type="button"
       class={[
-        "atrix-card absolute right-0 z-50 w-72 p-3",
-        edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
+        "btn btn-ghost btn-square",
+        compact ? "btn-xs" : "btn-sm",
+        volume.muted && "text-base-content/50",
+        open && "bg-primary/8 text-primary",
       ]}
-      role="dialog"
-      aria-label={$t("tray.volume.sound")}
+      title={label}
+      aria-label={label}
+      {onwheel}
     >
-      <div class="flex items-center gap-2">
-        <button type="button"
-          class="btn btn-ghost btn-square btn-sm"
-          aria-label={volume.muted ? $t("tray.volume.unmute") : $t("tray.volume.mute")}
-          onclick={toggleMute}
-        >
-          <Icon {icon} class="size-4" />
-        </button>
+      <Icon {icon} class="size-4" />
+    </button>
+  {/snippet}
 
-        <input
-          type="range"
-          class="range range-primary range-xs grow"
-          min="0"
-          max="100"
-          value={level}
-          aria-label={$t("tray.volume.title")}
-          oninput={onslide}
-        />
+  <section class="flex flex-col gap-3 p-3 text-sm">
+    <div class="flex items-center gap-2">
+      <IconButton
+        {icon}
+        label={volume.muted ? m.dock_unmute() : m.dock_mute()}
+        onclick={ontogglemute}
+      />
 
-        <span class="w-9 shrink-0 text-right text-xs tabular-nums text-base-content/70">
-          {level}%
-        </span>
-      </div>
+      <input
+        type="range"
+        class="range range-primary range-xs grow"
+        min="0"
+        max="100"
+        value={level}
+        aria-label={m.dock_volume()}
+        oninput={e => apply(Number(e.currentTarget.value) / 100)}
+      />
 
-      <div class="mt-3 border-t border-base-content/10 pt-2">
-        <p class="px-1 pb-1 text-xs text-base-content/50">{$t("tray.volume.output")}</p>
-
-        {#if devices.length === 0}
-          <p class="px-1 py-2 text-xs text-base-content/40">{$t("tray.volume.noDevices")}</p>
-        {:else}
-          <ul class="max-h-40 space-y-0.5 overflow-y-auto">
-            {#each devices as device (device.id)}
-              <li>
-                <button
-                  type="button"
-                  class={[
-                    "flex w-full items-center gap-2 rounded-field px-2 py-1.5 text-left text-xs transition-colors duration-100",
-                    device.default
-                      ? "bg-primary/15 text-primary"
-                      : "hover:bg-base-content/10",
-                  ]}
-                  disabled={switching !== null}
-                  onclick={() => pick(device)}
-                >
-                  <Icon
-                    icon={device.default ? "lucide:check" : "lucide:speaker"}
-                    class="size-3.5 shrink-0"
-                  />
-
-                  <span class="truncate">{device.name}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
-
-      <div class="mt-2 border-t border-base-content/10 pt-2">
-        <button
-          type="button"
-          class="flex w-full items-center gap-2 rounded-field px-2 py-1.5 text-left text-xs transition-colors duration-100 hover:bg-base-content/10"
-          onclick={() => {
-            setOpen(false)
-            native.openUrl("ms-settings:sound").catch(() => undefined)
-          }}
-        >
-          <Icon icon="lucide:settings" class="size-3.5 shrink-0" />
-
-          <span class="grow truncate">{$t("tray.volume.settings")}</span>
-
-          <Icon icon="lucide:external-link" class="size-3 shrink-0 text-base-content/40" />
-        </button>
-      </div>
+      <span class="w-10 shrink-0 text-right text-xs tabular-nums text-base-content/70">
+        {level}%
+      </span>
     </div>
-  {/if}
-</div>
+
+    <div class="flex flex-col gap-1">
+      <h3 class="text-xs font-medium text-base-content/60">{m.dock_output_device()}</h3>
+
+      {#if devices.length === 0}
+        <p class="py-1 text-xs text-base-content/50">{m.dock_no_devices()}</p>
+      {:else}
+        <div class="flex max-h-40 flex-col overflow-y-auto" role="menu">
+          {#each devices as device (device.id)}
+            <MenuItem
+              icon={device.default ? "lucide:check" : "lucide:speaker"}
+              label={device.name}
+              selected={device.default}
+              disabled={switching !== null}
+              onclick={() => pick(device)}
+            />
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    <MenuItem
+      icon="lucide:settings"
+      label={m.dock_sound_settings()}
+      onclick={() => {
+        open = false
+        native.openUrl("ms-settings:sound").catch(() => undefined)
+      }}
+    >
+      {#snippet trailing()}
+        <Icon icon="lucide:external-link" class="size-3.5 shrink-0 opacity-50" />
+      {/snippet}
+    </MenuItem>
+  </section>
+</Popover>

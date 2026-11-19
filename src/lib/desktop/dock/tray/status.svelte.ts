@@ -2,10 +2,9 @@ import { listen } from "@tauri-apps/api/event"
 import * as native from "#lib/desktop/native/index.js"
 import { dockAwake } from "../dock.svelte"
 
-// Each Tray owns its polling and subscription; effects are disposed with its
-// component. Opening the panel and mute actions update the same local snapshot.
 export class TrayStatus {
   info = $state<native.SystemInfo>({ battery: null, volume: null })
+
   unseen = $state(0)
 
   constructor(notificationsEnabled: () => boolean) {
@@ -13,17 +12,24 @@ export class TrayStatus {
       if (!dockAwake.visible) {
         return
       }
+
       this.refresh()
+
       const timer = setInterval(this.refresh, 5_000)
+
       return () => clearInterval(timer)
     })
+
     $effect(() => {
       if (!notificationsEnabled()) {
         return
       }
+
       this.refreshUnseen()
+
       const timer = setInterval(this.refreshUnseen, 30_000)
       const stop = listen("notices-changed", this.refreshUnseen)
+
       return () => {
         clearInterval(timer)
         stop.then(off => off()).catch(() => undefined)
@@ -39,9 +45,13 @@ export class TrayStatus {
     this.unseen = await native.noticesUnseen().catch(() => this.unseen)
   }
 
-  openNotices() {
+  openNotices = () => {
     this.unseen = 0
     native.noticesOpenPanel().catch(() => undefined)
+  }
+
+  setVolume = (volume: native.Volume) => {
+    this.info.volume = volume
   }
 
   toggleMute = () => {
@@ -51,6 +61,7 @@ export class TrayStatus {
         muted: !this.info.volume.muted,
       }
     }
+
     native.toggleMute().catch(() => undefined)
   }
 }

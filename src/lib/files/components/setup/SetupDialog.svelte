@@ -1,7 +1,10 @@
 <script lang="ts">
-  import { atrixStyle, Row, Section, SetupFlow, StandaloneTheme } from "@atrix/ui"
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
+  import IconButton from "#lib/components/ui/IconButton.svelte"
+  import Modal from "#lib/components/ui/Modal.svelte"
+  import Section from "#lib/components/ui/Section.svelte"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { m } from "#lib/paraglide/messages.js"
   import { type DefaultApp, defaultAppStatus } from "../../native"
   import type { Explorer } from "../../store/explorer.svelte"
   import { prefs } from "../../store/prefs.svelte"
@@ -9,64 +12,105 @@
   import DefaultAppRows from "../settings/DefaultAppRows.svelte"
   import MiniExplorer from "./MiniExplorer.svelte"
 
+  type Step = "welcome" | "layout" | "tidy" | "integrate" | "done"
+
+  type Toggle = "preview" | "showHidden" | "showExtensions"
+
   let { explorer }: { explorer: Explorer } = $props()
 
-  const STEPS = ["welcome", "look", "layout", "tidy", "integrate", "done"]
+  const STEPS: { id: Step; label: () => string }[] = [
+    { id: "welcome", label: m.files_setup_steps_welcome },
+    { id: "layout", label: m.files_setup_steps_layout },
+    { id: "tidy", label: m.files_setup_steps_tidy },
+    { id: "integrate", label: m.files_setup_steps_integrate },
+    { id: "done", label: m.files_setup_steps_done },
+  ]
+
+  const HEADINGS: Partial<
+    Record<Step, { title: () => string; blurb: () => string }>
+  > = {
+    layout: {
+      title: m.files_setup_layout_title,
+      blurb: m.files_setup_layout_blurb,
+    },
+    tidy: { title: m.files_setup_tidy_title, blurb: m.files_setup_tidy_blurb },
+    integrate: {
+      title: m.files_setup_integrate_title,
+      blurb: m.files_setup_integrate_blurb,
+    },
+  }
 
   const FEATURES = [
-    { id: "tabs", icon: "lucide:panels-top-left" },
-    { id: "devices", icon: "lucide:monitor-smartphone" },
-    { id: "terminal", icon: "lucide:square-terminal" },
+    {
+      icon: "lucide:panels-top-left",
+      title: m.files_setup_welcome_tabs,
+      text: m.files_setup_welcome_tabs_text,
+    },
+    {
+      icon: "lucide:monitor-smartphone",
+      title: m.files_setup_welcome_devices,
+      text: m.files_setup_welcome_devices_text,
+    },
+    {
+      icon: "lucide:square-terminal",
+      title: m.files_setup_welcome_terminal,
+      text: m.files_setup_welcome_terminal_text,
+    },
   ]
 
   const LAYOUTS = [
-    { id: "full", compact: false },
-    { id: "compact", compact: true },
+    {
+      compact: false,
+      title: m.files_setup_layout_full,
+      text: m.files_setup_layout_full_text,
+    },
+    {
+      compact: true,
+      title: m.files_setup_layout_compact,
+      text: m.files_setup_layout_compact_text,
+    },
   ]
 
-  let dialog = $state<HTMLDialogElement>()
+  const TOGGLES: { key: Toggle; label: () => string }[] = [
+    { key: "preview", label: m.files_settings_preview_pane },
+    { key: "showHidden", label: m.files_settings_show_hidden },
+    { key: "showExtensions", label: m.files_settings_show_extensions },
+  ]
+
   let at = $state(0)
   let handler = $state<DefaultApp>({ supported: false, enabled: false })
 
-  const steps = $derived(
-    STEPS.map(id => ({ id, label: $t(`explorer.setup.steps.${id}`) })),
-  )
+  const step = $derived(STEPS[at])
+  const last = $derived(at === STEPS.length - 1)
+  const heading = $derived(HEADINGS[step.id])
+
+  const onOff = (on: boolean) =>
+    on ? m.files_setup_done_on() : m.files_setup_done_off()
 
   const summary = $derived([
     {
-      icon: "lucide:palette",
-      label: $t("explorer.setup.done.look"),
-      value: $t(
-        atrixStyle.linked && prefs.followAtrix
-          ? "explorer.setup.done.linked"
-          : "explorer.setup.done.custom",
-      ),
-    },
-    {
       icon: "lucide:panel-top",
-      label: $t("explorer.setup.done.toolbar"),
-      value: $t(
-        prefs.compactToolbar ? "explorer.setup.done.compact" : "explorer.setup.done.full",
-      ),
+      label: m.files_setup_done_toolbar(),
+      value: prefs.compactToolbar
+        ? m.files_setup_done_compact()
+        : m.files_setup_done_full(),
     },
     {
       icon: "lucide:panel-right",
-      label: $t("explorer.setup.done.preview"),
-      value: $t(prefs.preview ? "explorer.setup.done.on" : "explorer.setup.done.off"),
+      label: m.files_setup_done_preview(),
+      value: onOff(prefs.preview),
     },
     {
       icon: "lucide:trash-2",
-      label: $t("explorer.setup.done.cleanup"),
+      label: m.files_setup_done_cleanup(),
       value: prefs.cleanup
-        ? $t("explorer.settings.cleanup.hoursValue", {
-            values: { hours: prefs.cleanupHours },
-          })
-        : $t("explorer.setup.done.off"),
+        ? m.files_settings_cleanup_hours_value({ hours: prefs.cleanupHours })
+        : m.files_setup_done_off(),
     },
     {
       icon: "lucide:folder-check",
-      label: $t("explorer.setup.done.defaultApp"),
-      value: $t(handler.enabled ? "explorer.setup.done.on" : "explorer.setup.done.off"),
+      label: m.files_setup_done_default_app(),
+      value: onOff(handler.enabled),
     },
   ])
 
@@ -75,210 +119,238 @@
     explorer.setupOpen = false
   }
 
+  const next = () => {
+    if (last) {
+      finish()
+    } else {
+      at += 1
+    }
+  }
+
+  const onkeydown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" || e.defaultPrevented) {
+      return
+    }
+
+    const target = e.target as HTMLElement | null
+
+    if (target?.closest("input, button, select, textarea, a, [role=option]")) {
+      return
+    }
+
+    e.preventDefault()
+    next()
+  }
+
   $effect(() => {
-    dialog?.showModal()
     defaultAppStatus()
       .then(status => (handler = status))
       .catch(() => undefined)
   })
 </script>
 
-{#snippet heading(key: string)}
-  <div class="mb-4">
-    <h2 class="text-2xl font-semibold tracking-tight">
-      {$t(`explorer.setup.${key}.title`)}
-    </h2>
+<svelte:window {onkeydown} />
 
-    <p class="text-sm text-base-content/60">{$t(`explorer.setup.${key}.blurb`)}</p>
-  </div>
-{/snippet}
-
-{#snippet preview()}
-  <div class="sticky top-0 flex flex-col gap-2">
-    <MiniExplorer compact={prefs.compactToolbar} preview={prefs.preview} />
-  </div>
-{/snippet}
-
-<dialog
-  bind:this={dialog}
-  class="modal"
-  oncancel={e => {
-    e.preventDefault()
-    finish()
-  }}
+<Modal
+  bind:open={() => explorer.setupOpen, open => !open && finish()}
+  label={m.files_setup_title()}
+  class="h-160 w-full max-w-4xl overflow-hidden"
 >
-  <div
-    class="modal-box flex h-[min(42rem,92vh)] w-[min(62rem,94vw)] max-w-none flex-col overflow-hidden border border-base-content/10 bg-base-100 p-0"
+  <header class="flex shrink-0 items-center gap-4 px-5 pt-4 pb-2">
+    <div class="flex min-w-0 flex-1 items-center gap-2">
+      <Icon icon="lucide:folder-open" class="size-5 shrink-0 text-primary" />
+      <h2 class="truncate text-sm font-semibold">{m.files_setup_title()}</h2>
+    </div>
+
+    <ol class="flex shrink-0 items-center gap-1.5" aria-label={step.label()}>
+      {#each STEPS as entry, index (entry.id)}
+        <li class="flex">
+          <button
+            type="button"
+            class={[
+              "h-1.5 cursor-pointer rounded-full transition-all duration-140",
+              index === at
+                ? "w-6 bg-primary"
+                : index < at
+                  ? "w-1.5 bg-primary/50 hover:bg-primary/80"
+                  : "w-1.5 bg-base-content/20 hover:bg-base-content/40",
+            ]}
+            aria-label={entry.label()}
+            title={entry.label()}
+            aria-current={index === at ? "step" : undefined}
+            onclick={() => (at = index)}
+          ></button>
+        </li>
+      {/each}
+    </ol>
+
+    <div class="flex min-w-0 flex-1 justify-end">
+      <IconButton icon="lucide:x" label={m.common_close()} onclick={finish} />
+    </div>
+  </header>
+
+  <section
+    class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-3"
+    aria-label={step.label()}
   >
-    <SetupFlow
-      title={$t("explorer.setup.title")}
-      {steps}
-      bind:at
-      startLabel={$t("explorer.setup.start")}
-      finishLabel={$t("explorer.setup.finish")}
-      onfinish={finish}
-    >
-      {#snippet logo()}
-        <Icon icon="lucide:folder-open" class="size-5 text-primary" />
-      {/snippet}
+    {#if step.id === "welcome"}
+      <div
+        class="flex flex-1 flex-col items-center justify-center gap-8 text-center"
+      >
+        <span
+          class="flex size-16 items-center justify-center rounded-box bg-primary/8 text-primary"
+        >
+          <Icon icon="lucide:folder-open" class="size-8" />
+        </span>
 
-      {#snippet step(id: string)}
-        {#if id === "welcome"}
-          <div class="flex h-full flex-col items-center justify-center gap-8 text-center">
-            <div class="flex size-16 items-center justify-center rounded-box bg-primary/15 text-primary">
-              <Icon icon="lucide:folder-open" class="size-8" />
-            </div>
+        <div class="flex flex-col gap-2">
+          <h2 class="text-2xl font-semibold">{m.files_setup_welcome_title()}</h2>
+          <p class="text-sm text-base-content/60">
+            {m.files_setup_welcome_tagline()}
+          </p>
+        </div>
 
-            <div>
-              <h2 class="text-3xl font-semibold tracking-tight">
-                {$t("explorer.setup.welcome.title")}
-              </h2>
+        <ul
+          class="grid w-full max-w-2xl grid-cols-3 gap-3 text-left max-sm:grid-cols-1"
+        >
+          {#each FEATURES as feature (feature.icon)}
+            <li
+              class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 p-4"
+            >
+              <span
+                class="flex size-8 items-center justify-center rounded-field bg-primary/8 text-primary"
+              >
+                <Icon icon={feature.icon} class="size-4" />
+              </span>
+              <span class="text-sm font-medium">{feature.title()}</span>
+              <span class="text-xs text-base-content/60">{feature.text()}</span>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    {:else if step.id === "done"}
+      <div
+        class="flex flex-1 flex-col items-center justify-center gap-8 text-center"
+      >
+        <span
+          class="flex size-16 items-center justify-center rounded-box bg-success/12 text-success"
+        >
+          <Icon icon="lucide:check" class="size-8" />
+        </span>
 
-              <p class="mt-2 text-base text-base-content/70">
-                {$t("explorer.setup.welcome.tagline")}
-              </p>
-            </div>
+        <div class="flex flex-col gap-2">
+          <h2 class="text-2xl font-semibold">{m.files_setup_done_title()}</h2>
+          <p class="text-sm text-base-content/60">
+            {m.files_setup_done_blurb()}
+          </p>
+        </div>
 
-            <ul class="grid w-full max-w-2xl grid-cols-3 gap-3 text-left">
-              {#each FEATURES as feature (feature.id)}
-                <li class="atrix-card flex flex-col gap-2 p-4">
-                  <div class="flex size-8 items-center justify-center rounded-field bg-primary/15 text-primary">
-                    <Icon icon={feature.icon} class="size-4" />
-                  </div>
-
-                  <span class="text-sm font-semibold">
-                    {$t(`explorer.setup.welcome.${feature.id}`)}
-                  </span>
-
-                  <span class="text-xs text-base-content/60">
-                    {$t(`explorer.setup.welcome.${feature.id}Text`)}
-                  </span>
-                </li>
-              {/each}
-            </ul>
+        <div class="w-full max-w-md text-left">
+          <Section>
+            {#each summary as entry (entry.icon)}
+              <SettingRow icon={entry.icon} title={entry.label}>
+                <span class="text-sm text-base-content/60">{entry.value}</span>
+              </SettingRow>
+            {/each}
+          </Section>
+        </div>
+      </div>
+    {:else}
+      <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
+        {#if heading}
+          <div class="flex flex-col gap-1">
+            <h2 class="text-xl font-semibold">{heading.title()}</h2>
+            <p class="text-sm text-base-content/60">{heading.blurb()}</p>
           </div>
-        {:else if id === "look"}
-          {@render heading("look")}
+        {/if}
 
-          <div class="grid grid-cols-[minmax(0,1fr)_20rem] items-start gap-6">
-            <div class="flex flex-col gap-6">
-              <StandaloneTheme {prefs} essential />
-            </div>
-
-            {@render preview()}
-          </div>
-        {:else if id === "layout"}
-          {@render heading("layout")}
-
-          <div class="grid grid-cols-[minmax(0,1fr)_20rem] items-start gap-6">
-            <div class="flex flex-col gap-6">
+        {#if step.id === "layout"}
+          <div class="flex gap-6">
+            <div class="flex min-w-0 flex-1 flex-col gap-6">
               <fieldset class="grid min-w-0 grid-cols-2 gap-3">
-                {#each LAYOUTS as layout (layout.id)}
-                  {@const active = prefs.compactToolbar === layout.compact}
+                {#each LAYOUTS as layout (layout.compact)}
+                  {@const selected = prefs.compactToolbar === layout.compact}
 
                   <button
                     type="button"
-                    aria-pressed={active}
+                    aria-pressed={selected}
                     class={[
-                      "atrix-card flex cursor-pointer flex-col gap-2 p-3 text-left",
-                      active
-                        ? "outline-2 outline-offset-2 outline-primary"
-                        : "hover:outline-1 hover:outline-base-content/25",
+                      "flex min-w-0 cursor-pointer flex-col gap-2 rounded-box border p-3 text-left",
+                      "transition-colors duration-140",
+                      selected
+                        ? "border-primary/40 bg-primary/8"
+                        : "border-base-300 bg-base-100 hover:bg-base-content/4",
                     ]}
                     onclick={() => (prefs.compactToolbar = layout.compact)}
                   >
-                    <MiniExplorer compact={layout.compact} preview={false} class="shadow-none" />
-
-                    <span class="text-sm font-semibold">
-                      {$t(`explorer.setup.layout.${layout.id}`)}
+                    <MiniExplorer compact={layout.compact} preview={false} />
+                    <span
+                      class={["text-sm font-medium", selected && "text-primary"]}
+                    >
+                      {layout.title()}
                     </span>
-
                     <span class="text-xs text-base-content/60">
-                      {$t(`explorer.setup.layout.${layout.id}Text`)}
+                      {layout.text()}
                     </span>
                   </button>
                 {/each}
               </fieldset>
 
-              <Section title={$t("explorer.settings.display")}>
-                <Row
-                  label={$t("explorer.settings.previewPane")}
-                  hint={$t("explorer.settings.previewPaneHint")}
-                >
-                  <input
-                    type="checkbox"
-                    class="toggle toggle-primary"
-                    aria-label={$t("explorer.settings.previewPane")}
-                    bind:checked={prefs.preview}
-                  />
-                </Row>
-
-                <Row label={$t("explorer.settings.showHidden")}>
-                  <input
-                    type="checkbox"
-                    class="toggle toggle-primary"
-                    aria-label={$t("explorer.settings.showHidden")}
-                    bind:checked={prefs.showHidden}
-                  />
-                </Row>
-
-                <Row label={$t("explorer.settings.showExtensions")}>
-                  <input
-                    type="checkbox"
-                    class="toggle toggle-primary"
-                    aria-label={$t("explorer.settings.showExtensions")}
-                    bind:checked={prefs.showExtensions}
-                  />
-                </Row>
+              <Section title={m.files_settings_display()}>
+                {#each TOGGLES as toggle (toggle.key)}
+                  <SettingRow title={toggle.label()}>
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-sm toggle-primary"
+                      aria-label={toggle.label()}
+                      bind:checked={prefs[toggle.key]}
+                    />
+                  </SettingRow>
+                {/each}
               </Section>
             </div>
 
-            {@render preview()}
+            <div class="w-72 shrink-0 max-md:hidden">
+              <div class="sticky top-0">
+                <MiniExplorer
+                  compact={prefs.compactToolbar}
+                  preview={prefs.preview}
+                />
+              </div>
+            </div>
           </div>
-        {:else if id === "tidy"}
-          {@render heading("tidy")}
-
-          <div class="flex max-w-xl flex-col gap-6">
-            <DecorSettings />
-          </div>
-        {:else if id === "integrate"}
-          {@render heading("integrate")}
-
-          <div class="max-w-xl">
-            <Section title={$t("explorer.settings.defaultApp")}>
-              <DefaultAppRows bind:handler windows={false} />
-            </Section>
-          </div>
+        {:else if step.id === "tidy"}
+          <DecorSettings />
         {:else}
-          <div class="flex h-full flex-col items-center justify-center gap-8 text-center">
-            <div class="flex size-16 items-center justify-center rounded-box bg-success/15 text-success">
-              <Icon icon="lucide:check" class="size-8" />
-            </div>
-
-            <div>
-              <h2 class="text-3xl font-semibold tracking-tight">
-                {$t("explorer.setup.done.title")}
-              </h2>
-
-              <p class="mt-2 text-base text-base-content/70">
-                {$t("explorer.setup.done.blurb")}
-              </p>
-            </div>
-
-            <ul class="atrix-card w-full max-w-md divide-y divide-base-content/10 text-left">
-              {#each summary as entry (entry.label)}
-                <li class="flex items-center gap-3 px-4 py-3">
-                  <Icon icon={entry.icon} class="size-4 shrink-0 text-primary" />
-
-                  <span class="w-32 text-sm text-base-content/60">{entry.label}</span>
-
-                  <span class="truncate text-sm font-medium">{entry.value}</span>
-                </li>
-              {/each}
-            </ul>
-          </div>
+          <Section>
+            <DefaultAppRows bind:handler windows={false} />
+          </Section>
         {/if}
-      {/snippet}
-    </SetupFlow>
-  </div>
-</dialog>
+      </div>
+    {/if}
+  </section>
+
+  <footer class="flex shrink-0 items-center justify-between gap-2 px-5 pt-2 pb-4">
+    <button
+      type="button"
+      class="btn btn-ghost btn-sm"
+      disabled={at === 0}
+      onclick={() => (at -= 1)}
+    >
+      <Icon icon="lucide:arrow-left" class="size-4" />
+      {m.common_back()}
+    </button>
+
+    <button type="button" class="btn btn-primary btn-sm" onclick={next}>
+      {at === 0
+        ? m.files_setup_start()
+        : last
+          ? m.files_setup_finish()
+          : m.common_next()}
+
+      {#if !last}
+        <Icon icon="lucide:arrow-right" class="size-4" />
+      {/if}
+    </button>
+  </footer>
+</Modal>

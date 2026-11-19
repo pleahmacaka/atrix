@@ -3,38 +3,35 @@ use std::process::Command;
 
 use flate2::read::GzDecoder;
 
-use crate::apps::App;
 use crate::fail;
 
-pub const MANIFEST_KEY: &str = "atrix-installer-darwin-aarch64";
+pub use crate::unix::{running, stop};
 
-fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
-}
+pub const NAME: &str = "macos";
+
+const BUNDLE: &str = "Atrix.app";
 
 fn roots() -> Vec<PathBuf> {
     let mut roots = vec![PathBuf::from("/Applications")];
 
-    roots.extend(home().map(|home| home.join("Applications")));
+    roots.extend(std::env::home_dir().map(|home| home.join("Applications")));
 
     roots
 }
 
-fn bundle(root: &Path, app: &App) -> PathBuf {
-    root.join(format!("{}.app", app.product))
+fn bundles() -> impl Iterator<Item = PathBuf> {
+    roots()
+        .into_iter()
+        .map(|root| root.join(BUNDLE))
+        .filter(|bundle| bundle.exists())
 }
 
-pub fn installed(app: &App) -> Option<String> {
-    roots().iter().find_map(|root| {
-        let info = bundle(root, app).join("Contents").join("Info.plist");
-        let value = plist::Value::from_file(info).ok()?;
+pub fn installed() -> bool {
+    bundles().next().is_some()
+}
 
-        value
-            .as_dictionary()?
-            .get("CFBundleShortVersionString")?
-            .as_string()
-            .map(str::to_string)
-    })
+pub fn outdated() -> bool {
+    false
 }
 
 fn writable(root: &Path) -> bool {
@@ -45,21 +42,11 @@ fn writable(root: &Path) -> bool {
         && std::fs::remove_file(&probe).is_ok()
 }
 
-fn target_root(app: &App) -> Result<PathBuf, String> {
-    let roots = roots();
-
-    match roots.iter().find(|root| bundle(root, app).exists()) {
-        Some(root) if writable(root) => Ok(root.clone()),
-        Some(root) => Err(format!("{} is not writable", root.display())),
-        None => roots
-            .into_iter()
-            .find(|root| writable(root))
-            .ok_or_else(|| "no writable Applications folder".to_string()),
-    }
-}
-
-pub fn install(app: &App, payload: &[u8]) -> Result<(), String> {
-    let root = target_root(app)?;
+pub fn install(payload: &[u8]) -> Result<(), String> {
+    let root = roots()
+        .into_iter()
+        .find(|root| writable(root))
+        .ok_or("no writable Applications folder")?;
     let staging = tempfile::Builder::new()
         .prefix(".atrix-installer-")
         .tempdir_in(&root)
@@ -69,31 +56,25 @@ pub fn install(app: &App, payload: &[u8]) -> Result<(), String> {
         .unpack(staging.path())
         .map_err(fail)?;
 
-    let fresh = bundle(staging.path(), app);
-    let target = bundle(&root, app);
-    let previous = staging.path().join("previous.app");
-
-    if target.exists() {
-        std::fs::rename(&target, &previous).map_err(fail)?;
-    }
-
-    std::fs::rename(&fresh, &target).map_err(|error| {
-        if previous.exists() {
-            let _ = std::fs::rename(&previous, &target);
-        }
-
-        fail(error)
-    })
+    std::fs::rename(staging.path().join(BUNDLE), root.join(BUNDLE)).map_err(fail)
 }
 
-pub fn launch_installer(bytes: &[u8], version: &str) -> Result<(), String> {
-    let path = home()
-        .ok_or("no home folder")?
-        .join("Downloads")
-        .join(format!("Atrix_{version}_installer.dmg"));
+pub fn uninstall() -> Result<(), String> {
+    for bundle in bundles() {
+        std::fs::remove_dir_all(bundle).map_err(fail)?;
+    }
 
-    std::fs::write(&path, bytes).map_err(fail)?;
-    Command::new("open").arg(path).spawn().map_err(fail)?;
+    Ok(())
+}
+
+pub fn default_app(_enabled: bool) -> Result<(), String> {
+    Ok(())
+}
+
+pub fn launch() -> Result<(), String> {
+    let bundle = bundles().next().ok_or("Atrix is not installed")?;
+
+    Command::new("open").arg(bundle).spawn().map_err(fail)?;
 
     Ok(())
 }

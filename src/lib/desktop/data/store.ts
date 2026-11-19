@@ -1,18 +1,5 @@
-import {
-  type CalendarEvent,
-  eventFromTodo,
-  type Note,
-  type Preset,
-  type Todo,
-} from "@atrix/data"
-import {
-  loadDevice,
-  type PinPath,
-  type Profile,
-  saveProfile,
-  togglePin,
-  updateProfile,
-} from "@atrix/settings"
+import { type CalendarEvent, eventFromTodo, type Todo } from "@atrix/data"
+import { loadDevice, type Profile, saveProfile } from "@atrix/settings"
 import { isPoisoned, type LocalItem } from "@atrix/sync/merge"
 import type { SyncedCollection, SyncRecord } from "@atrix/sync/protocol"
 import { invoke } from "@tauri-apps/api/core"
@@ -197,12 +184,6 @@ export const todos = collection<Todo>("todos")
 
 export const events = collection<CalendarEvent>("events")
 
-export const presets = collection<Preset>("presets")
-
-export const notes = collection<Note>("notes")
-
-export const newId = () => crypto.randomUUID()
-
 // the todo store and its sync stay so paired devices on older versions keep working; the flag syncs so no device converts twice
 export const migrateTodos = async () => {
   const pending = (await todos.all()).filter(todo => !todo.migrated)
@@ -242,9 +223,3 @@ const stampIfChanged = async (changed: Promise<boolean>) => {
 
 export const saveProfileSynced = (profile: Profile) =>
   stampIfChanged(saveProfile(profile))
-
-export const updateProfileSynced = (change: (profile: Profile) => Profile) =>
-  stampIfChanged(updateProfile(change))
-
-export const togglePinSynced = (path: PinPath) =>
-  stampIfChanged(togglePin(path))

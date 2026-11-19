@@ -44,29 +44,22 @@ pub fn plugins(
         .plugin(atrix_window_kit::init(headless))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_clipboard_manager::init());
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_atrix_terminal::init("/shell/terminal"));
 
     #[cfg(windows)]
     let builder = builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ));
 
-    let builder = if components.files {
+    if components.files {
         tauri_plugin_atrix_files::log_panics();
 
-        builder
-            .plugin(tauri_plugin_deep_link::init())
-            .plugin(tauri_plugin_atrix_files::init(files::HOST))
-    } else {
-        builder
-    };
-
-    if components.terminal {
-        builder.plugin(tauri_plugin_atrix_terminal::init("/shell/terminal"))
+        builder.plugin(tauri_plugin_atrix_files::init(files::HOST))
     } else {
         builder
     }

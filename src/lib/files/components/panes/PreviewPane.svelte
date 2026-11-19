@@ -1,164 +1,181 @@
 <script lang="ts">
-  import { docKind } from "#lib/doc-preview/index.ts"
-  import { currentLocale } from "@atrix/i18n"
-  import { Splitter } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { untrack } from "svelte"
-  import { t } from "svelte-i18n"
-  import { type FileKind, kindOf } from "../../filetypes"
-  import { formatBytes, formatDate } from "../../format"
-  import { fromArchive, fromListing, type Item, packedEntry } from "../../items"
-  import { isVirtual, parentOf } from "../../locations"
-  import {
-    allowPreview,
-    assetUrl,
-    extractEntry,
-    inspectTensors,
-    listDir,
-    previewText,
-    type Tensors,
-  } from "../../native"
-  import { archiveListing, isArchive } from "../../store/archive.svelte"
-  import { prefs } from "../../store/prefs.svelte"
-  import { confirmPrivate } from "../../store/privacy.svelte"
-  import type { Tab } from "../../store/tab.svelte"
-  import ItemIcon from "../items/ItemIcon.svelte"
-  import DocumentPeek from "./DocumentPeek.svelte"
-  import FolderPane from "./FolderPane.svelte"
-  import FolderPeek from "./FolderPeek.svelte"
-  import HexView from "./HexView.svelte"
-  import TensorPeek from "./TensorPeek.svelte"
-  import ZoomImage from "./ZoomImage.svelte"
+import { untrack } from "svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { docKind } from "#lib/doc-preview/index.ts"
+import { m } from "#lib/paraglide/messages.js"
+import { currentLocale } from "#lib/store/locale.ts"
+import { type FileKind, kindOf } from "../../filetypes"
+import { formatBytes, formatDate } from "../../format"
+import { fromArchive, fromListing, type Item, packedEntry } from "../../items"
+import { isVirtual, parentOf } from "../../locations"
+import {
+  allowPreview,
+  assetUrl,
+  extractEntry,
+  inspectTensors,
+  listDir,
+  previewText,
+  type Tensors,
+} from "../../native"
+import { archiveListing, isArchive } from "../../store/archive.svelte"
+import { prefs } from "../../store/prefs.svelte"
+import { confirmPrivate } from "../../store/privacy.svelte"
+import type { Tab } from "../../store/tab.svelte"
+import ItemIcon from "../items/ItemIcon.svelte"
+import ResizeHandle from "../window/ResizeHandle.svelte"
+import DocumentPeek from "./DocumentPeek.svelte"
+import FolderPane from "./FolderPane.svelte"
+import FolderPeek from "./FolderPeek.svelte"
+import HexView from "./HexView.svelte"
+import TensorPeek from "./TensorPeek.svelte"
+import ZoomImage from "./ZoomImage.svelte"
 
-  type FileView = Exclude<FileKind, "model"> | "document"
+type FileView = Exclude<FileKind, "model"> | "document"
 
-  type Content =
-    | { kind: null }
-    | { kind: "folder" | "archive"; children: Item[] }
-    | { kind: "text"; text: string }
-    | { kind: "hex" }
-    | { kind: "tensors"; tensors: Tensors }
-    | { kind: Exclude<FileView, "text" | "tensors">; url: string }
+type Content =
+  | { kind: null }
+  | { kind: "folder" | "archive"; children: Item[] }
+  | { kind: "text"; text: string }
+  | { kind: "hex" }
+  | { kind: "tensors"; tensors: Tensors }
+  | { kind: Exclude<FileView, "text" | "tensors">; url: string }
 
-  type Shown = Content & { key: string; source?: string }
+type Shown = Content & { key: string; source?: string }
 
-  const NOTHING: Content = { kind: null }
+const NOTHING: Content = { kind: null }
 
-  let { item, tab }: { item: Item | null; tab: Tab } = $props()
+const DEFAULT_WIDTH = 20
 
-  let shown = $state.raw<Shown | null>(null)
-  let hexView = $state(false)
+let { item, tab }: { item: Item | null; tab: Tab } = $props()
 
-  const version = $derived(
-    item ? `${item.key}\0${item.modified}\0${item.size}` : null,
-  )
+let shown = $state.raw<Shown | null>(null)
 
-  const previewKind = (target: Item): FileView | null => {
-    if (docKind(target.name)) {
-      return "document"
-    }
+let hexView = $state(false)
 
-    const kind = kindOf(target.name)
+const version = $derived(
+  item ? `${item.key}\0${item.modified}\0${item.size}` : null,
+)
 
-    return kind === "model" ? "text" : kind
+const previewKind = (target: Item): FileView | null => {
+  if (docKind(target.name)) {
+    return "document"
   }
 
-  const children = async (target: Item) => {
-    if (target.packed) {
-      const listing = await archiveListing(target.packed, false)
+  const kind = kindOf(target.name)
 
-      return fromArchive(target.path, target.packed, packedEntry(target), listing)
-    }
+  return kind === "model" ? "text" : kind
+}
 
-    if (target.dir) {
-      return fromListing(await listDir(target.path))
-    }
+const children = async (target: Item) => {
+  if (target.packed) {
+    const listing = await archiveListing(target.packed, false)
 
-    return fromArchive(target.path, target.path, "", await archiveListing(target.path, false))
+    return fromArchive(target.path, target.packed, packedEntry(target), listing)
   }
 
-  const load = async (target: Item): Promise<Content & { source?: string }> => {
-    if (!(await confirmPrivate(target.path, parentOf(target.path) ?? ""))) {
-      return NOTHING
-    }
-
-    if (target.dir || (!target.packed && isArchive(target.name))) {
-      return { kind: target.dir ? "folder" : "archive", children: await children(target) }
-    }
-
-    const kind = previewKind(target)
-    const path = target.packed ? await extractEntry(target.packed, packedEntry(target)) : target.path
-    const hex = { kind: "hex" as const, source: path }
-
-    if (!kind) {
-      return target.size > 0 ? hex : NOTHING
-    }
-
-    if (kind === "text") {
-      const text = await previewText(path).catch(() => "")
-
-      return text ? { kind, text, source: path } : target.size > 0 ? hex : NOTHING
-    }
-
-    if (kind === "tensors") {
-      const tensors = await inspectTensors(path).catch(() => null)
-
-      return tensors ? { kind, tensors, source: path } : hex
-    }
-
-    await allowPreview(path)
-
-    return { kind, url: assetUrl(path), source: path }
+  if (target.dir) {
+    return fromListing(await listDir(target.path))
   }
 
-  $effect(() => {
-    const target = version ? untrack(() => item) : null
-
-    hexView = false
-
-    if (!target || isVirtual(target.path)) {
-      shown = null
-
-      return
-    }
-
-    let live = true
-
-    load(target)
-      .catch(() => NOTHING)
-      .then(content => {
-        if (live) {
-          shown = { ...content, key: target.key }
-        }
-      })
-
-    return () => {
-      live = false
-    }
-  })
-
-  const current = $derived(
-    shown && item && shown.key === item.key ? shown : null,
+  return fromArchive(
+    target.path,
+    target.path,
+    "",
+    await archiveListing(target.path, false),
   )
+}
 
-  const facts = $derived(
-    item
-      ? [
-          { label: $t("explorer.columns.kind"), value: item.kind },
-          {
-            label: $t("explorer.columns.size"),
-            value: item.dir ? "" : formatBytes(item.size, currentLocale()),
-          },
-          {
-            label: $t("explorer.columns.modified"),
-            value: formatDate(item.modified, currentLocale()),
-          },
-        ].filter(fact => fact.value)
-      : [],
-  )
+const load = async (target: Item): Promise<Content & { source?: string }> => {
+  if (!(await confirmPrivate(target.path, parentOf(target.path) ?? ""))) {
+    return NOTHING
+  }
+
+  if (target.dir || (!target.packed && isArchive(target.name))) {
+    return {
+      kind: target.dir ? "folder" : "archive",
+      children: await children(target),
+    }
+  }
+
+  const kind = previewKind(target)
+  const path = target.packed
+    ? await extractEntry(target.packed, packedEntry(target))
+    : target.path
+  const hex = { kind: "hex" as const, source: path }
+
+  if (!kind) {
+    return target.size > 0 ? hex : NOTHING
+  }
+
+  if (kind === "text") {
+    const text = await previewText(path).catch(() => "")
+
+    return text
+      ? { kind, text, source: path }
+      : target.size > 0
+        ? hex
+        : NOTHING
+  }
+
+  if (kind === "tensors") {
+    const tensors = await inspectTensors(path).catch(() => null)
+
+    return tensors ? { kind, tensors, source: path } : hex
+  }
+
+  await allowPreview(path)
+
+  return { kind, url: assetUrl(path), source: path }
+}
+
+$effect(() => {
+  const target = version ? untrack(() => item) : null
+
+  hexView = false
+
+  if (!target || isVirtual(target.path)) {
+    shown = null
+
+    return
+  }
+
+  let live = true
+
+  load(target)
+    .catch(() => NOTHING)
+    .then(content => {
+      if (live) {
+        shown = { ...content, key: target.key }
+      }
+    })
+
+  return () => {
+    live = false
+  }
+})
+
+const current = $derived(
+  shown && item && shown.key === item.key ? shown : null,
+)
+
+const facts = $derived(
+  item
+    ? [
+        { label: m.files_columns_kind(), value: item.kind },
+        {
+          label: m.files_columns_size(),
+          value: item.dir ? "" : formatBytes(item.size, currentLocale()),
+        },
+        {
+          label: m.files_columns_modified(),
+          value: formatDate(item.modified, currentLocale()),
+        },
+      ].filter(fact => fact.value)
+    : [],
+)
 </script>
 
-<Splitter
+<ResizeHandle
   resize={{
     axis: "x",
     invert: true,
@@ -167,11 +184,12 @@
     get: () => prefs.previewWidth,
     set: width => (prefs.previewWidth = width),
   }}
-  onreset={() => (prefs.previewWidth = 20)}
+  label={m.shell_resize_pane()}
+  onreset={() => (prefs.previewWidth = DEFAULT_WIDTH)}
 />
 
 <aside
-  class="flex shrink-0 flex-col gap-3 overflow-hidden p-3"
+  class="island flex shrink-0 flex-col gap-3 overflow-hidden p-2"
   style:width="{prefs.previewWidth}rem"
 >
   {#if !item}
@@ -179,24 +197,23 @@
   {:else}
     <div
       class={[
-        "relative flex min-h-0 grow items-center justify-center overflow-hidden",
-        "rounded-box bg-base-content/5",
+        "relative flex min-h-0 grow items-center justify-center",
+        "overflow-hidden rounded-field bg-inset",
       ]}
     >
       {#if current?.source && current.kind !== "hex"}
-        <button
-          type="button"
-          class={[
-            "btn btn-square btn-xs absolute top-2 right-2 z-10",
-            hexView ? "btn-primary" : "btn-ghost bg-base-100/70",
-          ]}
-          aria-label={$t("explorer.hex.toggle")}
-          title={$t("explorer.hex.toggle")}
+        <IconButton
+          icon="lucide:binary"
+          label={m.files_hex_toggle()}
+          size="xs"
+          iconClass="size-3.5"
           aria-pressed={hexView}
+          class={[
+            "absolute top-1.5 right-1.5 z-10 bg-raised shadow-sm",
+            hexView && "text-primary",
+          ]}
           onclick={() => (hexView = !hexView)}
-        >
-          <Icon icon="lucide:binary" class="size-3.5" />
-        </button>
+        />
       {/if}
 
       {#if current?.source && (current.kind === "hex" || hexView)}
@@ -206,9 +223,9 @@
       {:else if current?.kind === "folder" || current?.kind === "archive"}
         <FolderPeek
           items={current.children}
-          label={$t(current.kind === "folder" ? "explorer.peek.items" : "explorer.peek.archive", {
-            values: { count: current.children.length },
-          })}
+          label={(current.kind === "folder"
+            ? m.files_peek_items
+            : m.files_peek_archive)({ count: current.children.length })}
         />
       {:else if current?.kind === "tensors"}
         <TensorPeek tensors={current.tensors} />
@@ -223,7 +240,7 @@
           <track kind="captions" />
         </video>
       {:else if current?.kind === "audio"}
-        <audio src={current.url} controls class="w-full">
+        <audio src={current.url} controls class="w-full px-2">
           <track kind="captions" />
         </audio>
       {:else if current?.kind === "pdf"}
@@ -232,30 +249,34 @@
       {:else if current?.kind === "text"}
         <pre
           class={[
-            "size-full overflow-auto p-3 text-xs leading-relaxed",
-            "break-words whitespace-pre-wrap",
+            "size-full overflow-auto p-3 font-sans text-xs leading-relaxed",
+            "break-words whitespace-pre-wrap select-text",
           ]}>{current.text}</pre>
       {:else}
-        <div class="flex flex-col items-center gap-2 text-sm text-base-content/50">
+        <div
+          class={[
+            "flex flex-col items-center gap-3 px-4",
+            "text-sm text-base-content/60",
+          ]}
+        >
           <ItemIcon source={item} rem={6} thumbnail class="size-24" />
-
           {#if current}
-            {$t("explorer.states.noPreview")}
+            {m.files_states_no_preview()}
           {/if}
         </div>
       {/if}
     </div>
 
-    <div class="flex shrink-0 flex-col gap-1 text-xs">
+    <div class="flex shrink-0 flex-col gap-1 px-1 pb-1 text-xs">
       <span class="truncate text-sm font-medium" title={item.name}>
         {item.name}
       </span>
-
       {#each facts as fact (fact.label)}
-        <div class="flex justify-between gap-3">
-          <span class="shrink-0 text-base-content/50">{fact.label}</span>
-
-          <span class="truncate tabular-nums">{fact.value}</span>
+        <div class="flex min-w-0 justify-between gap-3">
+          <span class="shrink-0 text-base-content/55">{fact.label}</span>
+          <span class="min-w-0 truncate tabular-nums" title={fact.value}>
+            {fact.value}
+          </span>
         </div>
       {/each}
     </div>

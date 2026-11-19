@@ -1,3 +1,22 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "panel_reminder": "Reminder",
+  "panel_reminder_none": "None",
+  "panel_reminder_start": "At start time",
+  "panel_reminder_minutes": "{count} minutes before",
+  "panel_reminder_hour": "1 hour before",
+  "panel_reminder_day": "1 day before",
+  "panel_cite": "Link document",
+  "panel_cite_search": "Search documents",
+  "panel_cite_empty": "No documents",
+  "panel_quick_add": "Add an all-day event",
+  "panel_tasks": "Tasks",
+  "panel_task_add": "Add a task",
+  "panel_task_empty": "No tasks",
+  "panel_task_edit": "Edit task",
+  "panel_task_due": "Due date",
+  "panel_task_clear_done": "Delete completed",
+  "panel_memo": "Quick memo",
+  "panel_memo_placeholder": "Write a memo",
+  "panel_memo_save": "Save to knowledge"
 }

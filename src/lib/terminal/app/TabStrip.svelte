@@ -1,226 +1,270 @@
 <script lang="ts">
-  import { type MenuItem, openContextMenu, rootRem } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { type SerialPort, serialPorts } from "../pty"
-  import { shellIcon } from "../shell-icons"
-  import {
-    drag,
-    justDragged,
-    onTabDrop,
-    pressTab,
-    SLOP,
-    springTo,
-    unspring,
-  } from "./drag.svelte"
-  import { type Pane, panesOf } from "./layout"
-  import { prefs } from "./prefs.svelte"
-  import {
-    closePane,
-    closeTab,
-    detachPane,
-    moveTab,
-    openTab,
-    paneLabel,
-    session,
-    type Tab,
-    ungroup,
-  } from "./tabs.svelte"
+import Icon from "@iconify/svelte"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import MenuItem from "#lib/components/ui/MenuItem.svelte"
+import { menuKeys } from "#lib/components/ui/menu.ts"
+import Popover from "#lib/components/ui/Popover.svelte"
+import Separator from "#lib/components/ui/Separator.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import { contextMenu, type MenuAction } from "#lib/store/contextMenu.svelte.ts"
+import { shellIcon } from "../shell-icons"
+import {
+  drag,
+  justDragged,
+  onTabDrop,
+  pressTab,
+  SLOP,
+  springTo,
+  unspring,
+} from "./drag.svelte"
+import { type Pane, panesOf } from "./layout"
+import SerialDialog from "./SerialDialog.svelte"
+import {
+  closePane,
+  closeTab,
+  detachPane,
+  moveTab,
+  openTab,
+  paneLabel,
+  session,
+  type Tab,
+  ungroup,
+} from "./tabs.svelte"
 
-  type Renaming = { kind: "tab" | "pane"; id: number }
+type Renaming = { kind: "tab" | "pane"; id: number }
 
-  let renaming = $state<Renaming | null>(null)
-  let ports = $state<SerialPort[]>([])
-  let flip = $state(false)
-  let pulling = $state<number | null>(null)
-  let pullSlot = $state<number | null>(null)
-  let strip = $state<HTMLElement>()
-  let pulled = false
+let renaming = $state<Renaming | null>(null)
 
-  const groupName = (tab: Tab) => tab.name || $t("terminal.tabs.workspace")
+let picking = $state(false)
 
-  const isRenaming = (kind: Renaming["kind"], id: number) =>
-    renaming?.kind === kind && renaming.id === id
+let connecting = $state(false)
 
-  const menu = (e: MouseEvent, items: MenuItem[]) => {
-    e.preventDefault()
-    openContextMenu({ items, x: e.clientX, y: e.clientY })
+let pulling = $state<number | null>(null)
+
+let pullSlot = $state<number | null>(null)
+
+let strip = $state<HTMLElement>()
+
+let pulled = false
+
+const rem = () =>
+  Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+
+const groupName = (tab: Tab) => tab.name || m.terminal_group_name()
+
+const isRenaming = (kind: Renaming["kind"], id: number) =>
+  renaming?.kind === kind && renaming.id === id
+
+const commitName = (value: string) => {
+  const target = renaming
+
+  renaming = null
+
+  if (!target) {
+    return
   }
 
-  const commitName = (value: string) => {
-    const target = renaming
+  const name = value.trim() || undefined
 
-    renaming = null
+  if (target.kind === "tab") {
+    const tab = session.tabs.find(entry => entry.id === target.id)
 
-    if (!target) {
+    if (tab) {
+      tab.name = name
+    }
+
+    return
+  }
+
+  for (const tab of session.tabs) {
+    const pane = panesOf(tab.root).find(entry => entry.id === target.id)
+
+    if (pane) {
+      pane.name = name
+    }
+  }
+}
+
+const slots = () => [
+  ...(strip?.querySelectorAll<HTMLElement>(":scope > [data-tab]") ?? []),
+]
+
+const slotAt = (x: number, y: number) => {
+  const box = strip?.getBoundingClientRect()
+
+  if (!box || x < box.left || x > box.right || y < box.top || y > box.bottom) {
+    return null
+  }
+
+  const index = slots().findIndex(item => {
+    const edge = item.getBoundingClientRect()
+
+    return x < edge.left + edge.width / 2
+  })
+
+  return index < 0 ? session.tabs.length : index
+}
+
+const lineAt = (slot: number | null) => {
+  const items = slots()
+  const box = strip?.getBoundingClientRect()
+
+  if (slot === null || !box || items.length === 0) {
+    return null
+  }
+
+  const edge =
+    slot < items.length
+      ? items[slot].getBoundingClientRect().left
+      : items[items.length - 1].getBoundingClientRect().right
+
+  return (edge - box.left) / rem()
+}
+
+const tabSlot = $derived.by(() => {
+  if (drag.tab === null) {
+    return null
+  }
+
+  const slot = slotAt(drag.x, drag.y)
+  const from = session.tabs.findIndex(tab => tab.id === drag.tab)
+
+  if (from < 0) {
+    return slot
+  }
+
+  return slot === null || slot === from || slot === from + 1 ? null : slot
+})
+
+const line = $derived(lineAt(tabSlot ?? pullSlot))
+
+$effect(() =>
+  onTabDrop(tab => {
+    if (tabSlot === null) {
+      return false
+    }
+
+    moveTab(tab, tabSlot)
+
+    return true
+  }),
+)
+
+const pressPane = (e: PointerEvent, pane: Pane) => {
+  if (e.button !== 0) {
+    return
+  }
+
+  const group = (e.currentTarget as HTMLElement).closest("[data-group]")
+  const startX = e.clientX
+  const startY = e.clientY
+
+  const move = (p: PointerEvent) => {
+    const far = Math.hypot(p.clientX - startX, p.clientY - startY) >= SLOP
+
+    if (pulling === null && far) {
+      pulling = pane.id
+    }
+
+    if (pulling === null) {
       return
     }
 
-    const name = value.trim() || undefined
+    const inside = group?.contains(
+      document.elementFromPoint(p.clientX, p.clientY),
+    )
+    const home = session.tabs.findIndex(tab =>
+      panesOf(tab.root).some(entry => entry.id === pane.id),
+    )
 
-    if (target.kind === "tab") {
-      const tab = session.tabs.find(entry => entry.id === target.id)
+    pullSlot = inside ? null : (slotAt(p.clientX, p.clientY) ?? home + 1)
+  }
 
-      if (tab) {
-        tab.name = name
-      }
+  const up = (u: PointerEvent) => {
+    window.removeEventListener("pointermove", move)
+    window.removeEventListener("pointerup", up)
 
+    if (pulling === null) {
       return
     }
 
-    for (const tab of session.tabs) {
-      const pane = panesOf(tab.root).find(entry => entry.id === target.id)
+    const slot = pullSlot
+    const dropped = document.elementFromPoint(u.clientX, u.clientY)
 
-      if (pane) {
-        pane.name = name
-      }
-    }
-  }
-
-  const slots = () => [...(strip?.querySelectorAll<HTMLElement>(":scope > [data-tab]") ?? [])]
-
-  const slotAt = (x: number, y: number) => {
-    const box = strip?.getBoundingClientRect()
-
-    if (!box || x < box.left || x > box.right || y < box.top || y > box.bottom) {
-      return null
-    }
-
-    const index = slots().findIndex(item => {
-      const edge = item.getBoundingClientRect()
-
-      return x < edge.left + edge.width / 2
+    pulling = null
+    pullSlot = null
+    pulled = true
+    setTimeout(() => {
+      pulled = false
     })
 
-    return index < 0 ? session.tabs.length : index
+    if (slot !== null && !group?.contains(dropped)) {
+      detachPane(pane.id, slot)
+    }
   }
 
-  const lineAt = (slot: number | null) => {
-    const items = slots()
-    const box = strip?.getBoundingClientRect()
+  window.addEventListener("pointermove", move)
+  window.addEventListener("pointerup", up)
+}
 
-    if (slot === null || !box || items.length === 0) {
-      return null
-    }
+const renameItem = (target: Renaming): MenuAction => ({
+  label: m.menu_rename(),
+  icon: "lucide:pencil",
+  run: () => {
+    renaming = target
+  },
+})
 
-    const edge =
-      slot < items.length
-        ? items[slot].getBoundingClientRect().left
-        : items[items.length - 1].getBoundingClientRect().right
+const tabMenu = (tab: Tab, index: number) => [
+  renameItem({ kind: "pane", id: panesOf(tab.root)[0].id }),
+  "separator" as const,
+  {
+    label: m.terminal_tab_close(),
+    icon: "lucide:x",
+    run: () => closeTab(index),
+  },
+]
 
-    return edge - box.left
-  }
+const groupMenu = (tab: Tab, index: number) => [
+  renameItem({ kind: "tab", id: tab.id }),
+  {
+    label: m.terminal_group_ungroup(),
+    icon: "lucide:ungroup",
+    run: () => ungroup(tab),
+  },
+  "separator" as const,
+  {
+    label: m.terminal_tab_close(),
+    icon: "lucide:x",
+    run: () => closeTab(index),
+  },
+]
 
-  const tabSlot = $derived.by(() => {
-    if (drag.tab === null) {
-      return null
-    }
+const paneMenu = (pane: Pane) => [
+  {
+    label: m.terminal_pane_detach(),
+    icon: "lucide:square-arrow-out-up-right",
+    run: () => detachPane(pane.id),
+  },
+  renameItem({ kind: "pane", id: pane.id }),
+  "separator" as const,
+  {
+    label: m.terminal_pane_close(),
+    icon: "lucide:x",
+    run: () => closePane(pane.id),
+  },
+]
 
-    const slot = slotAt(drag.x, drag.y)
-    const from = session.tabs.findIndex(tab => tab.id === drag.tab)
-
-    if (from < 0) {
-      return slot
-    }
-
-    return slot === null || slot === from || slot === from + 1 ? null : slot
-  })
-
-  const line = $derived(lineAt(tabSlot ?? pullSlot))
-
-  $effect(() =>
-    onTabDrop(tab => {
-      if (tabSlot === null) {
-        return false
-      }
-
-      moveTab(tab, tabSlot)
-
-      return true
-    }),
-  )
-
-  const pressPane = (e: PointerEvent, pane: Pane) => {
-    if (e.button !== 0) {
-      return
-    }
-
-    const group = (e.currentTarget as HTMLElement).closest("[data-group]")
-    const startX = e.clientX
-    const startY = e.clientY
-
-    const move = (m: PointerEvent) => {
-      if (pulling === null && Math.hypot(m.clientX - startX, m.clientY - startY) >= SLOP) {
-        pulling = pane.id
-      }
-
-      if (pulling === null) {
-        return
-      }
-
-      const inside = group?.contains(document.elementFromPoint(m.clientX, m.clientY))
-      const home = session.tabs.findIndex(tab => panesOf(tab.root).some(entry => entry.id === pane.id))
-
-      pullSlot = inside ? null : (slotAt(m.clientX, m.clientY) ?? home + 1)
-    }
-
-    const up = (u: PointerEvent) => {
-      window.removeEventListener("pointermove", move)
-      window.removeEventListener("pointerup", up)
-
-      if (pulling === null) {
-        return
-      }
-
-      const slot = pullSlot
-
-      pulling = null
-      pullSlot = null
-      pulled = true
-      setTimeout(() => {
-        pulled = false
-      })
-
-      if (slot !== null && !group?.contains(document.elementFromPoint(u.clientX, u.clientY))) {
-        detachPane(pane.id, slot)
-      }
-    }
-
-    window.addEventListener("pointermove", move)
-    window.addEventListener("pointerup", up)
-  }
-
-  const openShells = (e: FocusEvent) => {
-    const node = e.currentTarget as HTMLElement
-    const menu = node.querySelector("ul")
-
-    if (menu) {
-      flip = node.getBoundingClientRect().left + menu.offsetWidth > window.innerWidth
-    }
-
-    serialPorts()
-      .then(found => (ports = found))
-      .catch(() => (ports = []))
-  }
-
-  const openShell = (e: MouseEvent, shell: string) => {
-    const button = e.currentTarget as HTMLElement
-
-    button.blur()
-    openTab({ shell })
-  }
-
-  const renameItem = (target: Renaming): MenuItem => ({
-    label: $t("terminal.tabs.rename"),
-    icon: "lucide:pencil",
-    action: () => (renaming = target),
-  })
+const openShell = (shell: string) => {
+  picking = false
+  openTab({ shell })
+}
 </script>
 
 {#snippet nameField(value: string)}
   <input
-    class="input input-xs h-6 w-full min-w-0 grow px-1.5"
-    aria-label={$t("terminal.tabs.rename")}
+    class="input input-xs h-6 w-full min-w-0 flex-1 px-1.5"
+    aria-label={m.menu_rename()}
     spellcheck="false"
     {value}
     {@attach node => {
@@ -241,34 +285,31 @@
   />
 {/snippet}
 
-{#snippet glyph(shell: string)}
-  {@const look = shellIcon(shell)}
-
-  <Icon icon={look.icon} class="size-4 shrink-0" style={look.color ? `color: ${look.color}` : undefined} />
-{/snippet}
-
-{#snippet closeButton(label: string, close: () => void, shown: boolean)}
-  <button
-    type="button"
-    class={[
-      "btn btn-ghost btn-square btn-xs shrink-0",
-      !shown && "opacity-0 group-hover/tab:opacity-100",
-    ]}
-    aria-label={label}
+{#snippet chip(pane: Pane, label: string, close: () => void, shown: boolean)}
+  <Icon icon={shellIcon(pane.shell)} class="size-4 shrink-0" />
+  {#if isRenaming("pane", pane.id)}
+    {@render nameField(paneLabel(pane))}
+  {:else}
+    <span class="min-w-0 flex-1 truncate">{paneLabel(pane)}</span>
+  {/if}
+  <IconButton
+    icon="lucide:x"
+    {label}
+    size="xs"
+    iconClass="size-3.5"
+    class={["shrink-0", !shown && "opacity-0 group-hover/tab:opacity-100"]}
     onclick={e => {
       e.stopPropagation()
       close()
     }}
-  >
-    <Icon icon="lucide:x" class="size-3.5" />
-  </button>
+  />
 {/snippet}
 
 <div
   bind:this={strip}
   role="tablist"
-  aria-label={$t("terminal.tabs.list")}
-  class="relative flex min-w-0 items-end gap-0.5 overflow-hidden pt-1.5 pl-1"
+  aria-label={m.terminal_tabs()}
+  class="relative flex h-full min-w-0 items-center gap-1 overflow-hidden"
 >
   {#each session.tabs as tab, index (tab.id)}
     {@const active = index === session.active}
@@ -276,7 +317,6 @@
 
     {#if panes.length === 1}
       {@const pane = panes[0]}
-
       <div
         data-tab
         role="tab"
@@ -284,11 +324,12 @@
         aria-selected={active}
         title={paneLabel(pane)}
         class={[
-          "group/tab flex h-full w-52 min-w-24 cursor-pointer items-center gap-2",
-          "rounded-t-field px-3 text-sm transition-colors",
+          "group/tab flex h-7 w-44 min-w-20 shrink cursor-pointer",
+          "items-center gap-2",
+          "rounded-field ps-2.5 pe-0.5 text-sm transition-colors duration-140",
           active
-            ? "bg-base-100 text-base-content"
-            : "text-base-content/70 hover:bg-base-content/5",
+            ? "bg-primary/8 text-primary"
+            : "text-base-content/70 hover:bg-base-content/8",
           drag.tab === tab.id && "opacity-50",
         ]}
         onpointerdown={e => pressTab(e, tab.id)}
@@ -300,58 +341,39 @@
           }
         }}
         ondblclick={() => (renaming = { kind: "pane", id: pane.id })}
-        oncontextmenu={e =>
-          menu(e, [
-            renameItem({ kind: "pane", id: pane.id }),
-            "separator",
-            {
-              label: $t("terminal.tabs.close"),
-              icon: "lucide:x",
-              action: () => closeTab(index),
-            },
-          ])}
+        oncontextmenu={e => contextMenu.show(e, tabMenu(tab, index))}
         onauxclick={e => e.button === 1 && closeTab(index)}
         onkeydown={() => undefined}
       >
-        {@render glyph(pane.shell)}
-
-        {#if isRenaming("pane", pane.id)}
-          {@render nameField(paneLabel(pane))}
-        {:else}
-          <span class="min-w-0 grow truncate">{paneLabel(pane)}</span>
-        {/if}
-
-        {@render closeButton($t("terminal.tabs.close"), () => closeTab(index), active)}
+        {@render chip(pane, m.terminal_tab_close(), () => closeTab(index), active)}
       </div>
     {:else}
-      {@const badge = [
-        "flex shrink-0 items-center rounded-field",
-        "text-xs font-semibold transition-colors",
-        active
-          ? "bg-primary text-primary-content"
-          : "bg-primary/20 text-primary hover:bg-primary/30",
-      ]}
-
       <fieldset
         data-tab
         data-group
-        aria-label={$t("terminal.tabs.group", { values: { name: groupName(tab) } })}
+        aria-label={m.terminal_group_label({ name: groupName(tab) })}
         class={[
-          "relative flex h-full min-w-0 shrink items-end gap-0.5 px-0.5",
+          "flex h-8 min-w-0 shrink items-center gap-0.5 rounded-field p-0.5",
+          "bg-base-content/5",
           drag.tab === tab.id && "opacity-50",
         ]}
         onpointerenter={() => springTo(tab.id, () => (session.active = index))}
         onpointerleave={unspring}
       >
         {#if isRenaming("tab", tab.id)}
-          <div title={groupName(tab)} class={[badge, "mb-1 h-7 w-44 px-0.5"]}>
+          <div class="flex h-7 w-36 shrink-0 items-center px-0.5">
             {@render nameField(groupName(tab))}
           </div>
         {:else}
           <button
             type="button"
             title={groupName(tab)}
-            class={[badge, "mb-1.5 h-6 max-w-40 cursor-pointer px-2"]}
+            class={[
+              "flex h-7 max-w-32 shrink-0 cursor-pointer items-center gap-1.5",
+              "rounded-field px-2 text-xs font-medium",
+              "transition-colors duration-140 hover:bg-base-content/8",
+              active ? "text-primary" : "text-base-content/60",
+            ]}
             onpointerdown={e => pressTab(e, tab.id)}
             onclick={() => {
               if (!justDragged()) {
@@ -359,42 +381,27 @@
               }
             }}
             ondblclick={() => (renaming = { kind: "tab", id: tab.id })}
-            oncontextmenu={e =>
-              menu(e, [
-                renameItem({ kind: "tab", id: tab.id }),
-                {
-                  label: $t("terminal.tabs.ungroup"),
-                  icon: "lucide:ungroup",
-                  action: () => ungroup(tab),
-                },
-                "separator",
-                {
-                  label: $t("terminal.tabs.close"),
-                  icon: "lucide:x",
-                  action: () => closeTab(index),
-                },
-              ])}
+            oncontextmenu={e => contextMenu.show(e, groupMenu(tab, index))}
           >
-            <span class="truncate">@{groupName(tab)}</span>
+            <Icon icon="lucide:layout-grid" class="size-3.5 shrink-0" />
+            <span class="truncate">{groupName(tab)}</span>
           </button>
         {/if}
 
         {#each panes as pane (pane.id)}
           {@const current = active && tab.focus === pane.id}
-
           <div
             role="tab"
             tabindex="-1"
             aria-selected={current}
             title={paneLabel(pane)}
             class={[
-              "group/tab flex h-full w-40 min-w-20 cursor-pointer items-center gap-2",
-              "rounded-t-field px-2.5 text-sm transition-colors",
+              "group/tab flex h-7 w-36 min-w-16 shrink cursor-pointer",
+              "items-center gap-2",
+              "rounded-field ps-2 pe-0.5 text-sm transition-colors duration-140",
               current
-                ? "bg-base-100 text-base-content"
-                : active
-                  ? "bg-base-100/50 text-base-content/80 hover:bg-base-100/80"
-                  : "text-base-content/70 hover:bg-base-content/5",
+                ? "bg-primary/8 text-primary"
+                : "text-base-content/70 hover:bg-base-content/8",
               pulling === pane.id && "opacity-50",
             ]}
             onpointerdown={e => pressPane(e, pane)}
@@ -405,42 +412,13 @@
               }
             }}
             ondblclick={() => (renaming = { kind: "pane", id: pane.id })}
-            oncontextmenu={e =>
-              menu(e, [
-                {
-                  label: $t("terminal.tabs.detach"),
-                  icon: "lucide:square-arrow-out-up-right",
-                  action: () => detachPane(pane.id),
-                },
-                renameItem({ kind: "pane", id: pane.id }),
-                "separator",
-                {
-                  label: $t("terminal.tabs.closePane"),
-                  icon: "lucide:x",
-                  action: () => closePane(pane.id),
-                },
-              ])}
+            oncontextmenu={e => contextMenu.show(e, paneMenu(pane))}
             onauxclick={e => e.button === 1 && closePane(pane.id)}
             onkeydown={() => undefined}
           >
-            {@render glyph(pane.shell)}
-
-            {#if isRenaming("pane", pane.id)}
-              {@render nameField(paneLabel(pane))}
-            {:else}
-              <span class="min-w-0 grow truncate">{paneLabel(pane)}</span>
-            {/if}
-
-            {@render closeButton($t("terminal.tabs.closePane"), () => closePane(pane.id), current)}
+            {@render chip(pane, m.terminal_pane_close(), () => closePane(pane.id), current)}
           </div>
         {/each}
-
-        <span
-          class={[
-            "pointer-events-none absolute inset-x-0.5 bottom-0 h-0.5 rounded-full",
-            active ? "bg-primary" : "bg-primary/50",
-          ]}
-        ></span>
       </fieldset>
     {/if}
   {/each}
@@ -448,95 +426,56 @@
   {#if line !== null}
     <span
       class={[
-        "pointer-events-none absolute top-1 bottom-0 z-10 flex w-2 -translate-x-1/2",
-        "flex-col items-center transition-all duration-150 ease-out",
+        "pointer-events-none absolute inset-y-1.5 z-10 w-0.5 -translate-x-1/2",
+        "rounded-full bg-primary transition-all duration-140",
       ]}
-      style:left="{line / rootRem()}rem"
-    >
-      <span class="size-2 shrink-0 rounded-full bg-primary shadow-md shadow-primary/60"></span>
-      <span class="w-0.5 grow rounded-full bg-primary shadow-md shadow-primary/60"></span>
-    </span>
+      style:left="{line}rem"
+    ></span>
   {/if}
 </div>
 
-<div class="flex items-center gap-0.5 px-1">
-  <button
-    type="button"
-    class="btn btn-ghost btn-square btn-sm"
-    aria-label={$t("terminal.tabs.new")}
-    title={$t("terminal.tabs.new")}
+<div class="flex shrink-0 items-center gap-0.5">
+  <IconButton
+    icon="lucide:plus"
+    label={m.terminal_tab_new()}
     onclick={() => openTab()}
+  />
+  <Popover
+    label={m.terminal_shells()}
+    placement="bottom-start"
+    width="w-60"
+    bind:open={picking}
   >
-    <Icon icon="lucide:plus" class="size-4" />
-  </button>
-
-  <div class={["dropdown", flip && "dropdown-end"]} onfocusin={openShells}>
-    <button
-      type="button"
-      class="btn btn-ghost btn-square btn-sm"
-      aria-label={$t("terminal.tabs.shells")}
-      title={$t("terminal.tabs.shells")}
-    >
-      <Icon icon="lucide:chevron-down" class="size-4" />
-    </button>
-
-    <ul
-      class={[
-        "dropdown-content menu z-10 mt-1 w-56 rounded-box border",
-        "border-base-content/10 bg-base-200 p-1 shadow-lg",
-      ]}
-    >
+    {#snippet trigger(p)}
+      <button
+        {...p}
+        type="button"
+        class="btn btn-ghost btn-sm btn-square"
+        aria-label={m.terminal_shells()}
+        title={m.terminal_shells()}
+      >
+        <Icon icon="lucide:chevron-down" class="size-4" />
+      </button>
+    {/snippet}
+    <div role="menu" tabindex="-1" class="flex flex-col" {@attach menuKeys}>
       {#each session.shells as shell (shell.id)}
-        <li>
-          <button type="button" onclick={e => openShell(e, shell.id)}>
-            {@render glyph(shell.id)}
-            {shell.name}
-          </button>
-        </li>
+        <MenuItem
+          icon={shellIcon(shell.id)}
+          label={shell.name}
+          onclick={() => openShell(shell.id)}
+        />
       {/each}
-
-      <li class="menu-title p-0"><hr class="border-base-content/10" /></li>
-
-      <li class="group/serial relative">
-        <button type="button">
-          <Icon icon="lucide:usb" class="size-4" />
-          <span class="grow">{$t("terminal.tabs.serial")}</span>
-          <Icon icon="lucide:chevron-right" class={["size-3.5 opacity-60", flip && "rotate-180"]} />
-        </button>
-
-        <menu
-          class={[
-            "menu absolute top-0 z-20 hidden w-72 rounded-box border p-1",
-            "border-base-content/10 bg-base-200 shadow-lg before:hidden",
-            "group-focus-within/serial:flex group-hover/serial:flex",
-            "after:absolute after:inset-y-0 after:w-1",
-            flip
-              ? "end-full ms-0 me-1 after:-end-1"
-              : "start-full ms-1 after:-start-1",
-          ]}
-        >
-          {#each ports as port (port.id)}
-            <li>
-              <button
-                type="button"
-                title={port.detail ? `${port.name} ${port.detail}` : port.name}
-                onclick={e => openShell(e, `${port.id}@${prefs.baud}`)}
-              >
-                {@render glyph(port.id)}
-                <span class="shrink-0 font-medium">{port.name}</span>
-
-                {#if port.detail}
-                  <span class="min-w-0 truncate text-base-content/60">{port.detail}</span>
-                {/if}
-              </button>
-            </li>
-          {:else}
-            <li class="menu-disabled">
-              <span>{$t("terminal.tabs.noPorts")}</span>
-            </li>
-          {/each}
-        </menu>
-      </li>
-    </ul>
-  </div>
+      <Separator />
+      <MenuItem
+        icon="lucide:usb"
+        label={m.terminal_serial_open()}
+        onclick={() => {
+          picking = false
+          connecting = true
+        }}
+      />
+    </div>
+  </Popover>
 </div>
+
+<SerialDialog bind:open={connecting} onconnect={openShell} />

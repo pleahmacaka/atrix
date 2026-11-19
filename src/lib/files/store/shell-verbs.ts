@@ -1,8 +1,8 @@
-import type { MenuAction } from "@atrix/ui"
 import { imageIcon } from "../image-icon"
 import type { Item } from "../items"
 import { extensionOf } from "../locations"
 import { runShellVerb, type ShellVerb, shellVerbs } from "../native"
+import type { FileAction } from "./menu-entries"
 import { prefs, type RememberedVerb } from "./prefs.svelte"
 
 const LIFE = 60_000
@@ -84,12 +84,12 @@ export const rememberVerbs = (verbs: ShellVerb[]) => {
 }
 
 export const shellItems = (
-  own: MenuAction[],
+  own: FileAction[],
   verbs: ShellVerb[],
   target: VerbTarget,
   clip: (label: string) => string,
   fail: (reason: unknown) => void,
-): MenuAction[] => {
+): FileAction[] => {
   const taken = new Set(own.map(entry => comparable(entry.label)))
 
   return verbs
@@ -98,7 +98,7 @@ export const shellItems = (
       id: verbId(verb),
       label: clip(verb.label),
       icon: verbIcon(verb.icon),
-      action: () =>
+      run: () =>
         runShellVerb(target.keys, target.folder, verb.verb, verb.label).catch(
           fail,
         ),

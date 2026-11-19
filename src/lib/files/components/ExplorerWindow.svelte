@@ -1,326 +1,308 @@
 <script lang="ts">
-  import { contextMenu } from "@atrix/ui"
-  import { listen } from "@tauri-apps/api/event"
-  import { getCurrentWebview } from "@tauri-apps/api/webview"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
-  import { t } from "svelte-i18n"
-  import { isVirtual, THIS_PC } from "../locations"
-  import { startCleanup, syncCleanupPlan } from "../store/cleanup.svelte"
-  import { BINDINGS, comboOf, runCommand } from "../store/commands"
-  import type { Explorer } from "../store/explorer.svelte"
-  import { presentMenus } from "../store/menu-popup.svelte"
-  import { openMenu, warmMenu } from "../store/menus"
-  import { refreshPlaces } from "../store/places.svelte"
-  import { prefs } from "../store/prefs.svelte"
-  import { propertiesView } from "../store/properties.svelte"
-  import { terminalPrefs } from "../store/terminal.svelte"
-  import AudioView from "./audio/AudioView.svelte"
-  import ItemsView from "./items/ItemsView.svelte"
-  import PreviewPane from "./panes/PreviewPane.svelte"
-  import StatusBar from "./panes/StatusBar.svelte"
-  import SettingsDialog from "./settings/SettingsDialog.svelte"
-  import SetupDialog from "./setup/SetupDialog.svelte"
-  import ShareHost from "./share/ShareHost.svelte"
-  import NavPane from "./sidebar/NavPane.svelte"
-  import TerminalPanel from "./terminal/TerminalPanel.svelte"
-  import CommandBar from "./toolbar/CommandBar.svelte"
-  import NavBar from "./toolbar/NavBar.svelte"
-  import CleanupPrompt from "./window/CleanupPrompt.svelte"
-  import DropHint from "./window/DropHint.svelte"
-  import PrivacyPrompt from "./window/PrivacyPrompt.svelte"
-  import PropertiesDialog from "./window/PropertiesDialog.svelte"
-  import RemovalPrompt from "./window/RemovalPrompt.svelte"
-  import TitleBar from "./window/TitleBar.svelte"
+import { listen } from "@tauri-apps/api/event"
+import { getCurrentWebview } from "@tauri-apps/api/webview"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
+import { isVirtual, THIS_PC } from "../locations"
+import { startCleanup, syncCleanupPlan } from "../store/cleanup.svelte"
+import { BINDINGS, comboOf, runCommand } from "../store/commands"
+import type { Explorer } from "../store/explorer.svelte"
+import { openMenu, warmMenu } from "../store/menus"
+import { refreshPlaces } from "../store/places.svelte"
+import { prefs } from "../store/prefs.svelte"
+import { propertiesView } from "../store/properties.svelte"
+import { terminal, terminalPrefs } from "../store/terminal.svelte"
+import AudioView from "./audio/AudioView.svelte"
+import ItemsView from "./items/ItemsView.svelte"
+import PreviewPane from "./panes/PreviewPane.svelte"
+import StatusBar from "./panes/StatusBar.svelte"
+import SettingsDialog from "./settings/SettingsDialog.svelte"
+import SetupDialog from "./setup/SetupDialog.svelte"
+import ShareHost from "./share/ShareHost.svelte"
+import NavPane from "./sidebar/NavPane.svelte"
+import TerminalPanel from "./terminal/TerminalPanel.svelte"
+import CommandBar from "./toolbar/CommandBar.svelte"
+import NavBar from "./toolbar/NavBar.svelte"
+import CleanupPrompt from "./window/CleanupPrompt.svelte"
+import DropHint from "./window/DropHint.svelte"
+import PrivacyPrompt from "./window/PrivacyPrompt.svelte"
+import PropertiesDialog from "./window/PropertiesDialog.svelte"
+import RemovalPrompt from "./window/RemovalPrompt.svelte"
+import TitleBar from "./window/TitleBar.svelte"
 
-  let { explorer, standalone = false }: { explorer: Explorer; standalone?: boolean } =
-    $props()
+let { explorer, standalone = false }: { explorer: Explorer; standalone?: boolean } =
+  $props()
 
-  const current = getCurrentWindow()
+const current = getCurrentWindow()
 
-  let view = $state<ReturnType<typeof ItemsView>>()
-  let nav = $state<ReturnType<typeof NavBar>>()
+const WARM_DELAY = 150
 
-  const tab = $derived(explorer.tab)
+let view = $state<ReturnType<typeof ItemsView>>()
 
-  const preview = $derived(
-    explorer.selected.length === 1 ? explorer.selected[0] : null,
+let nav = $state<ReturnType<typeof NavBar>>()
+
+const tab = $derived(explorer.tab)
+
+const preview = $derived(
+  explorer.selected.length === 1 ? explorer.selected[0] : null,
+)
+
+const side = $derived(
+  (terminal.position ?? terminalPrefs.position) === "side",
+)
+
+const busy = () =>
+  contextMenu.current !== null ||
+  propertiesView.paths.length > 0 ||
+  explorer.settingsOpen ||
+  explorer.setupOpen
+
+const keyboardMenu = () => {
+  const focus = tab.focus
+  const row = focus
+    ? document.querySelector(`[data-key="${CSS.escape(focus)}"]`)
+    : null
+  const box = row?.getBoundingClientRect()
+  const x = box ? box.left + box.width / 4 : window.innerWidth / 2
+  const y = box ? box.bottom : window.innerHeight / 2
+  const item = explorer.selected[0] ?? null
+
+  openMenu(
+    explorer,
+    new MouseEvent("contextmenu", { clientX: x, clientY: y }),
+    item,
+  )
+}
+
+const FOCUS: Record<string, () => void> = {
+  "Ctrl+F": () => nav?.focusSearch(),
+  "Ctrl+E": () => nav?.focusSearch(),
+  F3: () => nav?.focusSearch(),
+  "Ctrl+L": () => nav?.editAddress(),
+  "Alt+D": () => nav?.editAddress(),
+  F4: () => nav?.editAddress(),
+}
+
+const LOCAL: Record<string, () => unknown> = {
+  Escape: () => (tab.results ? tab.clearSearch() : tab.select([])),
+  "Shift+F10": keyboardMenu,
+  ContextMenu: keyboardMenu,
+  "Ctrl+Space": () => tab.focus && tab.toggle(tab.focus),
+}
+
+const onkeydowncapture = (e: KeyboardEvent) => {
+  const id = BINDINGS.capture.get(comboOf(e))
+
+  if (id) {
+    e.preventDefault()
+    e.stopPropagation()
+    runCommand(id, explorer)
+  }
+}
+
+const onkeydown = (e: KeyboardEvent) => {
+  const ctrl = e.ctrlKey || e.metaKey
+
+  if (e.key === "F5" || (ctrl && (e.code === "KeyR" || e.code === "KeyP"))) {
+    e.preventDefault()
+  }
+
+  if (busy()) {
+    return
+  }
+
+  const combo = comboOf(e)
+  const typing = !!(e.target as HTMLElement | null)?.closest(
+    "input, textarea, select, [contenteditable]",
   )
 
-  const WARM_DELAY = 150
-
-  const POPUP_IDLE = 2000
-
-  const busy = () =>
-    contextMenu.request !== null ||
-    propertiesView.paths.length > 0 ||
-    explorer.settingsOpen ||
-    explorer.setupOpen
-
-  const keyboardMenu = () => {
-    const focus = tab.focus
-    const row = focus
-      ? document.querySelector(`[data-key="${CSS.escape(focus)}"]`)
-      : null
-    const box = row?.getBoundingClientRect()
-    const x = box ? box.left + box.width / 4 : window.innerWidth / 2
-    const y = box ? box.bottom : window.innerHeight / 2
-    const item = explorer.selected[0] ?? null
-
-    openMenu(
-      explorer,
-      new MouseEvent("contextmenu", { clientX: x, clientY: y }),
-      item,
-    )
-  }
-
-  const FOCUS: Record<string, () => void> = {
-    "Ctrl+F": () => nav?.focusSearch(),
-    "Ctrl+E": () => nav?.focusSearch(),
-    F3: () => nav?.focusSearch(),
-    "Ctrl+L": () => nav?.editAddress(),
-    "Alt+D": () => nav?.editAddress(),
-    F4: () => nav?.editAddress(),
-  }
-
-  const LOCAL: Record<string, () => unknown> = {
-    Escape: () => (tab.results ? tab.clearSearch() : tab.select([])),
-    "Shift+F10": keyboardMenu,
-    ContextMenu: keyboardMenu,
-    "Ctrl+Space": () => tab.focus && tab.toggle(tab.focus),
-  }
-
-  const onkeydowncapture = (e: KeyboardEvent) => {
-    const id = BINDINGS.capture.get(comboOf(e))
-
-    if (id) {
-      e.preventDefault()
-      e.stopPropagation()
-      runCommand(id, explorer)
-    }
-  }
-
-  const onkeydown = (e: KeyboardEvent) => {
-    const ctrl = e.ctrlKey || e.metaKey
-
-    if (e.key === "F5" || (ctrl && (e.code === "KeyR" || e.code === "KeyP"))) {
-      e.preventDefault()
-    }
-
-    if (busy()) {
-      return
-    }
-
-    const combo = comboOf(e)
-    const typing = !!(e.target as HTMLElement | null)?.closest(
-      "input, textarea, select",
-    )
-
-    const handle = (run: () => unknown) => {
-      e.preventDefault()
-      run()
-    }
-
-    const global = BINDINGS.global.get(combo)
-
-    if (global) {
-      return handle(() => runCommand(global, explorer))
-    }
-
-    if (FOCUS[combo]) {
-      return handle(FOCUS[combo])
-    }
-
-    if (typing || e.altKey) {
-      return
-    }
-
-    const local = BINDINGS.local.get(combo)
-
-    if (local) {
-      return handle(() => runCommand(local, explorer))
-    }
-
-    if (LOCAL[combo]) {
-      return handle(LOCAL[combo])
-    }
-
-    if (view?.navigate(e)) {
-      e.preventDefault()
-    }
-  }
-
-  const sideButton = (e: MouseEvent) => e.button === 3 || e.button === 4
-
-  const onmousedown = (e: MouseEvent) => {
-    if (sideButton(e)) {
-      e.preventDefault()
-    }
-  }
-
-  const onmouseup = (e: MouseEvent) => {
-    if (!sideButton(e)) {
-      return
-    }
-
+  const handle = (run: () => unknown) => {
     e.preventDefault()
-
-    if (busy()) {
-      return
-    }
-
-    if (e.button === 3) {
-      tab.back()
-    } else {
-      tab.forward()
-    }
+    run()
   }
 
-  let dragged: string[] = []
+  const global = BINDINGS.global.get(combo)
 
-  const folderAt = (position: { x: number; y: number }) => {
-    const scale = window.devicePixelRatio
-    const zone = document
-      .elementFromPoint(position.x / scale, position.y / scale)
-      ?.closest<HTMLElement>("[data-drop-path], [data-key]")
-    const path =
-      zone?.dataset.dropPath ??
-      explorer.visible.find(item => item.dir && item.key === zone?.dataset.key)
-        ?.key
-
-    return path && !isVirtual(path) ? path : null
+  if (global) {
+    return handle(() => runCommand(global, explorer))
   }
 
-  $effect(startCleanup)
+  if (FOCUS[combo]) {
+    return handle(FOCUS[combo])
+  }
 
-  $effect(() => {
-    const timer = setTimeout(warmMenu, WARM_DELAY, explorer, explorer.selected)
+  if (typing || e.altKey) {
+    return
+  }
 
-    return () => clearTimeout(timer)
-  })
+  const local = BINDINGS.local.get(combo)
 
-  $effect(() => {
-    let stop: (() => void) | null = null
-    const idle = requestIdleCallback(
-      () => {
-        stop = presentMenus()
-      },
-      { timeout: POPUP_IDLE },
-    )
+  if (local) {
+    return handle(() => runCommand(local, explorer))
+  }
 
-    return () => {
-      cancelIdleCallback(idle)
-      stop?.()
-    }
-  })
+  if (LOCAL[combo]) {
+    return handle(LOCAL[combo])
+  }
 
-  $effect(syncCleanupPlan)
+  if (view?.navigate(e)) {
+    e.preventDefault()
+  }
+}
 
-  $effect(() => {
-    tab.inspect()
-  })
+const sideButton = (e: MouseEvent) => e.button === 3 || e.button === 4
 
-  $effect(() => {
-    tab.revisit()
-  })
+const onmousedown = (e: MouseEvent) => {
+  if (sideButton(e)) {
+    e.preventDefault()
+  }
+}
 
-  $effect(() => {
-    current
-      .setTitle(`${explorer.title(tab, $t)} - Atrix Files`)
-      .catch(() => undefined)
-  })
+const onmouseup = (e: MouseEvent) => {
+  if (!sideButton(e)) {
+    return
+  }
 
-  $effect(() => {
-    const stops = [
-      current.onFocusChanged(e => {
-        if (e.payload) {
-          explorer.forgetCut().catch(() => undefined)
-        }
-      }),
-      current.listen<string>("dir-changed", e => {
-        const id = Number(e.payload)
-        const changed = explorer.tabs.find(entry => entry.id === id)
+  e.preventDefault()
 
-        changed?.changed(changed === explorer.tab)
-      }),
-      listen("drives-changed", () => {
-        refreshPlaces()
+  if (busy()) {
+    return
+  }
 
-        if (explorer.tab.location === THIS_PC) {
-          explorer.tab.refresh().catch(() => undefined)
-        }
-      }),
-      getCurrentWebview().onDragDropEvent(e => {
-        const { payload } = e
+  if (e.button === 3) {
+    tab.back()
+  } else {
+    tab.forward()
+  }
+}
 
-        if (payload.type === "leave") {
-          explorer.dropKey = null
-          explorer.dropHint = null
+let dragged: string[] = []
 
-          return
-        }
+const folderAt = (position: { x: number; y: number }) => {
+  const scale = window.devicePixelRatio
+  const zone = document
+    .elementFromPoint(position.x / scale, position.y / scale)
+    ?.closest<HTMLElement>("[data-drop-path], [data-key]")
+  const path =
+    zone?.dataset.dropPath ??
+    explorer.visible.find(item => item.dir && item.key === zone?.dataset.key)
+      ?.key
 
-        if (payload.type === "enter") {
-          dragged = payload.paths
-        }
+  return path && !isVirtual(path) ? path : null
+}
 
-        const target = folderAt(payload.position)
+$effect(startCleanup)
 
-        explorer.dropKey = target
+$effect(() => {
+  const timer = setTimeout(warmMenu, WARM_DELAY, explorer, explorer.selected)
 
-        if (payload.type === "drop") {
-          explorer.dropKey = null
-          explorer.dropHint = null
-          explorer.drop(payload.paths, target)
+  return () => clearTimeout(timer)
+})
 
-          return
-        }
+$effect(syncCleanupPlan)
 
-        const plan = explorer.dropPlan(dragged, target)
-        const scale = window.devicePixelRatio
+$effect(() => {
+  tab.inspect()
+})
 
-        explorer.dropHint = plan && {
-          x: payload.position.x / scale,
-          y: payload.position.y / scale,
-          into: plan.into,
-          move: plan.move,
-          count: plan.changed.length,
-        }
-      }),
-    ]
+$effect(() => {
+  tab.revisit()
+})
 
-    return () => {
-      for (const stop of stops) {
-        stop.then(unlisten => unlisten())
+$effect(() => {
+  current.setTitle(`${explorer.title(tab)} - Atrix Files`).catch(() => undefined)
+})
+
+$effect(() => {
+  const stops = [
+    current.onFocusChanged(e => {
+      if (e.payload) {
+        explorer.forgetCut().catch(() => undefined)
       }
+    }),
+    current.listen<string>("dir-changed", e => {
+      const id = Number(e.payload)
+      const changed = explorer.tabs.find(entry => entry.id === id)
+
+      changed?.changed(changed === explorer.tab)
+    }),
+    listen("drives-changed", () => {
+      refreshPlaces()
+
+      if (explorer.tab.location === THIS_PC) {
+        explorer.tab.refresh().catch(() => undefined)
+      }
+    }),
+    getCurrentWebview().onDragDropEvent(e => {
+      const { payload } = e
+
+      if (payload.type === "leave") {
+        explorer.dropKey = null
+        explorer.dropHint = null
+
+        return
+      }
+
+      if (payload.type === "enter") {
+        dragged = payload.paths
+      }
+
+      const target = folderAt(payload.position)
+
+      explorer.dropKey = target
+
+      if (payload.type === "drop") {
+        explorer.dropKey = null
+        explorer.dropHint = null
+        explorer.drop(payload.paths, target)
+
+        return
+      }
+
+      const plan = explorer.dropPlan(dragged, target)
+      const scale = window.devicePixelRatio
+
+      explorer.dropHint = plan && {
+        x: payload.position.x / scale,
+        y: payload.position.y / scale,
+        into: plan.into,
+        move: plan.move,
+        count: plan.changed.length,
+      }
+    }),
+  ]
+
+  return () => {
+    for (const stop of stops) {
+      stop.then(unlisten => unlisten())
     }
-  })
+  }
+})
 </script>
 
 <svelte:window {onkeydown} {onkeydowncapture} {onmousedown} {onmouseup} />
 
-<div
-  class={[
-    "flex h-full min-h-0 flex-col select-none",
-    "[:root:has(&)_.toast.toast-bottom]:bottom-9",
-  ]}
->
+<div class="flex h-dvh min-h-0 flex-col bg-base-200 select-none">
   <TitleBar {explorer} />
 
-  <div class="flex min-h-0 grow flex-col bg-base-100/70">
-    <NavBar bind:this={nav} {explorer} />
+  <div
+    class={[
+      "flex min-h-0 flex-1 gap-2 px-2 pb-2",
+      side ? "flex-row" : "flex-col",
+    ]}
+  >
+    <div class="flex min-h-0 min-w-0 flex-1 gap-2">
+      <NavPane {explorer} />
 
-    {#if !prefs.compactToolbar}
-      <CommandBar {explorer} />
-    {/if}
+      <section
+        class="island flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        aria-label={explorer.title(tab)}
+      >
+        <NavBar bind:this={nav} {explorer} />
 
-    <div
-      class={[
-        "flex min-h-0 grow",
-        terminalPrefs.position === "side" ? "flex-row" : "flex-col",
-      ]}
-    >
-      <div class="flex min-h-0 min-w-0 grow">
-        <NavPane {explorer} />
+        {#if !prefs.compactToolbar}
+          <CommandBar {explorer} />
+        {/if}
 
         {#if tab.kind === "audio"}
           {#key tab.location}
@@ -330,15 +312,15 @@
           <ItemsView bind:this={view} {explorer} />
         {/if}
 
-        {#if prefs.preview}
-          <PreviewPane item={preview} {tab} />
-        {/if}
-      </div>
+        <StatusBar {explorer} />
+      </section>
 
-      <TerminalPanel {explorer} />
+      {#if prefs.preview}
+        <PreviewPane item={preview} {tab} />
+      {/if}
     </div>
 
-    <StatusBar {explorer} />
+    <TerminalPanel {explorer} />
   </div>
 </div>
 
@@ -353,6 +335,7 @@
 <PrivacyPrompt />
 
 <RemovalPrompt />
+
 <CleanupPrompt />
 
 <PropertiesDialog />

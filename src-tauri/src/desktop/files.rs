@@ -7,7 +7,7 @@ pub const HOST: Host = Host {
     marker: Some("--files"),
     app_name: "Atrix",
     prog_prefix: "Atrix",
-    peers: None,
+    peers: Some(crate::net::paired),
 };
 
 #[cfg(windows)]

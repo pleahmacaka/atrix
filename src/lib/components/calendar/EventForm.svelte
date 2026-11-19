@@ -1,7 +1,9 @@
 <script lang="ts">
 import { untrack } from "svelte"
 import { on } from "svelte/events"
-import { dateKey, dateTimeKey } from "#lib/calendar/dates.ts"
+import { cite } from "#lib/calendar/citations.ts"
+import { dateKey } from "#lib/calendar/dates.ts"
+import { blankDraft } from "#lib/calendar/draft.ts"
 import { shiftable } from "#lib/calendar/occurrence.ts"
 import type { EventTag } from "#lib/calendar/store.ts"
 import { COLOR_KEYS, COLORS } from "#lib/calendar/tags.ts"
@@ -9,13 +11,18 @@ import {
   type CalendarEvent,
   type Occurrence,
   RECURRENCES,
+  REMINDERS,
   type Recurrence,
   SHIFTS,
   type Shift,
 } from "#lib/calendar/types.ts"
 import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
+import type { Entry } from "#lib/knowledge/store.ts"
 import { m } from "#lib/paraglide/messages.js"
+import DocPicker from "./DocPicker.svelte"
 import TagPicker from "./TagPicker.svelte"
+
+type Reminder = (typeof REMINDERS)[number]
 
 let {
   event,
@@ -58,43 +65,34 @@ const SHIFT_LABELS: Record<Shift | "", () => string> = {
   previous: m.calendar_shift_previous,
 }
 
-const NEW_EVENT_HOUR = 9
-
-const blank = (): CalendarEvent => {
-  const start = new Date(day)
-
-  start.setHours(NEW_EVENT_HOUR, 0, 0, 0)
-
-  const end = new Date(start)
-
-  end.setHours(NEW_EVENT_HOUR + 1)
-
-  return {
-    id: crypto.randomUUID(),
-    title: "",
-    notes: "",
-    start: dateTimeKey(start),
-    end: dateTimeKey(end),
-    allDay: false,
-    color: "",
-    recurrence: "none",
-    tags: [],
-    exdates: [],
-    until: null,
-    shift: null,
-    seriesId: null,
-    originalDate: null,
-    notesSync: false,
-    createdBy: "",
-    updatedAt: 0,
+const reminderLabel = (minutes: Reminder) => {
+  switch (minutes) {
+    case null:
+      return m.panel_reminder_none()
+    case 0:
+      return m.panel_reminder_start()
+    case 60:
+      return m.panel_reminder_hour()
+    case 1440:
+      return m.panel_reminder_day()
+    default:
+      return m.panel_reminder_minutes({ count: minutes })
   }
 }
 
-const base = untrack(() => event ?? blank())
+const base = untrack(() => event ?? blankDraft(day))
 
 type Form = Pick<
   CalendarEvent,
-  "title" | "allDay" | "start" | "end" | "notes" | "color" | "recurrence" | "tags"
+  | "title"
+  | "allDay"
+  | "start"
+  | "end"
+  | "notes"
+  | "color"
+  | "recurrence"
+  | "tags"
+  | "reminder"
 > & { until: string; shift: Shift | "" }
 
 const form = $state<Form>({
@@ -108,9 +106,20 @@ const form = $state<Form>({
   until: base.until ?? "",
   shift: base.shift ?? "",
   tags: [...base.tags],
+  reminder: base.reminder,
 })
 
 let notesSync = $state(untrack(() => event?.notesSync ?? false))
+
+let notesField = $state<HTMLTextAreaElement>()
+
+const insertCitation = (entry: Entry) => {
+  const at = notesField?.selectionEnd ?? form.notes.length
+  const before = form.notes.slice(0, at)
+  const gap = before && !before.endsWith(" ") && !before.endsWith("\n") ? " " : ""
+
+  form.notes = `${before}${gap}${cite(entry.meta.id, entry.meta.title)}${form.notes.slice(at)}`
+}
 
 const toggleAllDay = (allDay: boolean) => {
   form.allDay = allDay
@@ -129,6 +138,7 @@ const submit = (e: SubmitEvent) => {
     title: form.title.trim(),
     until: recurring && form.until ? form.until : null,
     shift: recurring && shiftable(form.recurrence) && form.shift ? form.shift : null,
+    reminder: form.allDay ? null : form.reminder,
   })
 }
 
@@ -183,6 +193,16 @@ const today = dateKey(new Date())
       bind:value={form.end}
     />
   </label>
+  {#if !form.allDay}
+    <label class="flex flex-col gap-1 text-xs text-base-content/60">
+      {m.panel_reminder()}
+      <select class="select select-sm w-full" bind:value={form.reminder}>
+        {#each REMINDERS as option (option)}
+          <option value={option}>{reminderLabel(option)}</option>
+        {/each}
+      </select>
+    </label>
+  {/if}
   <label class="flex flex-col gap-1 text-xs text-base-content/60">
     {m.calendar_repeat()}
     <select class="select select-sm w-full" bind:value={form.recurrence}>
@@ -227,8 +247,12 @@ const today = dateKey(new Date())
     rows="3"
     placeholder={m.calendar_note()}
     aria-label={m.calendar_note()}
+    bind:this={notesField}
     bind:value={form.notes}
   ></textarea>
+  <div class="flex">
+    <DocPicker onpick={insertCitation} />
+  </div>
   {#if event?.seriesDate && onnotesync}
     <label class="flex cursor-pointer items-center gap-2 text-xs text-base-content/60">
       <input

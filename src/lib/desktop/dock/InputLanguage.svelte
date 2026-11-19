@@ -1,14 +1,9 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
   import { cycleInputLanguage, type InputLanguage, inputLanguage } from "#lib/desktop/native/quick.js"
+  import { m } from "#lib/paraglide/messages.js"
   import { dockAwake } from "./dock.svelte"
 
-  type Props = {
-    compact?: boolean
-    onvisible?: (visible: boolean) => void
-  }
-
-  let { compact = false, onvisible }: Props = $props()
+  let { compact = false }: { compact?: boolean } = $props()
 
   const POLL = 1_000
   const SETTLE = 150
@@ -36,25 +31,14 @@
 
     setTimeout(refresh, SETTLE)
   }
-
-  const visible = $derived(Boolean(info && info.layouts >= 2))
-
-  $effect(() => {
-    onvisible?.(visible)
-  })
-
-  const title = $derived(
-    info ? $t("tray.input.title", { values: { label: info.label } }) : "",
-  )
 </script>
 
-{#if info && visible}
+{#if info && info.layouts >= 2}
+  {@const title = m.dock_input_language({ label: info.label })}
+
   <button
     type="button"
-    class={[
-      "btn btn-ghost min-w-8 px-1.5 font-medium tabular-nums",
-      compact ? "btn-xs text-2xs" : "btn-sm text-xs",
-    ]}
+    class={["btn btn-ghost min-w-8 px-1.5 text-xs font-medium tabular-nums", compact ? "btn-xs" : "btn-sm"]}
     {title}
     aria-label={title}
     onclick={cycle}

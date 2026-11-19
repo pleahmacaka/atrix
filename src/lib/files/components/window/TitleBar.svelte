@@ -1,81 +1,75 @@
 <script lang="ts">
-  import { WindowControls } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import type { Explorer } from "../../store/explorer.svelte"
-  import ItemIcon from "../items/ItemIcon.svelte"
-  import { windowLabels } from "./labels"
+import IconButton from "#lib/components/ui/IconButton.svelte"
+import { m } from "#lib/paraglide/messages.js"
+import type { Explorer } from "../../store/explorer.svelte"
+import ItemIcon from "../items/ItemIcon.svelte"
+import { middleClick } from "../middleClick"
+import WindowControls from "./WindowControls.svelte"
 
-  let { explorer }: { explorer: Explorer } = $props()
+let { explorer }: { explorer: Explorer } = $props()
 </script>
 
 <header
+  class="flex h-10 shrink-0 items-center gap-1 ps-2 pe-1.5 select-none"
   data-tauri-drag-region
-  class="flex h-10 shrink-0 items-stretch bg-base-300/60 select-none"
 >
   <div
     role="tablist"
-    aria-label={$t("explorer.tabs.list")}
-    class="flex min-w-0 items-end gap-0.5 overflow-hidden pt-1.5 pl-2"
+    aria-label={m.files_tabs_list()}
+    class="flex min-w-0 shrink items-center gap-1"
   >
     {#each explorer.tabs as tab, index (tab.id)}
       {@const active = index === explorer.active}
-
+      {@const title = explorer.title(tab)}
       <div
         role="tab"
-        tabindex="-1"
+        tabindex={active ? 0 : -1}
         aria-selected={active}
-        title={explorer.title(tab, $t)}
+        {title}
         class={[
-          "group flex h-full w-60 min-w-24 cursor-pointer items-center gap-2",
-          "rounded-t-field px-3 text-sm transition-colors",
+          "group flex h-7 w-56 min-w-24 shrink cursor-pointer items-center gap-2",
+          "rounded-field ps-2.5 pe-1 text-sm transition-colors duration-140",
           active
-            ? "bg-base-100 text-base-content"
-            : "text-base-content/70 hover:bg-base-content/5",
+            ? "bg-primary/8 text-primary"
+            : "text-base-content/70 hover:bg-base-content/8 hover:text-base-content",
         ]}
         onclick={() => (explorer.active = index)}
-        onauxclick={e => e.button === 1 && explorer.close(index)}
-        onkeydown={() => undefined}
+        onkeydown={e => {
+          if (e.key === "Enter" || e.key === " ") {
+            explorer.active = index
+          }
+        }}
+        {@attach middleClick(() => explorer.close(index))}
       >
         <ItemIcon source={tab.location} rem={1} class="size-4 shrink-0" />
-
-        <span class="min-w-0 grow truncate">{explorer.title(tab, $t)}</span>
-
-        <button
-          type="button"
+        <span class="min-w-0 flex-1 truncate">{title}</span>
+        <IconButton
+          icon="lucide:x"
+          label={m.files_tabs_close()}
+          size="xs"
+          iconClass="size-3.5"
           class={[
-            "btn btn-ghost btn-square btn-xs shrink-0",
-            !active && "opacity-0 group-hover:opacity-100",
+            "shrink-0 transition-opacity duration-140",
+            !active &&
+              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           ]}
-          aria-label={$t("explorer.tabs.close")}
           onclick={e => {
             e.stopPropagation()
             explorer.close(index)
           }}
-        >
-          <Icon icon="lucide:x" class="size-3.5" />
-        </button>
+        />
       </div>
     {/each}
   </div>
 
-  <div class="flex items-center px-1 pt-1.5">
-    <button
-      type="button"
-      class={[
-        "grid size-7 cursor-pointer place-items-center rounded-field",
-        "text-base-content/70 transition-colors",
-        "hover:bg-base-content/5 hover:text-base-content",
-      ]}
-      aria-label={$t("explorer.tabs.new")}
-      title={$t("explorer.tabs.new")}
-      onclick={() => explorer.newTab()}
-    >
-      <Icon icon="lucide:plus" class="size-4" />
-    </button>
-  </div>
+  <IconButton
+    icon="lucide:plus"
+    label={m.files_tabs_new()}
+    class="shrink-0"
+    onclick={() => explorer.newTab()}
+  />
 
-  <div data-tauri-drag-region class="grow"></div>
+  <div class="h-full min-w-8 flex-1" data-tauri-drag-region></div>
 
-  <WindowControls labels={windowLabels($t)} />
+  <WindowControls />
 </header>

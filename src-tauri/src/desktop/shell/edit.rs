@@ -30,7 +30,6 @@ pub fn edit_mode(app: AppHandle, on: bool) {
     }
 
     windowing::hide(&app, "edit");
-    windowing::hide(&app, "launcher");
     lift_features(&app, false);
 
     let _ = app.emit("edit-mode", false);
@@ -39,7 +38,6 @@ pub fn edit_mode(app: AppHandle, on: bool) {
 #[tauri::command]
 pub fn edit_raise(app: AppHandle) {
     lift_features(&app, true);
-    windowing::show(&app, "launcher");
 
     let _ = app.emit("edit-mode", true);
 }

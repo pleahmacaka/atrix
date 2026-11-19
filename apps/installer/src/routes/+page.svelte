@@ -1,244 +1,240 @@
 <script lang="ts">
-  import { Logo, toast } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
-  import { invoke } from "@tauri-apps/api/core"
-  import { listen } from "@tauri-apps/api/event"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
-  import { t } from "svelte-i18n"
+import Icon from "@iconify/svelte"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import ComponentList from "#lib/components/ComponentList.svelte"
+import Logo from "#lib/components/Logo.svelte"
+import Screen from "#lib/components/Screen.svelte"
+import StepList from "#lib/components/StepList.svelte"
+import {
+  apply,
+  type Components,
+  differs,
+  launch,
+  type Overview,
+  onStep,
+  overview,
+  type Step,
+  uninstall,
+} from "#lib/installer.ts"
+import { m } from "#lib/messages.ts"
 
-  type Component = {
-    id: string
-    name: string
-    installed: string | null
-    available: boolean
-  }
+type View = "welcome" | "select" | "manage" | "confirm" | "progress" | "done"
 
-  type Progress = { id: string; state: "running" | "done" | "failed"; error: string | null }
+type Task = "install" | "change" | "remove"
 
-  type Overview = {
-    version: string
-    update: boolean
-    preset: string[]
-    components: Component[]
-    progress: Progress[]
-    finished: boolean
-  }
+const RUNNING: Record<Task, string> = {
+  install: m.install_running,
+  change: m.change_running,
+  remove: m.remove_running,
+}
 
-  const ICONS: Record<string, string> = {
-    files: "lucide:folder-open",
-    terminal: "lucide:square-terminal",
-  }
+const DONE: Record<Task, string> = {
+  install: m.install_done,
+  change: m.change_done,
+  remove: m.remove_done,
+}
 
-  let overview = $state<Overview>({
-    version: "",
-    update: false,
-    preset: [],
-    components: [],
-    progress: [],
-    finished: false,
+const FAILED: Record<Task, string> = {
+  install: m.install_failed,
+  change: m.change_failed,
+  remove: m.remove_failed,
+}
+
+let info = $state<Overview>()
+let chosen = $state<Components>({ shell: false, files: false, terminal: true })
+let view = $state<View>("welcome")
+let task = $state<Task>("install")
+let steps = $state<Step[]>([])
+let error = $state<string>()
+let launchError = $state<string>()
+
+const changed = $derived(
+  info !== undefined && (info.outdated || differs(chosen, info.components)),
+)
+
+const load = async () => {
+  info = await overview()
+  chosen = { ...info.components }
+  view = info.installed ? "manage" : "welcome"
+}
+
+const record = (step: Step) => {
+  steps = steps.some(s => s.id === step.id)
+    ? steps.map(s => (s.id === step.id ? step : s))
+    : [...steps, step]
+}
+
+const run = async (next: Task, work: () => Promise<void>) => {
+  task = next
+  steps = []
+  error = undefined
+  view = "progress"
+
+  await work().catch(reason => {
+    error = String(reason)
   })
-  let selected = $state(new Set<string>())
-  let progress = $state<Record<string, Progress>>({})
-  let phase = $state<"choose" | "running" | "done">("choose")
-  let release = $state<string | null>(null)
-  let updating = $state(false)
 
-  const chosen = $derived(overview.components.filter(c => selected.has(c.id)))
-  const updatesOnly = $derived(chosen.length > 0 && chosen.every(c => c.installed))
-  const failed = $derived(Object.values(progress).some(p => p.state === "failed"))
+  view = "done"
+}
 
-  const statusOf = (c: Component) => {
-    if (!c.available) {
-      return $t("installer.unavailable")
-    }
+const close = () => getCurrentWindow().close()
 
-    if (!c.installed) {
-      return ""
-    }
-
-    return c.installed === overview.version
-      ? $t("installer.installed")
-      : $t("installer.installedVersion", { values: { version: c.installed } })
-  }
-
-  const toggle = (id: string) => {
-    const next = new Set(selected)
-
-    if (!next.delete(id)) {
-      next.add(id)
-    }
-
-    selected = next
-  }
-
-  const record = (step: Progress) => {
-    progress = { ...progress, [step.id]: step }
-  }
-
-  const install = () => {
-    phase = "running"
-    progress = {}
-
-    invoke("install", { ids: [...selected] }).catch(reason => toast(String(reason), "error"))
-  }
-
-  const updateInstaller = async () => {
-    updating = true
-
-    await invoke("self_update").catch(reason => {
-      toast($t("installer.updateFailed", { values: { reason: String(reason) } }), "error")
-    })
-
-    updating = false
-  }
-
-  $effect(() => {
-    const stops = [
-      listen<Progress>("install-progress", e => record(e.payload)),
-      listen("install-finished", async () => {
-        phase = "done"
-        overview = await invoke<Overview>("overview")
-      }),
-    ]
-
-    Promise.all(stops).then(async () => {
-      overview = await invoke<Overview>("overview")
-      selected = new Set(overview.preset)
-      overview.progress.forEach(record)
-
-      if (overview.finished) {
-        phase = "done"
-      } else if (overview.update) {
-        phase = "running"
-      } else {
-        release = await invoke<string | null>("check_update").catch(() => null)
-      }
-    })
-
-    return () => {
-      for (const stop of stops) {
-        stop.then(fn => fn())
-      }
-    }
+const start = () =>
+  launch().catch(reason => {
+    launchError = String(reason)
   })
+
+$effect(() => {
+  const stop = onStep(record)
+
+  load()
+
+  return () => {
+    stop.then(off => off())
+  }
+})
 </script>
 
-<main class="relative flex h-dvh flex-col gap-5 p-6">
-  <header class="flex items-center gap-3">
-    <Logo class="size-10" />
-
-    <div class="flex flex-col">
-      <h1 class="text-xl font-semibold tracking-tight">{$t("installer.title")}</h1>
-
-      {#if overview.version}
-        <span class="text-xs text-base-content/60 tabular-nums">
-          {$t("installer.version", { values: { version: overview.version } })}
-        </span>
+{#if info}
+  {#if view === "welcome"}
+    <Screen title={m.install_title} lead={m.version(info.version)}>
+      <div
+        class="island flex grow flex-col items-center justify-center gap-4 p-6"
+      >
+        <Logo class="size-20" />
+        <p class="text-center text-sm text-base-content/70">
+          {m.welcome_lead}
+        </p>
+        {#if !info.available}
+          <div role="alert" class="alert alert-error alert-soft text-sm">
+            <Icon icon="lucide:circle-alert" class="size-4 shrink-0" />
+            {m.missing_payload}
+          </div>
+        {/if}
+      </div>
+      {#snippet actions()}
+        <button
+          type="button"
+          class="btn btn-primary"
+          disabled={!info?.available}
+          onclick={() => (view = "select")}
+        >
+          {m.next}
+        </button>
+      {/snippet}
+    </Screen>
+  {:else if view === "select"}
+    <Screen title={m.select_title} lead={m.select_lead}>
+      <ComponentList platform={info.platform} bind:value={chosen} />
+      {#snippet actions()}
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick={() => (view = "welcome")}
+        >
+          {m.back}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick={() => run("install", () => apply(chosen))}
+        >
+          {m.install}
+        </button>
+      {/snippet}
+    </Screen>
+  {:else if view === "manage"}
+    <Screen title={m.manage_title} lead={m.manage_lead}>
+      <ComponentList platform={info.platform} bind:value={chosen} />
+      {#if info.outdated}
+        <div role="status" class="alert alert-info alert-soft text-sm">
+          <Icon icon="lucide:circle-arrow-up" class="size-4 shrink-0" />
+          {m.outdated(info.version)}
+        </div>
       {/if}
-    </div>
-  </header>
-
-  {#if release}
-    <div class="atrix-card flex items-center gap-3 px-4 py-3">
-      <Icon icon="lucide:sparkles" class="size-4 shrink-0 text-primary" />
-
-      <span class="grow text-sm">
-        {$t("installer.newInstaller", { values: { version: release } })}
-      </span>
-
-      <button
-        type="button"
-        class="btn btn-soft btn-primary btn-sm"
-        disabled={updating || phase === "running"}
-        onclick={updateInstaller}
+      {#snippet actions()}
+        <button
+          type="button"
+          class="btn btn-ghost me-auto text-error"
+          onclick={() => (view = "confirm")}
+        >
+          <Icon icon="lucide:trash-2" class="size-4" />
+          {m.remove}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          disabled={!changed}
+          onclick={() => run("change", () => apply(chosen))}
+        >
+          {m.apply}
+        </button>
+      {/snippet}
+    </Screen>
+  {:else if view === "confirm"}
+    <Screen title={m.remove_title}>
+      <div
+        class="island flex grow flex-col items-center justify-center gap-4 p-6"
       >
-        {#if updating}
-          <span class="loading loading-spinner loading-xs"></span>
+        <Icon icon="lucide:trash-2" class="size-12 text-error" />
+        <p class="text-center text-sm text-base-content/70">
+          {m.remove_lead}
+        </p>
+      </div>
+      {#snippet actions()}
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick={() => (view = "manage")}
+        >
+          {m.cancel}
+        </button>
+        <button
+          type="button"
+          class="btn btn-error"
+          onclick={() => run("remove", uninstall)}
+        >
+          {m.remove}
+        </button>
+      {/snippet}
+    </Screen>
+  {:else if view === "progress"}
+    <Screen title={RUNNING[task]}>
+      <StepList {steps} />
+    </Screen>
+  {:else}
+    <Screen
+      title={error ? FAILED[task] : DONE[task]}
+      lead={error ? m.failed_lead : undefined}
+    >
+      <StepList {steps} />
+      {#if error ?? launchError}
+        <div role="alert" class="alert alert-error alert-soft text-sm">
+          <Icon icon="lucide:circle-alert" class="size-4 shrink-0" />
+          <span class="min-w-0 wrap-anywhere select-text">
+            {error ?? launchError}
+          </span>
+        </div>
+      {/if}
+      {#snippet actions()}
+        {#if error}
+          <button type="button" class="btn btn-ghost" onclick={load}>
+            {m.retry}
+          </button>
         {/if}
-
-        {$t("installer.getInstaller")}
-      </button>
-    </div>
-  {/if}
-
-  <section class="flex min-h-0 grow flex-col gap-2">
-    <h2 class="text-sm font-medium text-base-content/60">{$t("installer.components")}</h2>
-
-    <ul class="flex flex-col gap-2">
-      {#each overview.components as c (c.id)}
-        {@const step = progress[c.id]}
-
-        <li>
-          <label
-            class={[
-              "atrix-card flex items-center gap-3 px-4 py-3",
-              c.available && phase === "choose" ? "cursor-pointer" : "opacity-70",
-            ]}
-          >
-            <input
-              type="checkbox"
-              class="checkbox checkbox-primary checkbox-sm"
-              checked={selected.has(c.id)}
-              disabled={!c.available || phase !== "choose"}
-              onchange={() => toggle(c.id)}
-            />
-
-            <div class="flex size-9 shrink-0 items-center justify-center rounded-field bg-primary/15 text-primary">
-              {#if c.id === "atrix"}
-                <Logo class="size-5" />
-              {:else}
-                <Icon icon={ICONS[c.id]} class="size-5" />
-              {/if}
-            </div>
-
-            <div class="flex min-w-0 grow flex-col">
-              <span class="text-sm font-semibold">{c.name}</span>
-
-              <span class="truncate text-xs text-base-content/60">
-                {step?.state === "failed" ? step.error : $t(`installer.apps.${c.id}`)}
-              </span>
-            </div>
-
-            {#if step?.state === "running"}
-              <span class="loading loading-spinner loading-sm text-primary"></span>
-            {:else if step?.state === "done"}
-              <Icon icon="lucide:check" class="size-5 text-success" />
-            {:else if step?.state === "failed"}
-              <Icon icon="lucide:circle-x" class="size-5 text-error" />
-            {:else if statusOf(c)}
-              <span class="badge badge-soft badge-sm tabular-nums">{statusOf(c)}</span>
-            {/if}
-          </label>
-        </li>
-      {/each}
-    </ul>
-
-    <p class="text-xs text-base-content/50">{$t("installer.hint")}</p>
-  </section>
-
-  <footer class="flex items-center justify-end gap-3">
-    {#if phase === "done"}
-      <span class={["grow text-sm", failed ? "text-error" : "text-success"]}>
-        {$t(failed ? "installer.partial" : "installer.done")}
-      </span>
-
-      <button type="button" class="btn btn-primary" onclick={() => getCurrentWindow().close()}>
-        {$t("common.close")}
-      </button>
-    {:else}
-      <button
-        type="button"
-        class="btn btn-primary min-w-28"
-        disabled={phase === "running" || chosen.length === 0}
-        onclick={install}
-      >
-        {#if phase === "running"}
-          <span class="loading loading-spinner loading-sm"></span>
-          {$t("installer.installing")}
+        {#if !error && task === "install"}
+          <button type="button" class="btn btn-ghost" onclick={close}>
+            {m.close}
+          </button>
+          <button type="button" class="btn btn-primary" onclick={start}>
+            {m.launch}
+          </button>
         {:else}
-          {$t(updatesOnly ? "installer.update" : "installer.install")}
+          <button type="button" class="btn btn-primary" onclick={close}>
+            {m.close}
+          </button>
         {/if}
-      </button>
-    {/if}
-  </footer>
-</main>
+      {/snippet}
+    </Screen>
+  {/if}
+{/if}

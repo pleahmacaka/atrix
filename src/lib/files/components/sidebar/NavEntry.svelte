@@ -1,60 +1,66 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { Snippet } from "svelte"
-  import { prefetchOnHover } from "../../store/prefetch"
-  import ItemIcon from "../items/ItemIcon.svelte"
-  import { middleClick } from "../middleClick"
+import TreeRow from "#lib/components/ui/TreeRow.svelte"
+import type { Drive } from "../../native"
+import { prefetchOnHover } from "../../store/prefetch"
+import { middleClick } from "../middleClick"
 
-  let {
-    label,
-    location,
-    active,
-    nested = false,
-    icon = null,
-    onopen,
-    onaux,
-    onmenu,
-    onpress,
-    children,
-  }: {
-    label: string
-    location: string
-    active: boolean
-    nested?: boolean
-    icon?: string | null
-    onopen: () => void
-    onaux: () => void
-    onmenu: (e: MouseEvent) => void
-    onpress?: (e: PointerEvent) => void
-    children?: Snippet
-  } = $props()
+const LOW_SPACE = 0.1
+
+let {
+  label,
+  location,
+  icon,
+  active,
+  dropping = false,
+  drive,
+  onopen,
+  onaux,
+  onmenu,
+  onpress,
+}: {
+  label: string
+  location: string
+  icon: string
+  active: boolean
+  dropping?: boolean
+  drive?: Drive
+  onopen: () => void
+  onaux: () => void
+  onmenu: (e: MouseEvent) => void
+  onpress?: (e: PointerEvent) => void
+} = $props()
+
+const used = $derived(
+  drive && drive.total > 0 ? (drive.total - drive.free) / drive.total : null,
+)
 </script>
 
-<button
-  type="button"
-  title={label}
-  data-drop-path={location}
-  {@attach prefetchOnHover(location)}
-  {@attach middleClick(onaux)}
+<div
   class={[
-    "flex w-full cursor-pointer flex-col gap-1 rounded-field py-1.5 pr-2",
-    "text-left text-sm transition-colors",
-    nested ? "pl-7" : "pl-2",
-    active ? "bg-base-content/10 font-medium" : "hover:bg-base-content/5",
+    "flex flex-col rounded-field transition-colors duration-140",
+    dropping && "bg-primary/12",
   ]}
-  onclick={onopen}
-  onpointerdown={onpress}
-  oncontextmenu={onmenu}
 >
-  <span class="flex min-w-0 items-center gap-2">
-    {#if icon}
-      <Icon {icon} class="size-4 shrink-0 text-primary" />
-    {:else}
-      <ItemIcon source={location} rem={1} class="size-4 shrink-0" />
-    {/if}
-
-    <span class="min-w-0 truncate">{label}</span>
-  </span>
-
-  {@render children?.()}
-</button>
+  <TreeRow
+    {icon}
+    {label}
+    title={label}
+    selected={active}
+    data-drop-path={location}
+    onclick={onopen}
+    onpointerdown={onpress}
+    oncontextmenu={onmenu}
+    {@attach prefetchOnHover(location)}
+    {@attach middleClick(onaux)}
+  />
+  {#if used !== null}
+    <progress
+      class={[
+        "progress ms-8 me-2 mb-1 h-1 w-auto",
+        used > 1 - LOW_SPACE ? "progress-error" : "progress-primary",
+      ]}
+      value={used}
+      max="1"
+    ></progress>
+  {/if}
+</div>

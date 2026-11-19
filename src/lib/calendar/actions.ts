@@ -22,6 +22,7 @@ export const notesOnly = (occurrence: Occurrence, draft: CalendarEvent) => {
     "recurrence",
     "until",
     "shift",
+    "reminder",
   ] as const
 
   return (

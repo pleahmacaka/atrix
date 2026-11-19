@@ -54,7 +54,7 @@ mod share;
 mod usage;
 
 pub use diagnostics::log_panics;
-pub use share::endpoint_id;
+pub use share::mount as mount_share;
 #[cfg(desktop)]
 mod tensors;
 #[cfg(desktop)]
@@ -70,11 +70,6 @@ mod verbs;
 mod watch;
 
 pub(crate) const IDENTIFIER: &str = "com.arixlab.atrix.files";
-const SCHEME: &str = if cfg!(debug_assertions) {
-    "atrix-files-dev://"
-} else {
-    "atrix-files://"
-};
 
 pub type PeerList = fn(&AppHandle) -> Vec<(String, String)>;
 
@@ -99,7 +94,6 @@ pub const STANDALONE: Host = Host {
     peers: None,
 };
 
-// the share identity and paired devices must survive moving between the standalone app and Atrix
 pub(crate) fn data_dir(app: &AppHandle) -> tauri::Result<std::path::PathBuf> {
     Ok(app
         .path()
@@ -276,14 +270,7 @@ pub fn init(host: Host) -> TauriPlugin<Wry> {
             address::run_address,
             share::commands::share_state,
             share::commands::share_take_attention,
-            share::commands::share_rename_self,
-            share::commands::share_invite,
-            share::commands::share_join,
-            share::commands::share_dismiss_pair,
-            share::commands::share_rename_device,
-            share::commands::share_remove_device,
             share::commands::share_local,
-            share::commands::share_qr,
             share::commands::share_browse,
             share::commands::share_browse_fetch,
             share::commands::share_browse_answer,
@@ -334,23 +321,17 @@ pub fn show(app: &AppHandle, target: Option<String>, select: bool) -> bool {
 
 pub fn claims(host: &Host, args: &[String]) -> bool {
     args.iter()
-        .any(|arg| host.marker.is_some_and(|marker| arg == marker) || arg.starts_with(SCHEME))
+        .any(|arg| host.marker.is_some_and(|marker| arg == marker))
 }
 
 #[cfg(desktop)]
-pub fn start(app: &AppHandle, mut args: Vec<String>, cwd: &Path) -> bool {
-    share::take_links(app, &mut args);
-
+pub fn start(app: &AppHandle, args: Vec<String>, cwd: &Path) -> bool {
     launch::start(app, &args, cwd)
 }
 
 #[cfg(desktop)]
-pub fn forward(app: &AppHandle, mut args: Vec<String>, cwd: String) {
+pub fn forward(app: &AppHandle, args: Vec<String>, cwd: String) {
     let app = app.clone();
-
-    if share::take_links(&app, &mut args) && args.len() <= 1 && share::focus_window(&app) {
-        return;
-    }
 
     std::thread::spawn(move || launch::forward(&app, &args, &cwd));
 }

@@ -7,6 +7,7 @@ import AppearanceTab from "./AppearanceTab.svelte"
 import CalendarTab from "./CalendarTab.svelte"
 import ChannelsTab from "./ChannelsTab.svelte"
 import DatasourceTab from "./DatasourceTab.svelte"
+import DesktopTab from "./DesktopTab.svelte"
 import GatewayTab from "./GatewayTab.svelte"
 import GeneralTab from "./GeneralTab.svelte"
 import HarnessTab from "./HarnessTab.svelte"
@@ -83,4 +84,14 @@ export const SETTINGS_TABS: {
     icon: "lucide:monitor-smartphone",
     body: PairPanel,
   },
+  ...(desktop
+    ? [
+        {
+          id: "desktop" as const,
+          label: m.desktop_tab(),
+          icon: "lucide:monitor",
+          body: DesktopTab,
+        },
+      ]
+    : []),
 ]

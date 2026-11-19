@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { Confirm } from "@atrix/ui"
-  import { t } from "svelte-i18n"
+  import { m } from "#lib/paraglide/messages.js"
   import { answerRemoval, removal } from "../../store/removal.svelte"
+  import ConfirmDialog from "./ConfirmDialog.svelte"
 
   const open = () => removal.names !== null
 
-  // Confirm clears `open` before calling onconfirm, so a dismissal waits a tick for the confirm to land first
+  // ConfirmDialog clears `open` before calling onconfirm, so a dismissal waits a tick for the confirm to land first
   const dismiss = (next: boolean) => {
     const asked = removal.names
 
@@ -19,12 +19,10 @@
   }
 </script>
 
-<Confirm
+<ConfirmDialog
   bind:open={open, dismiss}
-  title={$t("explorer.removePlace.title")}
-  body={$t("explorer.removePlace.body", {
-    values: { name: removal.names?.join(", ") ?? "" },
-  })}
-  action={$t("explorer.removePlace.action")}
+  title={m.files_remove_place_title()}
+  body={m.files_remove_place_body({ name: removal.names?.join(", ") ?? "" })}
+  action={m.files_remove_place_action()}
   onconfirm={() => answerRemoval(true)}
 />

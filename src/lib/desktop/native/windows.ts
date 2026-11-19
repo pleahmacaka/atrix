@@ -15,7 +15,6 @@ export type WindowLabel =
   | "launcher"
   | "taskbar"
   | "topbar"
-  | "settings"
   | "panel"
   | "notices"
   | "onboarding"

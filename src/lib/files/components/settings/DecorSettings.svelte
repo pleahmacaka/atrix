@@ -1,16 +1,29 @@
 <script lang="ts">
-  import { Row, Section, Segmented } from "@atrix/ui"
-  import { t } from "svelte-i18n"
+  import Section from "#lib/components/ui/Section.svelte"
+  import Select from "#lib/components/ui/Select.svelte"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { m } from "#lib/paraglide/messages.js"
   import type { GitHead } from "../../native"
   import { CLEANUP_HOURS, enableCleanup } from "../../store/cleanup.svelte"
-  import { prefs } from "../../store/prefs.svelte"
+  import {
+    type CleanupColor,
+    prefs,
+    type RepoPart,
+  } from "../../store/prefs.svelte"
   import CleanupBadge from "../items/CleanupBadge.svelte"
   import { CLEANUP_COLORS } from "../items/decor"
   import RepoChip from "../items/RepoChip.svelte"
   import GitHostSettings from "./GitHostSettings.svelte"
   import OrderList from "./OrderList.svelte"
 
-  type Toggle = "duplicates" | "gitColors" | "emptyFolders"
+  const TOGGLES: {
+    key: "duplicates" | "gitColors" | "emptyFolders"
+    label: () => string
+  }[] = [
+    { key: "duplicates", label: m.files_settings_decor_duplicates },
+    { key: "gitColors", label: m.files_settings_decor_git_colors },
+    { key: "emptyFolders", label: m.files_settings_decor_empty_folders },
+  ]
 
   const SAMPLE: GitHead = {
     branch: "main",
@@ -20,108 +33,111 @@
     ],
   }
 
-  const PART_ICONS = {
-    logo: "simple-icons:github",
-    host: "lucide:globe",
-    repo: "lucide:book-marked",
-    branch: "lucide:git-branch",
-    fork: "lucide:git-fork",
+  const PARTS: Record<RepoPart, { icon: string; label: () => string }> = {
+    logo: {
+      icon: "simple-icons:github",
+      label: m.files_settings_repo_chip_parts_logo,
+    },
+    host: { icon: "lucide:globe", label: m.files_settings_repo_chip_parts_host },
+    repo: {
+      icon: "lucide:book-marked",
+      label: m.files_settings_repo_chip_parts_repo,
+    },
+    branch: {
+      icon: "lucide:git-branch",
+      label: m.files_settings_repo_chip_parts_branch,
+    },
+    fork: { icon: "lucide:git-fork", label: m.files_settings_repo_chip_parts_fork },
+  }
+
+  const COLOR_LABELS: Record<CleanupColor, () => string> = {
+    orange: m.files_settings_cleanup_colors_orange,
+    amber: m.files_settings_cleanup_colors_amber,
+    red: m.files_settings_cleanup_colors_red,
+    primary: m.files_settings_cleanup_colors_primary,
   }
 </script>
 
-{#snippet switchRow(key: Toggle)}
-  <Row
-    label={$t(`explorer.settings.decor.${key}`)}
-    hint={$t(`explorer.settings.decor.${key}Hint`)}
-  >
-    <input
-      type="checkbox"
-      class="toggle toggle-primary"
-      aria-label={$t(`explorer.settings.decor.${key}`)}
-      bind:checked={prefs[key]}
-    />
-  </Row>
-{/snippet}
-
-<Section title={$t("explorer.settings.decor.title")}>
-  {@render switchRow("duplicates")}
-  {@render switchRow("gitColors")}
-  {@render switchRow("emptyFolders")}
+<Section>
+  {#each TOGGLES as toggle (toggle.key)}
+    <SettingRow title={toggle.label()}>
+      <input
+        type="checkbox"
+        class="toggle toggle-sm toggle-primary"
+        aria-label={toggle.label()}
+        bind:checked={prefs[toggle.key]}
+      />
+    </SettingRow>
+  {/each}
 </Section>
 
-<Section title={$t("explorer.settings.repoChip.title")}>
-  <Row
-    label={$t("explorer.settings.repoChip.title")}
-    hint={$t("explorer.settings.order.hint")}
-  >
-    <span class="flex" inert>
+<Section title={m.files_settings_repo_chip_title()}>
+  {#snippet actions()}
+    <span class="flex min-w-0" inert>
       <RepoChip kind="repo" head={SAMPLE} />
     </span>
-  </Row>
+  {/snippet}
 
   <OrderList
     bind:arrangement={prefs.repoChip}
-    label={$t("explorer.settings.repoChip.title")}
-    labelOf={id => $t(`explorer.settings.repoChip.parts.${id}`)}
-    iconOf={id => PART_ICONS[id]}
+    label={m.files_settings_repo_chip_title()}
+    labelOf={id => PARTS[id].label()}
+    iconOf={id => PARTS[id].icon}
   />
 </Section>
 
 <GitHostSettings />
 
-<Section title={$t("explorer.settings.cleanup.title")}>
-  <Row
-    label={$t("explorer.settings.cleanup.enabled")}
-    hint={$t("explorer.settings.cleanup.enabledHint")}
-  >
+<Section title={m.files_settings_cleanup_title()}>
+  <SettingRow title={m.files_settings_cleanup_enabled()}>
     <input
       type="checkbox"
-      class="toggle toggle-primary"
-      aria-label={$t("explorer.settings.cleanup.enabled")}
+      class="toggle toggle-sm toggle-primary"
+      aria-label={m.files_settings_cleanup_enabled()}
       checked={prefs.cleanup}
       onchange={e => enableCleanup(e.currentTarget.checked)}
     />
-  </Row>
+  </SettingRow>
 
   {#if prefs.cleanup}
-    <Row label={$t("explorer.settings.cleanup.hours")}>
-      <Segmented
-        bind:value={prefs.cleanupHours}
-        label={$t("explorer.settings.cleanup.hours")}
+    <SettingRow title={m.files_settings_cleanup_hours()}>
+      <Select
+        class="w-32 max-sm:w-full"
+        label={m.files_settings_cleanup_hours()}
         options={CLEANUP_HOURS.map(hours => ({
           value: hours,
-          label: $t("explorer.settings.cleanup.hoursValue", { values: { hours } }),
+          label: m.files_settings_cleanup_hours_value({ hours }),
         }))}
+        bind:value={prefs.cleanupHours}
       />
-    </Row>
+    </SettingRow>
 
-    <Row label={$t("explorer.settings.cleanup.color")}>
+    <SettingRow title={m.files_settings_cleanup_color()}>
+      <CleanupBadge hours={prefs.cleanupHours} />
+
       <fieldset
-        aria-label={$t("explorer.settings.cleanup.color")}
+        aria-label={m.files_settings_cleanup_color()}
         class="flex items-center gap-2"
       >
         {#each CLEANUP_COLORS as color (color.id)}
-          {@const active = prefs.cleanupColor === color.id}
-          {@const label = $t(`explorer.settings.cleanup.colors.${color.id}`)}
+          {@const selected = prefs.cleanupColor === color.id}
+          {@const label = COLOR_LABELS[color.id]()}
 
           <button
             type="button"
-            aria-pressed={active}
+            aria-pressed={selected}
             aria-label={label}
             title={label}
             class={[
-              "size-6 cursor-pointer rounded-full",
+              "size-6 cursor-pointer rounded-full ring-offset-2 ring-offset-base-100",
+              "transition duration-140",
               color.swatch,
-              active ? "ring-2 ring-base-content/60 ring-offset-2 ring-offset-base-100" : "opacity-70 hover:opacity-100",
+              selected ? "ring-2 ring-base-content/60" : "opacity-70 hover:opacity-100",
             ]}
             onclick={() => (prefs.cleanupColor = color.id)}
           ></button>
         {/each}
-
-        <span class="ml-2 flex">
-          <CleanupBadge hours={prefs.cleanupHours} />
-        </span>
       </fieldset>
-    </Row>
+    </SettingRow>
   {/if}
 </Section>

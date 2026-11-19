@@ -1,11 +1,5 @@
 import { getChoseong } from "es-hangul"
-import {
-  groupLabel,
-  type Result,
-  type ResultGroup,
-  type ResultKind,
-  type TimerKind,
-} from "./types"
+import type { Result, ResultGroup, ResultKind, TimerKind } from "./types"
 
 export type Route =
   | { mode: "run"; text: string }
@@ -296,8 +290,11 @@ const KIND_ORDER: ResultKind[] = [
   "clip",
   "app",
   "window",
+  "conversation",
+  "doc",
   "setting",
   "command",
+  "atrix",
   "web",
 ]
 
@@ -306,6 +303,7 @@ const topScore = (group: ResultGroup) => group.items[0]?.score ?? 0
 export const groupResults = (
   items: Result[],
   limit: (kind: ResultKind) => number,
+  label: (kind: ResultKind) => string,
 ): ResultGroup[] => {
   const byKind = new Map<ResultKind, Result[]>()
 
@@ -327,7 +325,7 @@ export const groupResults = (
       .sort((a, b) => b.score - a.score)
       .slice(0, limit(kind))
 
-    return [{ kind, label: groupLabel(kind), start: 0, items: sorted }]
+    return [{ kind, label: label(kind), start: 0, items: sorted }]
   })
 
   groups.sort((a, b) => {

@@ -1,11 +1,24 @@
 <!doctype html>
-<html lang="en" data-theme="atrix-dark" data-surface="window" data-window="installer">
+<html lang="en" data-theme="atrix-light">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		<title>Atrix</title>
+		<script>
+			{
+				const dark = matchMedia("(prefers-color-scheme: dark)")
+				const apply = () => {
+					document.documentElement.dataset.theme = dark.matches ? "atrix-dark" : "atrix-light"
+				}
+
+				apply()
+				dark.addEventListener("change", apply)
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="false">
-		<div class="contents">%sveltekit.body%</div>
+		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

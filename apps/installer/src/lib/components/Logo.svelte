@@ -1,0 +1,11 @@
+<script lang="ts">
+import type { ClassValue } from "svelte/elements"
+
+let { class: extra }: { class?: ClassValue } = $props()
+</script>
+
+<svg class={extra} viewBox="0 0 132 160" aria-hidden="true">
+  <path d="M66 0 L66 135.2 L0 147.6 Z" fill="#9E6ADD" />
+  <path d="M66 0 L66 135.2 L132 147.6 Z" fill="#BAA3DB" />
+  <path d="M0 147.6 L66 135.2 L132 147.6 L66 160 Z" fill="#7E32DE" />
+</svg>

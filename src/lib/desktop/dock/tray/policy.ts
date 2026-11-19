@@ -1,109 +1,28 @@
-import type { DeviceSettings, TraySlot } from "@atrix/settings"
-import type { Battery, SystemInfo } from "#lib/desktop/native/index.js"
+import type { Battery } from "#lib/desktop/native/index.js"
+import { m } from "#lib/paraglide/messages.js"
 
-export type Translate = (
-  key: string,
-  options?: { values: Record<string, string | number> },
-) => string
-
-export type Widget =
-  | "claude"
-  | "tray"
-  | "media"
-  | "input"
-  | "meters"
-  | "bluetooth"
-  | "battery"
-  | "volume"
-
-export const hidePatch: Partial<Record<TraySlot, Partial<DeviceSettings>>> = {
-  taskview: { showTaskView: false },
-  claude: { showClaudeUsage: false },
-  tray: { showTrayIcons: false },
-  media: { showMedia: false },
-  input: { showInputLanguage: false },
-  meters: { showMeters: false, showNetwork: false },
-  bluetooth: { showBluetooth: false },
-  battery: { showBattery: false },
-  volume: { showVolume: false },
-  bell: { showNotifications: false },
-  settings: { showSettingsButton: false },
-  desktop: { showDesktopButton: false },
-}
-
-export function traySlots(
-  device: DeviceSettings,
-  info: SystemInfo,
-  defaults: readonly TraySlot[],
-): TraySlot[] {
-  const widgets = [
-    device.showClaudeUsage && device.claudeUsageSide === "right" && "claude",
-    device.showTrayIcons && "tray",
-    device.showMedia && device.mediaSide === "right" && "media",
-    device.showInputLanguage && "input",
-    (device.showMeters || device.showNetwork) && "meters",
-    device.showBluetooth && "bluetooth",
-    device.showBattery && info.battery !== null && "battery",
-    device.showVolume && info.volume !== null && "volume",
-  ].filter((w): w is Widget => typeof w === "string")
-  const enabled = new Set<TraySlot>(
-    [
-      device.showTaskView && "taskview",
-      ...widgets,
-      "clock",
-      device.showNotifications && "bell",
-      device.showSettingsButton && "settings",
-      device.showDesktopButton && "desktop",
-    ].filter((id): id is TraySlot => typeof id === "string"),
-  )
-  const seen = new Set<TraySlot>()
-  const slots: TraySlot[] = []
-  for (const id of [...device.traySlots, ...defaults]) {
-    if (enabled.has(id) && !seen.has(id)) {
-      seen.add(id)
-      slots.push(id)
-    }
-  }
-  return slots
-}
-
-export function reorderSlot(
-  slots: readonly TraySlot[],
-  from: TraySlot,
-  onto: TraySlot,
-  before: boolean,
-): TraySlot[] {
-  const ids = slots.filter(id => id !== from)
-  const at = ids.indexOf(onto)
-  ids.splice(at < 0 ? ids.length : before ? at : at + 1, 0, from)
-  return ids
-}
-
-export function batteryIcon(battery: Battery | null): string {
-  if (!battery) {
-    return ""
-  }
+export function batteryIcon(battery: Battery): string {
   if (battery.charging) {
     return "lucide:battery-charging"
   }
+
   if (battery.percent >= 80) {
     return "lucide:battery-full"
   }
+
   if (battery.percent >= 40) {
     return "lucide:battery-medium"
   }
+
   if (battery.percent >= 15) {
     return "lucide:battery-low"
   }
+
   return "lucide:battery-warning"
 }
 
-export function batteryTitle(battery: Battery | null, t: Translate): string {
-  if (!battery) {
-    return ""
-  }
-  const level = t("tray.battery.level", {
-    values: { percent: battery.percent },
-  })
-  return battery.charging ? `${level}, ${t("tray.battery.charging")}` : level
+export function batteryTitle(battery: Battery): string {
+  return battery.charging
+    ? m.dock_battery_charging({ percent: battery.percent })
+    : m.dock_battery_level({ percent: battery.percent })
 }

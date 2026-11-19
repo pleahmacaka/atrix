@@ -1,9 +1,11 @@
-import { tr } from "@atrix/i18n"
-import type { MenuAction } from "@atrix/ui"
+import { m } from "#lib/paraglide/messages.js"
+import type { MenuAction } from "#lib/store/contextMenu.svelte.ts"
 import { COMMANDS, type CommandId, menuItem } from "./commands"
 import type { Explorer } from "./explorer.svelte"
 
-type Look = { label: string; icon: string }
+export type FileAction = MenuAction & { id?: string }
+
+type Look = { label: () => string; icon: string }
 
 const command = (id: CommandId): Look => ({
   label: COMMANDS[id].label,
@@ -13,38 +15,38 @@ const command = (id: CommandId): Look => ({
 const LOOKS: Record<string, Look> = {
   open: command("open"),
   openInNewTab: {
-    label: "explorer.commands.openInNewTab",
+    label: m.files_commands_open_in_new_tab,
     icon: "lucide:panel-top",
   },
   openInNewWindow: {
-    label: "explorer.commands.openInNewWindow",
+    label: m.files_commands_open_in_new_window,
     icon: "lucide:app-window",
   },
-  openWith: { label: "explorer.commands.openWith", icon: "lucide:layout-grid" },
-  view: { label: "explorer.commands.view", icon: "lucide:table-2" },
+  openWith: { label: m.files_commands_open_with, icon: "lucide:layout-grid" },
+  view: { label: m.files_commands_view, icon: "lucide:table-2" },
   refresh: command("refresh"),
   extractHere: {
-    label: "explorer.bandizip.extractHere",
+    label: m.files_bandizip_extract_here,
     icon: "lucide:package-open",
   },
   extractAuto: {
-    label: "explorer.bandizip.extractAuto",
+    label: m.files_bandizip_extract_auto,
     icon: "lucide:wand-sparkles",
   },
   extractNamed: {
-    label: "explorer.settings.contextMenu.items.extractNamed",
+    label: m.files_settings_context_menu_items_extract_named,
     icon: "lucide:folder-output",
   },
   compressZip: {
-    label: "explorer.settings.contextMenu.items.compressZip",
+    label: m.files_settings_context_menu_items_compress_zip,
     icon: "lucide:file-archive",
   },
   compress7z: {
-    label: "explorer.settings.contextMenu.items.compress7z",
+    label: m.files_settings_context_menu_items_compress7z,
     icon: "lucide:file-archive",
   },
   compressEach: {
-    label: "explorer.bandizip.compressEach",
+    label: m.files_bandizip_compress_each,
     icon: "lucide:files",
   },
   cut: command("cut"),
@@ -53,7 +55,7 @@ const LOOKS: Record<string, Look> = {
   copyPath: command("copyPath"),
   rename: command("rename"),
   resetName: {
-    label: "explorer.commands.resetName",
+    label: m.files_commands_reset_name,
     icon: "lucide:rotate-ccw",
   },
   delete: command("delete"),
@@ -61,50 +63,50 @@ const LOOKS: Record<string, Look> = {
   deletePermanently: command("deletePermanently"),
   newFolder: command("newFolder"),
   emptyBin: command("emptyBin"),
-  pin: { label: "explorer.commands.pin", icon: "lucide:pin" },
-  private: { label: "explorer.commands.markPrivate", icon: "lucide:eye-off" },
-  eject: { label: "explorer.commands.eject", icon: "lucide:eject" },
-  hideDevice: { label: "explorer.commands.hideDevice", icon: "lucide:eye-off" },
+  pin: { label: m.files_commands_pin, icon: "lucide:pin" },
+  private: { label: m.files_commands_mark_private, icon: "lucide:eye-off" },
+  eject: { label: m.files_commands_eject, icon: "lucide:eject" },
+  hideDevice: { label: m.files_commands_hide_device, icon: "lucide:eye-off" },
   hiddenDevices: {
-    label: "explorer.commands.showHiddenDevices",
+    label: m.files_commands_show_hidden_devices,
     icon: "lucide:eye",
   },
-  disconnect: { label: "explorer.commands.disconnect", icon: "lucide:unplug" },
+  disconnect: { label: m.files_commands_disconnect, icon: "lucide:unplug" },
   mapDrive: {
-    label: "explorer.commands.mapDrive",
+    label: m.files_commands_map_drive,
     icon: "lucide:hard-drive-upload",
   },
-  unmapDrive: { label: "explorer.commands.unmapDrive", icon: "lucide:unplug" },
+  unmapDrive: { label: m.files_commands_unmap_drive, icon: "lucide:unplug" },
   addNetworkLocation: {
-    label: "explorer.commands.addNetworkLocation",
+    label: m.files_commands_add_network_location,
     icon: "lucide:folder-plus",
   },
   properties: command("properties"),
   moreOptions: {
-    label: "explorer.commands.moreOptions",
+    label: m.files_commands_more_options,
     icon: "lucide:ellipsis",
   },
 }
 
 export const LOCKED_ITEMS = ["moreOptions"]
 
-export const entryLabel = (id: string) => tr(LOOKS[id]?.label ?? id)
+export const entryLabel = (id: string) => LOOKS[id]?.label() ?? id
 
 export const entryIcon = (id: string) => LOOKS[id]?.icon ?? "lucide:circle"
 
 export const entry = (
   id: string,
-  action: MenuAction["action"],
-  extra: Partial<MenuAction> = {},
-): MenuAction => ({
+  run: MenuAction["run"],
+  extra: Partial<FileAction> = {},
+): FileAction => ({
   id,
   label: entryLabel(id),
   icon: entryIcon(id),
-  action,
+  run,
   ...extra,
 })
 
-export const commandEntry = (id: CommandId, x: Explorer): MenuAction => ({
+export const commandEntry = (id: CommandId, x: Explorer): FileAction => ({
   ...menuItem(id, x),
   id,
 })

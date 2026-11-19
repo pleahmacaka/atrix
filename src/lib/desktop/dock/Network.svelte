@@ -1,27 +1,52 @@
 <script lang="ts">
-  import type { DockEdge } from "@atrix/settings"
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
+  import MenuItem from "#lib/components/ui/MenuItem.svelte"
+  import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
   import { type RadioState, radios, setRadio } from "#lib/desktop/native/quick.js"
-  import { type NetworkInfo, openUrl } from "#lib/desktop/native/system.js"
-  import type { MenuBox } from "./layout.svelte"
+  import { type NetworkInfo, openUrl, systemMeters } from "#lib/desktop/native/system.js"
+  import { m } from "#lib/paraglide/messages.js"
+  import { dockAwake } from "./dock.svelte"
+  import { radioError } from "./radio"
 
-  type Props = {
-    network: NetworkInfo | null
-    edge?: DockEdge
-    onmenu?: (rect: MenuBox | null) => void
-    onrefresh?: () => void
-  }
+  let { compact = false, placement }: { compact?: boolean; placement: Placement } =
+    $props()
 
-  let { network, edge = "bottom", onmenu, onrefresh }: Props = $props()
+  const POLL = 10_000
   const SETTLE = 1_500
 
+  const SIGNAL = [
+    "lucide:wifi-zero",
+    "lucide:wifi-low",
+    "lucide:wifi-low",
+    "lucide:wifi-high",
+    "lucide:wifi",
+  ]
+
+  let network = $state<NetworkInfo | null>(null)
+  let loaded = $state(false)
   let open = $state(false)
-  let popover = $state<HTMLElement>()
-  let popoverHeight = $state(0)
   let radio = $state<RadioState | null>(null)
   let busy = $state(false)
   let error = $state("")
+
+  const refresh = async () => {
+    const meters = await systemMeters().catch(() => null)
+
+    network = meters?.network ?? null
+    loaded = meters !== null
+  }
+
+  $effect(() => {
+    if (!dockAwake.visible) {
+      return
+    }
+
+    refresh()
+
+    const timer = setInterval(refresh, POLL)
+
+    return () => clearInterval(timer)
+  })
 
   const readRadio = async () => {
     const list = await radios().catch(() => [])
@@ -29,24 +54,10 @@
     radio = list.find(r => r.kind === "wifi")?.state ?? null
   }
 
-  const setOpen = (next: boolean) => {
-    if (open === next) {
-      return
-    }
-
-    open = next
-    error = ""
-
-    if (next) {
-      readRadio()
-    } else {
-      onmenu?.(null)
-    }
-  }
-
   $effect(() => {
-    if (open && popover && popoverHeight > 0) {
-      onmenu?.(popover.getBoundingClientRect())
+    if (open) {
+      error = ""
+      readRadio()
     }
   })
 
@@ -60,36 +71,17 @@
 
     await readRadio()
     busy = false
-
-    setTimeout(() => onrefresh?.(), SETTLE)
+    setTimeout(refresh, SETTLE)
   }
 
   const go = (url: string) => {
-    setOpen(false)
+    open = false
     openUrl(url).catch(() => undefined)
   }
 
-  const onmousedown = (e: MouseEvent) => {
-    if (open && !(e.target as Element).closest("[data-network]")) {
-      setOpen(false)
-    }
-  }
-
-  const onkeydown = (e: KeyboardEvent) => {
-    if (open && e.key === "Escape") {
-      setOpen(false)
-    }
-  }
-
-  $effect(() => {
-    const close = () => setOpen(false)
-
-    window.addEventListener("atrix-close-menus", close)
-
-    return () => window.removeEventListener("atrix-close-menus", close)
-  })
-
   const online = $derived(Boolean(network?.connected) && network?.kind !== "none")
+
+  const name = $derived(network?.ssid || network?.name || m.dock_network_connected())
 
   const icon = $derived.by(() => {
     if (!network || !online) {
@@ -100,107 +92,73 @@
       return "lucide:ethernet-port"
     }
 
-    if (network.signal >= 4) {
-      return "lucide:wifi"
-    }
-
-    if (network.signal === 3) {
-      return "lucide:wifi-high"
-    }
-
-    return network.signal >= 1 ? "lucide:wifi-low" : "lucide:wifi-zero"
+    return SIGNAL[Math.max(0, Math.min(4, network.signal - 1))]
   })
 
   const title = $derived.by(() => {
     if (!network || !online) {
-      return $t("tray.network.none")
+      return m.dock_network_none()
     }
-
-    const name = network.ssid || network.name || $t("tray.network.connected")
 
     return network.kind === "wifi"
-      ? `${name} · ${$t("tray.network.signal", { values: { bars: network.signal } })}`
+      ? m.dock_network_wifi_title({ name, bars: network.signal })
       : name
-  })
-
-  const errorText = $derived.by(() => {
-    if (!error) {
-      return ""
-    }
-
-    if (error === "denied-user" || error === "denied-system") {
-      return $t(`tray.network.${error === "denied-user" ? "deniedUser" : "deniedSystem"}`)
-    }
-
-    if (error === "missing") {
-      return $t("tray.network.noRadio")
-    }
-
-    return $t("tray.network.radioFailed")
   })
 </script>
 
-<svelte:window {onmousedown} {onkeydown} />
+{#if loaded}
+  <Popover label={m.dock_network()} {placement} width="w-72" bind:open>
+    {#snippet trigger(p)}
+      <button
+        {...p}
+        type="button"
+        class={[
+          "btn btn-ghost btn-square",
+          compact ? "btn-xs" : "btn-sm",
+          !online && "text-base-content/50",
+          open && "bg-primary/8 text-primary",
+        ]}
+        {title}
+        aria-label={title}
+      >
+        <Icon {icon} class="size-4" />
+      </button>
+    {/snippet}
 
-<div class="relative" data-network>
-  <button
-    type="button"
-    class={["btn btn-ghost btn-square btn-sm", !online && "text-base-content/50"]}
-    {title}
-    aria-label={title}
-    aria-haspopup="dialog"
-    aria-expanded={open}
-    onclick={() => setOpen(!open)}
-  >
-    <Icon {icon} class="size-4" />
-  </button>
-
-  {#if open}
-    <div
-      bind:this={popover}
-      bind:offsetHeight={popoverHeight}
-      class={[
-        "atrix-card absolute right-0 z-50 w-72 p-3",
-        edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
-      ]}
-      role="dialog"
-      aria-label={$t("tray.network.title")}
-    >
+    <section class="flex flex-col gap-3 p-3 text-sm">
       <div class="flex items-center gap-3">
         <Icon {icon} class="size-5 shrink-0 text-base-content/70" />
 
-        <div class="min-w-0 grow">
-          <p class="flex items-center gap-2 truncate text-sm font-medium">
-            {online ? network?.ssid || network?.name || $t("tray.network.connected") : $t("tray.network.none")}
-
-            <span class="badge badge-soft badge-info badge-xs">{$t("common.partial")}</span>
+        <div class="min-w-0 flex-1">
+          <p class="truncate font-medium" title={online ? name : undefined}>
+            {online ? name : m.dock_network_none()}
           </p>
 
           {#if online && network?.kind === "wifi"}
-            <div class="mt-1 flex items-end gap-0.5" aria-hidden="true">
+            <div class="flex items-end gap-0.5" aria-hidden="true">
               {#each [1, 2, 3, 4, 5] as bar (bar)}
                 <span
                   class={[
                     "w-1 rounded-full",
-                    bar <= network.signal ? "bg-primary" : "bg-base-content/15",
+                    bar <= network.signal ? "bg-primary" : "bg-base-300",
                   ]}
                   style:height="{bar * 0.15 + 0.15}rem"
                 ></span>
               {/each}
 
-              <span class="ml-1 text-2xs text-base-content/55">
-                {$t("tray.network.signal", { values: { bars: network.signal } })}
+              <span class="ml-1 text-xs text-base-content/60">
+                {m.dock_network_signal({ bars: network.signal })}
               </span>
             </div>
           {:else if online}
-            <p class="text-xs text-base-content/55">{$t("tray.network.ethernet")}</p>
+            <p class="text-xs text-base-content/60">{m.dock_network_ethernet()}</p>
           {/if}
         </div>
       </div>
 
       {#if radio !== null}
-        <label class="mt-3 flex items-center justify-between border-t border-base-content/10 pt-3 text-xs">
-          <span>{$t("tray.network.wifi")}</span>
+        <label class="flex cursor-pointer items-center justify-between gap-3">
+          <span>{m.dock_wifi()}</span>
 
           <input
             type="checkbox"
@@ -211,42 +169,30 @@
           />
         </label>
 
-        {#if errorText}
-          <p class="mt-1 text-xs text-error" role="alert">{errorText}</p>
+        {#if error}
+          <p class="text-xs text-error" role="alert">{radioError(error)}</p>
         {/if}
       {/if}
 
-      <div class="mt-3 grid gap-1 border-t border-base-content/10 pt-3">
-        <button
-          type="button"
-          class="btn btn-sm btn-block justify-start"
+      <div class="flex flex-col">
+        <MenuItem
+          icon="lucide:wifi"
+          label={m.dock_network_available()}
           onclick={() => go("ms-availablenetworks:")}
-        >
-          <Icon icon="lucide:wifi" class="size-4" />
+        />
 
-          {$t("tray.network.available")}
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-block justify-start"
+        <MenuItem
+          icon="lucide:settings-2"
+          label={m.dock_network_settings()}
           onclick={() => go("ms-settings:network")}
-        >
-          <Icon icon="lucide:settings-2" class="size-4" />
+        />
 
-          {$t("tray.network.settings")}
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-block justify-start"
+        <MenuItem
+          icon="lucide:plane"
+          label={m.dock_airplane()}
           onclick={() => go("ms-settings:network-airplanemode")}
-        >
-          <Icon icon="lucide:plane" class="size-4" />
-
-          {$t("tray.network.airplane")}
-        </button>
+        />
       </div>
-    </div>
-  {/if}
-</div>
+    </section>
+  </Popover>
+{/if}

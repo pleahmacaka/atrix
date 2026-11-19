@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
+  import { m } from "#lib/paraglide/messages.js"
   import { prefs } from "../../store/prefs.svelte"
   import { cleanupBadge } from "./decor"
 
@@ -13,8 +13,8 @@
   ]}
 >
   {hours > 48
-    ? $t("explorer.decor.deleteInDays", { values: { days: Math.ceil(hours / 24) } })
+    ? m.files_decor_delete_in_days({ days: Math.ceil(hours / 24) })
     : hours > 0
-      ? $t("explorer.decor.deleteIn", { values: { hours } })
-      : $t("explorer.decor.due")}
+      ? m.files_decor_delete_in({ hours })
+      : m.files_decor_due()}
 </span>

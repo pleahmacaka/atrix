@@ -4,9 +4,10 @@ mod roster;
 mod wire;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use iroh::endpoint::{Connection, presets};
+use iroh::protocol::{Router, RouterBuilder};
 use iroh::{Endpoint, EndpointId};
 use n0_future::task::spawn;
 use n0_future::time::{Duration, SystemTime};
@@ -15,6 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 
 pub use iroh::SecretKey as Key;
 
+use links::Accept;
 use wire::{Frame, HOST_ALPN, PAIR_ALPN};
 
 const DIAL_TIMEOUT: Duration = Duration::from_secs(20);
@@ -98,6 +100,8 @@ struct State {
 
 struct Inner {
     endpoint: Endpoint,
+    // iroh stops accepting connections once the Router is dropped
+    router: OnceLock<Router>,
     state: Mutex<State>,
     events: mpsc::UnboundedSender<Event>,
 }
@@ -120,18 +124,31 @@ fn parse_id(id: &str) -> Result<EndpointId, String> {
     id.parse().map_err(|_| format!("peer_invalid:{id}"))
 }
 
+pub async fn bind(secret: Key) -> Result<RouterBuilder, String> {
+    let endpoint = Endpoint::builder(presets::N0)
+        .secret_key(secret)
+        .bind()
+        .await
+        .map_err(|e| format!("net_bind:{e}"))?;
+
+    Ok(Router::builder(endpoint))
+}
+
 impl Node {
     pub async fn start(
         secret: Key,
         members: Vec<Member>,
         info: Info,
     ) -> Result<(Node, mpsc::UnboundedReceiver<Event>), String> {
-        let endpoint = Endpoint::builder(presets::N0)
-            .secret_key(secret)
-            .alpns(vec![HOST_ALPN.to_vec(), PAIR_ALPN.to_vec()])
-            .bind()
-            .await
-            .map_err(|e| format!("net_bind:{e}"))?;
+        Ok(Node::serve(bind(secret).await?, members, info))
+    }
+
+    pub fn serve(
+        router: RouterBuilder,
+        members: Vec<Member>,
+        info: Info,
+    ) -> (Node, mpsc::UnboundedReceiver<Event>) {
+        let endpoint = router.endpoint().clone();
         let me = endpoint.id().to_string();
         let members = members
             .into_iter()
@@ -141,6 +158,7 @@ impl Node {
         let (events, receiver) = mpsc::unbounded_channel();
         let node = Node(Arc::new(Inner {
             endpoint,
+            router: OnceLock::new(),
             state: Mutex::new(State {
                 info,
                 members,
@@ -148,11 +166,16 @@ impl Node {
             }),
             events,
         }));
+        let router = router
+            .accept(HOST_ALPN, Accept(node.clone()))
+            .accept(PAIR_ALPN, Accept(node.clone()))
+            .spawn();
 
-        spawn(node.clone().accept_loop());
+        let _ = node.0.router.set(router);
+
         spawn(node.clone().sweep_loop());
 
-        Ok((node, receiver))
+        (node, receiver)
     }
 
     pub fn id(&self) -> String {

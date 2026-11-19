@@ -62,19 +62,17 @@ roxmltree = "0.21.1"
 rustfft = "6.4.1"
 tauri-plugin-autostart = "2.7.0"
 tauri-plugin-global-shortcut = "2.4.1"
-tauri-plugin-notification = "2.6.0"
 walkdir = "2.5.0"
 windows = { version = "0.62.2", features = ["Devices_Bluetooth", "Devices_Enumeration", "Devices_Radios", "Foundation_Collections", "Media_Control", "Networking_Connectivity", "Win32_Devices_FunctionDiscovery", "Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_Media_KernelStreaming", "Win32_Media_Multimedia", "Win32_Security", "Win32_Storage_EnhancedStorage", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Console", "Win32_System_DataExchange", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Ole", "Win32_System_Power", "Win32_System_Registry", "Win32_System_Shutdown", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Variant", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_Shell_PropertiesSystem", "Win32_UI_WindowsAndMessaging"] }
 windows-core = "0.62"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 atrix-window-kit = { version = "0.1.0", path = "../crates/window-kit" }
-portable-pty = "0.9"
 tauri-plugin-atrix-files = { version = "0.1.0", path = "../crates/files" }
 tauri-plugin-atrix-terminal = { version = "0.1.0", path = "../crates/terminal" }
 tauri-plugin-clipboard-manager = "2.4.2"
-tauri-plugin-deep-link = "2"
 tauri-plugin-dialog = "2.8.2"
+tauri-plugin-notification = "2.6.0"
 tauri-plugin-process = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-store = "2.5.0"

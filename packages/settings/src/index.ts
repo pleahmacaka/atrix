@@ -1,22 +1,13 @@
-// Public facade: keep internal module boundaries out of consumers.
+export { applyAppearance } from "./appearance"
 export {
-  applyAppearance,
-  resolveMode,
-  systemAccentHue,
-} from "./appearance"
-export {
-  CUSTOM_PRESET,
   DOCK_ALIGNS,
   DOCK_STYLES,
   defaultAppearance,
   defaultDevice,
   defaultProfile,
-  presetAppearances,
   SYSTEM_FONT,
   standaloneLook,
   TERMINAL_APPS,
-  WINDOW_BACKGROUNDS,
-  type WindowSurface,
 } from "./defaults"
 export {
   type Appearance,
@@ -36,10 +27,20 @@ export {
   type EventTag,
   type Features,
   isLastEntryPoint,
+  type LauncherPrefs,
   type LauncherTrigger,
+  type PanelPosition,
+  type PanelStart,
   type PinPath,
-  type Pins,
   type Profile,
+  type ShellBar,
+  type ShellGroup,
+  type ShellItem,
+  type ShellItemKind,
+  type ShellLayout,
+  type ShellZone,
+  type ShellZoneId,
+  type ShellZoneSize,
   type SpectrumStyle,
   type TerminalApp,
   type ThemeMode,
@@ -49,26 +50,16 @@ export {
   type TraySlot,
   type WebSearchEngine,
 } from "./model"
-export {
-  sanitizeWidgets,
-  standaloneAppearance,
-  withProfileDefaults,
-} from "./normalize"
-export { hasPin } from "./pins"
+export { standaloneAppearance } from "./normalize"
 export {
   DEVICE_EVENT,
   loadDevice,
-  loadPins,
   loadProfile,
-  loadSyncedProfile,
   onDevice,
-  onPins,
   onProfile,
   PROFILE_EVENT,
   saveDevice,
   saveProfile,
-  saveSyncedProfile,
-  togglePin,
   updateDevice,
   updateProfile,
 } from "./store"

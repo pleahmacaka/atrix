@@ -2,6 +2,7 @@ mod agents;
 mod backdrop;
 mod bridge;
 mod channels;
+#[cfg(windows)]
 mod console;
 mod datasource;
 mod desktop;
@@ -19,8 +20,6 @@ mod pcb;
 mod platform;
 mod presence;
 mod process;
-#[cfg(desktop)]
-mod pty;
 mod secret;
 mod stdio;
 #[cfg(desktop)]
@@ -91,7 +90,7 @@ fn on_page_load(webview: &tauri::Webview, payload: &tauri::webview::PageLoadPayl
     webview.state::<agents::Agents>().kill_all();
 
     #[cfg(desktop)]
-    webview.state::<pty::Ptys>().kill_all();
+    tauri_plugin_atrix_terminal::close_window(webview.app_handle(), "main");
 }
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -162,8 +161,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = desktop::plugins(builder, components, headless)
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
-        .manage(pty::Ptys::default());
+        .plugin(tauri_plugin_process::init());
 
     let builder = builder
         .setup(move |app| {
@@ -212,16 +210,10 @@ pub fn run() {
             channels::channel_token_set,
             channels::channel_token_clear,
             channels::channel_token_present,
-            console::terminal_type,
-            console::terminal_interrupt,
-            console::terminal_keys,
-            console::terminal_screen,
             usage::usage_graph,
             usage::usage_autosubmit,
             usage::usage_autosubmit_status,
             backdrop::window_backdrop,
-            console::terminal_paste_image,
-            console::clipboard_image,
             datasource::ds_list,
             datasource::ds_create,
             datasource::ds_delete,
@@ -264,14 +256,6 @@ pub fn run() {
             float::float_open,
             #[cfg(desktop)]
             tray::tray_labels,
-            #[cfg(desktop)]
-            pty::pty_open,
-            #[cfg(desktop)]
-            pty::pty_write,
-            #[cfg(desktop)]
-            pty::pty_resize,
-            #[cfg(desktop)]
-            pty::pty_close,
             pcb::pcb_project,
             pcb::pcb_read,
             pcb::pcb_files,
@@ -296,9 +280,6 @@ pub fn run() {
 
                 app.state::<agents::Agents>().kill_all();
                 app.state::<kg::Store>().kill();
-
-                #[cfg(desktop)]
-                app.state::<pty::Ptys>().kill_all();
             }
             _ => {}
         });

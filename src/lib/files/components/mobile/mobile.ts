@@ -1,3 +1,4 @@
+import { m } from "#lib/paraglide/messages.js"
 import { fileGlyph } from "../../fileicons"
 import { assetUrl, call } from "../../native"
 
@@ -41,37 +42,37 @@ const MEDIA = new Set([
 export const CATEGORIES = [
   {
     folder: "Download",
-    label: "mobile.categories.download",
+    label: m.files_mobile_categories_download,
     icon: "lucide:download",
     tone: "text-info bg-info/15",
   },
   {
     folder: "Documents",
-    label: "mobile.categories.documents",
+    label: m.files_mobile_categories_documents,
     icon: "lucide:file-text",
     tone: "text-warning bg-warning/15",
   },
   {
     folder: "DCIM",
-    label: "mobile.categories.camera",
+    label: m.files_mobile_categories_camera,
     icon: "lucide:camera",
     tone: "text-success bg-success/15",
   },
   {
     folder: "Pictures",
-    label: "mobile.categories.pictures",
+    label: m.files_mobile_categories_pictures,
     icon: "lucide:image",
     tone: "text-accent bg-accent/15",
   },
   {
     folder: "Movies",
-    label: "mobile.categories.videos",
+    label: m.files_mobile_categories_videos,
     icon: "lucide:film",
     tone: "text-secondary bg-secondary/15",
   },
   {
     folder: "Music",
-    label: "mobile.categories.music",
+    label: m.files_mobile_categories_music,
     icon: "lucide:music",
     tone: "text-error bg-error/15",
   },

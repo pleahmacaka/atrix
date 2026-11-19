@@ -1,5 +1,6 @@
-import { tr } from "@atrix/i18n"
 import { Effect } from "effect"
+import { m } from "#lib/paraglide/messages.js"
+import { DRIVE_LABELS } from "../labels"
 import {
   HOME,
   isDriveRoot,
@@ -38,55 +39,47 @@ const shareName = (remote: string) => {
     : remote
 }
 
-const systemLabel = (drive: Drive, translate: (key: string) => string) => {
-  const kind = drive.kind === "fixed" ? "local" : drive.kind
+const systemLabel = (drive: Drive) =>
+  (drive.remote && shareName(drive.remote)) ||
+  drive.label ||
+  DRIVE_LABELS[drive.kind]()
 
-  return (
-    (drive.remote && shareName(drive.remote)) ||
-    drive.label ||
-    translate(`explorer.drive.${kind}`)
-  )
-}
+export const driveLabel = (drive: Drive) =>
+  prefs.driveNames[drive.path] || systemLabel(drive)
 
-export const driveLabel = (drive: Drive, translate: (key: string) => string) =>
-  prefs.driveNames[drive.path] || systemLabel(drive, translate)
-
-export const driveName = (drive: Drive, translate: (key: string) => string) =>
-  `${driveLabel(drive, translate)} (${WINDOWS ? drive.path.slice(0, 2) : drive.path})`
+export const driveName = (drive: Drive) =>
+  `${driveLabel(drive)} (${WINDOWS ? drive.path.slice(0, 2) : drive.path})`
 
 export const nameDrive = (drive: Drive, name: string) => {
   const alias = name.trim()
   const others = Object.entries(prefs.driveNames).filter(
     ([path]) => path !== drive.path,
   )
-  const custom = alias && alias !== systemLabel(drive, tr)
+  const custom = alias && alias !== systemLabel(drive)
 
   prefs.driveNames = Object.fromEntries(
     custom ? [...others, [drive.path, alias]] : others,
   )
 }
 
-export const NAMED_PLACES: [string, string][] = [
-  [HOME, "explorer.places.home"],
-  [THIS_PC, "explorer.places.thisPc"],
-  [RECYCLE_BIN, "explorer.places.recycleBin"],
+export const NAMED_PLACES: [string, () => string][] = [
+  [HOME, m.files_places_home],
+  [THIS_PC, m.files_places_this_pc],
+  [RECYCLE_BIN, m.files_places_recycle_bin],
 ]
 
-export const placeName = (
-  location: string,
-  translate: (key: string) => string,
-) => {
+export const placeName = (location: string) => {
   const named = NAMED_PLACES.find(([path]) => path === location)
 
   if (named) {
-    return translate(named[1])
+    return named[1]()
   }
 
   const drive = isDriveRoot(location)
     ? places.drives.find(entry => sameLocation(entry.path, location))
     : undefined
 
-  return drive ? driveName(drive, translate) : null
+  return drive ? driveName(drive) : null
 }
 
 const PLACE_WAIT = "3 seconds"

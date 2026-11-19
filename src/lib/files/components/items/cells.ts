@@ -1,4 +1,4 @@
-import { currentLocale } from "@atrix/i18n"
+import { currentLocale } from "#lib/store/locale.ts"
 import { formatDate, formatKilobytes } from "../../format"
 import { displayName, type Item } from "../../items"
 import { prefs, type SortKey } from "../../store/prefs.svelte"

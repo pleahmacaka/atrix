@@ -5,12 +5,15 @@ import Modal from "#lib/components/ui/Modal.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { nav } from "#lib/store/nav.svelte.ts"
 import { SETTINGS_PAGE } from "#lib/store/pages.ts"
+import { desktopSettings } from "./desktop.svelte.ts"
 import SettingsList from "./SettingsList.svelte"
 import { SETTINGS_TABS } from "./tabs.ts"
 
 const narrow = new MediaQuery("(width < 40rem)")
 
 const current = $derived(SETTINGS_TABS.find(t => t.id === nav.settingsTab) ?? SETTINGS_TABS[0])
+
+$effect(() => desktopSettings.start())
 </script>
 
 <Modal

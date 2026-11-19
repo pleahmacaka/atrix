@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { Row, Section } from "@atrix/ui"
-  import { t } from "svelte-i18n"
+  import Section from "#lib/components/ui/Section.svelte"
+  import SettingRow from "#lib/components/ui/SettingRow.svelte"
+  import { m } from "#lib/paraglide/messages.js"
+  import { SECTION_LABELS } from "../../labels"
   import { prefs } from "../../store/prefs.svelte"
   import {
     SIDEBAR_SECTIONS,
@@ -11,27 +13,28 @@
   } from "../../store/sidebar"
 </script>
 
-<Section title={$t("explorer.sidebar.title")}>
+<Section>
   {#each SIDEBAR_SECTIONS as id (id)}
-    <Row label={$t(`explorer.sidebar.sections.${id}`)}>
+    <SettingRow title={SECTION_LABELS[id]()}>
       <input
         type="checkbox"
         class="toggle toggle-sm toggle-primary"
+        aria-label={SECTION_LABELS[id]()}
         checked={sectionShown(id)}
         onchange={() => toggleSection(id)}
       />
-    </Row>
-  {/each}
-
-  {#each prefs.sidebar.hiddenPaths as path (path)}
-    <Row label={sidebarLabel(path, $t)} hint={$t("explorer.sidebar.hidden")}>
-      <button
-        type="button"
-        class="btn btn-soft btn-sm"
-        onclick={() => showPath(path)}
-      >
-        {$t("explorer.sidebar.show")}
-      </button>
-    </Row>
+    </SettingRow>
   {/each}
 </Section>
+
+{#if prefs.sidebar.hiddenPaths.length > 0}
+  <Section title={m.files_sidebar_hidden()}>
+    {#each prefs.sidebar.hiddenPaths as path (path)}
+      <SettingRow title={sidebarLabel(path)}>
+        <button type="button" class="btn btn-sm" onclick={() => showPath(path)}>
+          {m.files_sidebar_show()}
+        </button>
+      </SettingRow>
+    {/each}
+  </Section>
+{/if}

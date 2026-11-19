@@ -1,24 +1,21 @@
 <script lang="ts">
-  import type { DockEdge } from "@atrix/settings"
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
+  import MenuItem from "#lib/components/ui/MenuItem.svelte"
+  import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
   import { bluetoothDevices, type RadioState, radios, setRadio } from "#lib/desktop/native/quick.js"
   import { openUrl } from "#lib/desktop/native/system.js"
+  import { m } from "#lib/paraglide/messages.js"
   import { dockAwake } from "./dock.svelte"
-  import type { MenuBox } from "./layout.svelte"
+  import { radioError } from "./radio"
 
-  type Props = {
-    edge?: DockEdge
-    onmenu?: (rect: MenuBox | null) => void
-    onvisible?: (visible: boolean) => void
-  }
-
-  let { edge = "bottom", onmenu, onvisible }: Props = $props()
+  let { compact = false, placement }: { compact?: boolean; placement: Placement } =
+    $props()
 
   const POLL = 15_000
 
   let radio = $state<RadioState | null>(null)
   let devices = $state<string[]>([])
+  let open = $state(false)
   let busy = $state(false)
   let error = $state("")
 
@@ -42,30 +39,9 @@
   })
 
   $effect(() => {
-    onvisible?.(radio !== null)
-  })
-
-  let open = $state(false)
-  let popover = $state<HTMLElement>()
-
-  const setOpen = (next: boolean) => {
-    if (open === next) {
-      return
-    }
-
-    open = next
-    error = ""
-
-    if (next) {
+    if (open) {
+      error = ""
       refresh()
-    } else {
-      onmenu?.(null)
-    }
-  }
-
-  $effect(() => {
-    if (open && popover) {
-      onmenu?.(popover.getBoundingClientRect())
     }
   })
 
@@ -82,29 +58,9 @@
   }
 
   const go = (url: string) => {
-    setOpen(false)
+    open = false
     openUrl(url).catch(() => undefined)
   }
-
-  const onmousedown = (e: MouseEvent) => {
-    if (open && !(e.target as Element).closest("[data-bluetooth]")) {
-      setOpen(false)
-    }
-  }
-
-  const onkeydown = (e: KeyboardEvent) => {
-    if (open && e.key === "Escape") {
-      setOpen(false)
-    }
-  }
-
-  $effect(() => {
-    const close = () => setOpen(false)
-
-    window.addEventListener("atrix-close-menus", close)
-
-    return () => window.removeEventListener("atrix-close-menus", close)
-  })
 
   const icon = $derived(
     radio !== "on"
@@ -116,117 +72,90 @@
 
   const title = $derived.by(() => {
     if (radio !== "on") {
-      return $t("tray.bluetooth.off")
+      return m.dock_bluetooth_off()
     }
 
-    return devices.length > 0
-      ? devices.join(", ")
-      : $t("tray.bluetooth.noDevices")
-  })
-
-  const errorText = $derived.by(() => {
-    if (!error) {
-      return ""
-    }
-
-    if (error === "denied-user" || error === "denied-system") {
-      return $t(`tray.network.${error === "denied-user" ? "deniedUser" : "deniedSystem"}`)
-    }
-
-    return $t("tray.network.radioFailed")
+    return devices.length > 0 ? devices.join(", ") : m.dock_bluetooth_none()
   })
 </script>
 
-<svelte:window {onmousedown} {onkeydown} />
-
 {#if radio !== null}
-  <div class="relative" data-bluetooth>
-    <button
-      type="button"
-      class={["btn btn-ghost btn-square btn-sm", radio !== "on" && "text-base-content/50"]}
-      {title}
-      aria-label={title}
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      onclick={() => setOpen(!open)}
-    >
-      <Icon {icon} class="size-4" />
-    </button>
-
-    {#if open}
-      <div
-        bind:this={popover}
+  <Popover label={m.dock_bluetooth()} {placement} width="w-72" bind:open>
+    {#snippet trigger(p)}
+      <button
+        {...p}
+        type="button"
         class={[
-          "atrix-card absolute right-0 z-50 w-72 p-3",
-          edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
+          "btn btn-ghost btn-square",
+          compact ? "btn-xs" : "btn-sm",
+          radio !== "on" && "text-base-content/50",
+          open && "bg-primary/8 text-primary",
         ]}
-        role="dialog"
-        aria-label={$t("tray.bluetooth.title")}
+        {title}
+        aria-label={title}
       >
-        <label class="flex items-center justify-between text-sm">
-          <span class="flex items-center gap-2 font-medium">
-            <Icon {icon} class="size-4 text-base-content/70" />
+        <Icon {icon} class="size-4" />
+      </button>
+    {/snippet}
 
-            {$t("tray.bluetooth.title")}
+    <section class="flex flex-col gap-3 p-3 text-sm">
+      <label class="flex cursor-pointer items-center justify-between gap-3">
+        <span class="flex items-center gap-2 font-medium">
+          <Icon {icon} class="size-4 text-base-content/70" />
+          {m.dock_bluetooth()}
+        </span>
 
-            <span class="badge badge-soft badge-info badge-xs">{$t("common.partial")}</span>
-          </span>
+        <input
+          type="checkbox"
+          class="toggle toggle-primary toggle-sm"
+          checked={radio === "on"}
+          disabled={busy || radio === "disabled"}
+          onchange={e => toggleRadio(e.currentTarget.checked)}
+        />
+      </label>
 
-          <input
-            type="checkbox"
-            class="toggle toggle-primary toggle-sm"
-            checked={radio === "on"}
-            disabled={busy || radio === "disabled"}
-            onchange={e => toggleRadio(e.currentTarget.checked)}
-          />
-        </label>
+      {#if error}
+        <p class="text-xs text-error" role="alert">{radioError(error)}</p>
+      {/if}
 
-        {#if errorText}
-          <p class="mt-1 text-xs text-error" role="alert">{errorText}</p>
+      <div class="flex flex-col gap-1">
+        <h3 class="text-xs font-medium text-base-content/60">
+          {m.dock_bluetooth_connected()}
+        </h3>
+
+        {#if radio !== "on" || devices.length === 0}
+          <p class="py-1 text-xs text-base-content/50">
+            {radio !== "on" ? m.dock_bluetooth_off() : m.dock_bluetooth_none()}
+          </p>
+        {:else}
+          <ul class="flex max-h-40 flex-col overflow-y-auto">
+            {#each devices as name (name)}
+              <li class="flex min-h-8 items-center gap-2 px-2">
+                <Icon
+                  icon="lucide:bluetooth-connected"
+                  class="size-4 shrink-0 text-primary"
+                />
+
+                <span class="min-w-0 truncate" title={name}>{name}</span>
+              </li>
+            {/each}
+          </ul>
         {/if}
-
-        <div class="mt-3 border-t border-base-content/10 pt-2">
-          <p class="px-1 pb-1 text-xs text-base-content/50">{$t("tray.bluetooth.connected")}</p>
-
-          {#if radio !== "on"}
-            <p class="px-1 py-2 text-xs text-base-content/40">{$t("tray.bluetooth.off")}</p>
-          {:else if devices.length === 0}
-            <p class="px-1 py-2 text-xs text-base-content/40">{$t("tray.bluetooth.noDevices")}</p>
-          {:else}
-            <ul class="max-h-40 space-y-0.5 overflow-y-auto">
-              {#each devices as name (name)}
-                <li class="flex items-center gap-2 rounded-field px-2 py-1.5 text-xs">
-                  <Icon icon="lucide:bluetooth-connected" class="size-3.5 shrink-0 text-primary" />
-
-                  <span class="truncate">{name}</span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-
-        <div class="mt-3 grid gap-1 border-t border-base-content/10 pt-3">
-          <button
-            type="button"
-            class="btn btn-sm btn-block justify-start"
-            onclick={() => go("ms-settings:connecteddevices")}
-          >
-            <Icon icon="lucide:plus" class="size-4" />
-
-            {$t("tray.bluetooth.addDevice")}
-          </button>
-
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm btn-block justify-start"
-            onclick={() => go("ms-settings:bluetooth")}
-          >
-            <Icon icon="lucide:settings-2" class="size-4" />
-
-            {$t("tray.bluetooth.settings")}
-          </button>
-        </div>
       </div>
-    {/if}
-  </div>
+
+      <div class="flex flex-col">
+        <MenuItem
+          icon="lucide:plus"
+          label={m.dock_bluetooth_add()}
+          onclick={() => go("ms-settings:connecteddevices")}
+        />
+
+        <MenuItem
+          icon="lucide:settings-2"
+          label={m.dock_bluetooth_settings()}
+          onclick={() => go("ms-settings:bluetooth")}
+        />
+      </div>
+    </section>
+  </Popover>
 {/if}

@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     iconifyEmbed({
       collections: [lucide],
-      scan: ["src", "../../packages/ui/src"],
+      scan: ["src"],
     }),
     tailwindcss(),
     sveltekit({
@@ -25,7 +25,7 @@ export default defineConfig({
   clearScreen: false,
 
   server: {
-    port: 1460,
+    port: 1470,
     strictPort: true,
     watch: { ignored: ["**/src-tauri/**"] },
   },

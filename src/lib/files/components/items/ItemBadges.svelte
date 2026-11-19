@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
+  import { m } from "#lib/paraglide/messages.js"
   import type { Item } from "../../items"
   import { hoursLeft, isKept } from "../../store/cleanup.svelte"
   import type { Explorer } from "../../store/explorer.svelte"
@@ -25,7 +25,7 @@
 </script>
 
 {#if prefs.emptyFolders && view.empty.has(item.key)}
-  <span class="shrink-0 text-base-content/40">{$t("explorer.decor.empty")}</span>
+  <span class="shrink-0 text-base-content/40">{m.files_decor_empty()}</span>
 {/if}
 
 {#if repo}
@@ -36,9 +36,7 @@
   <button
     type="button"
     class="flex shrink-0 cursor-pointer hover:brightness-125"
-    title={$t("explorer.decor.cleanupHint", {
-      values: { hours: hoursLeft(item) },
-    })}
+    title={m.files_decor_cleanup_hint({ hours: hoursLeft(item) })}
     onpointerdown={e => e.stopPropagation()}
     onclick={e => {
       e.stopPropagation()

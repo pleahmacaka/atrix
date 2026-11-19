@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { registerTerminalMessages, TerminalApp } from "#lib/terminal/index.ts"
-
-  registerTerminalMessages()
+import { TerminalApp } from "#lib/terminal/index.ts"
 </script>
 
 <TerminalApp />

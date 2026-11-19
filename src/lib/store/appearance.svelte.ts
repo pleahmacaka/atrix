@@ -42,6 +42,34 @@ const applyTheme = async (theme: "light" | "dark" | null) => {
   await applyBackdrop(settings.effect)
 }
 
+export const paintTheme = () => {
+  const isDark =
+    settings.theme === "dark" || (settings.theme === "system" && dark.current)
+  const hue = ACCENTS.find(a => a.id === settings.accent)?.hue ?? 268
+  const root = document.documentElement
+  const font = settings.interfaceFont.trim()
+
+  root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
+  root.dataset.shape = settings.shape
+
+  if (font) {
+    root.style.setProperty("--font-interface", quotedFont(font))
+  } else {
+    root.style.removeProperty("--font-interface")
+  }
+
+  root.style.setProperty(
+    "--color-primary",
+    isDark ? `oklch(72% 0.15 ${hue})` : `oklch(53% 0.19 ${hue})`,
+  )
+  root.style.setProperty(
+    "--color-primary-content",
+    isDark ? "oklch(16% 0.02 265)" : "oklch(99% 0 0)",
+  )
+
+  return isDark
+}
+
 export const startAppearance = () => {
   if (desktop) {
     document.documentElement.dataset.desktop = ""
@@ -50,22 +78,10 @@ export const startAppearance = () => {
 
   return $effect.root(() => {
     $effect(() => {
-      const isDark =
-        settings.theme === "dark" ||
-        (settings.theme === "system" && dark.current)
-      const hue = ACCENTS.find(a => a.id === settings.accent)?.hue ?? 268
+      const isDark = paintTheme()
       const root = document.documentElement
 
-      root.dataset.theme = isDark ? "atrix-dark" : "atrix-light"
       root.style.fontSize = `${settings.scale * (handheld.current ? HANDHELD_SCALE : 1)}%`
-
-      const font = settings.interfaceFont.trim()
-
-      if (font) {
-        root.style.setProperty("--font-interface", quotedFont(font))
-      } else {
-        root.style.removeProperty("--font-interface")
-      }
       root.style.setProperty(
         "--content-scale",
         String(settings.contentScale / 100),
@@ -76,14 +92,6 @@ export const startAppearance = () => {
           settings.theme === "system" ? null : isDark ? "dark" : "light",
         ).catch(console.error)
       }
-      root.style.setProperty(
-        "--color-primary",
-        isDark ? `oklch(72% 0.15 ${hue})` : `oklch(53% 0.19 ${hue})`,
-      )
-      root.style.setProperty(
-        "--color-primary-content",
-        isDark ? "oklch(16% 0.02 265)" : "oklch(99% 0 0)",
-      )
     })
 
     $effect(() => {
@@ -92,7 +100,6 @@ export const startAppearance = () => {
       const root = document.documentElement
       root.dataset.effect = effect === "none" ? "off" : "on"
       root.dataset.texture = settings.texture
-      root.dataset.shape = settings.shape
       root.dataset.layout = settings.layout
       root.style.setProperty("--surface", String(1 - transparency / 100))
 

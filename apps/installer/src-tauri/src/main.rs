@@ -1,275 +1,163 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod apps;
+mod components;
 #[cfg_attr(windows, path = "windows.rs")]
 #[cfg_attr(target_os = "macos", path = "macos.rs")]
 #[cfg_attr(all(unix, not(target_os = "macos")), path = "linux.rs")]
 mod platform;
+#[cfg(unix)]
+mod unix;
 
-use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, RunEvent};
-use tauri_plugin_updater::UpdaterExt;
+use tauri::{AppHandle, Emitter};
 
-use apps::{APPS, PUBKEY, VERSION};
+use components::Components;
+
+include!(concat!(env!("OUT_DIR"), "/payload.rs"));
 
 pub(crate) fn fail(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
-pub(crate) struct Invocation {
-    pub update: bool,
-    pub quiet: bool,
-}
+pub(crate) fn wait(done: impl Fn() -> bool, limit: Duration) -> bool {
+    let start = Instant::now();
 
-// the tauri updater in Atrix runs the downloaded installer with `/P|/S /UPDATE [/R /ARGS ...]` and exits
-pub(crate) fn invocation() -> Invocation {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let has = |flag: &str| args.iter().any(|arg| arg == flag);
+    while !done() {
+        if start.elapsed() > limit {
+            return false;
+        }
 
-    Invocation {
-        update: has("/UPDATE"),
-        quiet: has("/S"),
+        std::thread::sleep(Duration::from_millis(250));
     }
+
+    true
 }
 
-#[derive(Serialize, Clone, Copy, PartialEq)]
+#[derive(Serialize)]
+struct Overview {
+    version: &'static str,
+    platform: &'static str,
+    installed: bool,
+    outdated: bool,
+    available: bool,
+    components: Components,
+}
+
+#[derive(Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
-enum Step {
+enum State {
     Running,
     Done,
     Failed,
 }
 
 #[derive(Serialize, Clone)]
-struct Progress {
+struct Step {
     id: &'static str,
-    state: Step,
+    state: State,
     error: Option<String>,
 }
 
-#[derive(Default)]
-struct Report {
-    progress: Vec<Progress>,
-    finished: bool,
-}
-
-#[derive(Default)]
-struct Session(Mutex<Report>);
-
-impl Session {
-    fn failed(&self) -> bool {
-        let report = self.0.lock().unwrap();
-
-        report
-            .progress
-            .iter()
-            .any(|step| step.state == Step::Failed)
-    }
-}
-
-#[derive(Serialize)]
-struct Overview {
-    version: &'static str,
-    update: bool,
-    preset: Vec<&'static str>,
-    components: Vec<apps::Component>,
-    progress: Vec<Progress>,
-    finished: bool,
-}
-
-fn record(handle: &AppHandle, progress: Progress) {
-    {
-        let mut report = handle.state::<Session>().inner().0.lock().unwrap();
-
-        report.progress.retain(|step| step.id != progress.id);
-        report.progress.push(progress.clone());
-    }
-
-    let _ = handle.emit("install-progress", progress);
-}
-
-fn write_log(handle: &AppHandle, failures: &[String]) {
-    let Ok(dir) = handle.path().app_log_dir() else {
-        return;
-    };
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
-    let lines: String = failures
-        .iter()
-        .map(|failure| format!("{stamp} {VERSION} {failure}\n"))
-        .collect();
-
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(dir.join("installer.log"))
-        .and_then(|mut file| std::io::Write::write_all(&mut file, lines.as_bytes()));
-}
-
-fn finish(handle: &AppHandle) {
-    let failures: Vec<String> = {
-        let mut report = handle.state::<Session>().inner().0.lock().unwrap();
-
-        report.finished = true;
-        report
-            .progress
-            .iter()
-            .filter_map(|step| Some(format!("{}: {}", step.id, step.error.as_ref()?)))
-            .collect()
+fn step(
+    handle: &AppHandle,
+    id: &'static str,
+    work: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let emit = |state, error| {
+        let _ = handle.emit("step", Step { id, state, error });
     };
 
-    let _ = handle.emit("install-finished", ());
+    emit(State::Running, None);
 
-    if !failures.is_empty() {
-        write_log(handle, &failures);
+    let result = work();
+
+    match &result {
+        Ok(()) => emit(State::Done, None),
+        Err(error) => emit(State::Failed, Some(error.clone())),
     }
 
-    let call = invocation();
-
-    if !call.update {
-        return;
-    }
-
-    if failures.is_empty() {
-        handle.exit(0);
-    } else if call.quiet {
-        handle.exit(1);
-    } else if let Some(window) = handle.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
+    result
 }
 
-// APPS lists atrix first for display; installing in reverse runs atrix last so its relaunch comes after the rest
-fn run_queue(handle: &AppHandle, ids: &[String]) {
-    *handle.state::<Session>().inner().0.lock().unwrap() = Report::default();
-
-    for app in APPS
-        .iter()
-        .rev()
-        .filter(|app| ids.iter().any(|id| id == app.id))
-    {
-        let progress = |state, error| Progress {
-            id: app.id,
-            state,
-            error,
-        };
-
-        record(handle, progress(Step::Running, None));
-
-        let result: Result<(), String> = app
-            .payload
-            .ok_or_else(|| "payload missing".to_string())
-            .and_then(|payload| platform::install(app, payload));
-
-        match result {
-            Ok(()) => record(handle, progress(Step::Done, None)),
-            Err(error) => record(handle, progress(Step::Failed, Some(error))),
-        }
+fn stop(handle: &AppHandle) -> Result<bool, String> {
+    if !platform::running() {
+        return Ok(false);
     }
 
-    finish(handle);
+    let shell = Components::load().shell;
+
+    step(handle, "stop", || platform::stop(shell))?;
+
+    Ok(true)
+}
+
+fn apply_blocking(handle: &AppHandle, chosen: Components) -> Result<(), String> {
+    let chosen = chosen.for_platform();
+    let fresh = !platform::installed();
+    let restart = !fresh && stop(handle)?;
+
+    if fresh || platform::outdated() {
+        let payload = PAYLOAD.ok_or("setup package missing")?;
+
+        step(handle, "client", || platform::install(payload))?;
+    }
+
+    step(handle, "components", || {
+        chosen.save()?;
+        platform::default_app(chosen.files)
+    })?;
+
+    if restart {
+        step(handle, "start", platform::launch)?;
+    }
+
+    Ok(())
+}
+
+fn uninstall_blocking(handle: &AppHandle) -> Result<(), String> {
+    stop(handle)?;
+    step(handle, "remove", platform::uninstall)
 }
 
 #[tauri::command]
-fn overview(handle: AppHandle) -> Overview {
-    let update = invocation().update;
-    let report = handle.state::<Session>().inner().0.lock().unwrap();
-
+fn overview() -> Overview {
     Overview {
         version: VERSION,
-        update,
-        preset: apps::preset(update),
-        components: apps::components(),
-        progress: report.progress.clone(),
-        finished: report.finished,
+        platform: platform::NAME,
+        installed: platform::installed(),
+        outdated: platform::outdated(),
+        available: PAYLOAD.is_some(),
+        components: Components::load().for_platform(),
     }
 }
 
 #[tauri::command]
-async fn install(handle: AppHandle, ids: Vec<String>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || run_queue(&handle, &ids))
+async fn apply(handle: AppHandle, components: Components) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || apply_blocking(&handle, components))
         .await
-        .map_err(fail)
+        .map_err(fail)?
 }
 
 #[tauri::command]
-async fn check_update(handle: AppHandle) -> Result<Option<String>, String> {
-    let update = handle
-        .updater()
-        .map_err(fail)?
-        .check()
+async fn uninstall(handle: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || uninstall_blocking(&handle))
         .await
-        .map_err(fail)?;
-
-    Ok(update.map(|update| update.version))
+        .map_err(fail)?
 }
 
 #[tauri::command]
-async fn self_update(handle: AppHandle) -> Result<(), String> {
-    let update = handle
-        .updater()
-        .map_err(fail)?
-        .check()
-        .await
-        .map_err(fail)?
-        .ok_or("no update")?;
-    let bytes = update.download(|_, _| {}, || {}).await.map_err(fail)?;
-    let version = update.version;
-
-    tauri::async_runtime::spawn_blocking(move || platform::launch_installer(&bytes, &version))
-        .await
-        .map_err(fail)??;
-
+fn launch(handle: AppHandle) -> Result<(), String> {
+    platform::launch()?;
     handle.exit(0);
 
     Ok(())
 }
 
 fn main() {
-    let app = tauri::Builder::default()
-        .plugin(
-            tauri_plugin_updater::Builder::new()
-                .pubkey(PUBKEY)
-                .target(platform::MANIFEST_KEY)
-                .build(),
-        )
-        .manage(Session::default())
-        .invoke_handler(tauri::generate_handler![
-            overview,
-            install,
-            check_update,
-            self_update
-        ])
-        .setup(|app| {
-            let handle = app.handle().clone();
-
-            if invocation().update {
-                let ids: Vec<String> = apps::preset(true).into_iter().map(String::from).collect();
-
-                tauri::async_runtime::spawn_blocking(move || run_queue(&handle, &ids));
-            } else if let Some(window) = app.get_webview_window("main") {
-                window.show()?;
-            }
-
-            Ok(())
-        })
-        .build(tauri::generate_context!())
-        .expect("error while building the Atrix installer");
-
-    app.run(|handle, event| {
-        if let RunEvent::ExitRequested {
-            code: None, api, ..
-        } = event
-        {
-            if handle.state::<Session>().failed() {
-                api.prevent_exit();
-                handle.exit(1);
-            }
-        }
-    });
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![overview, apply, uninstall, launch])
+        .run(tauri::generate_context!())
+        .expect("error while running the Atrix installer");
 }

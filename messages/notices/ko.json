@@ -1,3 +1,9 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "notices_title": "알림",
+  "notices_empty": "알림 없음",
+  "notices_clear_all": "모두 삭제",
+  "notices_dismiss": "알림 삭제",
+  "notices_dismiss_app": "{app} 알림 모두 삭제",
+  "notices_unseen": "새 알림"
 }

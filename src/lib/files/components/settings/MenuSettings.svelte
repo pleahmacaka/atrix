@@ -1,22 +1,36 @@
 <script lang="ts">
-  import { Section } from "@atrix/ui"
-  import { t } from "svelte-i18n"
-  import {
-    entryIcon,
-    entryLabel,
-    LOCKED_ITEMS,
-  } from "../../store/menu-entries"
-  import { prefs } from "../../store/prefs.svelte"
+  import Section from "#lib/components/ui/Section.svelte"
+  import { m } from "#lib/paraglide/messages.js"
+  import { entryIcon, entryLabel, LOCKED_ITEMS } from "../../store/menu-entries"
+  import { type MenuSection, prefs } from "../../store/prefs.svelte"
   import { verbIcon } from "../../store/shell-verbs"
   import OrderList from "./OrderList.svelte"
 
-  const SECTION_ICONS = {
-    open: "lucide:square-arrow-out-up-right",
-    shell: "lucide:puzzle",
-    archive: "lucide:file-archive",
-    edit: "lucide:scissors",
-    organize: "lucide:pin",
-    properties: "lucide:info",
+  const SECTIONS: Record<MenuSection, { icon: string; label: () => string }> = {
+    open: {
+      icon: "lucide:square-arrow-out-up-right",
+      label: m.files_settings_context_menu_sections_open,
+    },
+    shell: {
+      icon: "lucide:puzzle",
+      label: m.files_settings_context_menu_sections_shell,
+    },
+    archive: {
+      icon: "lucide:file-archive",
+      label: m.files_settings_context_menu_sections_archive,
+    },
+    edit: {
+      icon: "lucide:scissors",
+      label: m.files_settings_context_menu_sections_edit,
+    },
+    organize: {
+      icon: "lucide:pin",
+      label: m.files_settings_context_menu_sections_organize,
+    },
+    properties: {
+      icon: "lucide:info",
+      label: m.files_settings_context_menu_sections_properties,
+    },
   }
 
   const verbs = $derived(
@@ -34,29 +48,20 @@
   const locked = (id: string) => LOCKED_ITEMS.includes(id)
 </script>
 
-<Section
-  title={$t("explorer.settings.contextMenu.title")}
-  description={$t("explorer.settings.order.hint")}
->
+<Section title={m.files_settings_context_menu_title()}>
   <OrderList
     bind:arrangement={prefs.menuLayout}
-    label={$t("explorer.settings.contextMenu.title")}
-    labelOf={id => $t(`explorer.settings.contextMenu.sections.${id}`)}
-    hintOf={id => $t(`explorer.settings.contextMenu.hints.${id}`)}
-    iconOf={id => SECTION_ICONS[id]}
+    label={m.files_settings_context_menu_title()}
+    labelOf={id => SECTIONS[id].label()}
+    iconOf={id => SECTIONS[id].icon}
     locked={id => id === "properties"}
   />
 </Section>
 
 {#each prefs.menuLayout.order as section (section)}
-  {@const title = $t(`explorer.settings.contextMenu.sections.${section}`)}
+  {@const title = SECTIONS[section].label()}
 
-  <Section
-    {title}
-    description={section === "shell" && prefs.shellVerbs.length === 0
-      ? $t("explorer.settings.contextMenu.shellEmpty")
-      : undefined}
-  >
+  <Section {title}>
     {#if prefs.menuItems[section].order.length > 0}
       <OrderList
         bind:arrangement={prefs.menuItems[section]}
@@ -65,6 +70,10 @@
         {iconOf}
         {locked}
       />
+    {:else}
+      <p class="py-3 text-sm text-base-content/60">
+        {m.files_settings_context_menu_shell_empty()}
+      </p>
     {/if}
   </Section>
 {/each}

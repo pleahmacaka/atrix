@@ -1,16 +1,13 @@
 <script lang="ts">
-  import { applyAppearance, standaloneLook } from "@atrix/settings"
-  import { StandaloneShell } from "@atrix/ui"
-  import "virtual:iconify-embed"
-  import "./layout.css"
+import "virtual:iconify-embed"
+import "../app.css"
+import { locale } from "#lib/messages.ts"
 
-  let { children } = $props()
+let { children } = $props()
 
-  $effect(() => {
-    applyAppearance(standaloneLook, { restingShadow: true })
-  })
+$effect(() => {
+  document.documentElement.lang = locale
+})
 </script>
 
-<StandaloneShell>
-  {@render children()}
-</StandaloneShell>
+{@render children()}

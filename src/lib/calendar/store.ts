@@ -33,6 +33,7 @@ export const events = sqliteTable("events", {
   originalDate: text("original_date"),
   tags: text("tags", { mode: "json" }).$type<string[]>().notNull(),
   notesSync: integer("notes_sync", { mode: "boolean" }).notNull(),
+  reminder: integer("reminder"),
   updatedAt: integer("updated_at").notNull(),
 })
 
@@ -42,9 +43,20 @@ export const tags = sqliteTable("tags", {
   color: text("color").notNull(),
 })
 
+export const tasks = sqliteTable("tasks", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  done: integer("done", { mode: "boolean" }).notNull(),
+  due: text("due"),
+  createdBy: text("created_by").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+})
+
 type EventRow = typeof events.$inferSelect
 
 export type EventTag = typeof tags.$inferSelect
+
+export type Task = typeof tasks.$inferSelect
 
 export type EventInput = {
   title: string
@@ -57,6 +69,7 @@ export type EventInput = {
   until?: string | null
   shift?: Shift | null
   tags?: string[]
+  reminder?: number | null
 }
 
 const CREATE_EVENTS = `CREATE TABLE IF NOT EXISTS events (
@@ -80,12 +93,22 @@ const COLUMNS: [string, string][] = [
   ["tags", "TEXT NOT NULL DEFAULT '[]'"],
   ["notes_sync", "INTEGER NOT NULL DEFAULT 0"],
   ["updated_at", "INTEGER NOT NULL DEFAULT 0"],
+  ["reminder", "INTEGER"],
 ]
 
 const CREATE_TAGS = `CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   color TEXT NOT NULL DEFAULT ''
+)`
+
+const CREATE_TASKS = `CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0,
+  due TEXT,
+  created_by TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL DEFAULT 0
 )`
 
 const DEFAULT_TAGS = [
@@ -143,6 +166,8 @@ const prepare = async (backend: Backend) => {
       )
     }
   }
+
+  await backend.dsExecute(CALENDAR, CREATE_TASKS, [])
 }
 
 const open = async (backend: Backend) => {
@@ -198,6 +223,7 @@ const fromRow = (row: EventRow): CalendarEvent => {
     seriesId: row.seriesId,
     originalDate: row.originalDate,
     notesSync: row.notesSync,
+    reminder: row.reminder,
     createdBy: row.createdBy,
     updatedAt: row.updatedAt,
   }
@@ -223,6 +249,7 @@ export const toRow = (event: CalendarEvent): EventRow => ({
   originalDate: event.originalDate,
   tags: event.tags,
   notesSync: event.notesSync,
+  reminder: event.reminder,
   updatedAt: event.updatedAt,
 })
 
@@ -260,6 +287,7 @@ export const fromInput = (
     originalDate: null,
     tags: input.tags ?? [],
     notesSync: false,
+    reminder: input.reminder ?? null,
     updatedAt: Date.now(),
   })
 }
@@ -340,3 +368,34 @@ export const deleteTag = async (backend: Backend, id: string) => {
 
   await db.delete(tags).where(eq(tags.id, id))
 }
+
+export const listTasks = async (backend: Backend) => {
+  const db = await open(backend)
+
+  return db.select().from(tasks)
+}
+
+export const putTask = async (backend: Backend, task: Task) => {
+  const db = await open(backend)
+  const { id, ...rest } = task
+
+  await db
+    .insert(tasks)
+    .values(task)
+    .onConflictDoUpdate({ target: tasks.id, set: rest })
+}
+
+export const deleteTask = async (backend: Backend, id: string) => {
+  const db = await open(backend)
+
+  await db.delete(tasks).where(eq(tasks.id, id))
+}
+
+export const newTask = (title: string, due: string | null): Task => ({
+  id: crypto.randomUUID(),
+  title,
+  done: false,
+  due,
+  createdBy: "",
+  updatedAt: Date.now(),
+})

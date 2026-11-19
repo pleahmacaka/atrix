@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { Section } from "@atrix/ui"
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
+  import AddButton from "#lib/components/settings/AddButton.svelte"
+  import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
+  import Section from "#lib/components/ui/Section.svelte"
+  import { m } from "#lib/paraglide/messages.js"
   import { imageIcon } from "../../image-icon"
   import { type GitHost, prefs } from "../../store/prefs.svelte"
 
@@ -30,7 +32,8 @@
       await image.decode()
 
       const canvas = document.createElement("canvas")
-      const scale = LOGO_SIZE / Math.max(image.naturalWidth, image.naturalHeight, 1)
+      const scale =
+        LOGO_SIZE / Math.max(image.naturalWidth, image.naturalHeight, 1)
       const width = image.naturalWidth * scale
       const height = image.naturalHeight * scale
 
@@ -38,7 +41,13 @@
       canvas.height = LOGO_SIZE
       canvas
         .getContext("2d")
-        ?.drawImage(image, (LOGO_SIZE - width) / 2, (LOGO_SIZE - height) / 2, width, height)
+        ?.drawImage(
+          image,
+          (LOGO_SIZE - width) / 2,
+          (LOGO_SIZE - height) / 2,
+          width,
+          height,
+        )
 
       return canvas.toDataURL("image/png")
     } finally {
@@ -71,63 +80,55 @@
   }
 </script>
 
-<Section
-  title={$t("explorer.settings.gitHosts.title")}
-  description={$t("explorer.settings.gitHosts.hint")}
->
-  {#each prefs.gitHosts as host, index (index)}
-    <div class="flex items-center gap-2">
-      <label
-        class={[
-          "flex size-8 shrink-0 cursor-pointer items-center justify-center",
-          "rounded-field border border-base-content/15 hover:bg-base-content/6",
-        ]}
-        title={$t("explorer.settings.gitHosts.logo")}
-      >
-        <Icon
-          icon={host.logo ? imageIcon(host.logo) : "lucide:image-plus"}
-          class={["size-4", !host.logo && "text-base-content/45"]}
+<Section title={m.files_settings_git_hosts_title()}>
+  <div class="flex flex-col gap-2 py-3">
+    {#each prefs.gitHosts as host, index (index)}
+      <div class="flex min-w-0 items-center gap-2">
+        <label
+          class={[
+            "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-field",
+            "bg-base-content/6 transition-colors duration-140 hover:bg-base-content/10",
+          ]}
+          title={m.files_settings_git_hosts_logo()}
+        >
+          <Icon
+            icon={host.logo ? imageIcon(host.logo) : "lucide:image-plus"}
+            class={["size-4", !host.logo && "text-base-content/50"]}
+          />
+
+          <input
+            type="file"
+            accept="image/*"
+            class="hidden"
+            aria-label={m.files_settings_git_hosts_logo()}
+            onchange={e => pickLogo(index, e.currentTarget)}
+          />
+        </label>
+
+        <input
+          class="input input-sm min-w-0 flex-1"
+          placeholder="git.example.com"
+          aria-label={m.files_settings_git_hosts_domain()}
+          value={host.domain}
+          onchange={e =>
+            update(index, { domain: domainOf(e.currentTarget.value) })}
         />
 
         <input
-          type="file"
-          accept="image/*"
-          class="hidden"
-          aria-label={$t("explorer.settings.gitHosts.logo")}
-          onchange={e => pickLogo(index, e.currentTarget)}
+          class="input input-sm w-36 min-w-0"
+          placeholder={m.files_settings_git_hosts_name()}
+          aria-label={m.files_settings_git_hosts_name()}
+          value={host.name}
+          onchange={e => update(index, { name: e.currentTarget.value.trim() })}
         />
-      </label>
 
-      <input
-        class="input input-sm min-w-0 grow"
-        placeholder="git.example.com"
-        aria-label={$t("explorer.settings.gitHosts.domain")}
-        value={host.domain}
-        onchange={e => update(index, { domain: domainOf(e.currentTarget.value) })}
-      />
+        <ConfirmButton
+          label={m.files_settings_git_hosts_remove()}
+          onconfirm={() => remove(index)}
+        />
+      </div>
+    {/each}
 
-      <input
-        class="input input-sm w-36"
-        placeholder={$t("explorer.settings.gitHosts.name")}
-        aria-label={$t("explorer.settings.gitHosts.name")}
-        value={host.name}
-        onchange={e => update(index, { name: e.currentTarget.value.trim() })}
-      />
-
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm btn-square"
-        aria-label={$t("explorer.settings.gitHosts.remove")}
-        title={$t("explorer.settings.gitHosts.remove")}
-        onclick={() => remove(index)}
-      >
-        <Icon icon="lucide:trash-2" class="size-4" />
-      </button>
-    </div>
-  {/each}
-
-  <button type="button" class="btn btn-ghost btn-sm self-start" onclick={add}>
-    <Icon icon="lucide:plus" class="size-4" />
-    {$t("explorer.settings.gitHosts.add")}
-  </button>
+    <AddButton label={m.files_settings_git_hosts_add()} onclick={add} />
+  </div>
 </Section>

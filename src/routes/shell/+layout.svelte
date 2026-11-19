@@ -1,114 +1,67 @@
 <script lang="ts">
-  import { setupI18n } from "@atrix/i18n"
-  import {
-    type Appearance,
-    defaultAppearance,
-    loadDevice,
-    loadProfile,
-    onDevice,
-    onProfile,
-    type WindowSurface,
-  } from "@atrix/settings"
-  import { Aura, GlobalContextMenu } from "@atrix/ui"
-  import { logoSvg } from "@atrix/ui/logo"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
-  import { fadeShell } from "#lib/desktop/motion.js"
-  import {
-    onWindowHiding,
-    onWindowShown,
-    type WindowLabel,
-    windowReady,
-  } from "#lib/desktop/native/index.js"
-  import { applyAppearance } from "#lib/desktop/theme.js"
-  import { page } from "$app/state"
-  import "@atrix/markdown/markdown.css"
+import { listen } from "@tauri-apps/api/event"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import type { Snippet } from "svelte"
+import ContextMenu from "#lib/components/ui/ContextMenu.svelte"
+import { fadeShell } from "#lib/desktop/motion.ts"
+import { windowReady } from "#lib/desktop/native/windows.ts"
+import { followSettings } from "#lib/desktop/theme.ts"
+import { paintTheme } from "#lib/store/appearance.svelte.ts"
+import { handleContextMenu } from "#lib/store/contextMenu.svelte.ts"
+import { page } from "$app/state"
 
-  let { children } = $props()
+let { children }: { children: Snippet } = $props()
 
-  const WINDOWS: Record<string, WindowSurface> = {
-    launcher: "launcher",
-    panel: "panel",
-    settings: "settings",
-    notices: "notices",
-    files: "files",
-    terminal: "terminal",
+let shell = $state<HTMLDivElement>()
+
+const appWindow = getCurrentWindow()
+
+const framed = page.data.framed === true
+
+document.documentElement.dataset.overlay = ""
+
+$effect(() => {
+  paintTheme()
+})
+
+$effect(() => {
+  windowReady().catch(() => undefined)
+
+  if (framed && !Reflect.get(window, "__ATRIX_HEADLESS__")) {
+    appWindow.show().then(() => appWindow.setFocus())
+  }
+})
+
+$effect(() => {
+  const el = shell
+
+  if (!el || framed) {
+    return
   }
 
-  const favicon = `data:image/svg+xml,${encodeURIComponent(logoSvg())}`
+  fadeShell(el, false)
 
-  const surface = WINDOWS[page.route.id?.split("/")[2] ?? ""]
+  const fadeOn = (event: string, out: boolean) =>
+    listen<string>(event, e => {
+      if (e.payload === appWindow.label) {
+        fadeShell(el, out)
+      }
+    })
 
-  document.documentElement.dataset.surface = "window"
+  const stops = [fadeOn("window-shown", false), fadeOn("window-hiding", true)]
 
-  if (surface) {
-    document.documentElement.dataset.window = surface
+  return () => {
+    for (const stop of stops) {
+      stop.then(unlisten => unlisten())
+    }
   }
-
-  const appWindow = getCurrentWindow()
-  const windowLabel = appWindow.label as WindowLabel
-  const framed = page.data.framed === true
-
-  $effect(() => {
-    windowReady().catch(() => undefined)
-  })
-
-  $effect(() => {
-    if (framed && !Reflect.get(window, "__ATRIX_HEADLESS__")) {
-      appWindow.show().then(() => appWindow.setFocus())
-    }
-  })
-
-  $effect(() => {
-    let current: Appearance = defaultAppearance
-    const scheme = window.matchMedia("(prefers-color-scheme: dark)")
-
-    const apply = (appearance: Appearance) => {
-      current = appearance
-      applyAppearance(current, { restingShadow: framed })
-    }
-
-    const onScheme = () => {
-      if (current.mode === "system") {
-        applyAppearance(current, { restingShadow: framed })
-      }
-    }
-
-    loadProfile().then(p => apply(p.appearance))
-    loadDevice().then(d => setupI18n(d.language))
-
-    const fade = (out: boolean) => {
-      if (!framed) {
-        fadeShell(out)
-      }
-    }
-
-    fade(false)
-
-    const stops = [
-      onProfile(p => apply(p.appearance)),
-      onDevice(d => setupI18n(d.language)),
-      onWindowShown(windowLabel, () => fade(false)),
-      onWindowHiding(windowLabel, () => fade(true)),
-    ]
-
-    scheme.addEventListener("change", onScheme)
-
-    return () => {
-      for (const stop of stops) {
-        stop.then(unlisten => unlisten())
-      }
-
-      scheme.removeEventListener("change", onScheme)
-    }
-  })
+})
 </script>
 
-<svelte:head><link rel="icon" type="image/svg+xml" href={favicon} /></svelte:head>
+<svelte:window oncontextmenu={handleContextMenu} onstorage={followSettings} />
 
-<div class="siri-shell">
-  <Aura />
-
+<div bind:this={shell} class="relative isolate flex h-dvh flex-col">
   {@render children()}
 </div>
 
-<GlobalContextMenu dense={page.data.denseMenu === true} />
+<ContextMenu />

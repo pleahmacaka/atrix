@@ -48,7 +48,7 @@ pub enum Answer {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Member {
-    id: EndpointId,
+    pub(super) id: EndpointId,
     name: String,
 }
 
@@ -233,14 +233,19 @@ pub(super) fn received_root(app: &AppHandle) -> Result<PathBuf> {
         .map_err(Error::from)
 }
 
-pub(super) fn members(app: &AppHandle) -> Vec<(EndpointId, String)> {
+pub(super) fn members(app: &AppHandle) -> Vec<Member> {
     let Some(peers) = app.try_state::<crate::Host>().and_then(|host| host.peers) else {
         return Vec::new();
     };
 
     peers(app)
         .into_iter()
-        .filter_map(|(id, name)| Some((id.parse().ok()?, name)))
+        .filter_map(|(id, name)| {
+            Some(Member {
+                id: id.parse().ok()?,
+                name,
+            })
+        })
         .collect()
 }
 
@@ -250,29 +255,10 @@ impl Node {
     }
 
     pub(super) fn member_name(&self, peer: &EndpointId) -> Option<String> {
-        let paired = self
-            .lock()
-            .devices
-            .iter()
-            .find(|device| device.id == *peer)
-            .map(|device| device.name.clone());
-
-        paired.or_else(|| {
-            members(&self.app)
-                .into_iter()
-                .find(|(id, _)| id == peer)
-                .map(|(_, name)| name)
-        })
-    }
-
-    pub(super) fn browse_members(&self) -> Vec<Member> {
-        let saved = self.lock();
-
         members(&self.app)
             .into_iter()
-            .filter(|(id, _)| *id != self.id && !saved.knows(id))
-            .map(|(id, name)| Member { id, name })
-            .collect()
+            .find(|member| member.id == *peer)
+            .map(|member| member.name)
     }
 
     pub(super) fn browse_asks(&self) -> Vec<Member> {
@@ -457,7 +443,7 @@ impl Node {
     // ponytail: a fetched file stays servable for a fixed window, then its tag goes; re-fetching starts over
     async fn hold(self: &Arc<Self>, peer: EndpointId, file: &Path) -> Result<(Hash, u64)> {
         let size = std::fs::metadata(file)?.len();
-        let net = self.net().await?;
+        let net = self.net()?;
         let batch = net.store.batch().await.map_err(fail)?;
 
         let tag = batch
@@ -549,7 +535,7 @@ impl Node {
         name: &str,
         folder: &Path,
     ) -> Result<String> {
-        let net = self.net.get().ok_or(Error::Unreachable)?;
+        let net = self.net()?;
 
         net.downloader
             .download(HashAndFormat::raw(hash), Shuffled::new(vec![peer]))

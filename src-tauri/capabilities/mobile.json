@@ -3,5 +3,9 @@
   "identifier": "mobile",
   "platforms": ["android", "iOS"],
   "windows": ["main"],
-  "permissions": ["barcode-scanner:default", "calendar-sync:default"]
+  "permissions": [
+    "barcode-scanner:default",
+    "calendar-sync:default",
+    "atrix-files:default"
+  ]
 }

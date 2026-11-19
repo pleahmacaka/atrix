@@ -33,6 +33,7 @@ export type CalendarEvent = {
   seriesId: string | null
   originalDate: string | null
   notesSync: boolean
+  reminder: number | null
   createdBy: string
   updatedAt: number
 }
@@ -45,3 +46,5 @@ export type Occurrence = CalendarEvent & {
 export type HolidayCheck = (day: Date) => boolean
 
 export type SeriesChange = { put: CalendarEvent[]; remove: string[] }
+
+export const REMINDERS = [null, 0, 5, 10, 15, 30, 60, 1440] as const

@@ -5,12 +5,10 @@
 </script>
 
 <script lang="ts">
-  import type { DockEdge } from "@atrix/settings"
-  import type { MenuItem } from "@atrix/ui"
-  import { ContextMenu } from "@atrix/ui"
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
   import * as native from "#lib/desktop/native/index.js"
+  import { m } from "#lib/paraglide/messages.js"
+  import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
   import {
     type DockGroup,
     iconFor,
@@ -18,17 +16,15 @@
     toggleDockHidden,
     toggleDockPin,
   } from "./dock.svelte"
-  import type { MenuBox } from "./layout.svelte"
   import { closePreview, dismissPreview, openPreview, togglePreview } from "./preview.svelte"
   import { rem } from "./rem.svelte"
 
   type Props = {
     group: DockGroup
     size: number
-    edge: DockEdge
+    edge: "top" | "bottom"
     mac: boolean
     foreground: number | undefined
-    alignEnd: boolean
     hiddenHere?: boolean
     pointerX?: number | null
     strength?: number
@@ -37,8 +33,6 @@
     dropAfter?: boolean
     ondragstart?: () => void
     ondragend?: () => void
-    reorder?: boolean
-    onmenu: (rect: MenuBox | null) => void
   }
 
   let {
@@ -47,7 +41,6 @@
     edge,
     mac,
     foreground,
-    alignEnd,
     hiddenHere = false,
     pointerX = null,
     strength = 0,
@@ -56,25 +49,10 @@
     dropAfter = false,
     ondragstart,
     ondragend,
-    reorder = true,
-    onmenu,
   }: Props = $props()
 
-  const dragStart = (e: DragEvent) => {
-    e.dataTransfer?.setData("text/plain", group.path)
-    e.dataTransfer?.setData(APP_DRAG, group.path)
+  const MENU_WINDOWS = 5
 
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move"
-    }
-
-    dismissPreview()
-    ondragstart?.()
-  }
-
-  const MENU_MAX_ROWS = 9
-
-  let open = $state(false)
   let root = $state<HTMLElement>()
   let icon = $state<string | null>(null)
 
@@ -101,6 +79,12 @@
     return 1 + MAGNIFY_BOOST * strength * Math.exp(-((distance / MAGNIFY_SPREAD) ** 2))
   })
 
+  const center = () => {
+    const box = root?.getBoundingClientRect()
+
+    return box ? box.left + box.width / 2 : null
+  }
+
   const launch = () => native.launchApp(group.path).catch(() => undefined)
 
   // the poll is a second behind, so the next click would judge a stale window list
@@ -111,12 +95,12 @@
       return launch()
     }
 
-    const box = root?.getBoundingClientRect()
+    const at = center()
 
-    if (group.windows.length > 1 && box) {
+    if (group.windows.length > 1 && at !== null) {
       togglePreview(
         group.windows.map(w => w.hwnd),
-        box.left + box.width / 2,
+        at,
       )
 
       return
@@ -141,154 +125,119 @@
     }
   }
 
-  const onmouseenter = () => {
-    const box = root?.getBoundingClientRect()
+  const hover = () => {
+    const at = center()
 
-    if (!running || open || !box) {
-      return
+    if (running && at !== null && !contextMenu.current) {
+      openPreview(
+        group.windows.map(w => w.hwnd),
+        at,
+      )
     }
-
-    openPreview(
-      group.windows.map(w => w.hwnd),
-      box.left + box.width / 2,
-    )
   }
 
   $effect(() => dismissPreview)
 
-  const setOpen = (next: boolean) => {
-    open = next
-  }
-
-  const onauxclick = (e: MouseEvent) => {
-    if (e.button === 1) {
-      e.preventDefault()
-      launch()
-    }
-  }
-
-  const oncontextmenu = (e: MouseEvent) => {
-    e.preventDefault()
-    dismissPreview()
-    setOpen(true)
-  }
-
-  const menuItems = $derived.by((): MenuItem[] => {
-    const windows: MenuItem[] = group.windows
-      .slice(0, MENU_MAX_ROWS - 4)
-      .map(w => ({
-        label: w.title,
-        icon:
-          w.hwnd === foreground ? "lucide:square-dot" : "lucide:app-window",
-        action: () => native.activateWindow(w.hwnd),
-      }))
+  const menuItems = (): MenuItem[] => {
+    const windows: MenuItem[] = group.windows.slice(0, MENU_WINDOWS).map(w => ({
+      label: w.title,
+      icon: w.hwnd === foreground ? "lucide:square-dot" : "lucide:app-window",
+      run: () => native.activateWindow(w.hwnd),
+    }))
 
     const pinned = group.pinned === "windows" ? !hiddenHere : Boolean(group.pinned)
 
-    const pin: MenuItem = {
-      label: pinned ? $t("dock.menu.unpin") : $t("dock.menu.pin"),
-      icon: pinned ? "lucide:pin-off" : "lucide:pin",
-      action: () =>
-        group.pinned === "windows"
-          ? toggleDockHidden(group.path)
-          : toggleDockPin(group.path),
-    }
-
     return [
       ...windows,
-      ...(running ? (["separator"] as MenuItem[]) : []),
+      ...(running ? (["separator"] as const) : []),
+      { label: m.dock_app_new_window(), icon: "lucide:plus", run: launch },
       {
-        label: $t("dock.menu.newWindow"),
-        icon: "lucide:plus",
-        action: launch,
-      },
-      {
-        label: $t("dock.menu.openLocation"),
+        label: m.dock_app_open_location(),
         icon: "lucide:folder-open",
-        action: () => native.openLocation(group.path),
+        run: () => native.openLocation(group.path),
       },
-      pin,
+      {
+        label: pinned ? m.dock_app_unpin() : m.dock_app_pin(),
+        icon: pinned ? "lucide:pin-off" : "lucide:pin",
+        run: () =>
+          group.pinned === "windows"
+            ? toggleDockHidden(group.path)
+            : toggleDockPin(group.path),
+      },
       ...(running
         ? ([
             "separator",
             {
-              label: $t("dock.menu.endTask"),
+              label: m.dock_app_end_task(),
               icon: "lucide:circle-slash",
-              action: () =>
-                native.endTask(group.windows.map(w => w.hwnd)).catch(() => undefined),
+              danger: true,
+              run: () => native.endTask(group.windows.map(w => w.hwnd)),
             },
-            {
-              label: $t("dock.menu.closeAll"),
-              icon: "lucide:x",
-              action: closeAll,
-            },
-          ] as MenuItem[])
+            { label: m.dock_app_close_all(), icon: "lucide:x", run: closeAll },
+          ] as const)
         : []),
     ]
-  })
+  }
+
+  const dragStart = (e: DragEvent) => {
+    e.dataTransfer?.setData("text/plain", group.path)
+    e.dataTransfer?.setData(APP_DRAG, group.path)
+
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move"
+    }
+
+    dismissPreview()
+    ondragstart?.()
+  }
 </script>
 
-<svelte:window onblur={() => setOpen(false)} />
-
-<div
-  bind:this={root}
-  class={["relative transition-opacity duration-100", dragging && "opacity-30"]}
->
-  {#if dropBefore}
+<div bind:this={root} class={["relative transition-opacity", dragging && "opacity-30"]}>
+  {#if dropBefore || dropAfter}
     <span
-      class="pointer-events-none absolute inset-y-1 -left-1 w-0.5 rounded-full bg-primary"
+      class={[
+        "pointer-events-none absolute inset-y-1 z-10 w-0.5",
+        "rounded-full bg-primary",
+        dropBefore ? "-left-0.5" : "-right-0.5",
+      ]}
     ></span>
   {/if}
 
-  {#if dropAfter}
-    <span
-      class="pointer-events-none absolute inset-y-1 -right-1 w-0.5 rounded-full bg-primary"
-    ></span>
-  {/if}
-
-  <button type="button"
-    draggable={reorder}
-    ondragstart={reorder ? dragStart : undefined}
+  <button
+    type="button"
+    draggable="true"
+    ondragstart={dragStart}
     {ondragend}
     class={[
-      "relative origin-bottom will-change-transform active:scale-90",
-      mac
-        ? "group flex items-center justify-center rounded-field outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-        : "btn btn-ghost btn-square transition-transform duration-100",
-      !mac && active && "bg-base-content/10",
+      "btn btn-ghost btn-square relative origin-bottom p-0",
+      "will-change-transform",
+      "transition-transform active:scale-90",
+      active && "bg-primary/8",
     ]}
-    style:--size={rem(size + 16)}
-    style:width={mac ? rem(size + 16) : undefined}
-    style:height={mac ? rem(size + 16) : undefined}
+    style:width={rem(size + 16)}
+    style:height={rem(size + 16)}
     style:transform={magnify === 1 ? undefined : `scale(${magnify})`}
     title={running ? undefined : group.name}
     aria-label={group.name}
     aria-haspopup="menu"
-    aria-expanded={open}
     onclick={activate}
-    {onauxclick}
-    {oncontextmenu}
-    {onmouseenter}
+    onauxclick={e => {
+      if (e.button === 1) {
+        e.preventDefault()
+        launch()
+      }
+    }}
+    oncontextmenu={e => {
+      dismissPreview()
+      contextMenu.show(e, menuItems())
+    }}
+    onmouseenter={hover}
     onmouseleave={closePreview}
   >
     {#if icon}
-      <img
-        src={icon}
-        alt=""
-        draggable="false"
-        class={[mac && "transition duration-100 group-hover:brightness-125"]}
-        style:width={rem(size)}
-        style:height={rem(size)}
-      />
+      <img src={icon} alt="" draggable="false" style:width={rem(size)} style:height={rem(size)} />
     {:else}
-      <span
-        class={[
-          "text-base-content/70",
-          mac && "transition duration-100 group-hover:brightness-125",
-        ]}
-        style:width={rem(size)}
-        style:height={rem(size)}
-      >
+      <span class="text-base-content/70" style:width={rem(size)} style:height={rem(size)}>
         <Icon icon="lucide:app-window" class="size-full" />
       </span>
     {/if}
@@ -296,22 +245,11 @@
     {#if running}
       <span
         class={[
-          "absolute left-1/2 h-1 -translate-x-1/2 rounded-full transition-all duration-100",
+          "absolute left-1/2 h-1 -translate-x-1/2 rounded-full transition-all",
           edge === "top" ? "top-0.5" : "bottom-0.5",
-          active ? "w-4 bg-primary" : "w-1.5 bg-base-content/60",
+          active ? "w-4 bg-primary" : "w-1.5 bg-base-content/50",
         ]}
       ></span>
     {/if}
   </button>
-
-  <ContextMenu
-    bind:open
-    items={menuItems}
-    placement={edge === "top" ? "down" : "up"}
-    align={alignEnd ? "end" : "start"}
-    label={group.name}
-    width={224}
-    onsize={rect => onmenu(open ? rect : null)}
-    onclose={() => onmenu(null)}
-  />
 </div>

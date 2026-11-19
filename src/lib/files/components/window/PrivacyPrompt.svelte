@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Confirm } from "@atrix/ui"
-  import { t } from "svelte-i18n"
+  import { m } from "#lib/paraglide/messages.js"
   import { baseName } from "../../locations"
   import { answer, pending } from "../../store/privacy.svelte"
+  import ConfirmDialog from "./ConfirmDialog.svelte"
 
   const open = () => pending.path !== null
 
-  // Confirm clears `open` before calling onconfirm, so a dismissal waits a tick for the confirm to land first
+  // ConfirmDialog clears `open` before calling onconfirm, so a dismissal waits a tick for the confirm to land first
   const dismiss = (next: boolean) => {
     const asked = pending.path
 
@@ -20,12 +20,11 @@
   }
 </script>
 
-<Confirm
+<ConfirmDialog
   bind:open={open, dismiss}
-  title={$t("explorer.privacy.title")}
-  body={$t("explorer.privacy.body", {
-    values: { name: baseName(pending.path ?? "") },
-  })}
-  action={$t("explorer.privacy.open")}
+  title={m.files_privacy_title()}
+  body={m.files_privacy_body({ name: baseName(pending.path ?? "") })}
+  action={m.files_privacy_open()}
+  danger={false}
   onconfirm={() => answer(true)}
 />

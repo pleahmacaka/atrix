@@ -126,8 +126,9 @@
     <button
       type="button"
       class={[
-        "absolute inset-0 z-40 rounded-field ring-2 ring-primary/70 transition-colors duration-100",
-        open ? "bg-primary/25" : "bg-primary/10 hover:bg-primary/20",
+        "absolute inset-0 z-40 cursor-pointer rounded-field ring-1",
+        "ring-primary/40 transition-colors",
+        open ? "bg-primary/8" : "hover:bg-primary/8",
       ]}
       aria-label={label}
       aria-haspopup="dialog"
@@ -150,7 +151,8 @@
 
       <span
         class={[
-          "badge badge-primary badge-xs absolute left-1/2 -translate-x-1/2 whitespace-nowrap",
+          "badge badge-primary badge-xs absolute left-1/2",
+          "-translate-x-1/2 whitespace-nowrap",
           placement === "up" ? "-top-2" : "-bottom-2",
         ]}
       >
@@ -162,7 +164,7 @@
       <div
         bind:this={card}
         class={[
-          "absolute z-50 w-72 rounded-box border border-base-content/10 bg-base-100/95 p-3 shadow-xl backdrop-blur-xl",
+          "popover-box absolute z-50 w-72 p-3",
           placement === "up" ? "bottom-full mb-3" : "top-full mt-3",
           ALIGN[align],
         ]}

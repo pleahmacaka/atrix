@@ -8,7 +8,6 @@ members = [
   "crates/is-screen-sharing",
   "crates/files",
   "crates/terminal",
-  "packages/sync/p2p",
   "apps/installer/src-tauri",
 ]
 resolver = "3"

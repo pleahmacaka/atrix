@@ -1,4 +1,4 @@
-import { tr } from "@atrix/i18n"
+import { m } from "#lib/paraglide/messages.js"
 import { browseDevice } from "../components/share/share"
 import { memberName } from "../components/share/share.svelte"
 import { isAudio } from "../filetypes"
@@ -12,6 +12,7 @@ import {
   fromShell,
   type Item,
 } from "../items"
+import { DRIVE_LABELS, KNOWN_LABELS } from "../labels"
 import {
   HIDDEN,
   HOME,
@@ -59,11 +60,7 @@ const thisPcItems = (): Item[] => {
   const folders = places.known
     .filter(known => known.id !== "home")
     .map(known =>
-      fromFolder(
-        known.path,
-        tr(`explorer.places.${known.id}`),
-        tr("explorer.places.folder"),
-      ),
+      fromFolder(known.path, KNOWN_LABELS[known.id](), m.files_places_folder()),
     )
 
   const disks = places.drives
@@ -72,20 +69,16 @@ const thisPcItems = (): Item[] => {
         prefs.showHiddenDevices || !prefs.hiddenDevices.includes(drive.path),
     )
     .map(drive => ({
-      ...fromDrive(
-        drive,
-        driveName(drive, key => tr(key)),
-        tr(`explorer.drive.${drive.kind === "fixed" ? "local" : drive.kind}`),
-      ),
+      ...fromDrive(drive, driveName(drive), DRIVE_LABELS[drive.kind]()),
       attrs: prefs.hiddenDevices.includes(drive.path) ? HIDDEN : 0,
     }))
 
   const network = places.network.map(place =>
-    fromFolder(place.path, place.name, tr("explorer.places.networkLocation")),
+    fromFolder(place.path, place.name, m.files_places_network_location()),
   )
 
   const linux = places.linux.map(distro =>
-    fromFolder(distro.path, distro.name, tr("explorer.places.linuxDistro")),
+    fromFolder(distro.path, distro.name, m.files_places_linux_distro()),
   )
 
   return [...folders, ...disks, ...network, ...linux]

@@ -1,15 +1,13 @@
-import type { Result, SecondaryAction } from "#lib/desktop/launcher/core/index.ts"
-import { parseQuery, type Route } from "#lib/desktop/launcher/core/index.ts"
 import {
   type DeviceSettings,
   defaultDevice,
   defaultProfile,
   type Profile,
+  saveProfile,
 } from "@atrix/settings"
-import { rootRem } from "@atrix/ui"
-import { fromStore } from "svelte/store"
-import { t } from "svelte-i18n"
-import { saveProfileSynced } from "#lib/desktop/data/index.js"
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
+import type { Result } from "#lib/desktop/launcher/core/index.ts"
+import { parseQuery, type Route } from "#lib/desktop/launcher/core/index.ts"
 import {
   type AppEntry,
   listApps,
@@ -24,17 +22,24 @@ import {
   listWindows,
   type WindowEntry,
 } from "#lib/desktop/native/windows.js"
+import { m } from "#lib/paraglide/messages.js"
+import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
+import { type AtrixItems, askAtrix } from "./atrix"
 import { settingsLinks, systemCommands } from "./commands"
 import { record, top } from "./frecency"
 import { buildGroups, RECENT } from "./groups"
-import { alignApps, mergeApps } from "./providers"
+import {
+  alignApps,
+  atrixOpenResult,
+  conversationResult,
+  docResult,
+  mergeApps,
+} from "./providers"
 import type { Timer } from "./timers"
-
-export const MENU_WIDTH = 13
 
 const APPS_STALE = 300_000
 
-type MenuAnchor = { id: string; x: number; y: number }
+const COPIES = new Set(["calc", "unit", "emoji"])
 
 export class Launcher {
   profile = $state<Profile>(defaultProfile)
@@ -51,6 +56,8 @@ export class Launcher {
 
   timers = $state.raw<Timer[]>([])
 
+  atrix = $state.raw<AtrixItems>({ conversations: [], docs: [] })
+
   icons = $state<Record<string, string>>({})
 
   query = $state("")
@@ -59,37 +66,32 @@ export class Launcher {
 
   usage = $state(0)
 
-  error = $state("")
-
-  menu = $state<MenuAnchor | null>(null)
-
-  menuCursor = $state(0)
-
-  backdropMenu = $state(false)
-
-  backdropMenuX = $state(0)
-
-  backdropMenuY = $state(0)
+  error = $state<string | null>(null)
 
   input = $state<HTMLInputElement>()
 
   list = $state<HTMLElement>()
 
-  private i18n = fromStore(t)
-
   private appsAt = 0
 
-  get t() {
-    return this.i18n.current
-  }
+  commandRows = [...systemCommands(), ...settingsLinks()]
 
-  commandRows = $derived.by(() => {
-    void this.t
+  atrixOpen = atrixOpenResult()
 
-    return [...systemCommands(), ...settingsLinks()]
-  })
+  atrixRows = $derived([
+    this.atrixOpen,
+    ...this.atrix.conversations.map(conversationResult),
+    ...this.atrix.docs.map(docResult),
+  ])
 
-  extrasById = $derived(new Map(this.commandRows.map(r => [r.id, r])))
+  extrasById = $derived(
+    new Map(
+      [
+        ...(this.profile.launcher.showCommands ? this.commandRows : []),
+        this.atrixOpen,
+      ].map(r => [r.id, r]),
+    ),
+  )
 
   route = $derived.by((): Route => {
     const parsed = parseQuery(this.query)
@@ -117,51 +119,11 @@ export class Launcher {
 
   active = $derived(Math.min(this.cursor, Math.max(this.flat.length - 1, 0)))
 
-  compact = $derived(this.profile.appearance.density === "compact")
-
-  menuItem = $derived.by(() => {
-    const menu = this.menu
-
-    return menu ? this.flat.find(i => i.id === menu.id) : undefined
-  })
-
-  menuItems = $derived.by((): SecondaryAction[] => {
-    const item = this.menuItem
-
-    return item
-      ? [
-          {
-            label:
-              item.kind === "clip"
-                ? this.t("launcher.actions.paste")
-                : this.t("launcher.actions.open"),
-            run: item.action,
-            stay: item.stay,
-          },
-          ...item.secondaryActions,
-        ]
-      : []
-  })
-
-  menuStyle = $derived.by(() => {
-    if (!this.menu) {
-      return ""
-    }
-
-    const rem = rootRem()
-    const height = this.menuItems.length * 2.25 + 1
-    const maxLeft = window.innerWidth / rem - MENU_WIDTH - 0.5
-    const maxTop = window.innerHeight / rem - height - 0.5
-    const left = Math.max(0.5, Math.min(this.menu.x / rem, maxLeft))
-    const top = Math.max(0.5, Math.min(this.menu.y / rem, maxTop))
-
-    return `left:${left}rem; top:${top}rem`
-  })
+  current = $derived(this.flat[this.active])
 
   reset() {
     this.cursor = 0
-    this.menu = null
-    this.error = ""
+    this.error = null
   }
 
   setQuery(value: string) {
@@ -177,7 +139,7 @@ export class Launcher {
       ...this.profile,
       launcher: { ...this.profile.launcher, [key]: value },
     }
-    saveProfileSynced($state.snapshot(this.profile)).catch(() => undefined)
+    saveProfile($state.snapshot(this.profile)).catch(() => undefined)
   }
 
   async refreshApps() {
@@ -200,8 +162,19 @@ export class Launcher {
     this.clips = await clipboardHistory().catch(() => [])
   }
 
+  refreshAtrix() {
+    return askAtrix({
+      kind: "list",
+      reply: getCurrentWebviewWindow().label,
+    }).catch(() => undefined)
+  }
+
   refresh() {
-    return Promise.all([this.refreshApps(), this.refreshWindows()])
+    return Promise.all([
+      this.refreshApps(),
+      this.refreshWindows(),
+      this.refreshAtrix(),
+    ])
   }
 
   // the app list rescans itself only when read after it went stale, so an open still reads it now and then
@@ -209,32 +182,29 @@ export class Launcher {
     return Promise.all([
       Date.now() - this.appsAt > APPS_STALE ? this.refreshApps() : undefined,
       this.refreshWindows(),
+      this.refreshAtrix(),
     ])
   }
 
   async hide() {
-    this.menu = null
+    contextMenu.close()
     await hideWindow("launcher")
     this.setQuery("")
   }
 
   async perform(item: Result, run: () => void | Promise<void>, stay = false) {
-    this.menu = null
-
     try {
       await run()
     } catch (e) {
-      this.error = this.t("launcher.couldNotOpen", {
-        values: { title: item.title, error: String(e) },
+      this.error = m.launcher_could_not_open({
+        title: item.title,
+        error: String(e),
       })
 
       return
     }
 
-    const remembered =
-      item.kind === "app" || item.kind === "command" || item.kind === "setting"
-
-    if (remembered) {
+    if (item.kind === "app" || this.extrasById.has(item.id)) {
       record(item.id).then(() => {
         this.usage += 1
       })
@@ -249,6 +219,16 @@ export class Launcher {
     await this.hide()
   }
 
+  primaryLabel(item: Result | undefined) {
+    if (item?.kind === "clip") {
+      return m.launcher_key_paste()
+    }
+
+    return item && COPIES.has(item.kind)
+      ? m.launcher_key_copy()
+      : m.launcher_key_open()
+  }
+
   secondary(item: Result | undefined, id: "admin" | "location") {
     return item?.secondaryActions.find(a => a.id === id)
   }
@@ -261,12 +241,7 @@ export class Launcher {
       return
     }
 
-    const alt =
-      variant === "admin"
-        ? this.secondary(item, "admin")
-        : variant === "location"
-          ? this.secondary(item, "location")
-          : undefined
+    const alt = variant === "open" ? undefined : this.secondary(item, variant)
 
     this.perform(item, alt?.run ?? item.action, alt?.stay ?? item.stay)
   }
@@ -292,7 +267,27 @@ export class Launcher {
     this.cursor = this.groups[next].start
   }
 
-  openMenu(index: number, x: number, y: number) {
+  actionsOf(item: Result): MenuItem[] {
+    return [
+      {
+        label: this.primaryLabel(item),
+        icon:
+          item.kind === "clip"
+            ? "lucide:clipboard-paste"
+            : COPIES.has(item.kind)
+              ? "lucide:copy"
+              : "lucide:arrow-up-right",
+        run: () => this.perform(item, item.action, item.stay),
+      },
+      ...item.secondaryActions.map(a => ({
+        label: a.label,
+        icon: a.icon,
+        run: () => this.perform(item, a.run, a.stay),
+      })),
+    ]
+  }
+
+  openMenu(index: number, e: MouseEvent) {
     const item = this.flat[index]
 
     if (!item) {
@@ -300,8 +295,7 @@ export class Launcher {
     }
 
     this.cursor = index
-    this.menuCursor = 0
-    this.menu = { id: item.id, x, y }
+    contextMenu.show(e, this.actionsOf(item))
   }
 
   openMenuAtActive() {
@@ -310,15 +304,13 @@ export class Launcher {
       ?.getBoundingClientRect()
 
     if (rect) {
-      this.openMenu(this.active, rect.left + 56, rect.bottom)
-    }
-  }
-
-  runMenu(action: SecondaryAction | undefined) {
-    const item = this.menuItem
-
-    if (item && action) {
-      this.perform(item, action.run, action.stay)
+      this.openMenu(
+        this.active,
+        new MouseEvent("contextmenu", {
+          clientX: rect.left + rect.height,
+          clientY: rect.bottom,
+        }),
+      )
     }
   }
 

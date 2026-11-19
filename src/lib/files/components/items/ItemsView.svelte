@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { rootRem, track } from "@atrix/ui"
-  import Icon from "@iconify/svelte"
   import { untrack } from "svelte"
-  import { t } from "svelte-i18n"
+  import EmptyState from "#lib/components/ui/EmptyState.svelte"
+  import { m } from "#lib/paraglide/messages.js"
   import { displayName, type Item } from "../../items"
+  import { rootRem, track } from "../../pointer"
   import type { Explorer } from "../../store/explorer.svelte"
   import { openMenu } from "../../store/menus"
   import { prefs, SORT_KEYS, VIEWS } from "../../store/prefs.svelte"
@@ -21,6 +21,16 @@
   } from "./plan"
 
   type Band = { left: number; top: number; width: number; height: number }
+
+  const STATES: Record<string, () => string> = {
+    denied: m.files_states_denied,
+    missing: m.files_states_missing,
+    notReady: m.files_states_not_ready,
+    unreachable: m.files_states_unreachable,
+    waiting: m.files_states_waiting,
+  }
+
+  const RETRY = ["unreachable", "notReady", "waiting"]
 
   const SIDE_BUTTON = 3
   const DRAG_SLOP = 6
@@ -369,8 +379,8 @@
   role="listbox"
   tabindex="0"
   aria-multiselectable="true"
-  aria-label={explorer.title(tab, $t)}
-  class="relative min-h-0 min-w-0 grow overflow-auto outline-none"
+  aria-label={explorer.title(tab)}
+  class="relative min-h-0 min-w-0 flex-1 overflow-auto outline-none"
   onscroll={e => {
     top = e.currentTarget.scrollTop
     left = e.currentTarget.scrollLeft
@@ -385,7 +395,7 @@
   {#if band}
     <div
       aria-hidden="true"
-      class="pointer-events-none absolute z-20 rounded-sm border border-primary/60 bg-primary/15"
+      class="pointer-events-none absolute z-20 rounded-field border border-primary/50 bg-primary/8"
       style:left="{band.left / rem}rem"
       style:top="{band.top / rem}rem"
       style:width="{band.width / rem}rem"
@@ -416,19 +426,18 @@
       {#if line.section}
         <div
           class={[
-            "absolute left-0 flex w-full items-end gap-2 px-3 pb-1.5 text-xs",
-            "text-base-content/60",
+            "absolute left-0 flex w-full items-end gap-2 px-4 pb-1.5",
+            "text-xs font-semibold text-base-content/55",
           ]}
           style:top="{line.start}rem"
           style:height="{line.size}rem"
         >
-          <span class="shrink-0 font-semibold text-base-content/80">
+          <span class="min-w-0 truncate" title={line.section.label}>
             {line.section.label}
           </span>
-
-          <span class="shrink-0 tabular-nums">{line.section.items.length}</span>
-
-          <span class="mb-1.5 h-0.25 grow bg-base-content/10"></span>
+          <span class="shrink-0 font-normal tabular-nums">
+            {line.section.items.length}
+          </span>
         </div>
       {:else}
         <div
@@ -458,36 +467,34 @@
   </div>
 
   {#if !items.length}
-    <div
-      class={[
-        "pointer-events-none absolute inset-0 flex flex-col items-center",
-        "justify-center gap-2 text-sm text-base-content/50",
-      ]}
-    >
+    <div class="pointer-events-none absolute inset-0 flex">
       {#if tab.loading || tab.searching}
-        <span class="loading loading-spinner loading-md text-primary"></span>
+        <div class="grid flex-1 place-items-center">
+          <span class="loading loading-spinner loading-md text-primary"></span>
+        </div>
       {:else if tab.error}
-        <Icon icon="lucide:circle-alert" class="size-6" />
-        {$t(`explorer.states.${tab.error}`, { default: tab.error })}
-
-        {#if tab.error === "waiting"}
-          <span class="text-xs">{$t("remote.waitingHint")}</span>
-        {/if}
-
-        {#if tab.error === "unreachable" || tab.error === "notReady" || tab.error === "waiting"}
-          <button
-            type="button"
-            class="btn btn-sm pointer-events-auto mt-1"
-            onclick={() => tab.refresh()}
-          >
-            <Icon icon="lucide:refresh-cw" class="size-3.5" />
-            {$t("explorer.states.reconnect")}
-          </button>
-        {/if}
-      {:else if tab.results}
-        {$t("explorer.states.noResults")}
+        <EmptyState
+          centered
+          icon="lucide:circle-alert"
+          title={STATES[tab.error]?.() ?? tab.error}
+          text={tab.error === "waiting" ? m.files_remote_waiting_hint() : ""}
+        >
+          {#if RETRY.includes(tab.error)}
+            <button
+              type="button"
+              class="btn btn-sm pointer-events-auto"
+              onclick={() => tab.refresh()}
+            >
+              {m.files_states_reconnect()}
+            </button>
+          {/if}
+        </EmptyState>
       {:else}
-        {$t("explorer.states.empty")}
+        <EmptyState
+          centered
+          icon={tab.results ? "lucide:search-x" : "lucide:folder-open"}
+          text={tab.results ? m.files_states_no_results() : m.files_states_empty()}
+        />
       {/if}
     </div>
   {/if}

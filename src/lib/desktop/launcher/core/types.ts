@@ -1,5 +1,3 @@
-import { tr } from "@atrix/i18n"
-
 export type ResultKind =
   | "app"
   | "window"
@@ -13,12 +11,16 @@ export type ResultKind =
   | "run"
   | "setting"
   | "clip"
+  | "atrix"
+  | "conversation"
+  | "doc"
 
 export type ActionId = "admin" | "location" | "cancel"
 
 export type SecondaryAction = {
   id?: ActionId
   label: string
+  icon?: string
   run: () => void | Promise<void>
   stay?: boolean
 }
@@ -32,6 +34,7 @@ export type Result = {
   iconPath?: string
   chips?: string[]
   keywords?: string[]
+  running?: boolean
   action: () => void | Promise<void>
   secondaryActions: SecondaryAction[]
   stay?: boolean
@@ -44,9 +47,5 @@ export type ResultGroup = {
   start: number
   items: Result[]
 }
-
-export const groupLabel = (kind: ResultKind) => tr(`launcher.groups.${kind}`)
-
-export const kindLabel = (kind: ResultKind) => tr(`launcher.kinds.${kind}`)
 
 export type TimerKind = "timer" | "alarm"

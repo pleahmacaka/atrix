@@ -1,24 +1,25 @@
 import {
   type DeviceSettings,
-  type DockWidget,
   defaultDevice,
+  type ShellZoneId,
   updateDevice,
 } from "@atrix/settings"
 import { emit } from "@tauri-apps/api/event"
 import { cubicOut } from "svelte/easing"
 import { Tween } from "svelte/motion"
 import { SvelteMap } from "svelte/reactivity"
-import { newId } from "#lib/desktop/data/index.js"
 import * as native from "#lib/desktop/native/index.js"
+import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { barHeightFor } from "./bar"
 import { MAGNIFY_BOOST } from "./DockItem.svelte"
 import { type DockGroup, dock, groupWindows, resolvePins } from "./dock.svelte"
-import { DockOrdering, isDockPinned, moveGroup } from "./order"
+import { DockOrdering, moveGroup } from "./order"
 import { rem, rootFontSize } from "./rem.svelte"
+import { locate, viewOf } from "./zones"
 
 const STRIP = 6
-const GROW_SLOTS = 6
-const ISLAND_PADDING = 24
+const NAV_PAD = 16
+const ZONE_GAP = 16
 
 export const TOPBAR_H = 34
 
@@ -30,11 +31,17 @@ export type MenuBox = {
 }
 
 export class DockLayout {
-  constructor(private surface: "taskbar" | "topbar" = "taskbar") {}
+  private surface = $state<"taskbar" | "topbar">("taskbar")
+
+  constructor(surface: "taskbar" | "topbar" = "taskbar") {
+    this.surface = surface
+  }
 
   device = $state<DeviceSettings>(defaultDevice)
 
   collapsed = $state(false)
+
+  hiding = $state(false)
 
   dockHidden = $state(false)
 
@@ -52,13 +59,15 @@ export class DockLayout {
 
   inside = $state(false)
 
-  scrubbing = $state(false)
-
   navWidth = $state(0)
 
-  leadWidth = $state(0)
+  zoneWidth = $state<Record<ShellZoneId, number>>({
+    start: 0,
+    center: 0,
+    end: 0,
+  })
 
-  trailWidth = $state(0)
+  appsWidth = $state(0)
 
   dragPath = $state<string | null>(null)
 
@@ -66,11 +75,13 @@ export class DockLayout {
 
   dropBefore = $state(true)
 
-  mac = $derived(this.device.dockStyle === "mac")
+  view = $derived(viewOf(this.device))
 
-  packed = $derived(this.mac && this.device.dockIslands)
+  bar = $derived(this.surface === "topbar" ? this.view.top : this.view.dock)
 
-  centered = $derived(!this.packed && this.device.dockAlign === "center")
+  mac = $derived(this.surface === "taskbar" && this.device.dockStyle === "mac")
+
+  edge = $derived(this.surface === "topbar" ? "top" : this.device.dockEdge)
 
   desktop = $derived(this.mac && this.device.dockDesktop)
 
@@ -85,61 +96,52 @@ export class DockLayout {
 
   hidden = $derived(new Set(this.device.hiddenApps))
 
-  spotPlacement = $derived<"up" | "down">(
-    this.device.dockEdge === "top" ? "down" : "up",
-  )
-
   slotWidth = $derived(this.device.dockIconSize + 20)
 
   barHeight = $derived(
-    barHeightFor(this.device.dockHeight, this.device.dockIslands),
+    this.surface === "topbar"
+      ? TOPBAR_H
+      : barHeightFor(this.device.dockHeight, this.device.dockIslands),
   )
 
-  launcherShown = $derived(
-    this.device.showLauncherButton && this.device.features.launcher,
+  contentHeight = $derived(
+    this.surface === "topbar"
+      ? TOPBAR_H - (this.device.dockIslands ? 8 : 0)
+      : this.device.dockHeight,
   )
 
-  launcherIsland = $derived(this.launcherShown && this.device.dockIslands)
+  appsZone = $derived(locate(this.view, "apps")?.zone ?? "center")
 
-  chrome = $derived(
-    (this.mac ? 34 : 24) +
-      (this.launcherShown ? this.device.dockIconSize + 20 : 0) +
-      (this.launcherShown &&
-      this.device.dockSeparators &&
-      !this.device.dockIslands
-        ? 25
-        : 0) +
-      (this.device.dockIslands
-        ? ISLAND_PADDING * (this.launcherIsland ? 2 : 1) +
-          (this.device.dockIslandGap - 4) * this.device.dockWidgets.length +
-          (this.launcherIsland ? this.device.dockIslandGap : 0)
-        : 0),
-  )
+  centered = $derived(this.bar.center.align === "center")
 
-  spacerWidth = $derived(
-    this.device.dockWidgets.reduce(
-      (sum, widget) => sum + (widget.kind === "spacer" ? widget.size : 0),
-      0,
-    ),
-  )
+  fixed = $derived.by(() => {
+    const widths = { ...this.zoneWidth }
 
-  sides = $derived(
-    this.centered
-      ? 2 * Math.max(this.leadWidth, this.trailWidth)
-      : this.leadWidth + this.trailWidth,
-  )
+    widths[this.appsZone] = Math.max(0, widths[this.appsZone] - this.appsWidth)
 
-  roomForIcons = $derived(
-    Math.max(0, this.navWidth - this.sides - this.spacerWidth - this.chrome),
-  )
+    return widths
+  })
 
-  fits = $derived.by(() => {
-    if (this.navWidth === 0) {
-      return Number.POSITIVE_INFINITY
+  roomForIcons = $derived.by(() => {
+    const room = this.navWidth - NAV_PAD - ZONE_GAP
+    const { start, center, end } = this.fixed
+
+    if (!this.centered) {
+      return room - start - center - end
     }
 
-    return Math.floor(this.roomForIcons / this.slotWidth)
+    if (this.appsZone === "center") {
+      return room - 2 * Math.max(start, end) - center
+    }
+
+    return (room - center) / 2 - this.fixed[this.appsZone]
   })
+
+  fits = $derived(
+    this.navWidth === 0
+      ? Number.POSITIVE_INFINITY
+      : Math.floor(Math.max(0, this.roomForIcons) / this.slotWidth),
+  )
 
   groups = $derived(
     this.ordered(
@@ -158,35 +160,30 @@ export class DockLayout {
     ),
   )
 
-  naturalWidth = $derived(
-    this.sides +
-      this.spacerWidth +
-      this.chrome +
-      this.groups.length * this.slotWidth,
-  )
+  naturalWidth = $derived.by(() => {
+    const widths = { ...this.fixed }
 
-  pinnedCount = $derived(
-    this.groups.filter(g => isDockPinned(g, this.hidden)).length,
-  )
+    widths[this.appsZone] += this.groups.length * this.slotWidth
 
-  runningCount = $derived(this.groups.length - this.pinnedCount)
+    const content = this.centered
+      ? 2 * Math.max(widths.start, widths.end) + widths.center
+      : widths.start + widths.center + widths.end
+
+    return content + NAV_PAD + ZONE_GAP
+  })
 
   dockWidth = $derived.by(() => {
-    if (this.mac) {
-      const limit = this.device.dockWidth * (1 + this.device.dockGrowth)
-
-      return Math.min(
-        this.maxDockWidth,
-        limit,
-        Math.max(this.naturalWidth, this.device.dockWidth),
-      )
+    if (!this.mac) {
+      return this.device.dockWidth
     }
 
-    const visible = this.pinnedCount + Math.min(this.runningCount, GROW_SLOTS)
-    const needed =
-      this.sides + this.spacerWidth + this.chrome + visible * this.slotWidth
+    const limit = this.device.dockWidth * (1 + this.device.dockGrowth)
 
-    return Math.min(this.maxDockWidth, Math.max(this.device.dockWidth, needed))
+    return Math.min(
+      this.maxDockWidth,
+      limit,
+      Math.max(this.naturalWidth, this.device.dockWidth),
+    )
   })
 
   shown = $derived(
@@ -235,10 +232,15 @@ export class DockLayout {
     ].join("|"),
   )
 
-  // local popups listen on the window event; sibling windows get the tauri broadcast
   closeLocal = () => {
     this.claims.clear()
-    window.dispatchEvent(new Event("atrix-close-menus"))
+    contextMenu.close()
+
+    for (const open of document.querySelectorAll<HTMLElement>(
+      ":popover-open",
+    )) {
+      open.hidePopover()
+    }
   }
 
   closeMenus = () => {
@@ -246,117 +248,19 @@ export class DockLayout {
     emit("atrix-close-menus").catch(() => undefined)
   }
 
-  preview = <K extends keyof DeviceSettings>(
-    key: K,
-    value: DeviceSettings[K],
-  ) => {
-    this.device = { ...this.device, [key]: value }
-  }
-
-  patch = <K extends keyof DeviceSettings>(
-    key: K,
-    value: DeviceSettings[K],
-  ) => {
-    this.preview(key, value)
-    updateDevice(device => ({ ...device, [key]: value })).catch(() => undefined)
-  }
-
-  setWidgets = (widgets: DockWidget[], persist = true) => {
-    if (persist) {
-      this.patch("dockWidgets", widgets)
-    } else {
-      this.preview("dockWidgets", widgets)
-    }
-  }
-
-  addSpacer = () => {
-    const widgets = [...this.device.dockWidgets]
-    const at = widgets.findIndex(widget => widget.kind === "tray")
-
-    widgets.splice(at < 0 ? widgets.length : at, 0, {
-      id: newId(),
-      kind: "spacer",
-      size: 32,
-    })
-
-    this.setWidgets(widgets)
-  }
-
-  moveWidget = (id: string, delta: -1 | 1) => {
-    const widgets = [...this.device.dockWidgets]
-    const from = widgets.findIndex(widget => widget.id === id)
-    const to = from + delta
-
-    if (from < 0 || to < 0 || to >= widgets.length) {
-      return
-    }
-
-    widgets.splice(to, 0, ...widgets.splice(from, 1))
-    this.setWidgets(widgets)
-  }
-
-  moveWidgetTo = (fromId: string, toId: string, after: boolean) => {
-    if (fromId === toId) {
-      return
-    }
-
-    const widgets = [...this.device.dockWidgets]
-    const from = widgets.findIndex(widget => widget.id === fromId)
-
-    if (from < 0) {
-      return
-    }
-
-    const [moved] = widgets.splice(from, 1)
-    const target = widgets.findIndex(widget => widget.id === toId)
-
-    if (target < 0) {
-      return
-    }
-
-    widgets.splice(after ? target + 1 : target, 0, moved)
-    this.setWidgets(widgets)
-  }
-
-  removeWidget = (id: string) => {
-    this.setWidgets(
-      this.device.dockWidgets.filter(
-        widget => widget.id !== id || widget.kind !== "spacer",
-      ),
-    )
-  }
-
-  resizeWidget = (id: string, size: number, persist: boolean) => {
-    this.setWidgets(
-      this.device.dockWidgets.map(widget =>
-        widget.id === id
-          ? { ...widget, size: Math.round(Math.min(240, Math.max(8, size))) }
-          : widget,
-      ),
-      persist,
-    )
-  }
-
-  resetWidgets = () =>
-    this.patch("dockWidgets", structuredClone(defaultDevice.dockWidgets))
-
-  claimFor = (key: string) => (rect: MenuBox | null) => {
+  claim = (key: string, rect: MenuBox | null) => {
     if (rect) {
-      this.claims.set(key, {
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-      })
+      this.claims.set(key, rect)
       this.pointerX = null
     } else {
       this.claims.delete(key)
     }
   }
 
-  extend = this.claimFor("shared")
-
-  clearClaims = () => this.claims.clear()
+  patch = (change: Partial<DeviceSettings>) => {
+    this.device = { ...this.device, ...change }
+    updateDevice(device => ({ ...device, ...change })).catch(() => undefined)
+  }
 
   commitDrop = async () => {
     const from = this.dragPath
@@ -377,6 +281,7 @@ export class DockLayout {
     }
 
     this.ordering.commit(paths)
+
     const pinned = new Map(dock.pinned.map(app => [app.path, app]))
     const taskbar = paths.filter(
       path => pinned.has(path) && !this.hidden.has(path),
@@ -392,7 +297,7 @@ export class DockLayout {
       native.reorderPins(taskbar).catch(() => undefined)
     }
 
-    this.preview("dockOrder", paths)
+    this.device = { ...this.device, dockOrder: paths }
     await updateDevice(device => ({ ...device, dockOrder: paths }))
   }
 
@@ -409,7 +314,7 @@ export class DockLayout {
       root.dataset.dock = "windows"
       root.dataset.edge = "top"
       root.style.setProperty("--dock-height", rem(TOPBAR_H))
-      root.style.setProperty("--dock-content-height", rem(TOPBAR_H))
+      root.style.setProperty("--dock-content-height", rem(this.contentHeight))
 
       return native
         .applyTopbar({
