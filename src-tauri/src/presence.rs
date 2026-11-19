@@ -189,6 +189,9 @@ fn usage_lines(path: &Path) -> Vec<Value> {
     usage.rows.clone()
 }
 
+// a stopped subagent never gets finished: true in its meta, so a silent log ends it
+const SUBAGENT_STALE: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+
 #[tauri::command(async)]
 pub fn claude_subagents(transcript: String) -> Vec<Value> {
     let folder = Path::new(&transcript).with_extension("").join("subagents");
@@ -208,6 +211,16 @@ pub fn claude_subagents(transcript: String) -> Vec<Value> {
             }
 
             let log = folder.join(format!("{id}.jsonl"));
+            let quiet = fs::metadata(&log)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|at| at.elapsed().ok())
+                .is_none_or(|age| age > SUBAGENT_STALE);
+
+            if quiet {
+                return None;
+            }
+
             let tail = tail_lines(&log);
             let usage = usage_lines(&log);
 

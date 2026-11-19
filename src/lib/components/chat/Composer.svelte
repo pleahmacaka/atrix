@@ -60,6 +60,11 @@ $effect(() => {
 
 <!-- dock() moves the form into the shared slot; this wrapper keeps the component in place -->
 <div class="contents">
+{#if sharing}
+  <div class="mx-auto w-full max-w-2xl min-w-0 px-4 pb-1.5 empty:hidden sm:px-8">
+    <QueuePanel />
+  </div>
+{/if}
 <form
   data-draft={props.draft}
   style:view-transition-name={morph}
@@ -83,7 +88,9 @@ $effect(() => {
       e.currentTarget.value = ""
     }}
   />
-  <QueuePanel />
+  {#if !sharing}
+    <QueuePanel />
+  {/if}
   {#if composer.stopped}
     <p class="flex items-center gap-1.5 px-3 text-xs text-base-content/60" role="status">
       <Icon icon="lucide:circle-pause" class="size-3.5 shrink-0" />
