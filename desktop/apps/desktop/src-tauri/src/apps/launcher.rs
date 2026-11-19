@@ -1,0 +1,733 @@
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+
+const TTL: Duration = Duration::from_secs(300);
+const EXPLORER_APP_ID: &str = "Microsoft.Windows.Explorer";
+
+#[derive(Clone, PartialEq, Serialize)]
+pub struct AppEntry {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub kind: &'static str,
+    pub subtitle: String,
+    pub app_id: Option<String>,
+    pub executable: Option<String>,
+    pub icon_executable: Option<String>,
+    pub argument_executables: Vec<String>,
+}
+
+static CACHE: Mutex<Option<(Instant, Vec<AppEntry>)>> = Mutex::new(None);
+static COLD_SCAN: Mutex<()> = Mutex::new(());
+static REFRESHING: AtomicBool = AtomicBool::new(false);
+static PINS: Mutex<Option<Vec<AppEntry>>> = Mutex::new(None);
+static APP: OnceLock<AppHandle> = OnceLock::new();
+
+pub fn stable_id(path: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+
+    for byte in path.to_lowercase().bytes() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+
+    format!("{hash:016x}")
+}
+
+fn entry(name: String, path: String, kind: &'static str, subtitle: String) -> AppEntry {
+    let metadata = win::shortcut_metadata(&path);
+    entry_with_metadata(name, path, kind, subtitle, metadata)
+}
+
+#[derive(Default)]
+struct ShortcutMetadata {
+    app_id: Option<String>,
+    target: Option<String>,
+    icon_executable: Option<String>,
+    argument_executables: Vec<String>,
+}
+
+fn entry_with_metadata(
+    name: String,
+    path: String,
+    kind: &'static str,
+    subtitle: String,
+    metadata: ShortcutMetadata,
+) -> AppEntry {
+    let app_id = path
+        .strip_prefix("shell:AppsFolder\\")
+        .map(str::to_string)
+        .or(metadata.app_id)
+        .filter(|id| !id.is_empty());
+    let executable = if kind == "exe" {
+        Some(path.clone())
+    } else if app_id.as_deref() == Some(EXPLORER_APP_ID) {
+        std::env::var_os("WINDIR").map(|root| {
+            PathBuf::from(root)
+                .join("explorer.exe")
+                .to_string_lossy()
+                .into_owned()
+        })
+    } else {
+        metadata.target
+    };
+    let icon_executable = metadata.icon_executable;
+    let argument_executables = metadata.argument_executables;
+    AppEntry {
+        id: stable_id(&path),
+        name,
+        path,
+        kind,
+        subtitle,
+        app_id,
+        executable,
+        icon_executable,
+        argument_executables,
+    }
+}
+
+fn shortcut_entry(path: &Path) -> Option<AppEntry> {
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+
+    let kind = match extension.as_str() {
+        "lnk" | "url" => "shortcut",
+        "exe" => "exe",
+        _ => return None,
+    };
+
+    let name = path.file_stem()?.to_str()?.to_string();
+    let text = path.to_string_lossy().into_owned();
+    let metadata = win::shortcut_metadata(&text);
+
+    let subtitle = if kind == "exe" {
+        path.file_name()?.to_str()?.to_string()
+    } else {
+        let folder = path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|folder| folder.to_str())
+            .unwrap_or_default()
+            .to_string();
+
+        metadata
+            .target
+            .as_ref()
+            .and_then(|target| Some(Path::new(&target).file_name()?.to_str()?.to_string()))
+            .or_else(|| {
+                (metadata.app_id.as_deref() == Some(EXPLORER_APP_ID))
+                    .then_some("explorer.exe".into())
+            })
+            .unwrap_or(folder)
+    };
+
+    Some(entry_with_metadata(name, text, kind, subtitle, metadata))
+}
+
+fn opens_explorer(path: &str) -> bool {
+    let is_explorer = |file: &str| {
+        Path::new(file)
+            .file_name()
+            .is_some_and(|name| name.eq_ignore_ascii_case("explorer.exe"))
+    };
+
+    if is_explorer(path) {
+        return true;
+    }
+    let metadata = win::shortcut_metadata(path);
+    metadata.app_id.as_deref() == Some(EXPLORER_APP_ID)
+        || metadata.target.is_some_and(|target| is_explorer(&target))
+}
+
+fn shortcuts_in(root: PathBuf, depth: usize) -> Vec<AppEntry> {
+    walkdir::WalkDir::new(root)
+        .max_depth(depth)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter_map(|found| shortcut_entry(found.path()))
+        .collect()
+}
+
+fn roots() -> Vec<(PathBuf, usize)> {
+    let start_menus = ["ProgramData", "APPDATA"].iter().filter_map(|var| {
+        let base = PathBuf::from(std::env::var_os(var)?);
+
+        Some((
+            base.join(r"Microsoft\Windows\Start Menu\Programs"),
+            usize::MAX,
+        ))
+    });
+
+    let desktops = ["USERPROFILE", "PUBLIC", "OneDrive"]
+        .iter()
+        .filter_map(|var| Some((PathBuf::from(std::env::var_os(var)?).join("Desktop"), 1)));
+
+    start_menus
+        .chain(desktops)
+        .filter(|(root, _)| root.is_dir())
+        .collect()
+}
+
+fn scan() -> Vec<AppEntry> {
+    let mut seen = HashSet::new();
+
+    let mut entries: Vec<AppEntry> = roots()
+        .into_iter()
+        .flat_map(|(root, depth)| shortcuts_in(root, depth))
+        .chain(win::store_apps())
+        .filter(|found| seen.insert(found.name.to_lowercase()))
+        .collect();
+
+    entries.sort_by_key(|found| found.name.to_lowercase());
+
+    entries
+}
+
+fn refresh_in_background() {
+    if REFRESHING.swap(true, Ordering::Relaxed) {
+        return;
+    }
+
+    std::thread::spawn(|| {
+        let apps = scan();
+        let previous = CACHE
+            .lock()
+            .unwrap()
+            .replace((Instant::now(), apps.clone()));
+
+        REFRESHING.store(false, Ordering::Relaxed);
+
+        if previous.is_none_or(|(_, previous)| previous != apps) {
+            if let Some(app) = APP.get() {
+                let _ = app.emit("apps-changed", ());
+            }
+        }
+    });
+}
+
+pub fn watch(app: AppHandle) {
+    let _ = APP.set(app.clone());
+    let pins = app.clone();
+
+    std::thread::spawn(move || {
+        win::watch_folders(&roots(), || {
+            *CACHE.lock().unwrap() = Some((Instant::now(), scan()));
+            let _ = app.emit("apps-changed", ());
+        });
+    });
+
+    std::thread::spawn(move || {
+        crate::apps::pins::watch(|| {
+            let next = scan_pins();
+            let changed = PINS.lock().unwrap().replace(next.clone()) != Some(next);
+
+            if changed {
+                let _ = pins.emit("pins-changed", ());
+            }
+        });
+    });
+}
+
+#[tauri::command(async)]
+pub fn list_apps() -> Vec<AppEntry> {
+    let cached = CACHE.lock().unwrap().clone();
+
+    match cached {
+        Some((at, apps)) if at.elapsed() < TTL => apps,
+        Some((_, apps)) => {
+            refresh_in_background();
+
+            apps
+        }
+        None => {
+            let _scanning = COLD_SCAN.lock().unwrap();
+
+            if let Some((_, apps)) = CACHE.lock().unwrap().clone() {
+                return apps;
+            }
+
+            let apps = scan();
+
+            *CACHE.lock().unwrap() = Some((Instant::now(), apps.clone()));
+
+            apps
+        }
+    }
+}
+
+#[tauri::command(async)]
+pub fn pinned_apps() -> Vec<AppEntry> {
+    PINS.lock().unwrap().get_or_insert_with(scan_pins).clone()
+}
+
+fn scan_pins() -> Vec<AppEntry> {
+    let Some(root) = crate::apps::pins::folder() else {
+        return Vec::new();
+    };
+
+    let mut entries = shortcuts_in(root, 1);
+    let names: Vec<String> = entries.iter().map(|found| file_name(&found.path)).collect();
+    let order = crate::apps::pins::read_favorites()
+        .map(|favorites| crate::apps::pins::taskbar_order(&favorites, &names))
+        .unwrap_or_default();
+
+    entries.sort_by_key(|found| {
+        let name = file_name(&found.path);
+
+        (
+            order
+                .iter()
+                .position(|pinned| *pinned == name)
+                .unwrap_or(usize::MAX),
+            found.name.to_lowercase(),
+        )
+    });
+
+    entries
+}
+
+fn file_name(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn launch_app(app: AppHandle, path: String, admin: bool) -> Result<(), String> {
+    crate::system::blocking(move || {
+        if !admin && opens_explorer(&path) && crate::apps::files::open_instead(&app, None) {
+            return Ok(());
+        }
+
+        let verb = if admin { "runas" } else { "open" };
+
+        shell_execute(verb, &path, None, true)
+    })
+    .await
+}
+
+#[tauri::command(async)]
+pub fn open_location(app: AppHandle, path: String) -> Result<(), String> {
+    let target = shortcut_target(&path).unwrap_or(path);
+
+    if crate::apps::files::open_instead(&app, Some(target.clone())) {
+        return Ok(());
+    }
+
+    shell_execute(
+        "open",
+        "explorer.exe",
+        Some(&format!("/select,\"{target}\"")),
+        true,
+    )
+}
+
+pub(crate) use win::{close_folder, folder_handle, rearm_folder, watch_signals};
+
+pub fn shortcut_target(path: &str) -> Option<String> {
+    win::shortcut_target(path)
+}
+
+pub fn shell_execute(
+    verb: &str,
+    file: &str,
+    parameters: Option<&str>,
+    visible: bool,
+) -> Result<(), String> {
+    win::shell_execute(verb, file, parameters, visible)
+}
+
+mod win {
+    use std::path::{Path, PathBuf};
+
+    use windows::core::{w, Interface, HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{LocalFree, HANDLE, HLOCAL, WAIT_EVENT, WAIT_OBJECT_0};
+    use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
+    use windows::Win32::Storage::FileSystem::{
+        FindCloseChangeNotification, FindFirstChangeNotificationW, FindNextChangeNotification,
+        FILE_NOTIFY_CHANGE, FILE_NOTIFY_CHANGE_DIR_NAME, FILE_NOTIFY_CHANGE_FILE_NAME,
+        FILE_NOTIFY_CHANGE_LAST_WRITE,
+    };
+    use windows::Win32::System::Com::StructuredStorage::{
+        PropVariantClear, PropVariantToStringAlloc,
+    };
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoTaskMemFree, IPersistFile, CLSCTX_INPROC_SERVER, STGM_READ,
+    };
+    use windows::Win32::System::Threading::{WaitForMultipleObjects, INFINITE};
+    use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
+    use windows::Win32::UI::Shell::{
+        BHID_EnumItems, CommandLineToArgvW, IEnumShellItems, IShellItem, IShellLinkW,
+        SHCreateItemFromParsingName, ShellExecuteW, ShellLink, SIGDN, SIGDN_NORMALDISPLAY,
+        SIGDN_PARENTRELATIVEPARSING,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOWNORMAL};
+
+    use super::{entry, AppEntry, ShortcutMetadata};
+    use crate::system::com::Apartment;
+
+    pub fn shell_execute(
+        verb: &str,
+        file: &str,
+        parameters: Option<&str>,
+        visible: bool,
+    ) -> Result<(), String> {
+        let show = if visible { SW_SHOWNORMAL } else { SW_HIDE };
+        let parameters = parameters.map(HSTRING::from);
+        let _apartment = Apartment::enter().map_err(|error| error.to_string())?;
+
+        let result = unsafe {
+            ShellExecuteW(
+                None,
+                &HSTRING::from(verb),
+                &HSTRING::from(file),
+                parameters
+                    .as_ref()
+                    .map_or(PCWSTR::null(), |text| PCWSTR(text.as_ptr())),
+                None,
+                show,
+            )
+        };
+
+        if result.0 as isize > 32 {
+            Ok(())
+        } else {
+            Err(format!(
+                "ShellExecuteW failed with code {}",
+                result.0 as isize
+            ))
+        }
+    }
+
+    fn load_link(path: &str) -> Option<IShellLinkW> {
+        if !path.to_lowercase().ends_with(".lnk") {
+            return None;
+        }
+
+        unsafe {
+            let link: IShellLinkW =
+                CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
+            let file: IPersistFile = link.cast().ok()?;
+
+            file.Load(&HSTRING::from(path), STGM_READ).ok()?;
+
+            Some(link)
+        }
+    }
+
+    pub fn shortcut_metadata(path: &str) -> ShortcutMetadata {
+        if !path.to_lowercase().ends_with(".lnk") {
+            return ShortcutMetadata::default();
+        }
+        // Interfaces are declared after the guard and none escape this scope.
+        let Ok(_apartment) = Apartment::enter() else {
+            return ShortcutMetadata::default();
+        };
+        let Some(link) = load_link(path) else {
+            return ShortcutMetadata::default();
+        };
+        ShortcutMetadata {
+            app_id: link_app_id(&link),
+            target: link_target(&link),
+            icon_executable: link_icon_executable(&link),
+            argument_executables: link_argument_executables(&link),
+        }
+    }
+
+    fn link_app_id(link: &IShellLinkW) -> Option<String> {
+        let store: IPropertyStore = link.cast().ok()?;
+
+        unsafe {
+            let mut value = store.GetValue(&PKEY_AppUserModel_ID).ok()?;
+            let text = PropVariantToStringAlloc(&value).ok();
+            let _ = PropVariantClear(&mut value);
+            let id = text?.to_string().ok();
+
+            CoTaskMemFree(Some(text?.0 as *const _));
+
+            id
+        }
+    }
+
+    pub fn shortcut_target(path: &str) -> Option<String> {
+        let _apartment = Apartment::enter().ok()?;
+        let link = load_link(path)?;
+        link_target(&link)
+    }
+
+    fn link_target(link: &IShellLinkW) -> Option<String> {
+        unsafe {
+            let mut buffer = vec![0u16; 32_768];
+
+            link.GetPath(&mut buffer, std::ptr::null_mut(), 0).ok()?;
+
+            let end = buffer.iter().position(|c| *c == 0).unwrap_or(buffer.len());
+            let target = String::from_utf16_lossy(&buffer[..end]);
+
+            (!target.is_empty() && std::path::Path::new(&target).exists()).then_some(target)
+        }
+    }
+
+    // A helper shortcut may use the actual application executable for its icon.
+    // Shared DLL and resource icons are deliberately not identity evidence.
+    fn link_icon_executable(link: &IShellLinkW) -> Option<String> {
+        unsafe {
+            let mut buffer = vec![0u16; 32_768];
+            let mut index = 0;
+            link.GetIconLocation(&mut buffer, &mut index).ok()?;
+            let end = buffer.iter().position(|c| *c == 0).unwrap_or(buffer.len());
+            let path = String::from_utf16_lossy(&buffer[..end]);
+            path.to_lowercase().ends_with(".exe").then_some(path)
+        }
+    }
+
+    fn link_argument_executables(link: &IShellLinkW) -> Vec<String> {
+        unsafe {
+            let mut buffer = vec![0u16; 32_768];
+            if link.GetArguments(&mut buffer).is_err() {
+                return Vec::new();
+            }
+            let end = buffer.iter().position(|c| *c == 0).unwrap_or(buffer.len());
+            argument_executables(&String::from_utf16_lossy(&buffer[..end]))
+        }
+    }
+
+    pub(super) fn argument_executables(arguments: &str) -> Vec<String> {
+        if arguments.is_empty() {
+            return Vec::new();
+        }
+        unsafe {
+            let mut count = 0;
+            // argv[0] has special quoting rules; arguments must start at argv[1].
+            let argv = CommandLineToArgvW(
+                &HSTRING::from(format!("shortcut.exe {arguments}")),
+                &mut count,
+            );
+            if argv.is_null() {
+                return Vec::new();
+            }
+            let names = std::slice::from_raw_parts(argv, count.max(0) as usize)
+                .iter()
+                .skip(1)
+                .filter_map(|argument| argument.to_string().ok())
+                .filter(|argument| {
+                    argument.to_lowercase().ends_with(".exe")
+                        && !argument.starts_with('-')
+                        && !argument.contains(['\\', '/', ':', '=', '"', '*', '?'])
+                })
+                .collect();
+            let _ = LocalFree(Some(HLOCAL(argv as _)));
+            names
+        }
+    }
+
+    unsafe fn display_name(item: &IShellItem, kind: SIGDN) -> Option<String> {
+        let raw = unsafe { item.GetDisplayName(kind) }.ok()?;
+        let text = unsafe { raw.to_string() }.ok();
+
+        unsafe { CoTaskMemFree(Some(raw.0 as _)) };
+
+        text
+    }
+
+    pub fn store_apps() -> Vec<AppEntry> {
+        let mut entries = Vec::new();
+        let Ok(_apartment) = Apartment::enter() else {
+            return entries;
+        };
+
+        unsafe {
+            let Ok(folder) =
+                SHCreateItemFromParsingName::<_, _, IShellItem>(w!("shell:AppsFolder"), None)
+            else {
+                return entries;
+            };
+
+            let Ok(items) = folder.BindToHandler::<_, IEnumShellItems>(None, &BHID_EnumItems)
+            else {
+                return entries;
+            };
+
+            let mut batch: [Option<IShellItem>; 32] = std::array::from_fn(|_| None);
+
+            loop {
+                let mut fetched = 0u32;
+                let _ = items.Next(&mut batch, Some(&mut fetched));
+
+                if fetched == 0 {
+                    break;
+                }
+
+                for item in batch
+                    .iter_mut()
+                    .take(fetched as usize)
+                    .filter_map(Option::take)
+                {
+                    let name = display_name(&item, SIGDN_NORMALDISPLAY);
+                    let parsing = display_name(&item, SIGDN_PARENTRELATIVEPARSING);
+
+                    let (Some(name), Some(parsing)) = (name, parsing) else {
+                        continue;
+                    };
+
+                    if !parsing.contains('!') {
+                        continue;
+                    }
+
+                    entries.push(entry(
+                        name,
+                        format!("shell:AppsFolder\\{parsing}"),
+                        "store",
+                        "Store app".into(),
+                    ));
+                }
+            }
+        }
+
+        entries
+    }
+
+    // installers write shortcuts in bursts, so rescan once the folders stay quiet
+    const SETTLE_MS: u32 = 1_500;
+
+    const FOLDER_CHANGES: FILE_NOTIFY_CHANGE = FILE_NOTIFY_CHANGE(
+        FILE_NOTIFY_CHANGE_FILE_NAME.0
+            | FILE_NOTIFY_CHANGE_DIR_NAME.0
+            | FILE_NOTIFY_CHANGE_LAST_WRITE.0,
+    );
+
+    pub fn folder_handle(root: &Path, subtree: bool) -> Option<HANDLE> {
+        unsafe {
+            FindFirstChangeNotificationW(&HSTRING::from(root.as_os_str()), subtree, FOLDER_CHANGES)
+        }
+        .ok()
+    }
+
+    pub fn rearm_folder(handle: HANDLE) -> bool {
+        unsafe { FindNextChangeNotification(handle) }.is_ok()
+    }
+
+    pub fn close_folder(handle: HANDLE) {
+        let _ = unsafe { FindCloseChangeNotification(handle) };
+    }
+
+    pub fn watch_folders(roots: &[(PathBuf, usize)], changed: impl FnMut()) {
+        let handles: Vec<HANDLE> = roots
+            .iter()
+            .filter_map(|(root, depth)| folder_handle(root, *depth > 1))
+            .collect();
+
+        watch_signals(
+            &handles,
+            SETTLE_MS,
+            |index| rearm_folder(handles[index]),
+            changed,
+        );
+
+        for handle in handles {
+            close_folder(handle);
+        }
+    }
+
+    pub fn watch_signals(
+        handles: &[HANDLE],
+        settle: u32,
+        rearm: impl Fn(usize) -> bool,
+        mut changed: impl FnMut(),
+    ) {
+        if handles.is_empty() {
+            return;
+        }
+
+        let wait = |timeout: u32| {
+            signaled(
+                unsafe { WaitForMultipleObjects(handles, false, timeout) },
+                handles.len(),
+            )
+        };
+
+        'watch: while let Some(first) = wait(INFINITE) {
+            let mut pending = Some(first);
+
+            while let Some(index) = pending {
+                if !rearm(index) {
+                    break 'watch;
+                }
+
+                pending = wait(settle);
+            }
+
+            changed();
+        }
+    }
+
+    fn signaled(result: WAIT_EVENT, count: usize) -> Option<usize> {
+        let index = result.0.wrapping_sub(WAIT_OBJECT_0.0) as usize;
+
+        (index < count).then_some(index)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lists_start_menu_and_store_apps() {
+        let apps = list_apps();
+
+        assert!(!apps.is_empty(), "no apps found");
+        assert!(apps.iter().any(|app| app.kind == "shortcut"));
+        assert!(apps.iter().any(|app| app.kind == "store"));
+        assert!(apps
+            .iter()
+            .all(|app| !app.id.is_empty() && !app.name.is_empty()));
+    }
+
+    #[test]
+    fn resolves_a_shortcut_target() {
+        let apps = list_apps();
+
+        let target = apps
+            .iter()
+            .filter(|app| app.path.to_lowercase().ends_with(".lnk"))
+            .find_map(|app| shortcut_target(&app.path));
+
+        assert!(target.is_some_and(|path| Path::new(&path).exists()));
+    }
+
+    #[test]
+    fn expands_environment_variables_in_shortcut_targets() {
+        let link = PathBuf::from(std::env::var_os("APPDATA").unwrap())
+            .join(r"Microsoft\Windows\Start Menu\Programs\System Tools\Command Prompt.lnk");
+        let target = shortcut_target(&link.to_string_lossy()).unwrap();
+
+        assert!(!target.contains('%'), "unexpanded target {target}");
+        assert!(target.to_lowercase().ends_with("cmd.exe"), "{target}");
+    }
+
+    #[test]
+    fn ids_are_stable_and_case_insensitive() {
+        assert_eq!(stable_id(r"C:\Apps\A.lnk"), stable_id(r"c:\apps\a.lnk"));
+        assert_ne!(stable_id("a"), stable_id("b"));
+    }
+
+    #[test]
+    fn executable_argument_names_use_windows_quoting_without_helper_specific_switches() {
+        assert_eq!(
+            win::argument_executables(r#"--launch "An App.exe" Another.exe --flag"#),
+            ["An App.exe", "Another.exe"]
+        );
+        assert!(win::argument_executables(
+            r#"--foo=App.exe C:\Other\App.exe ../App.exe --flag.exe"#
+        )
+        .is_empty());
+        assert!(win::argument_executables("").is_empty());
+    }
+}

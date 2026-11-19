@@ -1,0 +1,33 @@
+{
+  "name": "eris-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun scripts/dev.ts",
+    "debug": "bun scripts/debug.ts",
+    "studio": "bun run --cwd apps/desktop dev --open /studio",
+    "build": "bun run --cwd apps/desktop tauri build",
+    "install:dev": "bun scripts/install-dev.ts",
+    "build:dev": "ERIS_DEV_CHANNEL=1 bun run --cwd apps/desktop tauri build --config src-tauri/tauri.dev.conf.json && ERIS_DEV_CHANNEL=1 bun run --cwd apps/files tauri build --config src-tauri/tauri.dev.conf.json && ERIS_DEV_CHANNEL=1 bun run --cwd apps/terminal tauri build --config src-tauri/tauri.dev.conf.json",
+    "check": "bun run check:scripts && bun run --filter '*' check",
+    "check:native": "cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml && cargo check --locked --manifest-path apps/files/src-tauri/Cargo.toml && cargo check --locked --manifest-path apps/terminal/src-tauri/Cargo.toml && cargo check --locked --manifest-path apps/installer/src-tauri/Cargo.toml && cargo check --locked --manifest-path apps/cli/Cargo.toml",
+    "check:scripts": "tsc --noEmit --target esnext --module esnext --moduleResolution bundler --types bun --skipLibCheck scripts/*.ts tests/scripts/*.ts",
+    "test": "bun test",
+    "test:native": "cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib && cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml -p eris-p2p --lib && cargo test --locked --manifest-path apps/cli/Cargo.toml",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/bun": "^1.4.2",
+    "typescript": "^6.0.3"
+  },
+  "patchedDependencies": {
+    "ghostty-web@0.4.0-next.20.g1858a59": "patches/ghostty-web@0.4.0-next.20.g1858a59.patch"
+  },
+  "version": "0.4.1"
+}

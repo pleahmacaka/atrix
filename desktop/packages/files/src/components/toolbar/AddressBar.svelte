@@ -1,0 +1,348 @@
+<script lang="ts">
+  import Icon from "@iconify/svelte"
+  import { openContextMenu, toast } from "@eris/ui"
+  import { tick } from "svelte"
+  import { t } from "svelte-i18n"
+  import {
+    isUnc,
+    isVirtual,
+    parentOf,
+    remoteName,
+    sameLocation,
+    segments,
+    splitDevice,
+    THIS_PC,
+  } from "../../locations"
+  import { openItem, runAddress } from "../../native"
+  import { parseRemote } from "../../remote"
+  import { memberName } from "../share/share.svelte"
+  import { splitArchive } from "../../store/archive.svelte"
+  import { cloneInto } from "../../store/clone"
+  import type { Explorer } from "../../store/explorer.svelte"
+  import { prefetchOnHover } from "../../store/prefetch"
+  import { confirmPrivate } from "../../store/privacy.svelte"
+  import {
+    driveName,
+    NAMED_PLACES,
+    places,
+  } from "../../store/places.svelte"
+
+  let { explorer }: { explorer: Explorer } = $props()
+
+  const OVERFLOW_WIDTH = 32
+  const EDIT_ROOM = 40
+
+  let editing = $state(false)
+  let cloning = $state(false)
+  let draft = $state("")
+  let field = $state<HTMLInputElement>()
+  let barWidth = $state(0)
+  let widths = $state<number[]>([])
+
+  const tab = $derived(explorer.tab)
+
+  const named = $derived(
+    NAMED_PLACES.map(([path, key]) => ({ name: $t(key), path })),
+  )
+
+  const thisPc = $derived(named.find(entry => entry.path === THIS_PC))
+
+  const deviceCrumbs = (location: string) => {
+    const chain: { name: string; path: string }[] = []
+    let at: string | null = location
+    let device = splitDevice(location)
+
+    while (at && device) {
+      chain.unshift({
+        name: device.path === null ? memberName(device.id) : remoteName(device.path),
+        path: at,
+      })
+      at = parentOf(at)
+      device = at ? splitDevice(at) : null
+    }
+
+    return thisPc ? [thisPc, ...chain] : chain
+  }
+
+  const crumbs = $derived.by(() => {
+    const location = tab.location
+    const known = named.find(entry => entry.path === location)
+
+    if (known) {
+      return [known]
+    }
+
+    if (splitDevice(location)) {
+      return deviceCrumbs(location)
+    }
+
+    if (isVirtual(location)) {
+      return [{ name: tab.shellName || location, path: location }]
+    }
+
+    const parts = segments(location).map((part, index) => {
+      const drive =
+        index === 0
+          ? places.drives.find(drive => sameLocation(drive.path, part.path))
+          : undefined
+
+      return drive ? { name: driveName(drive, $t), path: part.path } : part
+    })
+
+    return isUnc(location) || !thisPc ? parts : [thisPc, ...parts]
+  })
+
+  const hidden = $derived.by(() => {
+    const room = barWidth - EDIT_ROOM
+
+    if (widths.length !== crumbs.length || widths.reduce((a, b) => a + b, 0) <= room) {
+      return 0
+    }
+
+    let used = OVERFLOW_WIDTH
+    let shown = 0
+
+    for (let index = crumbs.length - 1; index >= 0; index--) {
+      if (shown > 0 && used + widths[index] > room) {
+        break
+      }
+
+      used += widths[index]
+      shown++
+    }
+
+    return crumbs.length - shown
+  })
+
+  const showHidden = (e: MouseEvent) => {
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect()
+
+    openContextMenu({
+      x: box.left,
+      y: box.bottom + 4,
+      placement: "down",
+      items: crumbs
+        .slice(0, hidden)
+        .reverse()
+        .map(crumb => ({
+          label: crumb.name,
+          icon: "lucide:folder",
+          action: () => explorer.go(crumb.path),
+        })),
+    })
+  }
+
+  const measure = (node: HTMLElement) => {
+    const update = () => {
+      widths = [...node.children].map(child => child.getBoundingClientRect().width)
+    }
+
+    const observer = new ResizeObserver(update)
+
+    observer.observe(node)
+    update()
+
+    return () => observer.disconnect()
+  }
+
+  export const edit = async () => {
+    draft = isVirtual(tab.location)
+      ? (crumbs.at(-1)?.name ?? "")
+      : tab.location
+    editing = true
+
+    await tick()
+    field?.focus()
+    field?.select()
+  }
+
+  const remote = $derived(editing ? parseRemote(draft) : null)
+
+  const submit = async () => {
+    const text = draft.trim()
+
+    editing = false
+
+    if (!text || text === crumbs.at(-1)?.name) {
+      return
+    }
+
+    const repository = parseRemote(text)
+
+    if (repository) {
+      cloning = true
+      await cloneInto(tab, repository)
+      cloning = false
+
+      return
+    }
+
+    const alias = named.find(
+      entry => entry.name.toLowerCase() === text.toLowerCase(),
+    )
+
+    if (alias) {
+      return explorer.go(alias.path)
+    }
+
+    const cwd = isVirtual(tab.location) ? null : tab.location
+    const found = await runAddress(text, cwd).catch(() => undefined)
+    const target = found?.select ?? text
+
+    if (splitArchive(target)) {
+      return explorer.go(target)
+    }
+
+    if (found === undefined) {
+      return toast($t("explorer.errors.missing"), "error")
+    }
+
+    if (!found) {
+      return
+    }
+
+    if (found.file && found.select) {
+      if (!(await confirmPrivate(found.select))) {
+        return
+      }
+
+      return openItem(found.select).catch(() =>
+        toast($t("explorer.errors.missing"), "error"),
+      )
+    }
+
+    explorer.go(found.path)
+  }
+</script>
+
+<div
+  bind:clientWidth={barWidth}
+  class={[
+    "relative isolate flex h-8 min-w-0 grow items-center rounded-field border",
+    "border-base-content/10 bg-base-content/5 text-sm",
+  ]}
+  aria-busy={tab.loading || tab.searching}
+>
+  {#if tab.loading || tab.searching}
+    <span
+      class={[
+        "pointer-events-none absolute inset-0 -z-10",
+        "transition-opacity delay-200 duration-160 ease-out starting:opacity-0",
+      ]}
+    >
+      <span
+        class={[
+          "block h-full w-23/25 rounded-field bg-primary/15",
+          "transition-all delay-200 duration-12000 starting:w-0",
+          "ease-[cubic-bezier(0.1,0.7,0.3,1)]",
+        ]}
+      ></span>
+    </span>
+  {/if}
+
+  {#if cloning}
+    <span class="loading loading-spinner loading-xs ml-2.5 shrink-0 text-primary"></span>
+  {/if}
+
+  {#if editing}
+    {#if remote}
+      <Icon icon={remote.icon} class="ml-2.5 size-4 shrink-0" aria-label={remote.label} />
+    {/if}
+
+    <input
+      bind:this={field}
+      bind:value={draft}
+      aria-label={$t("explorer.nav.address")}
+      spellcheck="false"
+      class="h-full min-w-0 grow bg-transparent px-3 outline-none select-text"
+      onblur={() => (editing = false)}
+      onkeydown={e => {
+        if (e.key === "Enter") {
+          e.preventDefault()
+          submit()
+        }
+
+        if (e.key === "Escape") {
+          editing = false
+        }
+      }}
+    />
+
+    {#if remote}
+      <span class="mr-2 flex shrink-0 items-center gap-1 text-xs text-base-content/50">
+        <Icon icon="lucide:corner-down-left" class="size-3" />
+        {$t("explorer.git.cloneHere")}
+      </span>
+    {/if}
+  {:else}
+    <div
+      aria-hidden="true"
+      class="invisible absolute flex items-center whitespace-nowrap pl-1"
+      {@attach measure}
+    >
+      {#each crumbs as crumb, index (crumb.path)}
+        <span class="flex shrink-0 items-center">
+          {#if index > 0}
+            <Icon icon="lucide:chevron-right" class="size-3.5" />
+          {/if}
+
+          <span
+            class={[
+              "truncate px-2 py-1",
+              index === crumbs.length - 1 && "max-w-80",
+            ]}
+          >
+            {crumb.name}
+          </span>
+        </span>
+      {/each}
+    </div>
+
+    <nav
+      aria-label={$t("explorer.nav.address")}
+      class="flex min-w-0 items-center overflow-hidden pl-1"
+    >
+      {#if hidden > 0}
+        <button
+          type="button"
+          class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-field hover:bg-base-content/10"
+          aria-label={$t("explorer.nav.hiddenPath")}
+          onclick={showHidden}
+        >
+          <Icon icon="lucide:chevrons-left" class="size-4" />
+        </button>
+      {/if}
+
+      {#each crumbs.slice(hidden) as crumb, index (crumb.path)}
+        {#if index > 0 || hidden > 0}
+          <Icon
+            icon="lucide:chevron-right"
+            class="size-3.5 shrink-0 text-base-content/40"
+          />
+        {/if}
+
+        <button
+          type="button"
+          class={[
+            "cursor-pointer truncate rounded-field px-2 py-1",
+            "hover:bg-base-content/10",
+            index === crumbs.length - hidden - 1
+              ? "max-w-80 min-w-0 shrink"
+              : "shrink-0",
+          ]}
+          onclick={() => explorer.go(crumb.path)}
+          {@attach prefetchOnHover(crumb.path)}
+        >
+          {crumb.name}
+        </button>
+      {/each}
+    </nav>
+
+    <button
+      type="button"
+      class="h-full min-w-8 grow cursor-text"
+      aria-label={$t("explorer.nav.address")}
+      onclick={edit}
+    ></button>
+  {/if}
+</div>

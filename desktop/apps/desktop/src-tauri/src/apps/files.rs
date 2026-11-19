@@ -1,0 +1,18 @@
+use tauri::AppHandle;
+use tauri_plugin_eris_files::Host;
+
+pub const HOST: Host = Host {
+    main_route: "/files",
+    viewer_route: "/files/viewer",
+    menu_route: "/files/menu",
+    marker: Some("--files"),
+    app_name: "Eris",
+    prog_prefix: "Eris",
+    peers: Some(eris_p2p::members),
+};
+
+pub fn open_instead(app: &AppHandle, reveal: Option<String>) -> bool {
+    let select = reveal.is_some();
+
+    tauri_plugin_eris_files::takes_over() && tauri_plugin_eris_files::show(app, reveal, select)
+}

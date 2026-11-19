@@ -1,0 +1,41 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Eris Terminal",
+  "mainBinaryName": "eris-terminal",
+  "version": "../package.json",
+  "identifier": "com.arixlab.eris.terminal",
+  "build": {
+    "frontendDist": "../build",
+    "devUrl": "http://localhost:1450",
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build",
+    "windows": {
+      "staticVCRuntime": true
+    }
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["eris-terminal"]
+      }
+    }
+  },
+  "bundle": {
+    "publisher": "ArixLab",
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "../../../packages/terminal/plugin/icons/32x32.png",
+      "../../../packages/terminal/plugin/icons/128x128.png",
+      "../../../packages/terminal/plugin/icons/128x128@2x.png",
+      "../../../packages/terminal/plugin/icons/icon.ico"
+    ]
+  }
+}

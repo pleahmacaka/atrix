@@ -1,0 +1,64 @@
+import type { Features } from "@eris/settings"
+import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
+
+export type TaskbarLayout = {
+  edge: "bottom" | "top"
+  height: number
+  width: number
+  floating: boolean
+  autoHide: boolean
+  hideSystemTaskbar: boolean
+  monitor?: string | null
+  desktop?: boolean
+}
+
+export const extendTaskbar = (
+  px: number,
+  rect?: [number, number, number, number] | null,
+) => invoke<void>("extend_taskbar", { px, rect: rect ?? null })
+
+export const applyTaskbar = (layout: TaskbarLayout) =>
+  invoke<void>("apply_taskbar", { layout })
+
+export const applyTopbar = (layout: TaskbarLayout) =>
+  invoke<void>("apply_topbar", { layout })
+
+export const extendTopbar = (
+  px: number,
+  rect?: [number, number, number, number] | null,
+) => invoke<void>("extend_topbar", { px, rect: rect ?? null })
+
+export const releaseTopbar = () => invoke<void>("release_topbar")
+
+export const suspendShell = () => invoke<void>("suspend_shell")
+
+export const resumeShell = () => invoke<void>("resume_shell")
+
+export const setWinKeyCapture = (enabled: boolean) =>
+  invoke<void>("set_win_key_capture", { enabled })
+
+export const setLauncherShortcut = (shortcut: string | null) =>
+  invoke<void>("set_launcher_shortcut", { shortcut })
+
+export const setFeatures = (features: Features) =>
+  invoke<void>("set_features", { features })
+
+export const onDockEdge = (handler: (atEdge: boolean) => void) =>
+  listen<{ atEdge: boolean }>("dock-edge", e => handler(e.payload.atEdge))
+
+export const dockMaximized = () => invoke<boolean>("dock_maximized")
+
+export const onDockMaximized = (handler: (maximized: boolean) => void) =>
+  listen<{ maximized: boolean }>("dock-maximized", e =>
+    handler(e.payload.maximized),
+  )
+
+export const onDockFullscreen = (handler: (fullscreen: boolean) => void) =>
+  listen<{ fullscreen: boolean }>("dock-fullscreen", e =>
+    handler(e.payload.fullscreen),
+  )
+
+export const editMode = (on: boolean) => invoke<void>("edit_mode", { on })
+
+export const editRaise = () => invoke<void>("edit_raise")

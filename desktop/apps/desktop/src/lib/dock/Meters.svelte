@@ -1,0 +1,226 @@
+<script lang="ts">
+  import Icon from "@iconify/svelte"
+  import type { MenuBox } from "./layout.svelte"
+  import { t } from "svelte-i18n"
+  import { type Meters, runCommand, systemMeters } from "#lib/native/system.js"
+  import type { DockEdge } from "@eris/settings"
+  import { dockAwake } from "./dock.svelte"
+  import Network from "./Network.svelte"
+
+  type Props = {
+    showMeters: boolean
+    showNetwork: boolean
+    stacked?: boolean
+    compact?: boolean
+    edge?: DockEdge
+    onmenu?: (rect: MenuBox | null) => void
+    onnetworkmenu?: (rect: MenuBox | null) => void
+  }
+
+  let {
+    showMeters,
+    showNetwork,
+    stacked = false,
+    compact = false,
+    edge = "bottom",
+    onmenu,
+    onnetworkmenu,
+  }: Props = $props()
+
+  const POLL = 3_000
+  const IDLE_POLL = 10_000
+
+  let meters = $state<Meters | null>(null)
+
+  const refresh = async () => {
+    meters = await systemMeters().catch(() => null)
+  }
+
+  $effect(() => {
+    if (!dockAwake.visible) {
+      return
+    }
+
+    refresh()
+
+    const timer = setInterval(refresh, showMeters ? POLL : IDLE_POLL)
+
+    return () => clearInterval(timer)
+  })
+
+  const DOUBLE_CLICK = 250
+
+  let detail = $state(false)
+  let popover = $state<HTMLElement>()
+  let clickTimer: ReturnType<typeof setTimeout> | undefined
+
+  const setDetail = (next: boolean) => {
+    if (detail === next) {
+      return
+    }
+
+    detail = next
+
+    if (!next) {
+      onmenu?.(null)
+    }
+  }
+
+  $effect(() => {
+    if (detail && popover) {
+      onmenu?.(popover.getBoundingClientRect())
+    }
+  })
+
+  const onclick = () => {
+    clearTimeout(clickTimer)
+    clickTimer = setTimeout(() => setDetail(!detail), DOUBLE_CLICK)
+  }
+
+  const ondblclick = () => {
+    clearTimeout(clickTimer)
+    setDetail(false)
+    runCommand("taskmgr").catch(() => undefined)
+  }
+
+  const onmousedown = (e: MouseEvent) => {
+    if (detail && !(e.target as Element).closest("[data-meters]")) {
+      setDetail(false)
+    }
+  }
+
+  const onkeydown = (e: KeyboardEvent) => {
+    if (detail && e.key === "Escape") {
+      setDetail(false)
+    }
+  }
+
+  $effect(() => {
+    const close = () => setDetail(false)
+
+    window.addEventListener("eris-close-menus", close)
+
+    return () => window.removeEventListener("eris-close-menus", close)
+  })
+
+  $effect(() => () => clearTimeout(clickTimer))
+
+  const percent = (ratio: number) => Math.round(ratio * 100)
+
+  const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`
+
+  const cpu = $derived(percent(meters?.cpu ?? 0))
+
+  const ram = $derived(percent(meters?.memory ?? 0))
+
+  const memoryLabel = $derived(
+    meters
+      ? $t("tray.meters.of", {
+          values: { used: gb(meters.memoryUsedMb), total: gb(meters.memoryTotalMb) },
+        })
+      : "",
+  )
+
+  const usageLabel = $derived(
+    meters ? `CPU ${cpu}% · RAM ${ram}% · ${memoryLabel}` : "",
+  )
+
+  const network = $derived(meters?.network ?? null)
+
+  const networkLabel = $derived(
+    !network || !network.connected
+      ? $t("tray.network.none")
+      : network.ssid || network.name || $t("tray.network.connected"),
+  )
+</script>
+
+<svelte:window {onmousedown} {onkeydown} />
+
+{#if meters}
+  <div class="flex items-center gap-0.5">
+    {#if showMeters}
+      <div class="relative" data-meters>
+        <button
+          type="button"
+          class="flex items-center gap-1 whitespace-nowrap rounded-field px-1.5 py-1 text-xs tabular-nums text-base-content/80 transition-colors duration-100 hover:bg-base-content/10"
+          title={detail ? undefined : usageLabel}
+          aria-haspopup="dialog"
+          aria-expanded={detail}
+          {onclick}
+          {ondblclick}
+        >
+          <Icon icon="lucide:cpu" class="size-4" />
+
+          {#if !compact || stacked}
+            <span class={["flex", stacked ? "flex-col text-3xs leading-tight" : "gap-1.5"]}>
+              <span>CPU {cpu}%</span>
+
+              <span>RAM {ram}%</span>
+            </span>
+          {/if}
+        </button>
+
+        {#if detail}
+          <div
+            bind:this={popover}
+            class={[
+              "eris-card absolute right-0 z-50 w-64 p-3",
+              edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
+            ]}
+            role="dialog"
+            aria-label={$t("tray.meters.title")}
+          >
+            <div class="space-y-3 text-xs">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-base-content/70">CPU</span>
+
+                  <span class="tabular-nums">{cpu}%</span>
+                </div>
+
+                <progress class="progress progress-primary mt-1 w-full" value={cpu} max="100"
+                ></progress>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-base-content/70">{$t("tray.meters.memory")}</span>
+
+                  <span class="tabular-nums">{ram}%</span>
+                </div>
+
+                <progress class="progress progress-secondary mt-1 w-full" value={ram} max="100"
+                ></progress>
+
+                <p class="mt-1 text-base-content/55 tabular-nums">{memoryLabel}</p>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-base-content/10 pt-2">
+                <span class="text-base-content/70">{$t("tray.network.title")}</span>
+
+                <span class="truncate pl-2 text-right">{networkLabel}</span>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-sm btn-block"
+                onclick={() => {
+                  setDetail(false)
+                  runCommand("taskmgr").catch(() => undefined)
+                }}
+              >
+                <Icon icon="lucide:activity" class="size-4" />
+
+                {$t("tray.meters.taskManager")}
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if showNetwork}
+      <Network {network} {edge} onmenu={onnetworkmenu} onrefresh={refresh} />
+    {/if}
+  </div>
+{/if}

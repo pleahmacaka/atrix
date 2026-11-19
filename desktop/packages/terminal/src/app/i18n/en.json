@@ -1,0 +1,68 @@
+{
+  "terminal": {
+    "tabs": {
+      "new": "New tab",
+      "close": "Close tab",
+      "list": "Tabs",
+      "shells": "Shells",
+      "detach": "Remove from group",
+      "ungroup": "Ungroup",
+      "rename": "Rename",
+      "workspace": "workspace",
+      "closePane": "Close terminal",
+      "group": "{name} group",
+      "serial": "Serial ports",
+      "noPorts": "No ports"
+    },
+    "window": {
+      "minimize": "Minimize",
+      "maximize": "Maximize",
+      "restore": "Restore",
+      "close": "Close",
+      "new": "New window"
+    },
+    "settings": {
+      "title": "Settings",
+      "general": "Terminal",
+      "shell": "Default shell",
+      "font": "Font",
+      "fontHint": "Enter a font family name.",
+      "fontSize": "Font size",
+      "theme": "Theme",
+      "version": "Version",
+      "appearance": "Appearance",
+      "about": "About",
+      "reset": "Reset settings",
+      "resetHint": "Returns terminal settings to their defaults.",
+      "resetAction": "Reset",
+      "resetTitle": "Reset settings?",
+      "resetBody": "Shell, font and appearance settings return to their defaults.",
+      "appearanceHosted": "Follows the appearance set in Eris.",
+      "baud": "Serial baud rate",
+      "claudeChat": "Claude chat view",
+      "claudeChatHint": "Shows the conversation as a chat when Claude Code runs in the terminal."
+    },
+    "panes": {
+      "sync": "Input sync",
+      "resize": "Resize split"
+    },
+    "drop": {
+      "left": "Split left",
+      "right": "Split right",
+      "top": "Split up",
+      "bottom": "Split down",
+      "center": "Swap",
+      "panes": "{count} terminals"
+    },
+    "claude": {
+      "chatView": "Chat view",
+      "empty": "No messages",
+      "placeholder": "Message Claude",
+      "send": "Send",
+      "stop": "Stop",
+      "working": "Working",
+      "promptTitle": "Confirmation needed",
+      "commands": "Commands"
+    }
+  }
+}
