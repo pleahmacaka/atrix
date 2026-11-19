@@ -22,6 +22,7 @@ import type {
   Patch,
   SessionSummary,
   SessionView,
+  StoredAttachment,
   Stroke,
 } from "#lib/p2p/protocol.ts"
 import { SESSION_BUSY, SESSION_GONE } from "#lib/p2p/protocol.ts"
@@ -105,6 +106,24 @@ const newestMatch = (
     values.toSorted((a, b) => rank(a) - rank(b)),
     wanted,
   )
+}
+
+const stored = async (a: Attachment): Promise<StoredAttachment> => {
+  if (a.kind !== "file") {
+    return a
+  }
+
+  const path = await native<string>("save_attachment", {
+    name: a.name,
+    data: a.data,
+  })
+
+  return {
+    kind: "text",
+    name: a.name,
+    mimeType: "text/plain",
+    text: `Attached file ${a.name} is saved at ${path}`,
+  }
 }
 
 const OPTION_NAMES: Record<string, () => string> = {
@@ -404,11 +423,9 @@ export class Sessions {
     }
   }
 
-  prompt = async (
-    sessionId: string,
-    text: string,
-    attachments: Attachment[],
-  ) => {
+  prompt = async (sessionId: string, text: string, given: Attachment[]) => {
+    const attachments = await Promise.all(given.map(stored))
+
     if (!this.#live.has(sessionId) && this.#external.live(sessionId)) {
       await this.#external.type(sessionId, text, attachments)
 

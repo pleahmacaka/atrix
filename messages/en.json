@@ -285,7 +285,7 @@
   "error_path_not_allowed": "Path not allowed: {path}",
   "error_root_protected": "A settings root can't be deleted.",
   "error_attachment_image": "{name}: this harness doesn't accept images.",
-  "error_attachment_type": "{name}: only images and text files can be attached.",
+  "error_attachment_invalid": "{name} could not be attached. Try another file.",
   "error_attachment_size": "{name}: files must be 10 MB or smaller.",
   "chat_attach": "Attach files",
   "chat_question_closed": "The question is already closed. Check the terminal.",

@@ -2,7 +2,11 @@ import * as acp from "@agentclientprotocol/sdk"
 import { getVersion } from "@tauri-apps/api/app"
 import { Channel } from "@tauri-apps/api/core"
 import { native } from "#lib/native.ts"
-import type { Attachment, ConfigChoice, Listed } from "#lib/p2p/protocol.ts"
+import type {
+  ConfigChoice,
+  Listed,
+  StoredAttachment,
+} from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { Launch } from "./harnesses.ts"
 
@@ -149,7 +153,7 @@ export const folderError = (e: unknown, cwd: string) =>
     ? new Error(m.error_folder_missing({ path: cwd }))
     : e
 
-const attachmentBlock = (conn: Conn, a: Attachment): acp.ContentBlock => {
+const attachmentBlock = (conn: Conn, a: StoredAttachment): acp.ContentBlock => {
   if (a.kind === "image") {
     if (!conn.image) {
       throw new Error(m.error_attachment_image({ name: a.name }))
@@ -175,7 +179,7 @@ const attachmentBlock = (conn: Conn, a: Attachment): acp.ContentBlock => {
 export const promptBlocks = (
   conn: Conn,
   text: string,
-  attachments: Attachment[],
+  attachments: StoredAttachment[],
 ): acp.ContentBlock[] => [
   ...(text ? [{ type: "text" as const, text }] : []),
   ...attachments.map(a => attachmentBlock(conn, a)),

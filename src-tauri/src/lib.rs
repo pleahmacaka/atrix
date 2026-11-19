@@ -178,6 +178,7 @@ pub fn run() {
             datasource::ds_knowledge_set,
             files::read_text,
             files::write_text,
+            files::save_attachment,
             files::append_text,
             files::read_image,
             files::read_view,

@@ -77,6 +77,8 @@ const restore = (draft: string) => {
     .catch(() => {})
 }
 
+export const paneComposers = new Map<string, Composer>()
+
 export class Composer {
   dropping = $state(false)
 

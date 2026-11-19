@@ -2,10 +2,10 @@ import { invoke } from "@tauri-apps/api/core"
 import { z } from "zod"
 import { messageOf, native } from "#lib/native.ts"
 import type {
-  Attachment,
   HarnessKind,
   Listed,
   SessionView,
+  StoredAttachment,
   Stroke,
   Subagent,
   TerminalDialog,
@@ -334,7 +334,7 @@ export class ExternalSessions {
     }
   }
 
-  type = async (id: string, text: string, attachments: Attachment[]) => {
+  type = async (id: string, text: string, attachments: StoredAttachment[]) => {
     const pid = this.#pid(id)
 
     if (this.#waiting.has(id)) {

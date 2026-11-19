@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
+import { paneComposers } from "#lib/chat/composer.svelte.ts"
 import GroupChat from "#lib/components/chat/GroupChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
@@ -94,7 +95,16 @@ const zoneOf = (e: DragEvent & { currentTarget: HTMLElement }): Zone => {
   return distance < EDGE && panes.canSplit(leaf.id, side) ? side : "center"
 }
 
+const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
+
 const over = (e: DragEvent & { currentTarget: HTMLElement }) => {
+  if (hasFiles(e) && paneComposers.has(leaf.id)) {
+    e.preventDefault()
+    zone = "center"
+
+    return
+  }
+
   if (!isConversationDrag(e)) {
     return
   }
@@ -108,6 +118,13 @@ const drop = (e: DragEvent) => {
   const dropped = droppedConversation(e)
 
   zone = null
+
+  if (hasFiles(e)) {
+    e.preventDefault()
+    paneComposers.get(leaf.id)?.add(e.dataTransfer?.files ?? [])
+
+    return
+  }
 
   if (!dropped || !target) {
     return
@@ -134,10 +151,7 @@ const HINTS: Record<Zone, string> = {
 <section
   class={[
     "relative flex min-h-0 min-w-0 flex-1 flex-col",
-    split && [
-      "m-1 overflow-hidden rounded-box border transition-colors duration-140",
-      focused ? "border-primary/40" : "border-base-300",
-    ],
+    split && "overflow-hidden",
   ]}
   aria-label={info?.title ?? m.chat_new()}
   data-find-root={focused || undefined}

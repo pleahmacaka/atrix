@@ -285,7 +285,7 @@
   "error_path_not_allowed": "허용되지 않은 경로입니다: {path}",
   "error_root_protected": "설정 루트는 삭제할 수 없습니다.",
   "error_attachment_image": "{name}: 이 하네스는 이미지를 받지 않습니다.",
-  "error_attachment_type": "{name}: 이미지와 텍스트 파일만 첨부할 수 있습니다.",
+  "error_attachment_invalid": "{name} 파일을 첨부할 수 없습니다. 다른 파일로 다시 시도하세요.",
   "error_attachment_size": "{name}: 10 MB 이하 파일만 첨부할 수 있습니다.",
   "chat_attach": "파일 첨부",
   "chat_question_closed": "질문이 이미 닫혔습니다. 터미널을 확인하세요.",

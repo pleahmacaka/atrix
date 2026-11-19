@@ -418,6 +418,7 @@ version = "0.4.13"
 dependencies = [
  "arboard",
  "atrix-net",
+ "base64 0.23.1",
  "bzip2",
  "flate2",
  "image",

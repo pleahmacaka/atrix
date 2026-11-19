@@ -2,6 +2,8 @@ use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tempfile::NamedTempFile;
@@ -436,4 +438,32 @@ pub fn git_remote(path: String) -> Result<Option<Git>> {
     Ok(Some(Git {
         remote: remote_of(&config),
     }))
+}
+
+#[tauri::command(async)]
+pub fn save_attachment(app: AppHandle, name: String, data: String) -> Result<String> {
+    let bytes = STANDARD
+        .decode(data)
+        .map_err(|e| Error::code("attachment_invalid", e))?;
+    let file = Path::new(&name)
+        .file_name()
+        .ok_or_else(|| Error::code("attachment_invalid", &name))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let dir = app
+        .path()
+        .home_dir()?
+        .join(".atrix")
+        .join("attachments")
+        .join(stamp.to_string());
+
+    fs::create_dir_all(&dir)?;
+
+    let path = dir.join(file);
+
+    fs::write(&path, bytes)?;
+
+    Ok(path.to_string_lossy().into_owned())
 }

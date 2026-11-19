@@ -31,7 +31,14 @@ export const toAttachment = async (file: File): Promise<Attachment> => {
   const text = await file.text()
 
   if (text.includes(BINARY_MARK)) {
-    throw new Error(m.error_attachment_type({ name: file.name }))
+    const bytes = new Uint8Array(await file.arrayBuffer())
+
+    return {
+      kind: "file",
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      data: bytes.toBase64(),
+    }
   }
 
   return {

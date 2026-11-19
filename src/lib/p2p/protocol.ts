@@ -230,9 +230,17 @@ const attachment = z.discriminatedUnion("kind", [
     mimeType: z.string(),
     text: z.string(),
   }),
+  z.object({
+    kind: z.literal("file"),
+    name: z.string(),
+    mimeType: z.string(),
+    data: z.string(),
+  }),
 ])
 
 export type Attachment = z.infer<typeof attachment>
+
+export type StoredAttachment = Exclude<Attachment, { kind: "file" }>
 
 export type Browse = {
   path: string

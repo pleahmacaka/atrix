@@ -1,6 +1,11 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { Composer, type ComposerProps, provideComposer } from "#lib/chat/composer.svelte.ts"
+import {
+  Composer,
+  type ComposerProps,
+  paneComposers,
+  provideComposer,
+} from "#lib/chat/composer.svelte.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { panes, usePane } from "#lib/store/panes.svelte.ts"
@@ -25,6 +30,22 @@ const split = $derived(!!pane && panes.leaves.length > 1)
 const sharing = $derived(split && panes.shared)
 
 const docked = $derived(sharing && panes.active.id === pane?.())
+
+$effect(() => {
+  const id = pane?.()
+
+  if (!id) {
+    return
+  }
+
+  paneComposers.set(id, composer)
+
+  return () => {
+    if (paneComposers.get(id) === composer) {
+      paneComposers.delete(id)
+    }
+  }
+})
 
 let box = $state<HTMLElement>()
 
