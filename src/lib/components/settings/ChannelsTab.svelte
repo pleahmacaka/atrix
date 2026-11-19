@@ -60,10 +60,14 @@ $effect(() => {
 
   current.botName().then(
     name => {
-      botName = name
+      if (current === provider) {
+        botName = name
+      }
     },
     () => {
-      botName = null
+      if (current === provider) {
+        botName = null
+      }
     },
   )
 })

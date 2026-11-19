@@ -105,7 +105,6 @@ const folded = (node: SpaceNode) => folds.get(node.key) ?? false
 
 let editing = $state<{
   host: string
-  key: string | null
   node: SpaceNode | null
   name: string
   folder: string
@@ -298,7 +297,7 @@ const spaceMenu = (host: string, node: SpaceNode): MenuItem[] => {
       label: m.space_edit(),
       icon: "lucide:pencil",
       run: () => {
-        editing = { host, key: node.key, node, name: space.name, folder: space.folder }
+        editing = { host, node, name: space.name, folder: space.folder }
       },
     },
     {
@@ -634,7 +633,7 @@ const railRows = $derived(
           const host = tree.hosts.find(h => h.local) ?? tree.hosts[0]
 
           if (host) {
-            editing = { host: host.id, key: null, node: null, name: "", folder: "" }
+            editing = { host: host.id, node: null, name: "", folder: "" }
           }
         }}
       />

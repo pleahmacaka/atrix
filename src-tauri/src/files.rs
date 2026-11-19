@@ -440,11 +440,18 @@ pub fn git_remote(path: String) -> Result<Option<Git>> {
     }))
 }
 
+const ATTACHMENT_MAX: usize = 10 * 1024 * 1024;
+
 #[tauri::command(async)]
 pub fn save_attachment(app: AppHandle, name: String, data: String) -> Result<String> {
     let bytes = STANDARD
         .decode(data)
         .map_err(|e| Error::code("attachment_invalid", e))?;
+
+    if bytes.len() > ATTACHMENT_MAX {
+        return Err(Error::code("attachment_invalid", &name));
+    }
+
     let file = Path::new(&name)
         .file_name()
         .ok_or_else(|| Error::code("attachment_invalid", &name))?;

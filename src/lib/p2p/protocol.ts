@@ -217,6 +217,8 @@ export type Patch = Partial<
   >
 >
 
+const ATTACHMENT_BASE64_MAX = Math.ceil((10 * 1024 * 1024 * 4) / 3) + 4
+
 const attachment = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("image"),
@@ -234,7 +236,7 @@ const attachment = z.discriminatedUnion("kind", [
     kind: z.literal("file"),
     name: z.string(),
     mimeType: z.string(),
-    data: z.string(),
+    data: z.string().max(ATTACHMENT_BASE64_MAX),
   }),
 ])
 

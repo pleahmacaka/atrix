@@ -58,13 +58,14 @@ const TYPING_MS = 8000
 const typing = (binding: Binding) => {
   const provider = providerOf(binding.provider)
   const ping = () =>
-    provider
-      .typing(binding.channel)
-      .catch((e: unknown) => logFailure("channel typing", e))
-
-  ping()
+    provider.typing(binding.channel).catch((e: unknown) => {
+      clearInterval(timer)
+      logFailure("channel typing", e)
+    })
 
   const timer = setInterval(ping, TYPING_MS)
+
+  ping()
 
   return () => clearInterval(timer)
 }
