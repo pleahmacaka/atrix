@@ -128,8 +128,15 @@ const finish = () =>
     {#if components && choices}
       <Section icon="lucide:blocks" title={m.desktop_components()}>
         <ToggleRow
+          title={m.desktop_component_agent()}
+          checked={components.agent}
+          disabled={!components.shell}
+          onchange={on => setComponent("agent", on)}
+        />
+        <ToggleRow
           title={m.desktop_component_shell()}
           checked={components.shell}
+          disabled={!components.agent}
           onchange={on => setComponent("shell", on)}
         />
         <ToggleRow

@@ -7,6 +7,7 @@ use crate::fail;
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Components {
+    pub agent: bool,
     pub shell: bool,
     pub files: bool,
     pub terminal: bool,
@@ -15,6 +16,7 @@ pub struct Components {
 impl Default for Components {
     fn default() -> Self {
         Self {
+            agent: true,
             shell: false,
             files: false,
             terminal: true,
@@ -39,6 +41,7 @@ impl Components {
 
     pub fn for_platform(mut self) -> Self {
         self.shell &= cfg!(windows);
+        self.agent |= !self.shell;
 
         self
     }

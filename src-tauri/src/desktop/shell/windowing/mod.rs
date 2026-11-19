@@ -80,6 +80,10 @@ pub fn toggle_window(app: AppHandle, label: String) {
 
 // building a webview inside a main-thread callback deadlocks the event loop, so lazy windows are built from a helper thread
 pub fn show(app: &AppHandle, label: &str) {
+    if label == "main" && !app.state::<crate::desktop::Components>().agent {
+        return;
+    }
+
     let app = app.clone();
     let label = label.to_string();
 

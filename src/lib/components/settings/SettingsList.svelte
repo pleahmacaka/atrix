@@ -1,18 +1,26 @@
-<script lang="ts">
+<script lang="ts" generics="T extends string">
 import Icon from "@iconify/svelte"
 import { m } from "#lib/paraglide/messages.js"
-import { nav } from "#lib/store/nav.svelte.ts"
-import { SETTINGS_TABS } from "./tabs.ts"
 
-let { row = false }: { row?: boolean } = $props()
+let {
+  items,
+  current,
+  onpick,
+  row = false,
+}: {
+  items: { id: T; label: string; icon: string }[]
+  current: T
+  onpick: (id: T) => void
+  row?: boolean
+} = $props()
 </script>
 
 <nav
   class={["flex gap-0.5 px-2 pb-2", row ? "flex-row" : "flex-col"]}
   aria-label={m.settings_menu()}
 >
-  {#each SETTINGS_TABS as tab (tab.id)}
-    {@const selected = nav.settingsTab === tab.id}
+  {#each items as tab (tab.id)}
+    {@const selected = current === tab.id}
     <button
       type="button"
       class={[
@@ -23,7 +31,7 @@ let { row = false }: { row?: boolean } = $props()
       ]}
       aria-current={selected ? "page" : undefined}
       aria-label={tab.label}
-      onclick={() => (nav.settingsTab = tab.id)}
+      onclick={() => onpick(tab.id)}
     >
       <Icon icon={tab.icon} class="size-4 shrink-0" />
       <span class={["min-w-0 text-start", row ? "whitespace-nowrap" : "flex-1 truncate"]}>

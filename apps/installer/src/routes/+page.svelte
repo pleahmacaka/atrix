@@ -41,7 +41,12 @@ const FAILED: Record<Task, string> = {
 }
 
 let info = $state<Overview>()
-let chosen = $state<Components>({ shell: false, files: false, terminal: true })
+let chosen = $state<Components>({
+  agent: true,
+  shell: false,
+  files: false,
+  terminal: true,
+})
 let view = $state<View>("welcome")
 let task = $state<Task>("install")
 let steps = $state<Step[]>([])

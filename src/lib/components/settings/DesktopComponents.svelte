@@ -28,8 +28,15 @@ const device = $derived(desktopSettings.device)
     {/snippet}
     {#if windows}
       <ToggleRow
+        title={m.desktop_component_agent()}
+        checked={components.agent}
+        disabled={!components.shell}
+        onchange={on => desktopSettings.setComponent("agent", on)}
+      />
+      <ToggleRow
         title={m.desktop_component_shell()}
         checked={components.shell}
+        disabled={!components.agent}
         onchange={on => desktopSettings.setComponent("shell", on)}
       />
     {/if}

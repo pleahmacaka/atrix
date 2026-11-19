@@ -1,6 +1,8 @@
 import {
   ACCENTS,
   type Bounds,
+  CONTENT_SCALE,
+  SCALE,
   settings,
   TERMINAL_SCROLL,
   TERMINAL_SIZE,
@@ -8,6 +10,12 @@ import {
 } from "#lib/store/settings.svelte.ts"
 
 const THEMES = ["system", "light", "dark"] as const
+
+const TEXTURES = ["none", "soft", "strong"] as const
+
+const RINGS = ["both", "context", "week"] as const
+
+const TRANSPARENCY: Bounds = { min: 0, max: 85, step: 5, base: 0 }
 
 const ranged =
   (range: Bounds, apply: (value: number) => void) => (raw: string) => {
@@ -43,6 +51,30 @@ const FOLLOWED: Record<string, (raw: string) => void> = {
   "terminal-scroll": ranged(TERMINAL_SCROLL, value => {
     settings.terminalScroll = value
   }),
+  "ui-scale": ranged(SCALE, value => {
+    settings.scale = value
+  }),
+  "content-scale": ranged(CONTENT_SCALE, value => {
+    settings.contentScale = value
+  }),
+  "window-effect": raw => {
+    settings.effect = raw === "none" ? "none" : "glass"
+  },
+  "window-transparency": ranged(TRANSPARENCY, value => {
+    settings.transparency = value
+  }),
+  "window-texture": raw => {
+    settings.texture = TEXTURES.find(t => t === raw) ?? "none"
+  },
+  layout: raw => {
+    settings.layout = raw === "island" ? "island" : "flat"
+  },
+  "sidebar-collapse": raw => {
+    settings.sidebarCollapse = raw === "hidden" ? "hidden" : "compact"
+  },
+  "usage-ring": raw => {
+    settings.usageRing = RINGS.find(r => r === raw) ?? "both"
+  },
 }
 
 export const followSettings = (e: StorageEvent) => {

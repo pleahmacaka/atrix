@@ -19,7 +19,10 @@ import { desktopSettings } from "./desktop.svelte.ts"
 import SteppedSetting from "./SteppedSetting.svelte"
 import ToggleRow from "./ToggleRow.svelte"
 
-let { device }: { device: DeviceSettings } = $props()
+let {
+  device,
+  page,
+}: { device: DeviceSettings; page: "dock" | "topbar" | "panel" } = $props()
 
 const set = desktopSettings.setDevice
 
@@ -99,141 +102,141 @@ const monitorOptions = $derived([
 const floating = $derived(device.dockStyle === "mac")
 </script>
 
-<DesktopSection id="dock">
-  <ToggleRow
-    title={m.desktop_dock_enabled()}
-    checked={device.features.dock}
-    disabled={isLastEntryPoint(device.features, "dock")}
-    onchange={on => set("features", { ...device.features, dock: on })}
-  />
-  {#if device.features.dock}
-    <SettingRow title={m.desktop_dock_style()}>
-      <Segmented
-        label={m.desktop_dock_style()}
-        items={STYLES}
-        value={device.dockStyle}
-        onpick={style => set("dockStyle", style)}
-      />
-    </SettingRow>
-    <SettingRow title={m.desktop_position()}>
-      <Segmented
-        label={m.desktop_position()}
-        items={EDGES}
-        value={device.dockEdge}
-        onpick={edge => set("dockEdge", edge)}
-      />
-    </SettingRow>
-    <SettingRow title={m.desktop_dock_monitor()}>
-      <Select
-        class="w-44 max-sm:w-full"
-        label={m.desktop_dock_monitor()}
-        options={monitorOptions}
-        value={device.dockMonitor}
-        onchange={monitor => set("dockMonitor", monitor)}
-      />
-    </SettingRow>
-    <SettingRow title={m.desktop_dock_align()}>
-      <Segmented
-        label={m.desktop_dock_align()}
-        items={ALIGNS}
-        value={device.dockAlign}
-        onpick={align => set("dockAlign", align)}
-      />
-    </SettingRow>
-    <SteppedSetting
-      title={m.desktop_dock_height()}
-      value={device.dockHeight}
-      range={HEIGHT}
-      unit={m.desktop_unit_px()}
-      onchange={height => set("dockHeight", height)}
-    />
-    {#if floating}
-      <SteppedSetting
-        title={m.desktop_dock_width()}
-        value={device.dockWidth}
-        range={WIDTH}
-        unit={m.desktop_unit_px()}
-        onchange={width => set("dockWidth", width)}
-      />
-      <SteppedSetting
-        title={m.desktop_dock_growth()}
-        value={Math.round(device.dockGrowth * 100)}
-        range={GROWTH}
-        unit={m.desktop_unit_percent()}
-        onchange={growth => set("dockGrowth", growth / 100)}
-      />
-    {/if}
-    <SteppedSetting
-      title={m.desktop_dock_icon_size()}
-      value={device.dockIconSize}
-      range={ICON}
-      unit={m.desktop_unit_px()}
-      onchange={size => set("dockIconSize", size)}
-    />
+{#if page === "dock"}
+  <DesktopSection id="dock">
     <ToggleRow
-      title={m.desktop_dock_autohide()}
-      checked={device.dockAutoHide}
-      onchange={on => set("dockAutoHide", on)}
+      title={m.desktop_dock_enabled()}
+      checked={device.features.dock}
+      disabled={isLastEntryPoint(device.features, "dock")}
+      onchange={on => set("features", { ...device.features, dock: on })}
     />
-    {#if device.dockAutoHide}
-      <SteppedSetting
-        title={m.desktop_dock_hide_delay()}
-        value={device.dockHideDelay}
-        range={DELAY}
-        unit={m.desktop_unit_ms()}
-        onchange={delay => set("dockHideDelay", delay)}
-      />
-      <SettingRow title={m.desktop_dock_edge_only()}>
+    {#if device.features.dock}
+      <SettingRow title={m.desktop_dock_style()}>
         <Segmented
-          label={m.desktop_dock_edge_only()}
-          items={EDGE_ONLY}
-          value={device.dockEdgeOnly}
-          onpick={edgeOnly => set("dockEdgeOnly", edgeOnly)}
+          label={m.desktop_dock_style()}
+          items={STYLES}
+          value={device.dockStyle}
+          onpick={style => set("dockStyle", style)}
         />
       </SettingRow>
-    {/if}
-    <ToggleRow
-      title={m.desktop_dock_fullscreen()}
-      checked={device.dockFullscreenReveal}
-      onchange={on => set("dockFullscreenReveal", on)}
-    />
-    {#if floating}
-      <ToggleRow
-        title={m.desktop_dock_behind()}
-        checked={device.dockDesktop}
-        onchange={on => set("dockDesktop", on)}
-      />
-    {/if}
-    <ToggleRow
-      title={m.desktop_hide_taskbar()}
-      checked={device.hideSystemTaskbar}
-      onchange={on => set("hideSystemTaskbar", on)}
-    />
-    <ToggleRow
-      title={m.desktop_dock_islands()}
-      checked={device.dockIslands}
-      onchange={on => set("dockIslands", on)}
-    />
-    {#if device.dockIslands}
+      <SettingRow title={m.desktop_position()}>
+        <Segmented
+          label={m.desktop_position()}
+          items={EDGES}
+          value={device.dockEdge}
+          onpick={edge => set("dockEdge", edge)}
+        />
+      </SettingRow>
+      <SettingRow title={m.desktop_dock_monitor()}>
+        <Select
+          class="w-44 max-sm:w-full"
+          label={m.desktop_dock_monitor()}
+          options={monitorOptions}
+          value={device.dockMonitor}
+          onchange={monitor => set("dockMonitor", monitor)}
+        />
+      </SettingRow>
+      <SettingRow title={m.desktop_dock_align()}>
+        <Segmented
+          label={m.desktop_dock_align()}
+          items={ALIGNS}
+          value={device.dockAlign}
+          onpick={align => set("dockAlign", align)}
+        />
+      </SettingRow>
       <SteppedSetting
-        title={m.desktop_dock_island_gap()}
-        value={device.dockIslandGap}
-        range={GAP}
+        title={m.desktop_dock_height()}
+        value={device.dockHeight}
+        range={HEIGHT}
         unit={m.desktop_unit_px()}
-        onchange={gap => set("dockIslandGap", gap)}
+        onchange={height => set("dockHeight", height)}
       />
-    {/if}
-    {#if device.features.launcher}
+      {#if floating}
+        <SteppedSetting
+          title={m.desktop_dock_width()}
+          value={device.dockWidth}
+          range={WIDTH}
+          unit={m.desktop_unit_px()}
+          onchange={width => set("dockWidth", width)}
+        />
+        <SteppedSetting
+          title={m.desktop_dock_growth()}
+          value={Math.round(device.dockGrowth * 100)}
+          range={GROWTH}
+          unit={m.desktop_unit_percent()}
+          onchange={growth => set("dockGrowth", growth / 100)}
+        />
+      {/if}
+      <SteppedSetting
+        title={m.desktop_dock_icon_size()}
+        value={device.dockIconSize}
+        range={ICON}
+        unit={m.desktop_unit_px()}
+        onchange={size => set("dockIconSize", size)}
+      />
       <ToggleRow
-        title={m.desktop_dock_launcher_button()}
-        checked={device.showLauncherButton}
-        onchange={on => set("showLauncherButton", on)}
+        title={m.desktop_dock_autohide()}
+        checked={device.dockAutoHide}
+        onchange={on => set("dockAutoHide", on)}
       />
+      {#if device.dockAutoHide}
+        <SteppedSetting
+          title={m.desktop_dock_hide_delay()}
+          value={device.dockHideDelay}
+          range={DELAY}
+          unit={m.desktop_unit_ms()}
+          onchange={delay => set("dockHideDelay", delay)}
+        />
+        <SettingRow title={m.desktop_dock_edge_only()}>
+          <Segmented
+            label={m.desktop_dock_edge_only()}
+            items={EDGE_ONLY}
+            value={device.dockEdgeOnly}
+            onpick={edgeOnly => set("dockEdgeOnly", edgeOnly)}
+          />
+        </SettingRow>
+      {/if}
+      <ToggleRow
+        title={m.desktop_dock_fullscreen()}
+        checked={device.dockFullscreenReveal}
+        onchange={on => set("dockFullscreenReveal", on)}
+      />
+      {#if floating}
+        <ToggleRow
+          title={m.desktop_dock_behind()}
+          checked={device.dockDesktop}
+          onchange={on => set("dockDesktop", on)}
+        />
+      {/if}
+      <ToggleRow
+        title={m.desktop_hide_taskbar()}
+        checked={device.hideSystemTaskbar}
+        onchange={on => set("hideSystemTaskbar", on)}
+      />
+      <ToggleRow
+        title={m.desktop_dock_islands()}
+        checked={device.dockIslands}
+        onchange={on => set("dockIslands", on)}
+      />
+      {#if device.dockIslands}
+        <SteppedSetting
+          title={m.desktop_dock_island_gap()}
+          value={device.dockIslandGap}
+          range={GAP}
+          unit={m.desktop_unit_px()}
+          onchange={gap => set("dockIslandGap", gap)}
+        />
+      {/if}
+      {#if device.features.launcher}
+        <ToggleRow
+          title={m.desktop_dock_launcher_button()}
+          checked={device.showLauncherButton}
+          onchange={on => set("showLauncherButton", on)}
+        />
+      {/if}
     {/if}
-  {/if}
-</DesktopSection>
-
-{#if device.features.dock}
+  </DesktopSection>
+{:else if page === "topbar"}
   <DesktopSection id="topbar">
     <ToggleRow
       title={m.desktop_topbar_enabled()}
@@ -241,15 +244,15 @@ const floating = $derived(device.dockStyle === "mac")
       onchange={on => set("topBar", on)}
     />
   </DesktopSection>
+{:else}
+  <DesktopSection id="panel">
+    <SettingRow title={m.desktop_position()}>
+      <Segmented
+        label={m.desktop_position()}
+        items={PANEL_POSITIONS}
+        value={device.panelPosition}
+        onpick={position => set("panelPosition", position)}
+      />
+    </SettingRow>
+  </DesktopSection>
 {/if}
-
-<DesktopSection id="panel">
-  <SettingRow title={m.desktop_position()}>
-    <Segmented
-      label={m.desktop_position()}
-      items={PANEL_POSITIONS}
-      value={device.panelPosition}
-      onpick={position => set("panelPosition", position)}
-    />
-  </SettingRow>
-</DesktopSection>

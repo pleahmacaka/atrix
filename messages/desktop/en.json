@@ -1,7 +1,8 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "desktop_tab": "Desktop",
+  "desktop_settings_title": "Desktop settings",
   "desktop_components": "Components",
+  "desktop_component_agent": "Atrix AI",
   "desktop_component_shell": "Desktop shell",
   "desktop_component_files": "File explorer",
   "desktop_component_terminal": "Terminal",

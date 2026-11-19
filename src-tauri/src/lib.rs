@@ -106,11 +106,20 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         app.manage(tray::Tray::<tauri::Wry>::default());
 
-        if app.state::<launch::Launch>().headless {
-            if let Some(window) = app.get_webview_window("main") {
-                window.hide()?;
+        let headless = app.state::<launch::Launch>().headless;
+        let agent = app.state::<desktop::Components>().agent;
+
+        if let Some(window) = app.get_webview_window("main") {
+            if !agent {
+                window.set_skip_taskbar(true)?;
             }
 
+            if headless || !agent {
+                window.hide()?;
+            }
+        }
+
+        if headless {
             println!("atrix running headless");
         } else {
             tray::install(app.handle())?;
@@ -141,9 +150,13 @@ pub fn run() {
     #[cfg(desktop)]
     let headless = launch.headless;
     #[cfg(desktop)]
-    let components = desktop::Components::at_launch(headless);
+    let launched = desktop::Components::load();
+    #[cfg(desktop)]
+    let components = launched.at_launch(headless);
 
     let builder = tauri::Builder::default().manage(launch);
+    #[cfg(desktop)]
+    let builder = builder.manage(launched);
 
     #[cfg(all(desktop, not(debug_assertions)))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(move |app, args, cwd| {
@@ -151,7 +164,7 @@ pub fn run() {
             return;
         }
 
-        tray::show(app);
+        tray::activate(app);
 
         if let Some(code) = launch::pair_code(&args) {
             let _ = tauri::Emitter::emit(app, "pair-code", code);
@@ -274,6 +287,12 @@ pub fn run() {
             desktop::components::desktop_components_get,
             #[cfg(desktop)]
             desktop::components::desktop_components_set,
+            #[cfg(desktop)]
+            desktop::components::desktop_components_launched,
+            #[cfg(desktop)]
+            desktop::components::desktop_settings_open,
+            #[cfg(desktop)]
+            desktop::components::desktop_settings_section,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

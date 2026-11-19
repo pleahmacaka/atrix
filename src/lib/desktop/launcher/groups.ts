@@ -68,6 +68,7 @@ export type GroupSource = {
   dockPinned: Set<string>
   recentIds: string[]
   commandRows: Result[]
+  agent: boolean
   atrixRows: Result[]
   extrasById: Map<string, Result>
 }
@@ -237,7 +238,11 @@ export const buildGroups = (s: GroupSource): ResultGroup[] => {
     extras.push(openResult(target))
   }
 
-  extras.push(atrixNewResult(text), webResult(text, launcher.webSearch))
+  if (s.agent) {
+    extras.push(atrixNewResult(text))
+  }
+
+  extras.push(webResult(text, launcher.webSearch))
 
   return grouped(s, [...rank(candidates, text, boost), ...extras])
 }

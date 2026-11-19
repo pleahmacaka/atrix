@@ -9,7 +9,7 @@ let {
 }: { platform: Platform; value: Components } = $props()
 
 type Row = {
-  id: "client" | keyof Components
+  id: keyof Components
   icon: string
   title: string
   detail: string
@@ -17,15 +17,13 @@ type Row = {
 
 const windows = $derived(platform === "windows")
 
-const set = (id: Row["id"], on: boolean) => {
-  if (id !== "client") {
-    value[id] = on
-  }
-}
+const locked = (id: keyof Components) =>
+  (id === "agent" && (!windows || !value.shell)) ||
+  (id === "shell" && !value.agent)
 
 const rows = $derived<Row[]>([
   {
-    id: "client",
+    id: "agent",
     icon: "lucide:bot",
     title: m.client,
     detail: m.client_detail,
@@ -57,12 +55,12 @@ const rows = $derived<Row[]>([
 
 <ul class="island flex flex-col p-2">
   {#each rows as row (row.id)}
+    {@const fixed = locked(row.id)}
     <li>
       <label
         class={[
           "flex items-center gap-3 rounded-field px-3 py-2.5",
-          row.id !== "client" &&
-            "cursor-pointer transition-colors hover:bg-base-content/4",
+          !fixed && "cursor-pointer transition-colors hover:bg-base-content/4",
         ]}
       >
         <span
@@ -84,9 +82,11 @@ const rows = $derived<Row[]>([
         <input
           type="checkbox"
           class="toggle toggle-primary toggle-sm"
-          checked={row.id === "client" || value[row.id]}
-          disabled={row.id === "client"}
-          onchange={e => set(row.id, e.currentTarget.checked)}
+          checked={value[row.id]}
+          disabled={fixed}
+          onchange={e => {
+            value[row.id] = e.currentTarget.checked
+          }}
         />
       </label>
     </li>

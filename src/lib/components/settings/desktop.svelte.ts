@@ -1,5 +1,3 @@
-import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import { relaunch } from "@tauri-apps/plugin-process"
 import { isEqual } from "es-toolkit"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
@@ -13,20 +11,22 @@ import {
   updateDevice,
   updateProfile,
 } from "#lib/desktop/settings/index.ts"
-import { desktop, mobileApp, platform } from "#lib/platform.ts"
-import { openSettings } from "#lib/store/nav.svelte.ts"
+import { platform } from "#lib/platform.ts"
 import {
   type Components,
+  DESKTOP_SECTIONS,
+  type DesktopPage,
   type DesktopSection,
+  launchedComponents,
   loadComponents,
-  MAIN_SETTINGS,
-  type SettingsRequest,
   saveComponents,
 } from "./desktopSettings.ts"
 
 export const windows = platform === "windows"
 
 class DesktopSettings {
+  page = $state<DesktopPage>("general")
+
   focus = $state<DesktopSection | null>(null)
 
   launched = $state<Components | null>(null)
@@ -47,12 +47,14 @@ class DesktopSettings {
 
   load = () =>
     this.saving.run(async () => {
-      const [components, device, profile] = await Promise.all([
+      const [launched, components, device, profile] = await Promise.all([
+        launchedComponents(),
         loadComponents(),
         windows ? loadDevice() : null,
         windows ? loadProfile() : null,
       ])
 
+      this.launched = launched
       this.components = components
       this.device = device
       this.launcher = profile?.launcher ?? null
@@ -72,6 +74,15 @@ class DesktopSettings {
       for (const stop of stops) {
         stop.then(unlisten => unlisten())
       }
+    }
+  }
+
+  open = (section: string | null) => {
+    const target = DESKTOP_SECTIONS.find(s => s.id === section)
+
+    if (target) {
+      this.page = target.page
+      this.focus = target.id
     }
   }
 
@@ -111,38 +122,6 @@ class DesktopSettings {
   }
 
   restart = () => this.saving.run(relaunch)
-
-  start = () => {
-    if (!desktop && !mobileApp) {
-      return
-    }
-
-    if (desktop) {
-      loadComponents()
-        .then(components => {
-          this.launched = components
-        })
-        .catch(() => undefined)
-    }
-
-    const main = getCurrentWebviewWindow()
-    const stop = main.listen<SettingsRequest>(
-      MAIN_SETTINGS,
-      async ({ payload }) => {
-        if (desktop) {
-          await main.unminimize()
-          await invoke("show_window", { label: "main" })
-        }
-
-        this.focus = payload.section
-        openSettings(payload.tab)
-      },
-    )
-
-    return () => {
-      stop.then(unlisten => unlisten())
-    }
-  }
 }
 
 export const desktopSettings = new DesktopSettings()

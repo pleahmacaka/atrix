@@ -201,6 +201,24 @@
         "focus": false,
         "dragDropEnabled": false,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-smooth-scrolling"
+      },
+      {
+        "label": "settings",
+        "create": false,
+        "url": "/shell/settings",
+        "title": "Atrix Settings",
+        "width": 900,
+        "height": 680,
+        "minWidth": 680,
+        "minHeight": 480,
+        "center": true,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "skipTaskbar": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-smooth-scrolling"
       }
     ],
     "security": {

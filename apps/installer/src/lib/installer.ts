@@ -3,7 +3,12 @@ import { listen } from "@tauri-apps/api/event"
 
 export type Platform = "windows" | "linux" | "macos"
 
-export type Components = { shell: boolean; files: boolean; terminal: boolean }
+export type Components = {
+  agent: boolean
+  shell: boolean
+  files: boolean
+  terminal: boolean
+}
 
 export type Overview = {
   version: string
@@ -35,4 +40,7 @@ export const onStep = (handler: (step: Step) => void) =>
   listen<Step>("step", e => handler(e.payload))
 
 export const differs = (a: Components, b: Components) =>
-  a.shell !== b.shell || a.files !== b.files || a.terminal !== b.terminal
+  a.agent !== b.agent ||
+  a.shell !== b.shell ||
+  a.files !== b.files ||
+  a.terminal !== b.terminal

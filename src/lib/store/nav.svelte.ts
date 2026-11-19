@@ -21,7 +21,6 @@ export type SettingsTab =
   | "shortcuts"
   | "security"
   | "devices"
-  | "desktop"
 
 export type Current =
   | { kind: "chat"; id: string }

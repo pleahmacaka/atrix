@@ -1,4 +1,5 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
+import { launchedComponents } from "#lib/components/settings/desktopSettings.ts"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import { parseQuery, type Route } from "#lib/desktop/launcher/core/index.ts"
 import {
@@ -55,6 +56,8 @@ export class Launcher {
 
   timers = $state.raw<Timer[]>([])
 
+  agent = $state(true)
+
   atrix = $state.raw<AtrixItems>({ conversations: [], docs: [] })
 
   icons = $state<Record<string, string>>({})
@@ -77,17 +80,21 @@ export class Launcher {
 
   atrixOpen = atrixOpenResult()
 
-  atrixRows = $derived([
-    this.atrixOpen,
-    ...this.atrix.conversations.map(conversationResult),
-    ...this.atrix.docs.map(docResult),
-  ])
+  atrixRows = $derived(
+    this.agent
+      ? [
+          this.atrixOpen,
+          ...this.atrix.conversations.map(conversationResult),
+          ...this.atrix.docs.map(docResult),
+        ]
+      : [],
+  )
 
   extrasById = $derived(
     new Map(
       [
         ...(this.profile.launcher.showCommands ? this.commandRows : []),
-        this.atrixOpen,
+        ...(this.agent ? [this.atrixOpen] : []),
       ].map(r => [r.id, r]),
     ),
   )
@@ -157,8 +164,15 @@ export class Launcher {
     }).catch(() => undefined)
   }
 
+  async refreshAgent() {
+    this.agent = await launchedComponents()
+      .then(c => c.agent)
+      .catch(() => true)
+  }
+
   refresh() {
     return Promise.all([
+      this.refreshAgent(),
       this.refreshApps(),
       this.refreshWindows(),
       this.refreshAtrix(),
