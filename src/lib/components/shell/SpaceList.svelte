@@ -479,15 +479,15 @@ const railRows = $derived(
       {@render status(row.status, row.item.live)}
     </button>
     {#if row.subagents.length > 0}
-      <ul class="ms-9 border-s border-base-content/10 ps-2">
+      <div class="ms-9 flex flex-col items-stretch self-stretch border-s border-base-content/10 py-0 ps-2 pe-1.5">
         {#each row.subagents as sub (sub.id)}
-          <li class="flex min-w-0 items-center gap-2 py-0.5 text-xs text-base-content/60">
+          <div class="flex min-w-0 items-center gap-2 py-0.5 text-xs text-base-content/60">
             <Icon icon="lucide:bot" class="size-3.5 shrink-0" />
             <span class="min-w-0 flex-1 truncate" title={sub.description}>{sub.description}</span>
             <span class="loading loading-spinner loading-xs shrink-0 opacity-60"></span>
-          </li>
+          </div>
         {/each}
-      </ul>
+      </div>
     {/if}
   </li>
 {/snippet}
@@ -533,7 +533,7 @@ const railRows = $derived(
       </span>
       <span class="min-w-0 flex-1 truncate text-start font-medium">{node.space.name}</span>
       <span class="shrink-0 text-xs text-base-content/50 tabular-nums">{node.agents.length}</span>
-      {@render status(node.status, false)}
+      {@render status(open ? "idle" : node.status, false)}
       <Icon
         icon="lucide:chevron-down"
         class={["size-3.5 shrink-0 opacity-50 transition-transform duration-140", !open && "-rotate-90"]}
