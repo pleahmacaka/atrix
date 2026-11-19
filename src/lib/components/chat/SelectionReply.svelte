@@ -151,7 +151,7 @@ $effect(() => {
   popover="manual"
   type="button"
   class={[
-    "fixed inset-auto m-0 flex items-center gap-1.5 px-3 py-1.5",
+    "fixed inset-auto m-0 items-center gap-1.5 px-3 py-1.5 open:flex",
     "rounded-box border border-base-300 bg-raised text-sm shadow-md",
     "cursor-pointer transition-colors duration-140 hover:bg-base-200",
   ]}

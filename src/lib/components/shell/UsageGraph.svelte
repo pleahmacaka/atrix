@@ -1,7 +1,7 @@
 <script lang="ts">
 import { m } from "#lib/paraglide/messages.js"
 import { compact } from "./format.ts"
-import { createUsage } from "./usage.ts"
+import { createUsage } from "./usage.svelte.ts"
 
 const usage = createUsage()
 </script>

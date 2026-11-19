@@ -46,7 +46,7 @@ export const watchShared = (
   },
   load: (work: () => Promise<void>) => unknown,
   onData: (events: SharedEvent[], tags: EventTag[]) => void,
-) =>
+) => {
   $effect(() => {
     const { hosts, from, to, isHoliday } = query()
 
@@ -65,3 +65,4 @@ export const watchShared = (
       }),
     )
   })
+}

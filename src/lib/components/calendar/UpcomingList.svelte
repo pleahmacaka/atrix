@@ -2,7 +2,7 @@
 import { calendar, holidays, pick, sameDay } from "#lib/calendar/calendar.svelte.ts"
 import { addDays, parseLocal, startOfDay } from "#lib/calendar/dates.ts"
 import { clock, shortDay } from "#lib/calendar/format.ts"
-import { type SharedEvent, watchShared } from "#lib/calendar/shared.ts"
+import { type SharedEvent, watchShared } from "#lib/calendar/shared.svelte.ts"
 import type { EventTag } from "#lib/calendar/store.ts"
 import { colorOf } from "#lib/calendar/tags.ts"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"

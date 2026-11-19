@@ -322,7 +322,7 @@ const menuOf = (e: MouseEvent, entry: Entry) => {
 </script>
 
 {#snippet status(state: Status, live: boolean, fresh = false)}
-  <span class="grid size-4 shrink-0 place-items-center" role="img" aria-label={STATUS_LABEL[state]()}>
+  <span class="grid size-4 shrink-0 place-items-center justify-items-end" role="img" aria-label={STATUS_LABEL[state]()}>
     {#if state === "waiting"}
       <span class="size-2 rounded-full bg-warning"></span>
     {:else if state === "running"}

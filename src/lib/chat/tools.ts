@@ -2,8 +2,7 @@ import { type InferUITools, tool, type UIMessage } from "ai"
 import { z } from "zod"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { SHOW_UI } from "./blocks.ts"
-import { showUiInput } from "./ui/part.ts"
+import { SHOW_UI, showUiInput } from "./blocks.ts"
 
 const showUi = tool({
   description:

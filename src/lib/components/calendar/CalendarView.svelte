@@ -9,7 +9,7 @@ import { calendar, holidays, pick, WEEKS } from "#lib/calendar/calendar.svelte.t
 import { addDays, startOfDay } from "#lib/calendar/dates.ts"
 import { format } from "#lib/calendar/format.ts"
 import { onDay } from "#lib/calendar/occurrence.ts"
-import { type SharedEvent, watchShared } from "#lib/calendar/shared.ts"
+import { type SharedEvent, watchShared } from "#lib/calendar/shared.svelte.ts"
 import { deleteTag, type EventTag, putTag } from "#lib/calendar/store.ts"
 import { newTag } from "#lib/calendar/tags.ts"
 import type { CalendarEvent, Scope } from "#lib/calendar/types.ts"

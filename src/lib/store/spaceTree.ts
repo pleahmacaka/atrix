@@ -117,8 +117,13 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
       }
     }
 
+    const placed = new Set(spaces.flatMap(s => s.agents))
     const sessions = all.filter(
-      r => r.live && r.current.kind === "session" && r.current.host === host.id,
+      r =>
+        r.live &&
+        r.current.kind === "session" &&
+        r.current.host === host.id &&
+        (open.has(r.current.id) || placed.has(r.current.id)),
     )
     const byId = new Map(sessions.map(r => [r.current.id, r]))
     const taken = new Set([

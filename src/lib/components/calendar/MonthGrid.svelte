@@ -10,7 +10,7 @@ import {
 import { dateKey, startOfDay } from "#lib/calendar/dates.ts"
 import { format } from "#lib/calendar/format.ts"
 import { onDay } from "#lib/calendar/occurrence.ts"
-import type { SharedEvent } from "#lib/calendar/shared.ts"
+import type { SharedEvent } from "#lib/calendar/shared.svelte.ts"
 import type { EventTag } from "#lib/calendar/store.ts"
 import { m } from "#lib/paraglide/messages.js"
 import DayCell from "./DayCell.svelte"

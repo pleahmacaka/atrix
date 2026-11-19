@@ -1,7 +1,7 @@
 <script lang="ts">
 import { holidays, sameDay } from "#lib/calendar/calendar.svelte.ts"
 import { longDay } from "#lib/calendar/format.ts"
-import type { SharedEvent } from "#lib/calendar/shared.ts"
+import type { SharedEvent } from "#lib/calendar/shared.svelte.ts"
 import type { EventTag } from "#lib/calendar/store.ts"
 import { colorOf } from "#lib/calendar/tags.ts"
 import { m } from "#lib/paraglide/messages.js"
