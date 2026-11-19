@@ -83,6 +83,8 @@ export const paneComposers = new Map<string, Composer>()
 export class Composer {
   dropping = $state(false)
 
+  floating = $state(false)
+
   picker = $state<HTMLInputElement>()
 
   previews = thumbnails

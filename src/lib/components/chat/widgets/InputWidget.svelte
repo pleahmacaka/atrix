@@ -223,7 +223,18 @@ const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
   }}
 >
   {#if composer.files.length}
-    <ul class="flex flex-wrap gap-2 px-1 pt-1" aria-label={m.attach_list()}>
+    <ul
+      class={[
+        "flex flex-wrap gap-2",
+        composer.floating
+          ? [
+              "absolute bottom-full left-0 z-10 mb-2 max-w-full p-1.5",
+              "rounded-box border border-base-300 bg-raised shadow-lg",
+            ]
+          : "px-1 pt-1",
+      ]}
+      aria-label={m.attach_list()}
+    >
       {#each composer.files as file, index (index)}
         {@const preview = composer.previews.get(file)}
         <li

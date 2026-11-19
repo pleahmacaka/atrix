@@ -31,6 +31,10 @@ const sharing = $derived(split && panes.shared)
 
 const docked = $derived(sharing && panes.active.id === pane?.())
 
+$effect.pre(() => {
+  composer.floating = sharing
+})
+
 $effect(() => {
   const id = pane?.()
 
