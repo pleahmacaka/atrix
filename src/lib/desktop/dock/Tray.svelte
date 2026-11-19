@@ -1,39 +1,35 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { MenuBox } from "./layout.svelte"
-  import { flip } from "svelte/animate"
-  import { t } from "svelte-i18n"
-  import { currentLocale } from "@atrix/i18n"
-  import * as native from "#lib/native/index.js"
   import {
     type DeviceSettings,
-    type TraySlot,
     defaultDevice,
+    type TraySlot,
     updateDevice,
   } from "@atrix/settings"
-  import { syncStatus } from "#lib/sync/index.js"
   import { ContextMenu } from "@atrix/ui"
-  import { notificationMenu, settingsMenu, slotMenu } from "./tray/menus"
-  import {
-    batteryIcon as iconForBattery,
-    batteryTitle as titleForBattery,
-    hidePatch,
-    reorderSlot,
-    syncTitle as titleForSync,
-    syncTone as toneForSync,
-    traySlots,
-    type Widget,
-  } from "./tray/policy"
-  import { TrayStatus } from "./tray/status.svelte"
+  import Icon from "@iconify/svelte"
+  import { flip } from "svelte/animate"
+  import { t } from "svelte-i18n"
+  import * as native from "#lib/desktop/native/index.js"
   import Bluetooth from "./Bluetooth.svelte"
   import ClaudeUsage from "./ClaudeUsage.svelte"
   import Clock from "./Clock.svelte"
   import { dockAwake } from "./dock.svelte"
   import InputLanguage from "./InputLanguage.svelte"
+  import type { MenuBox } from "./layout.svelte"
   import Media from "./Media.svelte"
-  import VolumeControl from "./VolumeControl.svelte"
   import Meters from "./Meters.svelte"
   import NotifyIcons from "./NotifyIcons.svelte"
+  import { notificationMenu, settingsMenu, slotMenu } from "./tray/menus"
+  import {
+    hidePatch,
+    batteryIcon as iconForBattery,
+    reorderSlot,
+    batteryTitle as titleForBattery,
+    traySlots,
+    type Widget,
+  } from "./tray/policy"
+  import { TrayStatus } from "./tray/status.svelte"
+  import VolumeControl from "./VolumeControl.svelte"
 
   type Props = {
     device: DeviceSettings
@@ -165,8 +161,6 @@
 
   const batteryIcon = $derived(iconForBattery(info.battery))
   const batteryTitle = $derived(titleForBattery(info.battery, $t))
-  const syncTone = $derived(toneForSync(syncStatus))
-  const syncTitle = $derived(titleForSync(syncStatus, $t, currentLocale()))
 
   const quick = (action: native.QuickAction) => {
     native.quickAction(action).catch(() => undefined)
@@ -242,7 +236,7 @@
 
 {#snippet slot(id: TraySlot)}
   {#if id === "taskview"}
-    <button
+    <button type="button"
       class="btn btn-ghost btn-square btn-sm"
       title={$t("tray.taskView")}
       aria-label={$t("tray.taskView")}
@@ -251,15 +245,6 @@
       <Icon icon="lucide:layout-grid" class="size-4 text-base-content/70" />
     </button>
   {:else if id === "clock"}
-    {#if device.sync.enabled && device.showSyncStatus}
-      <span
-        class={["mx-1 inline-block size-1.5 rounded-full", syncTone]}
-        title={syncTitle}
-        aria-label={syncTitle}
-        role="status"
-      ></span>
-    {/if}
-
     <Clock
       clock24h={device.clock24h}
       showSeconds={device.showSeconds}
@@ -269,7 +254,7 @@
     />
   {:else if id === "bell"}
     <div class="relative">
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-sm"
         title={$t("tray.notifications.title")}
         aria-label={$t("tray.notifications.open")}
@@ -286,7 +271,7 @@
         {#if unseen > 0}
           <span
             class="badge badge-primary badge-xs absolute -top-1 -right-1 px-1 tabular-nums"
-            aria-label={$t("tray.notifications.unseen", { values: { count: unseen } })}
+            aria-hidden="true"
           >
             {Math.min(unseen, 99)}
           </span>
@@ -306,7 +291,7 @@
     </div>
   {:else if id === "settings"}
     <div bind:this={menuRoot} class="relative">
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-sm"
         title={$t("common.settings")}
         aria-label={$t("tray.openSettings")}
@@ -333,7 +318,7 @@
       />
     </div>
   {:else if id === "desktop"}
-    <button
+    <button type="button"
       class={[
         "ml-1 w-1.5 shrink-0 border-l border-base-content/10 transition-colors duration-100 hover:bg-base-content/20",
         mac ? "h-6 rounded-r-full" : "h-(--dock-content-height)",
@@ -347,11 +332,10 @@
   {/if}
 {/snippet}
 
-<div class="flex items-center gap-0.5" role="list">
+<ul class="flex items-center gap-0.5">
   {#each slots as id (id)}
-    <div
+    <li
       animate:flip={{ duration: 120 }}
-      role="listitem"
       class={[
         "relative flex items-center transition-opacity duration-100",
         dragId === id && "opacity-30",
@@ -387,9 +371,9 @@
       {/if}
 
       {@render slot(id)}
-    </div>
+    </li>
   {/each}
-</div>
+</ul>
 
 <ContextMenu
   bind:open={slotMenuOpen}

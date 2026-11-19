@@ -1,20 +1,5 @@
 <script lang="ts">
-  import * as native from "#lib/native/index.js"
-  import Icon from "@iconify/svelte"
-  import { emit } from "@tauri-apps/api/event"
-  import { tick, untrack } from "svelte"
-  import { saveProfileSynced, togglePinSynced } from "#lib/data/index.js"
-  import { ensureDevice } from "#lib/device.js"
   import {
-    onThemeLink,
-    onWindowHiding,
-    onWindowShown,
-    showWindow,
-    takeThemeLink,
-  } from "#lib/native/windows.js"
-  import { setLauncherShortcut, setWinKeyCapture } from "#lib/native/dock.js"
-  import {
-    CUSTOM_PRESET,
     type DeviceSettings,
     defaultDevice,
     defaultProfile,
@@ -28,6 +13,22 @@
     type Profile,
     saveDevice,
   } from "@atrix/settings"
+  import { Logo, providePins, revealSection, Toasts, toast } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
+  import { Ssgoi } from "@ssgoi/svelte"
+  import { emit } from "@tauri-apps/api/event"
+  import { tick, untrack } from "svelte"
+  import { t } from "svelte-i18n"
+  import { saveProfileSynced, togglePinSynced } from "#lib/desktop/data/index.js"
+  import { ensureDevice } from "#lib/desktop/device.js"
+  import { swapConfig } from "#lib/desktop/motion.js"
+  import { setLauncherShortcut, setWinKeyCapture } from "#lib/desktop/native/dock.js"
+  import * as native from "#lib/desktop/native/index.js"
+  import {
+    onWindowHiding,
+    onWindowShown,
+    showWindow,
+  } from "#lib/desktop/native/windows.js"
   import {
     AboutSection,
     AppearanceSection,
@@ -37,23 +38,15 @@
     ExperimentalSection,
     GeneralSection,
     LauncherSection,
-    NoteSection,
     pinState,
-    SettingsNav,
-    SyncPanel,
-    TraySection,
-    stableJson,
     type SearchEntry,
     type SectionId,
+    SettingsNav,
     sections,
-    themeFromLink,
-  } from "#lib/settings-ui/index.js"
-  import { Confirm, Logo, providePins, revealSection, Toasts } from "@atrix/ui"
-  import { Ssgoi } from "@ssgoi/svelte"
-  import { swapConfig } from "#lib/motion.js"
-  import { toast } from "@atrix/ui"
-  import { applyAppearance } from "#lib/theme.js"
-  import { t } from "svelte-i18n"
+    stableJson,
+    TraySection,
+  } from "#lib/desktop/settings-ui/index.js"
+  import { applyAppearance } from "#lib/desktop/theme.js"
 
   let section = $state<SectionId>("general")
   let query = $state("")
@@ -66,30 +59,6 @@
   let profileJson = ""
   let groups = $state<string[]>([])
   let activeGroup = $state<string | null>(null)
-  let incoming = $state<ReturnType<typeof themeFromLink>>(null)
-  let confirming = $state(false)
-
-  const takeTheme = async () => {
-    const link = await takeThemeLink().catch(() => null)
-    const theme = link ? themeFromLink(link) : null
-
-    if (theme) {
-      incoming = theme
-      confirming = true
-    }
-  }
-
-  const applyTheme = () => {
-    if (!incoming) {
-      return
-    }
-
-    profile.appearance = { ...profile.appearance, ...incoming.appearance }
-    profile.presetId = CUSTOM_PRESET
-    section = "appearance"
-    incoming = null
-  }
-
   const groupElements = () => [
     ...(page?.querySelectorAll<HTMLElement>("section[data-group]") ?? []),
   ]
@@ -261,11 +230,9 @@
         takeIntent()
       }),
       onWindowHiding("settings", flush),
-      onThemeLink(takeTheme),
     ]
 
     takeIntent()
-    takeTheme()
 
     return () => {
       for (const stop of stops) {
@@ -457,10 +424,6 @@
                     <AppearanceSection bind:profile />
                   {:else if section === "calendar"}
                     <CalendarSection bind:profile bind:device />
-                  {:else if section === "note"}
-                    <NoteSection bind:device />
-                  {:else if section === "sync"}
-                    <SyncPanel bind:device />
                   {:else if section === "data"}
                     <DataSection bind:device bind:profile />
                   {:else if section === "about"}
@@ -481,13 +444,5 @@
     </div>
   </div>
 </main>
-
-<Confirm
-  bind:open={confirming}
-  title={$t("settings.themeLink.title")}
-  body={$t("settings.themeLink.body", { values: { name: incoming?.name ?? "" } })}
-  action={$t("settings.themeLink.apply")}
-  onconfirm={applyTheme}
-/>
 
 <Toasts />

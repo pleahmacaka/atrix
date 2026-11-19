@@ -5,7 +5,6 @@ import {
   defaultAppearance,
   defaultDevice,
   defaultProfile,
-  defaultSync,
   presetAppearances,
   SYSTEM_FONT,
   standaloneLook,
@@ -24,7 +23,6 @@ import {
 test("defaults retain shared identities and the built-in catalog", () => {
   expect(defaultProfile.appearance).toBe(defaultAppearance)
   expect(presetAppearances.arix).toBe(defaultAppearance)
-  expect(defaultDevice.sync).toBe(defaultSync)
   expect(standaloneLook).toEqual({ ...defaultAppearance, mode: "system" })
   expect(DOCK_STYLES).toEqual(["windows", "mac"])
   expect(DOCK_ALIGNS).toEqual(["start", "center"])
@@ -63,8 +61,6 @@ test("missing devices and profiles receive defaults without mutating them", () =
     expect(profile).toEqual(defaultProfile)
     expect(device).not.toBe(defaultDevice)
     expect(device.features).not.toBe(defaultDevice.features)
-    expect(device.sync.collections).not.toBe(defaultSync.collections)
-    expect(device.note).not.toBe(defaultDevice.note)
     expect(device.dockWidgets[0]).not.toBe(defaultDevice.dockWidgets[0])
     expect(profile.appearance).not.toBe(defaultAppearance)
     // Normalization deliberately does not deep-clone all nested defaults.
@@ -72,16 +68,10 @@ test("missing devices and profiles receive defaults without mutating them", () =
   }
 })
 
-test("device normalization merges nested defaults and preserves false and zero", () => {
+test("device normalization merges nested defaults and preserves false", () => {
   const saved = {
     dockHeight: 40,
     features: { launcher: false },
-    sync: {
-      enabled: false,
-      intervalMinutes: 0,
-      collections: { todos: false },
-    },
-    note: { enabled: false, preview: false },
   } as unknown as Partial<DeviceSettings>
   const before = structuredClone(saved)
   const device = withDeviceDefaults(saved)
@@ -91,17 +81,6 @@ test("device normalization merges nested defaults and preserves false and zero",
     dock: true,
     launcher: false,
     calendar: true,
-  })
-  expect(device.sync).toEqual({
-    ...defaultSync,
-    enabled: false,
-    intervalMinutes: 0,
-    collections: { ...defaultSync.collections, todos: false },
-  })
-  expect(device.note).toEqual({
-    ...defaultDevice.note,
-    enabled: false,
-    preview: false,
   })
   expect(saved).toEqual(before)
 })

@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::AppHandle;
@@ -77,7 +77,7 @@ mod win {
         GlobalSystemMediaTransportControlsSessionPlaybackStatus as Playback,
     };
 
-    use super::{app_name, MediaStatus};
+    use super::{MediaStatus, app_name};
 
     struct Bound {
         session: Session,

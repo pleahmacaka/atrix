@@ -5,9 +5,9 @@
 </script>
 
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { currentLocale } from "@atrix/i18n"
   import { Confirm, toast } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import { formatBytes } from "../../format"
   import { baseName } from "../../locations"
@@ -22,8 +22,8 @@
     type Transcript as Saved,
     transcribe,
   } from "./audio"
-  import { transcribeSettings } from "./transcribe.svelte"
   import Transcript from "./Transcript.svelte"
+  import { transcribeSettings } from "./transcribe.svelte"
   import Waveform from "./Waveform.svelte"
 
   const SEEK_STEP = 5
@@ -284,7 +284,9 @@
     }}
     onended={() => (playing = false)}
     onerror={() => toast($t("audio.errors.unsupported"), "error")}
-  ></audio>
+  >
+    <track kind="captions" />
+  </audio>
 
   <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-5">
     <header class="flex items-baseline justify-between gap-4">

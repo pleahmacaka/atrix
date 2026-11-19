@@ -1,10 +1,11 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { currentLocale } from "@atrix/i18n"
   import { Confirm, toast } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import { formatBytes } from "../../format"
   import { randomToken, usageForget, usageScan } from "../../native"
+  import MobileThumb from "./MobileThumb.svelte"
   import {
     CATEGORIES,
     deleteItems,
@@ -27,7 +28,6 @@
     sortEntries,
     storageStats,
   } from "./mobile"
-  import MobileThumb from "./MobileThumb.svelte"
 
   type Problem = "permission" | "restricted" | "failed"
 
@@ -644,7 +644,7 @@
               onclick={() => go(root)}
             >
               <Icon
-                icon={root === start.root ? "lucide:smartphone" : "lucide:sd-card"}
+                icon={root === start.root ? "lucide:smartphone" : "lucide:card-sim"}
                 class="size-6 shrink-0 text-primary"
               />
 

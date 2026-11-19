@@ -1,7 +1,9 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { type MenuItem, openContextMenu, rootRem } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
+  import { type SerialPort, serialPorts } from "../pty"
+  import { shellIcon } from "../shell-icons"
   import {
     drag,
     justDragged,
@@ -11,8 +13,6 @@
     springTo,
     unspring,
   } from "./drag.svelte"
-  import { type SerialPort, serialPorts } from "../pty"
-  import { shellIcon } from "../shell-icons"
   import { type Pane, panesOf } from "./layout"
   import { prefs } from "./prefs.svelte"
   import {
@@ -324,10 +324,17 @@
         {@render closeButton($t("terminal.tabs.close"), () => closeTab(index), active)}
       </div>
     {:else}
-      <div
+      {@const badge = [
+        "flex shrink-0 items-center rounded-field",
+        "text-xs font-semibold transition-colors",
+        active
+          ? "bg-primary text-primary-content"
+          : "bg-primary/20 text-primary hover:bg-primary/30",
+      ]}
+
+      <fieldset
         data-tab
         data-group
-        role="group"
         aria-label={$t("terminal.tabs.group", { values: { name: groupName(tab) } })}
         class={[
           "relative flex h-full min-w-0 shrink items-end gap-0.5 px-0.5",
@@ -336,50 +343,41 @@
         onpointerenter={() => springTo(tab.id, () => (session.active = index))}
         onpointerleave={unspring}
       >
-        <div
-          role="button"
-          tabindex="0"
-          title={groupName(tab)}
-          class={[
-            "flex shrink-0 cursor-pointer items-center rounded-field",
-            "text-xs font-semibold transition-colors",
-            isRenaming("tab", tab.id)
-              ? "mb-1 h-7 w-44 px-0.5"
-              : "mb-1.5 h-6 max-w-40 px-2",
-            active
-              ? "bg-primary text-primary-content"
-              : "bg-primary/20 text-primary hover:bg-primary/30",
-          ]}
-          onpointerdown={e => pressTab(e, tab.id)}
-          onclick={() => {
-            if (!justDragged()) {
-              session.active = index
-            }
-          }}
-          ondblclick={() => (renaming = { kind: "tab", id: tab.id })}
-          oncontextmenu={e =>
-            menu(e, [
-              renameItem({ kind: "tab", id: tab.id }),
-              {
-                label: $t("terminal.tabs.ungroup"),
-                icon: "lucide:ungroup",
-                action: () => ungroup(tab),
-              },
-              "separator",
-              {
-                label: $t("terminal.tabs.close"),
-                icon: "lucide:x",
-                action: () => closeTab(index),
-              },
-            ])}
-          onkeydown={e => e.key === "Enter" && (session.active = index)}
-        >
-          {#if isRenaming("tab", tab.id)}
+        {#if isRenaming("tab", tab.id)}
+          <div title={groupName(tab)} class={[badge, "mb-1 h-7 w-44 px-0.5"]}>
             {@render nameField(groupName(tab))}
-          {:else}
+          </div>
+        {:else}
+          <button
+            type="button"
+            title={groupName(tab)}
+            class={[badge, "mb-1.5 h-6 max-w-40 cursor-pointer px-2"]}
+            onpointerdown={e => pressTab(e, tab.id)}
+            onclick={() => {
+              if (!justDragged()) {
+                session.active = index
+              }
+            }}
+            ondblclick={() => (renaming = { kind: "tab", id: tab.id })}
+            oncontextmenu={e =>
+              menu(e, [
+                renameItem({ kind: "tab", id: tab.id }),
+                {
+                  label: $t("terminal.tabs.ungroup"),
+                  icon: "lucide:ungroup",
+                  action: () => ungroup(tab),
+                },
+                "separator",
+                {
+                  label: $t("terminal.tabs.close"),
+                  icon: "lucide:x",
+                  action: () => closeTab(index),
+                },
+              ])}
+          >
             <span class="truncate">@{groupName(tab)}</span>
-          {/if}
-        </div>
+          </button>
+        {/if}
 
         {#each panes as pane (pane.id)}
           {@const current = active && tab.focus === pane.id}
@@ -443,7 +441,7 @@
             active ? "bg-primary" : "bg-primary/50",
           ]}
         ></span>
-      </div>
+      </fieldset>
     {/if}
   {/each}
 
@@ -500,14 +498,13 @@
       <li class="menu-title p-0"><hr class="border-base-content/10" /></li>
 
       <li class="group/serial relative">
-        <button type="button" aria-haspopup="menu">
+        <button type="button">
           <Icon icon="lucide:usb" class="size-4" />
           <span class="grow">{$t("terminal.tabs.serial")}</span>
           <Icon icon="lucide:chevron-right" class={["size-3.5 opacity-60", flip && "rotate-180"]} />
         </button>
 
         <menu
-          role="menu"
           class={[
             "menu absolute top-0 z-20 hidden w-72 rounded-box border p-1",
             "border-base-content/10 bg-base-200 shadow-lg before:hidden",

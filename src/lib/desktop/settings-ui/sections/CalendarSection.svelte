@@ -1,14 +1,14 @@
 <script lang="ts">
+  import { currentLocale } from "@atrix/i18n"
   import {
     type DeviceSettings,
-    type Profile,
     defaultDevice,
     defaultProfile,
+    type Profile,
   } from "@atrix/settings"
   import { Row, Section, Segmented } from "@atrix/ui"
-  import { currentLocale } from "@atrix/i18n"
-  import { loadHolidays, regions } from "#lib/calendar/index.js"
   import { t } from "svelte-i18n"
+  import { loadHolidays, regions } from "#lib/desktop/calendar/index.js"
   import FeatureGate from "../FeatureGate.svelte"
   import { pinnableRow, reset } from "../reset"
 

@@ -1,8 +1,8 @@
 <script lang="ts">
+  import { resizeHandle, rootRem } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import type { Item } from "../../items"
-  import { resizeHandle, rootRem } from "@atrix/ui"
   import type { Explorer } from "../../store/explorer.svelte"
   import { prefs, SORT_KEYS, type SortKey } from "../../store/prefs.svelte"
   import { cellText } from "./cells"
@@ -69,7 +69,6 @@
 </script>
 
 <div
-  role="row"
   class={[
     "sticky top-0 z-10 grid h-8 items-stretch border-b border-base-content/10",
     "bg-base-100 text-xs text-base-content/60",
@@ -78,7 +77,7 @@
   style:width="{width}rem"
 >
   {#each SORT_KEYS as key (key)}
-    <div role="columnheader" class="relative flex min-w-0">
+    <div class="relative flex min-w-0">
       <button
         type="button"
         class={[
@@ -100,16 +99,15 @@
         {/if}
       </button>
 
-      <div
-        role="separator"
+      <hr
         aria-orientation="vertical"
         class={[
-          "absolute top-1.5 -right-0.5 bottom-1.5 z-10 w-1 cursor-col-resize",
-          "rounded-full hover:bg-primary/40",
+          "absolute top-1.5 -right-0.5 bottom-1.5 z-10 h-auto w-1 border-0",
+          "cursor-col-resize rounded-full hover:bg-primary/40",
         ]}
         onpointerdown={resize(key)}
         ondblclick={() => fit(key)}
-      ></div>
+      />
     </div>
   {/each}
 </div>

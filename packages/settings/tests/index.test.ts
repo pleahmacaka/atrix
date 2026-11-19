@@ -86,11 +86,8 @@ test("a profile from an older build is completed before it is stored", async () 
   )
 })
 
-test("a device from an older build gains the new dock and sync defaults", async () => {
-  data.set("device", {
-    dockHeight: 40,
-    sync: { enabled: true, collections: { todos: false } },
-  })
+test("a device from an older build gains the new dock defaults", async () => {
+  data.set("device", { dockHeight: 40 })
 
   const device = await loadDevice()
 
@@ -98,8 +95,6 @@ test("a device from an older build gains the new dock and sync defaults", async 
   expect(device.showMedia).toBe(defaultDevice.showMedia)
   expect(device.showMeters).toBe(defaultDevice.showMeters)
   expect(device.showNetwork).toBe(defaultDevice.showNetwork)
-  expect(device.sync.collections.todos).toBe(false)
-  expect(device.sync.collections.notes).toBe(true)
 })
 
 test("device saves and both updates share one ordered write queue", async () => {

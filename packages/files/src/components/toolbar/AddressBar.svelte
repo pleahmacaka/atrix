@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { openContextMenu, toast } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { tick } from "svelte"
   import { t } from "svelte-i18n"
   import {
@@ -15,17 +15,17 @@
   } from "../../locations"
   import { openItem, runAddress } from "../../native"
   import { parseRemote } from "../../remote"
-  import { memberName } from "../share/share.svelte"
   import { splitArchive } from "../../store/archive.svelte"
   import { cloneInto } from "../../store/clone"
   import type { Explorer } from "../../store/explorer.svelte"
-  import { prefetchOnHover } from "../../store/prefetch"
-  import { confirmPrivate } from "../../store/privacy.svelte"
   import {
     driveName,
     NAMED_PLACES,
     places,
   } from "../../store/places.svelte"
+  import { prefetchOnHover } from "../../store/prefetch"
+  import { confirmPrivate } from "../../store/privacy.svelte"
+  import { memberName } from "../share/share.svelte"
 
   let { explorer }: { explorer: Explorer } = $props()
 

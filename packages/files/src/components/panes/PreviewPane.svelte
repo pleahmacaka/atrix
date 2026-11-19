@@ -1,20 +1,13 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { currentLocale } from "@atrix/i18n"
-  import { untrack } from "svelte"
-  import { Splitter } from "@atrix/ui"
-  import { t } from "svelte-i18n"
   import { docKind } from "@atrix/doc-preview"
-  import ItemIcon from "../items/ItemIcon.svelte"
-  import DocumentPeek from "./DocumentPeek.svelte"
-  import FolderPane from "./FolderPane.svelte"
-  import FolderPeek from "./FolderPeek.svelte"
-  import HexView from "./HexView.svelte"
-  import TensorPeek from "./TensorPeek.svelte"
-  import ZoomImage from "./ZoomImage.svelte"
+  import { currentLocale } from "@atrix/i18n"
+  import { Splitter } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
+  import { untrack } from "svelte"
+  import { t } from "svelte-i18n"
+  import { type FileKind, kindOf } from "../../filetypes"
   import { formatBytes, formatDate } from "../../format"
   import { fromArchive, fromListing, type Item, packedEntry } from "../../items"
-  import { type FileKind, kindOf } from "../../filetypes"
   import { isVirtual, parentOf } from "../../locations"
   import {
     allowPreview,
@@ -29,6 +22,13 @@
   import { prefs } from "../../store/prefs.svelte"
   import { confirmPrivate } from "../../store/privacy.svelte"
   import type { Tab } from "../../store/tab.svelte"
+  import ItemIcon from "../items/ItemIcon.svelte"
+  import DocumentPeek from "./DocumentPeek.svelte"
+  import FolderPane from "./FolderPane.svelte"
+  import FolderPeek from "./FolderPeek.svelte"
+  import HexView from "./HexView.svelte"
+  import TensorPeek from "./TensorPeek.svelte"
+  import ZoomImage from "./ZoomImage.svelte"
 
   type FileView = Exclude<FileKind, "model"> | "document"
 
@@ -223,7 +223,9 @@
           <track kind="captions" />
         </video>
       {:else if current?.kind === "audio"}
-        <audio src={current.url} controls class="w-full"></audio>
+        <audio src={current.url} controls class="w-full">
+          <track kind="captions" />
+        </audio>
       {:else if current?.kind === "pdf"}
         <iframe src={current.url} title={item.name} class="size-full border-0"
         ></iframe>

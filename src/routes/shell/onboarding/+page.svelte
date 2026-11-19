@@ -1,11 +1,4 @@
 <script lang="ts">
-  import * as native from "#lib/native/index.js"
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { saveProfileSynced } from "#lib/data/index.js"
-  import { ensureDevice } from "#lib/device.js"
-  import { onWindowShown, showWindow } from "#lib/native/windows.js"
-  import { setLauncherShortcut, setWinKeyCapture } from "#lib/native/dock.js"
   import {
     type DeviceSettings,
     defaultDevice,
@@ -14,15 +7,6 @@
     type Profile,
     saveDevice,
   } from "@atrix/settings"
-  import {
-    DockControls,
-    AtrixFilesControls,
-    FeatureControls,
-    HotkeyPicker,
-    PresetGrid,
-    allPresets,
-    SyncPanel,
-  } from "#lib/settings-ui/index.js"
   import {
     AsciiLogo,
     Logo,
@@ -33,7 +17,22 @@
     Toasts,
     toast,
   } from "@atrix/ui"
-  import { applyAppearance } from "#lib/theme.js"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { saveProfileSynced } from "#lib/desktop/data/index.js"
+  import { ensureDevice } from "#lib/desktop/device.js"
+  import { setLauncherShortcut, setWinKeyCapture } from "#lib/desktop/native/dock.js"
+  import * as native from "#lib/desktop/native/index.js"
+  import { onWindowShown, showWindow } from "#lib/desktop/native/windows.js"
+  import {
+    AtrixFilesControls,
+    allPresets,
+    DockControls,
+    FeatureControls,
+    HotkeyPicker,
+    PresetGrid,
+  } from "#lib/desktop/settings-ui/index.js"
+  import { applyAppearance } from "#lib/desktop/theme.js"
 
   const steps = [
     "welcome",
@@ -41,7 +40,6 @@
     "style",
     "dock",
     "hotkeys",
-    "sync",
     "tips",
     "done",
   ]
@@ -145,7 +143,7 @@
       await saveProfileSynced($state.snapshot(profile))
 
       if (launcher) {
-        await showWindow("main")
+        await showWindow("launcher")
       }
 
       await native.hideWindow("onboarding")
@@ -175,11 +173,6 @@
       icon: "lucide:keyboard",
       label: $t("onboarding.welcome.launcher.title"),
       value: triggerLabel,
-    },
-    {
-      icon: "lucide:refresh-cw",
-      label: $t("onboarding.steps.sync"),
-      value: device.sync.enabled ? $t("common.on") : $t("common.off"),
     },
   ])
 </script>
@@ -372,18 +365,6 @@
             </p>
           </div>
         </div>
-      {:else if id === "sync"}
-        <div class="mb-4">
-          <h2 class="text-2xl font-semibold tracking-tight">
-            {$t("onboarding.sync.title")}
-          </h2>
-
-          <p class="text-sm text-base-content/60">
-            {$t("onboarding.sync.blurb")}
-          </p>
-        </div>
-
-        <SyncPanel bind:device compact />
       {:else if id === "tips"}
         <div
           class="flex h-full flex-col items-center justify-center gap-8 text-center"

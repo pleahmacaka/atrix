@@ -2,13 +2,13 @@
   import { T, useThrelte } from "@threlte/core"
   import { Grid, OrbitControls } from "@threlte/extras"
   import {
+    PCFShadowMap,
     type PerspectiveCamera,
     PMREMGenerator,
-    PCFShadowMap,
     Vector3,
   } from "three"
-  import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js"
   import type { OrbitControls as Orbit } from "three/examples/jsm/controls/OrbitControls.js"
+  import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js"
   import { dress, type MaterialSet, type Model } from "./mesh"
   import { fitDistance } from "./model"
 

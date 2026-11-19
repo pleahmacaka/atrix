@@ -1,5 +1,5 @@
 import { addDays, parseLocal } from "@atrix/data"
-import { dateLabel, dayPeriod } from "#lib/calendar/index.js"
+import { dateLabel, dayPeriod } from "#lib/desktop/calendar/index.js"
 import type { Draft } from "./draft"
 
 type Translate = (

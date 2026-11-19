@@ -38,20 +38,20 @@ pub fn set_audio_device(id: String) -> Result<(), String> {
 }
 
 pub(crate) mod win {
-    use windows::core::{interface, IUnknown, IUnknown_Vtbl, BOOL, GUID, HRESULT, PCWSTR};
     use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
     use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::Media::Audio::{
-        eCommunications, eConsole, eMultimedia, eRender, IMMDevice, IMMDeviceEnumerator,
-        MMDeviceEnumerator, DEVICE_STATE_ACTIVE,
+        DEVICE_STATE_ACTIVE, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, eCommunications,
+        eConsole, eMultimedia, eRender,
     };
     use windows::Win32::System::Com::StructuredStorage::{
         PropVariantClear, PropVariantToStringAlloc,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+        CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree,
         STGM_READ,
     };
+    use windows::core::{BOOL, GUID, HRESULT, IUnknown, IUnknown_Vtbl, PCWSTR, interface};
 
     use super::{AudioDevice, Volume};
 

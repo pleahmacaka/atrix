@@ -1,4 +1,8 @@
-import { type Appearance, standaloneLook, type ThemeMode } from "@atrix/settings"
+import {
+  type Appearance,
+  standaloneLook,
+  type ThemeMode,
+} from "@atrix/settings"
 import { cloneDeep } from "es-toolkit"
 import { known, persisted } from "./persisted.svelte"
 

@@ -1,14 +1,14 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { loadDevice, onDevice } from "@atrix/settings"
   import { rootRem } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { getCurrentWindow } from "@tauri-apps/api/window"
   import { t } from "svelte-i18n"
-  import EditOptions from "#lib/dock/EditOptions.svelte"
-  import { DockLayout } from "#lib/dock/layout.svelte.js"
-  import { stopEdit } from "#lib/edit/index.js"
-  import * as native from "#lib/native/index.js"
-  import { listMonitors, type MonitorInfo } from "#lib/native/windows.js"
+  import EditOptions from "#lib/desktop/dock/EditOptions.svelte"
+  import { DockLayout } from "#lib/desktop/dock/layout.svelte.js"
+  import { stopEdit } from "#lib/desktop/edit/index.js"
+  import * as native from "#lib/desktop/native/index.js"
+  import { listMonitors, type MonitorInfo } from "#lib/desktop/native/windows.js"
 
   const GAP = 4
 
@@ -80,11 +80,14 @@
 
 <svelte:window bind:innerHeight onkeydown={e => e.key === "Escape" && stopEdit()} />
 
-<div
-  role="presentation"
-  class="relative h-full w-full bg-black/55"
-  onclick={stopEdit}
->
+<div class="relative h-full w-full">
+  <button
+    type="button"
+    class="absolute inset-0 cursor-default bg-black/55"
+    aria-label={$t("edit.done")}
+    onclick={stopEdit}
+  ></button>
+
   {#if home}
     <div
       role="dialog"
@@ -99,7 +102,6 @@
       style:bottom={device.dockEdge === "top"
         ? `${innerHeight / rootRem() - (home.top + home.height) + GAP}rem`
         : undefined}
-      onclick={e => e.stopPropagation()}
       onkeydown={e => e.stopPropagation()}
     >
       <header class="flex items-start gap-3">

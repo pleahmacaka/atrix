@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { getVersion } from "@tauri-apps/api/app"
   import { Logo, Section } from "@atrix/ui"
+  import { getVersion } from "@tauri-apps/api/app"
   import { t } from "svelte-i18n"
   import Updater from "../Updater.svelte"
 

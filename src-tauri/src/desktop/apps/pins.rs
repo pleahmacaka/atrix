@@ -172,15 +172,18 @@ pub fn watch(changed: impl FnMut()) {
 }
 
 mod win {
-    use windows::core::{w, HSTRING, PCWSTR};
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegGetValueW, RegNotifyChangeKeyValue, RegOpenKeyExW, RegSetKeyValueW, HKEY,
-        HKEY_CURRENT_USER, KEY_NOTIFY, REG_BINARY, REG_NOTIFY_CHANGE_LAST_SET, RRF_RT_REG_BINARY,
+        HKEY, HKEY_CURRENT_USER, KEY_NOTIFY, REG_BINARY, REG_NOTIFY_CHANGE_LAST_SET,
+        RRF_RT_REG_BINARY, RegCloseKey, RegGetValueW, RegNotifyChangeKeyValue, RegOpenKeyExW,
+        RegSetKeyValueW,
     };
     use windows::Win32::System::Threading::CreateEventW;
+    use windows::core::{HSTRING, PCWSTR, w};
 
-    use crate::apps::launcher::{close_folder, folder_handle, rearm_folder, watch_signals};
+    use crate::desktop::apps::launcher::{
+        close_folder, folder_handle, rearm_folder, watch_signals,
+    };
 
     const TASKBAND: PCWSTR = w!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband");
     const SETTLE_MS: u32 = 300;
@@ -313,7 +316,7 @@ mod win {
 
 #[cfg(test)]
 mod tests {
-    use super::{reordered, taskbar_order, utf16, PinLists};
+    use super::{PinLists, reordered, taskbar_order, utf16};
 
     fn favorite(name: &str) -> Vec<u8> {
         let pidl = [vec![1, 2, 3], utf16(name), vec![0, 0]].concat();

@@ -1,10 +1,6 @@
-import type { AppTag } from "@atrix/bridge"
+export const MAX_CLOCK_SKEW = 24 * 60 * 60 * 1000
 
-export {
-  type AppTag,
-  MAX_CLOCK_SKEW,
-  TOMBSTONE_TTL,
-} from "@atrix/bridge"
+export const TOMBSTONE_TTL = 30 * 24 * 60 * 60 * 1000
 
 export const syncedCollections = [
   "todos",
@@ -27,7 +23,7 @@ export type SyncRecord = {
 
 export type Snapshot = {
   deviceId: string
-  app?: AppTag
+  app?: "atrix"
   records: SyncRecord[]
 }
 

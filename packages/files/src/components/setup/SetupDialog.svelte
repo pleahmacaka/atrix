@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { atrixStyle, Row, Section, SetupFlow, StandaloneTheme } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import { type DefaultApp, defaultAppStatus } from "../../native"
   import type { Explorer } from "../../store/explorer.svelte"
@@ -172,14 +172,13 @@
 
           <div class="grid grid-cols-[minmax(0,1fr)_20rem] items-start gap-6">
             <div class="flex flex-col gap-6">
-              <div role="radiogroup" class="grid grid-cols-2 gap-3">
+              <fieldset class="grid min-w-0 grid-cols-2 gap-3">
                 {#each LAYOUTS as layout (layout.id)}
                   {@const active = prefs.compactToolbar === layout.compact}
 
                   <button
                     type="button"
-                    role="radio"
-                    aria-checked={active}
+                    aria-pressed={active}
                     class={[
                       "atrix-card flex cursor-pointer flex-col gap-2 p-3 text-left",
                       active
@@ -199,7 +198,7 @@
                     </span>
                   </button>
                 {/each}
-              </div>
+              </fieldset>
 
               <Section title={$t("explorer.settings.display")}>
                 <Row

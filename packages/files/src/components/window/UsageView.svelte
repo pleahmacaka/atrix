@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { currentLocale } from "@atrix/i18n"
+  import Icon from "@iconify/svelte"
   import { listen } from "@tauri-apps/api/event"
   import { t } from "svelte-i18n"
   import { formatBytes } from "../../format"
@@ -216,7 +216,7 @@
           stroke="var(--color-base-100)"
           stroke-width="1"
           class={segment.node.folder ? "cursor-pointer" : ""}
-          role="presentation"
+          aria-hidden="true"
           onmouseenter={() => (hovered = segment)}
           onmouseleave={() => (hovered = null)}
           onclick={() => segment.node.folder && open(segment.trail)}
@@ -227,7 +227,7 @@
         r={INNER - 2}
         fill="var(--color-base-200)"
         class={trail.length > 0 ? "cursor-pointer" : ""}
-        role="presentation"
+        aria-hidden="true"
         onclick={() => trail.length > 0 && open(trail.slice(0, -1))}
       />
 

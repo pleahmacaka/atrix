@@ -1,7 +1,7 @@
 import { loadProfile, onDevice, onProfile } from "@atrix/settings"
-import { loadHolidays } from "#lib/calendar/index.js"
-import { ensureDevice } from "#lib/device.js"
-import * as native from "#lib/native/index.js"
+import { loadHolidays } from "#lib/desktop/calendar/index.js"
+import { ensureDevice } from "#lib/desktop/device.js"
+import * as native from "#lib/desktop/native/index.js"
 import type { Panel } from "./panel.svelte"
 
 export const subscribePanel = (

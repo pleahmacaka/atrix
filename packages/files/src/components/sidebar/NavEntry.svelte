@@ -2,8 +2,8 @@
   import Icon from "@iconify/svelte"
   import type { Snippet } from "svelte"
   import { prefetchOnHover } from "../../store/prefetch"
-  import { middleClick } from "../middleClick"
   import ItemIcon from "../items/ItemIcon.svelte"
+  import { middleClick } from "../middleClick"
 
   let {
     label,

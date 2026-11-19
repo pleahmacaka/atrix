@@ -1,5 +1,4 @@
-import { crossesApps, MAX_CLOCK_SKEW } from "@atrix/bridge"
-import { isSyncedCollection, type SyncRecord } from "./protocol"
+import { isSyncedCollection, MAX_CLOCK_SKEW, type SyncRecord } from "./protocol"
 
 export type Versioned = { updatedAt: number; deviceId?: string }
 
@@ -63,9 +62,9 @@ export const readSnapshot = (text: string, now = Date.now()): SyncRecord[] => {
     return []
   }
 
-  const foreign = parsed.app !== undefined && parsed.app !== "atrix"
+  if (parsed.app !== undefined && parsed.app !== "atrix") {
+    return []
+  }
 
-  return parsed.records.filter(
-    r => isSyncRecord(r, now) && (!foreign || crossesApps(r.collection)),
-  )
+  return parsed.records.filter(r => isSyncRecord(r, now))
 }

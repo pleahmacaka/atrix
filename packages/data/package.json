@@ -13,7 +13,6 @@
     "check": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@atrix/bridge": "workspace:*",
     "@atrix/i18n": "workspace:*",
     "@atrix/settings": "workspace:*"
   },

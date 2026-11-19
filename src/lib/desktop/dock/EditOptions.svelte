@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
-  import { Segmented } from "@atrix/ui"
   import {
     type ClockAlign,
+    type DeviceSettings,
     DOCK_ALIGNS,
     DOCK_STYLES,
-    type DeviceSettings,
     type DockAlign,
     type DockEdge,
     type DockSide,
@@ -13,6 +11,8 @@
     type LauncherTrigger,
     type SpectrumStyle,
   } from "@atrix/settings"
+  import { Segmented } from "@atrix/ui"
+  import { t } from "svelte-i18n"
   import type { DockLayout } from "./layout.svelte"
 
   type BoolKey = {

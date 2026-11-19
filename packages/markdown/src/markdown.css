@@ -104,18 +104,6 @@
   text-underline-offset: 0.15em;
 }
 
-.markdown a.note-cite {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.25em;
-  border-radius: calc(infinity * 1rem);
-  background: color-mix(in oklch, var(--color-primary) 15%, transparent);
-  padding: 0 0.5em;
-  font-size: 0.9em;
-  font-weight: 500;
-  text-decoration: none;
-}
-
 .markdown a.wikilink {
   text-decoration-style: dotted;
 }

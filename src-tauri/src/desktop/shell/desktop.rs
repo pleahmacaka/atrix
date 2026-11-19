@@ -64,47 +64,47 @@ pub fn watch(app: tauri::AppHandle) {
 
 mod win {
     use std::collections::{HashMap, HashSet};
-    use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+    use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
 
     use tauri::{AppHandle, Emitter};
-    use windows::core::{BOOL, PWSTR};
     use windows::Win32::Foundation::{CloseHandle, FILETIME, HWND, LPARAM, WAIT_TIMEOUT, WPARAM};
-    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
+    use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
     use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
     use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::System::Com::StructuredStorage::{
         PropVariantClear, PropVariantToStringAlloc,
     };
     use windows::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
         TH32CS_SNAPPROCESS,
     };
     use windows::Win32::System::Threading::{
-        AttachThreadInput, GetCurrentThreadId, GetProcessTimes, OpenProcess,
-        QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject, PROCESS_NAME_WIN32,
+        AttachThreadInput, GetCurrentThreadId, GetProcessTimes, OpenProcess, PROCESS_NAME_WIN32,
         PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+        QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
     };
-    use windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
+    use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook};
     use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows::Win32::UI::Shell::PropertiesSystem::{
         IPropertyStore, SHGetPropertyStoreForWindow,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, DispatchMessageW, EnumWindows, GetAncestor, GetClassNameW,
-        GetForegroundWindow, GetLastActivePopup, GetMessageW, GetShellWindow, GetWindow,
-        GetWindowLongPtrW, GetWindowTextW, GetWindowThreadProcessId, IsHungAppWindow, IsIconic,
-        IsWindow, IsWindowVisible, PostMessageW, SetForegroundWindow, ShowWindowAsync,
-        EVENT_OBJECT_CLOAKED, EVENT_OBJECT_CREATE, EVENT_OBJECT_HIDE, EVENT_OBJECT_NAMECHANGE,
-        EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND,
-        EVENT_SYSTEM_MINIMIZESTART, GA_ROOT, GWL_EXSTYLE, GW_OWNER, MSG, SW_MINIMIZE, SW_RESTORE,
-        WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_CLOSE, WS_EX_APPWINDOW,
+        BringWindowToTop, DispatchMessageW, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_CREATE,
+        EVENT_OBJECT_HIDE, EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_UNCLOAKED,
+        EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, EnumWindows,
+        GA_ROOT, GW_OWNER, GWL_EXSTYLE, GetAncestor, GetClassNameW, GetForegroundWindow,
+        GetLastActivePopup, GetMessageW, GetShellWindow, GetWindow, GetWindowLongPtrW,
+        GetWindowTextW, GetWindowThreadProcessId, IsHungAppWindow, IsIconic, IsWindow,
+        IsWindowVisible, MSG, PostMessageW, SW_MINIMIZE, SW_RESTORE, SetForegroundWindow,
+        ShowWindowAsync, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_CLOSE, WS_EX_APPWINDOW,
         WS_EX_TOOLWINDOW,
     };
+    use windows::core::{BOOL, PWSTR};
 
     use super::WindowEntry;
-    use crate::system::com::Apartment;
+    use crate::desktop::system::com::Apartment;
 
     const HIDDEN_CLASSES: [&str; 2] = ["Progman", "Windows.UI.Core.CoreWindow"];
 
@@ -605,14 +605,12 @@ mod win {
         #[test]
         fn rejects_recycled_parent_pids_and_missing_processes() {
             assert!(ancestors(2, &HashMap::from([(2, 3)]), None, identity).is_empty());
-            assert!(ancestors(3, &HashMap::from([(3, 2)]), None, |pid| {
-                if pid == 2 {
-                    None
-                } else {
-                    identity(pid)
-                }
-            })
-            .is_empty());
+            assert!(
+                ancestors(3, &HashMap::from([(3, 2)]), None, |pid| {
+                    if pid == 2 { None } else { identity(pid) }
+                })
+                .is_empty()
+            );
         }
 
         #[test]
@@ -631,14 +629,16 @@ mod win {
             assert_eq!(ancestors(3, &parents, Some("1.EXE"), identity), ["2.exe"]);
             assert!(ancestors(2, &parents, Some("1.exe"), identity).is_empty());
             // Another process with the shell's executable is the same boundary.
-            assert!(ancestors(3, &parents, Some("shell.exe"), |pid| {
-                let mut found = identity(pid)?;
-                if pid == 2 {
-                    found.path = "SHELL.exe".into();
-                }
-                Some(found)
-            })
-            .is_empty());
+            assert!(
+                ancestors(3, &parents, Some("shell.exe"), |pid| {
+                    let mut found = identity(pid)?;
+                    if pid == 2 {
+                        found.path = "SHELL.exe".into();
+                    }
+                    Some(found)
+                })
+                .is_empty()
+            );
         }
     }
 }

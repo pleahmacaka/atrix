@@ -4,6 +4,7 @@ mod bridge;
 mod channels;
 mod console;
 mod datasource;
+mod desktop;
 mod error;
 mod fetch;
 mod files;
@@ -126,11 +127,31 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
-        .manage(launch::Launch::parse(&std::env::args().collect::<Vec<_>>()));
+    let args: Vec<String> = std::env::args().collect();
+
+    #[cfg(windows)]
+    if let Some(code) = launch::one_shot(&args) {
+        std::process::exit(code);
+    }
+
+    #[cfg(windows)]
+    desktop::allow_foreground();
+
+    let launch = launch::Launch::parse(&args);
+
+    #[cfg(desktop)]
+    let headless = launch.headless;
+    #[cfg(desktop)]
+    let components = desktop::Components::at_launch(headless);
+
+    let builder = tauri::Builder::default().manage(launch);
 
     #[cfg(all(desktop, not(debug_assertions)))]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
+    let builder = builder.plugin(tauri_plugin_single_instance::init(move |app, args, cwd| {
+        if desktop::forward(app, components, &args, &cwd) {
+            return;
+        }
+
         tray::show(app);
 
         if let Some(code) = launch::pair_code(&args) {
@@ -139,13 +160,20 @@ pub fn run() {
     }));
 
     #[cfg(desktop)]
-    let builder = builder
+    let builder = desktop::plugins(builder, components, headless)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(pty::Ptys::default());
 
     let builder = builder
-        .setup(setup)
+        .setup(move |app| {
+            setup(app)?;
+
+            #[cfg(desktop)]
+            desktop::setup(app.handle(), components);
+
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 on_close(window, event);
@@ -168,7 +196,7 @@ pub fn run() {
         .manage(kg::Store::default())
         .manage(net::Net::default())
         .manage(datasource::Datasources::default())
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(desktop::handler![
             agents::agent_spawn,
             agents::agent_send,
             agents::agent_close,
@@ -252,16 +280,26 @@ pub fn run() {
             presence::claude_subagents,
             presence::codex_presence,
             presence::codex_rollout,
+            #[cfg(desktop)]
+            desktop::components::desktop_components_get,
+            #[cfg(desktop)]
+            desktop::components::desktop_components_set,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
+        .run(|app, event| match event {
+            #[cfg(windows)]
+            RunEvent::Ready => desktop::shell::ready(app),
+            RunEvent::Exit => {
+                #[cfg(windows)]
+                desktop::shell::exit(app);
+
                 app.state::<agents::Agents>().kill_all();
                 app.state::<kg::Store>().kill();
 
                 #[cfg(desktop)]
                 app.state::<pty::Ptys>().kill_all();
             }
+            _ => {}
         });
 }

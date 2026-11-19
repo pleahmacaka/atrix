@@ -1,16 +1,16 @@
 <script lang="ts">
+  import type { DockWidget } from "@atrix/settings"
+  import type { MenuItem } from "@atrix/ui"
+  import { ContextMenu, Logo } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { ContextMenu, Logo } from "@atrix/ui"
-  import type { MenuItem } from "@atrix/ui"
-  import { EditSpot, editing, startEdit } from "#lib/edit/index.js"
-  import * as native from "#lib/native/index.js"
+  import { EditSpot, editing, startEdit } from "#lib/desktop/edit/index.js"
+  import * as native from "#lib/desktop/native/index.js"
   import AppsStrip from "./AppsStrip.svelte"
   import DockSpacer from "./DockSpacer.svelte"
   import EditOptions from "./EditOptions.svelte"
-  import type { DockWidget } from "@atrix/settings"
-  import type { DockLayout } from "./layout.svelte"
   import LeadWidgets from "./LeadWidgets.svelte"
+  import type { DockLayout } from "./layout.svelte"
   import { rem } from "./rem.svelte"
   import Tray from "./Tray.svelte"
 
@@ -133,13 +133,13 @@
       <EditOptions {layout} kind="launcher" />
     {/snippet}
 
-    <button
+    <button type="button"
       class={["btn btn-ghost btn-square", round && "size-full"]}
       style:width={round ? undefined : rem(device.dockIconSize + 16)}
       style:height={round ? undefined : rem(device.dockIconSize + 16)}
       title={$t("dock.launcher")}
       aria-label={$t("dock.openLauncher")}
-      onclick={() => native.toggleWindow("main")}
+      onclick={() => native.toggleWindow("launcher")}
     >
       <span
         class="grid place-items-center"

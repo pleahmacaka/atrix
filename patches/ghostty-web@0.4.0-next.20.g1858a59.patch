@@ -247,3 +247,25 @@ index bb02e76ebacbb954d2a4f006caece5c15dad95ac..5d5162c40f84a2fc45aa0cd294e442f1
          const Q = this.wasmTerm.getCursor();
          Q.y !== this.lastCursorY && (this.lastCursorY = Q.y, this.cursorMoveEmitter.fire()), this.animationFrameId = requestAnimationFrame(A);
        }
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 7b5320cfab5d4c1374c7bce7ce1f0b426bc3450b..39fc5dff962cb834edd48e6971cf78acba22272e 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1867,7 +1867,7 @@ export declare class Terminal implements ITerminalCore {
+     /**
+      * Cancel the render loop
+      */
+-    private cancelRenderLoop;
++    cancelRenderLoop(): void;
+     /**
+      * Flush any writes that were queued during resize
+      */
+@@ -1875,7 +1875,7 @@ export declare class Terminal implements ITerminalCore {
+     /**
+      * Start the render loop
+      */
+-    private startRenderLoop;
++    startRenderLoop(): void;
+     /**
+      * Get a line from native WASM scrollback buffer
+      * Implements IScrollbackProvider

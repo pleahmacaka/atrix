@@ -1,13 +1,13 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
-  import { flip } from "svelte/animate"
-  import { ContextMenu } from "@atrix/ui"
   import type { MenuItem } from "@atrix/ui"
-  import { EditSpot } from "#lib/edit/index.js"
-  import * as native from "#lib/native/index.js"
-  import { dock, type DockGroup } from "./dock.svelte"
+  import { ContextMenu } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
+  import { flip } from "svelte/animate"
+  import { t } from "svelte-i18n"
+  import { EditSpot } from "#lib/desktop/edit/index.js"
+  import * as native from "#lib/desktop/native/index.js"
   import DockItem from "./DockItem.svelte"
+  import { type DockGroup, dock } from "./dock.svelte"
   import EditOptions from "./EditOptions.svelte"
   import type { DockLayout } from "./layout.svelte"
   import { dropTarget } from "./order"
@@ -135,7 +135,7 @@
 
     {#if tail && layout.spilled.length > 0}
       <div class="relative">
-        <button
+        <button type="button"
           class="btn btn-ghost btn-square"
           style:--size={rem(device.dockIconSize + 16)}
           title={$t("dock.more", { values: { count: layout.spilled.length } })}

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Confirm, Segmented, toast } from "@atrix/ui"
-  import { open } from "@tauri-apps/plugin-dialog"
+  import Icon from "@iconify/svelte"
   import { writeText } from "@tauri-apps/plugin-clipboard-manager"
+  import { open } from "@tauri-apps/plugin-dialog"
   import { t } from "svelte-i18n"
   import BrowseAsks from "./BrowseAsks.svelte"
   import { shareError } from "./errors"
@@ -14,11 +14,11 @@
     type Invite,
     invite,
     join,
+    type Member,
     removeDevice,
     renameDevice,
     renameSelf,
     revokeBrowse,
-    type Member,
     type Scope,
     setBrowseScope,
   } from "./share"

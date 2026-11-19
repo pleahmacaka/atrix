@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { disable, enable } from "@tauri-apps/plugin-autostart"
-  import { type DeviceSettings, defaultDevice } from "@atrix/settings"
   import { LANGUAGES } from "@atrix/i18n"
+  import { type DeviceSettings, defaultDevice } from "@atrix/settings"
   import { Row, Section, toast } from "@atrix/ui"
+  import { disable, enable } from "@tauri-apps/plugin-autostart"
   import { t } from "svelte-i18n"
   import AtrixFilesControls from "../AtrixFilesControls.svelte"
   import { reset } from "../reset"

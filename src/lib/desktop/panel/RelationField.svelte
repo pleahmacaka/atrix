@@ -1,8 +1,8 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { shortDay } from "#lib/calendar/index.js"
-  import { type CalendarEvent, type Occurrence, parseLocal } from "#lib/data/index.js"
+  import { shortDay } from "#lib/desktop/calendar/index.js"
+  import { type CalendarEvent, type Occurrence, parseLocal } from "#lib/desktop/data/index.js"
   import type { Panel } from "./panel.svelte"
 
   type Picking = "parent" | "group" | null
@@ -169,7 +169,11 @@
           placeholder={$t("panel.relation.search")}
           bind:value={query}
           {@attach node => node.focus()}
-          onkeydown={e => e.key === "Escape" && (picking = null)}
+          onkeydown={e => {
+            if (e.key === "Escape") {
+              picking = null
+            }
+          }}
         />
 
         <ul class="flex max-h-48 flex-col overflow-y-auto">

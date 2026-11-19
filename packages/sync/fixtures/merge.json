@@ -85,7 +85,7 @@
       "accepted": []
     },
     {
-      "name": "keeps only events from another app",
+      "name": "drops every record from another app",
       "snapshot": {
         "app": "note",
         "records": [
@@ -93,7 +93,7 @@
           { "collection": "events", "id": "b", "updatedAt": 1699999990000, "deleted": false, "deviceId": "dev-b", "data": {} }
         ]
       },
-      "accepted": ["b"]
+      "accepted": []
     },
     {
       "name": "treats a null app as another app",
@@ -104,7 +104,7 @@
           { "collection": "events", "id": "b", "updatedAt": 1699999990000, "deleted": false, "deviceId": "dev-b", "data": {} }
         ]
       },
-      "accepted": ["b"]
+      "accepted": []
     },
     {
       "name": "treats a missing app as atrix",

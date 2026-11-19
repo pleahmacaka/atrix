@@ -12,7 +12,7 @@ import {
   holidaysOn,
   regionOf,
   restDayOf,
-} from "#lib/calendar/index.js"
+} from "#lib/desktop/calendar/index.js"
 import {
   type CalendarEvent,
   dateKey,
@@ -31,7 +31,7 @@ import {
   removeOccurrence,
   startOfDay,
   updateProfileSynced,
-} from "#lib/data/index.js"
+} from "#lib/desktop/data/index.js"
 import { colorMeta, toColor } from "./colors"
 import type { Draft } from "./draft"
 import { panelMutations } from "./mutations"

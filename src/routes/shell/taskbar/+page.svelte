@@ -1,14 +1,4 @@
 <script lang="ts">
-  import { listen } from "@tauri-apps/api/event"
-  import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart"
-  import { tick, untrack } from "svelte"
-  import { getCurrentWindow, Window } from "@tauri-apps/api/window"
-  import { events, live, migrateTodos, scheduleReminders } from "#lib/data/index.js"
-  import { ensureDevice } from "#lib/device.js"
-  import { DockBar, DockLayout, dockAwake, previewHover, startDock } from "#lib/dock/index.js"
-  import { watchEdit } from "#lib/edit/index.js"
-  import { startTimerWatch } from "#lib/launcher/index.js"
-  import * as native from "#lib/native/index.js"
   import {
     defaultProfile,
     loadProfile,
@@ -16,9 +6,18 @@
     onProfile,
     type Profile,
   } from "@atrix/settings"
-  import { startAutoSync, startNoteLink } from "#lib/sync/index.js"
-  import { announceUpdate } from "#lib/updates.js"
+  import { listen } from "@tauri-apps/api/event"
+  import { getCurrentWindow, Window } from "@tauri-apps/api/window"
+  import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart"
+  import { tick, untrack } from "svelte"
   import { t } from "svelte-i18n"
+  import { events, live, migrateTodos, scheduleReminders } from "#lib/desktop/data/index.js"
+  import { ensureDevice } from "#lib/desktop/device.js"
+  import { DockBar, DockLayout, dockAwake, previewHover, startDock } from "#lib/desktop/dock/index.js"
+  import { watchEdit } from "#lib/desktop/edit/index.js"
+  import { startTimerWatch } from "#lib/desktop/launcher/index.js"
+  import * as native from "#lib/desktop/native/index.js"
+  import { announceUpdate } from "#lib/desktop/updates.js"
 
   const HIDE_SLIDE = 120
   const RESYNC = 50
@@ -62,7 +61,7 @@
 
   const refreshVisibility = async () => {
     const [panel, launcher] = await Promise.all(
-      (["panel", "main"] as const).map(async label => {
+      (["panel", "launcher"] as const).map(async label => {
         const win = await Window.getByLabel(label)
 
         return (await win?.isVisible().catch(() => false)) ?? false
@@ -120,7 +119,7 @@
         sharing = value
       }),
       native.onWindowShown("panel", refreshVisibility),
-      native.onWindowShown("main", refreshVisibility),
+      native.onWindowShown("launcher", refreshVisibility),
       listen<string>("window-hidden", e => {
         if (e.payload === "panel") {
           hiddenAt = Date.now()
@@ -178,8 +177,6 @@
         }
       }),
     ]
-    const stopSync = startAutoSync()
-    const stopNoteLink = startNoteLink()
     const stopDock = startDock()
     const stopTimers = startTimerWatch()
     const stopEditWatch = watchEdit()
@@ -187,8 +184,6 @@
     refreshVisibility()
 
     return () => {
-      stopSync()
-      stopNoteLink()
       stopDock()
       stopTimers()
       stopEditWatch()

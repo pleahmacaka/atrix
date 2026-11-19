@@ -1,9 +1,9 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
+  import { kindLabel, type Result } from "@atrix/launcher-core"
   import { rootRem } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import { type Launcher, MENU_WIDTH } from "./launcher.svelte"
-  import { kindLabel, type Result } from "@atrix/launcher-core"
 
   let {
     launcher,

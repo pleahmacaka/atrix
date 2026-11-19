@@ -1,17 +1,16 @@
 <script lang="ts">
-  import { live, events, presets } from "#lib/data/index.js"
-  import { clearIconCache } from "#lib/native/apps.js"
-  import { openDataFolder } from "#lib/native/system.js"
   import {
+    type DeviceSettings,
     defaultAppearance,
     defaultDevice,
     defaultProfile,
-    type DeviceSettings,
     type Profile,
   } from "@atrix/settings"
-  import { Confirm, Row, Section } from "@atrix/ui"
-  import { toast } from "@atrix/ui"
+  import { Confirm, Row, Section, toast } from "@atrix/ui"
   import { t } from "svelte-i18n"
+  import { events, live, presets } from "#lib/desktop/data/index.js"
+  import { clearIconCache } from "#lib/desktop/native/apps.js"
+  import { openDataFolder } from "#lib/desktop/native/system.js"
   import ImportExport from "../ImportExport.svelte"
 
   let {
@@ -72,7 +71,6 @@
       onboarded,
       autostart,
       pinnedApps,
-      sync,
       dockMonitor,
     } = device
 
@@ -83,7 +81,6 @@
       onboarded,
       autostart,
       pinnedApps,
-      sync,
       dockMonitor,
     }
     profile = structuredClone(defaultProfile)

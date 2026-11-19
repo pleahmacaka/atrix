@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use tauri::webview::{NewWindowFeatures, NewWindowResponse};
@@ -9,55 +9,32 @@ const LINK_SCHEMES: [&str; 3] = ["http", "https", "mailto"];
 
 static NEXT: AtomicU32 = AtomicU32::new(1);
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Channel {
-    Stable,
-    DevChannel,
-    Dev,
-}
+static HEADLESS: AtomicBool = AtomicBool::new(false);
 
-pub const CHANNEL: Channel = if option_env!("ATRIX_DEV_CHANNEL").is_some() {
-    Channel::DevChannel
-} else if cfg!(debug_assertions) {
-    Channel::Dev
-} else {
-    Channel::Stable
-};
-
-pub const fn by_channel(
-    stable: &'static str,
-    dev_channel: &'static str,
-    dev: &'static str,
-) -> &'static str {
-    match CHANNEL {
-        Channel::Stable => stable,
-        Channel::DevChannel => dev_channel,
-        Channel::Dev => dev,
+// a debug build runs beside the installed app, so its shared plugin data must not collide
+pub fn channel_name(name: &str) -> String {
+    if cfg!(debug_assertions) {
+        format!("{name}.dev")
+    } else {
+        name.to_string()
     }
 }
 
-// Keep shared plugin data and URL handlers in the same channel as the host.
-pub fn channel_name(name: &str) -> String {
-    format!("{name}{}", by_channel("", ".dev-channel", ".dev"))
-}
-
-pub fn scheme(name: &str) -> String {
-    format!("{name}{}", by_channel("", "-dev-channel", "-dev"))
-}
-
 pub fn headless() -> bool {
-    CHANNEL == Channel::Dev && std::env::var("ATRIX_DEV_HEADLESS").as_deref() == Ok("1")
+    HEADLESS.load(Ordering::Relaxed)
 }
 
 // This is injected before page code runs, including in dynamically created children.
-pub fn development<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    let script = if headless() {
+pub fn init<R: Runtime>(headless: bool) -> tauri::plugin::TauriPlugin<R> {
+    HEADLESS.store(headless, Ordering::Relaxed);
+
+    let script = if headless {
         "Object.defineProperty(window, '__ATRIX_HEADLESS__', { value: true });"
     } else {
         ""
     };
 
-    tauri::plugin::Builder::new("atrix-development")
+    tauri::plugin::Builder::new("atrix-window-kit")
         .js_init_script(script.to_string())
         .build()
 }
@@ -229,7 +206,7 @@ fn browser_args<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn dev_browser_args() -> Option<String> {
-    if CHANNEL != Channel::Dev {
+    if !cfg!(debug_assertions) {
         return None;
     }
 

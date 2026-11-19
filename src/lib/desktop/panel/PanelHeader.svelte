@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { dateKey } from "#lib/data/index.js"
+  import { dateKey } from "#lib/desktop/data/index.js"
   import type { Panel } from "./panel.svelte"
 
   const {
@@ -26,7 +26,7 @@
   <div class="flex shrink-0 items-center gap-2">
 
     <div class="join">
-      <button
+      <button type="button"
         class="join-item btn btn-xs btn-ghost btn-square"
         aria-label={$t("common.previous")}
         onclick={() => panel.shift(-1)}
@@ -34,11 +34,11 @@
         <Icon icon="lucide:chevron-left" class="size-3.5" />
       </button>
 
-      <button class="join-item btn btn-xs btn-ghost" onclick={panel.jumpToday}>
+      <button type="button" class="join-item btn btn-xs btn-ghost" onclick={panel.jumpToday}>
         {$t("dates.today")}
       </button>
 
-      <button
+      <button type="button"
         class="join-item btn btn-xs btn-ghost btn-square"
         aria-label={$t("common.next")}
         onclick={() => panel.shift(1)}
@@ -48,12 +48,12 @@
     </div>
 
     <div class="flex items-center gap-1">
-      <button class="btn btn-xs btn-neutral" onclick={panel.startNew}>
+      <button type="button" class="btn btn-xs btn-neutral" onclick={panel.startNew}>
         <Icon icon="lucide:plus" class="size-3.5" />
         {$t("panel.event.new")}
       </button>
 
-      <button
+      <button type="button"
         class={["btn btn-xs btn-ghost", kind === "notes" && "btn-active"]}
         aria-pressed={kind === "notes"}
         onclick={panel.showNotes}
@@ -62,7 +62,7 @@
         {$t("panel.notesAria")}
       </button>
 
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs"
         aria-label={$t("panel.collapse")}
         onclick={collapse}
@@ -70,7 +70,7 @@
         <Icon icon="lucide:minimize-2" class="size-3.5" />
       </button>
 
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs"
         aria-label={$t("common.close")}
         onclick={hide}

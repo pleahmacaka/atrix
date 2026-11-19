@@ -1,6 +1,6 @@
 import "@fontsource-variable/jetbrains-mono"
-import nerdSymbols from "@azurity/pure-nerd-font/PureNerdFont.woff2?url"
 import { rootRem } from "@atrix/ui"
+import nerdSymbols from "@azurity/pure-nerd-font/PureNerdFont.woff2?url"
 import pretendard from "pretendard/dist/web/variable/woff2/PretendardVariable.woff2?url"
 
 export const DEFAULT_FONT = "JetBrains Mono Variable"

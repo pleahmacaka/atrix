@@ -2,8 +2,8 @@
   import { updateDevice } from "@atrix/settings"
   import { ContextMenu, type MenuItem } from "@atrix/ui"
   import { t } from "svelte-i18n"
-  import { type PowerAction, powerAction } from "#lib/native/system.js"
-  import { showWindow } from "#lib/native/windows.js"
+  import { type PowerAction, powerAction } from "#lib/desktop/native/system.js"
+  import { showWindow } from "#lib/desktop/native/windows.js"
   import type { Launcher } from "./launcher.svelte"
 
   let { launcher }: { launcher: Launcher } = $props()

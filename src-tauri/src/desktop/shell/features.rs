@@ -1,11 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 
-use crate::notifications::tray;
-use crate::shell::{appbar, edge, shortcuts, windowing, winkey};
+use crate::desktop::notifications::tray;
+use crate::desktop::shell::{appbar, edge, shortcuts, windowing, winkey};
 
 const DOCK: [&str; 2] = ["taskbar", "topbar"];
 
@@ -77,7 +77,7 @@ pub(crate) fn start_dock(app: &AppHandle) {
     let handle = app.clone();
 
     std::thread::spawn(move || {
-        let Some(taskbar) = handle.get_webview_window("taskbar") else {
+        let Some(taskbar) = windowing::window_for(&handle, "taskbar") else {
             return;
         };
 
@@ -176,7 +176,7 @@ pub fn suspend_shell(app: AppHandle) {
         .map(|(label, _)| label)
         .collect();
 
-    crate::clipboard::flush(&app);
+    crate::desktop::clipboard::flush(&app);
     hold(&app, Hold::Updating);
 }
 
@@ -226,6 +226,6 @@ pub fn set_features(app: AppHandle, features: Features) {
     }
 
     if !features.launcher {
-        windowing::hide(&app, "main");
+        windowing::hide(&app, "launcher");
     }
 }

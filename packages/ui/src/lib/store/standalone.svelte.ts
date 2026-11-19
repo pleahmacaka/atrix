@@ -1,6 +1,6 @@
 import {
-  applyAppearance,
   type AtrixStyle,
+  applyAppearance,
   standaloneAppearance,
   type ThemePrefs,
 } from "@atrix/settings"

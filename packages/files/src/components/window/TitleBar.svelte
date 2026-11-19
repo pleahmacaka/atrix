@@ -1,9 +1,9 @@
 <script lang="ts">
+  import { WindowControls } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import ItemIcon from "../items/ItemIcon.svelte"
   import type { Explorer } from "../../store/explorer.svelte"
-  import { WindowControls } from "@atrix/ui"
+  import ItemIcon from "../items/ItemIcon.svelte"
   import { windowLabels } from "./labels"
 
   let { explorer }: { explorer: Explorer } = $props()

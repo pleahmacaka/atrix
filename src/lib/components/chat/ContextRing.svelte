@@ -39,7 +39,7 @@ const loadClaude = async () => {
     return
   }
 
-  const path = await join(await homeDir(), ".claude", "eris-usage.json")
+  const path = await join(await homeDir(), ".claude", "atrix-usage.json")
   const text = await native<string | null>("read_text", { path }).catch(() => null)
   const parsed = usageFile.safeParse(text ? parseJson(text) : null)
 

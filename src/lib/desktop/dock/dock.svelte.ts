@@ -7,12 +7,12 @@ import {
   onAppsChanged,
   onPinsChanged,
   pinnedApps,
-} from "#lib/native/apps.js"
+} from "#lib/desktop/native/apps.js"
 import {
   listWindows,
   onWindowsChanged,
   type WindowEntry,
-} from "#lib/native/windows.js"
+} from "#lib/desktop/native/windows.js"
 import { fallbackPin, matchPin, windowIdentity } from "./identity"
 
 export type DockPin = "windows" | "device" | null

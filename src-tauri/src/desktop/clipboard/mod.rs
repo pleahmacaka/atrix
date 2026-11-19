@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use crate::shell::features::LAUNCHER_ON;
+use crate::desktop::shell::features::LAUNCHER_ON;
 
 mod win;
 
@@ -100,7 +100,7 @@ fn push(app: &AppHandle, text: String) {
         entries.insert(
             0,
             ClipEntry {
-                id: crate::apps::launcher::stable_id(&format!("{}:{text}", now())),
+                id: crate::desktop::apps::launcher::stable_id(&format!("{}:{text}", now())),
                 text,
                 at: now(),
                 pinned,
@@ -179,7 +179,7 @@ pub fn clipboard_copy(app: AppHandle, id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn clipboard_paste(app: AppHandle, id: String) -> Result<(), String> {
     clipboard_copy(app.clone(), id)?;
-    crate::shell::windowing::hide(&app, "main");
+    crate::desktop::shell::windowing::hide(&app, "launcher");
 
     std::thread::spawn(|| {
         let deadline = Instant::now() + Duration::from_millis(500);

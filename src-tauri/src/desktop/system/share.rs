@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::Thread;
 use std::time::Duration;
 
@@ -26,18 +26,20 @@ pub fn set_share_watch(enabled: bool) {
 }
 
 pub fn watch(app: AppHandle) {
-    let watcher = std::thread::spawn(move || loop {
-        let watching = WATCHING.load(Ordering::Relaxed);
-        let now = watching && is_screen_sharing::is_screen_sharing();
+    let watcher = std::thread::spawn(move || {
+        loop {
+            let watching = WATCHING.load(Ordering::Relaxed);
+            let now = watching && is_screen_sharing::is_screen_sharing();
 
-        if SHARING.swap(now, Ordering::Relaxed) != now {
-            let _ = app.emit("screen-share", now);
-        }
+            if SHARING.swap(now, Ordering::Relaxed) != now {
+                let _ = app.emit("screen-share", now);
+            }
 
-        if watching {
-            std::thread::sleep(POLL);
-        } else {
-            std::thread::park();
+            if watching {
+                std::thread::sleep(POLL);
+            } else {
+                std::thread::park();
+            }
         }
     });
 

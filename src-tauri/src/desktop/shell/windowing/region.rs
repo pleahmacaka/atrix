@@ -1,6 +1,6 @@
 use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Gdi::{
-    CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, RGN_OR,
+    CombineRgn, CreateRectRgn, DeleteObject, RGN_OR, SetWindowRgn,
 };
 
 pub fn physical(rect: [f64; 4], scale: f64) -> [i32; 4] {

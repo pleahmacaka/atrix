@@ -1,12 +1,12 @@
 <script lang="ts">
+  import type { DockEdge, SpectrumStyle } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import { listen } from "@tauri-apps/api/event"
-  import type { MenuBox } from "./layout.svelte"
   import { t } from "svelte-i18n"
-  import * as native from "#lib/native/index.js"
-  import { type MediaAction, mediaCommand, type MediaStatus, mediaStatus } from "#lib/native/media.js"
-  import type { DockEdge, SpectrumStyle } from "@atrix/settings"
+  import * as native from "#lib/desktop/native/index.js"
+  import { type MediaAction, type MediaStatus, mediaCommand, mediaStatus } from "#lib/desktop/native/media.js"
   import { dockAwake } from "./dock.svelte"
+  import type { MenuBox } from "./layout.svelte"
   import Spectrum from "./Spectrum.svelte"
 
   type Props = {
@@ -189,13 +189,12 @@
 
 {#if status}
   <div class="relative" data-media>
-    <div
+    <fieldset
       bind:clientWidth={stripWidth}
       class={[
-        "relative isolate flex items-center gap-0.5 overflow-hidden rounded-field border border-base-content/10 px-0.5 transition-colors duration-100",
+        "relative isolate flex min-w-0 items-center gap-0.5 overflow-hidden rounded-field border border-base-content/10 px-0.5 transition-colors duration-100",
         open ? "bg-base-content/10" : "bg-base-content/5 hover:bg-base-content/10",
       ]}
-      role="group"
       aria-label={$t("tray.media.title")}
     >
       {#if spectrum && status.playing}
@@ -212,7 +211,7 @@
         </div>
       {/if}
 
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs"
         title={$t("tray.media.previous")}
         aria-label={$t("tray.media.previous")}
@@ -221,7 +220,7 @@
         <Icon icon="lucide:skip-back" class="size-3.5" />
       </button>
 
-      <button
+      <button type="button"
         class={["btn btn-ghost btn-square btn-sm", failed && "text-error"]}
         title={failed ? $t("tray.media.failed") : label}
         aria-label={status.playing ? $t("tray.media.pause") : $t("tray.media.play")}
@@ -233,7 +232,7 @@
         />
       </button>
 
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs"
         title={$t("tray.media.next")}
         aria-label={$t("tray.media.next")}
@@ -243,7 +242,7 @@
       </button>
 
       {#if !compact && status.title}
-        <button
+        <button type="button"
           class="max-w-28 truncate rounded-field px-1.5 py-1 text-xs text-base-content/70"
           title={label}
           aria-haspopup="dialog"
@@ -254,7 +253,7 @@
           {status.title}
         </button>
       {:else}
-        <button
+        <button type="button"
           class="btn btn-ghost btn-square btn-xs"
           title={label}
           aria-label={$t("tray.media.nowPlaying")}
@@ -266,7 +265,7 @@
           <Icon icon="lucide:chevron-up" class="size-3.5" />
         </button>
       {/if}
-    </div>
+    </fieldset>
 
     {#if open}
       <div
@@ -302,7 +301,7 @@
         </p>
 
         <div class="mt-3 flex items-center justify-center gap-1">
-          <button
+          <button type="button"
             class="btn btn-ghost btn-square btn-sm"
             aria-label={$t("tray.media.previous")}
             onclick={() => send("previous")}
@@ -310,7 +309,7 @@
             <Icon icon="lucide:skip-back" class="size-4" />
           </button>
 
-          <button
+          <button type="button"
             class="btn btn-primary btn-square btn-sm"
             aria-label={status.playing ? $t("tray.media.pause") : $t("tray.media.play")}
             onclick={() => send("playpause")}
@@ -321,7 +320,7 @@
             />
           </button>
 
-          <button
+          <button type="button"
             class="btn btn-ghost btn-square btn-sm"
             aria-label={$t("tray.media.next")}
             onclick={() => send("next")}

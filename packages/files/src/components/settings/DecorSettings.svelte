@@ -1,9 +1,9 @@
 <script lang="ts">
   import { Row, Section, Segmented } from "@atrix/ui"
   import { t } from "svelte-i18n"
+  import type { GitHead } from "../../native"
   import { CLEANUP_HOURS, enableCleanup } from "../../store/cleanup.svelte"
   import { prefs } from "../../store/prefs.svelte"
-  import type { GitHead } from "../../native"
   import CleanupBadge from "../items/CleanupBadge.svelte"
   import { CLEANUP_COLORS } from "../items/decor"
   import RepoChip from "../items/RepoChip.svelte"
@@ -96,8 +96,7 @@
     </Row>
 
     <Row label={$t("explorer.settings.cleanup.color")}>
-      <div
-        role="radiogroup"
+      <fieldset
         aria-label={$t("explorer.settings.cleanup.color")}
         class="flex items-center gap-2"
       >
@@ -107,8 +106,7 @@
 
           <button
             type="button"
-            role="radio"
-            aria-checked={active}
+            aria-pressed={active}
             aria-label={label}
             title={label}
             class={[
@@ -123,7 +121,7 @@
         <span class="ml-2 flex">
           <CleanupBadge hours={prefs.cleanupHours} />
         </span>
-      </div>
+      </fieldset>
     </Row>
   {/if}
 </Section>

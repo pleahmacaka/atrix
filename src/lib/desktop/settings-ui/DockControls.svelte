@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { listMonitors, type MonitorInfo } from "#lib/native/windows.js"
-  import { startEdit } from "#lib/edit/index.js"
   import {
-    DOCK_STYLES,
     type DeviceSettings,
+    DOCK_STYLES,
     type DockAlign,
     defaultDevice,
   } from "@atrix/settings"
+  import { Logo, Row, Segmented, SubRows, toast } from "@atrix/ui"
   import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { startEdit } from "#lib/desktop/edit/index.js"
+  import { listMonitors, type MonitorInfo } from "#lib/desktop/native/windows.js"
   import DockPreview from "./DockPreview.svelte"
   import { reset } from "./reset"
-  import { Logo, Row, Segmented, SubRows, toast } from "@atrix/ui"
-  import { t } from "svelte-i18n"
 
   type Part = "style" | "size" | "behavior" | "arrange"
 
@@ -150,14 +150,13 @@
       </div>
     {/if}
 
-    <div class="grid grid-cols-2 gap-3" role="radiogroup" aria-label={$t("settings.dock.styleAria")}>
+    <fieldset class="grid grid-cols-2 gap-3" aria-label={$t("settings.dock.styleAria")}>
       {#each DOCK_STYLES as style (style)}
         {@const active = device.dockStyle === style}
 
         <button
           type="button"
-          role="radio"
-          aria-checked={active}
+          aria-pressed={active}
           class={[
             "flex flex-col gap-2 rounded-box border p-3 text-left outline-none transition duration-100 focus-visible:ring-2 focus-visible:ring-primary/50",
             active
@@ -199,7 +198,7 @@
           <span class="text-xs text-base-content/60">{$t(`settings.dock.styles.${style}.hint`)}</span>
         </button>
       {/each}
-    </div>
+    </fieldset>
   </div>
 
   <Row

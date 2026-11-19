@@ -1,6 +1,6 @@
 <script lang="ts">
+  import { rootRem, Splitter, track } from "@atrix/ui"
   import { t } from "svelte-i18n"
-  import { browsable } from "../share/share.svelte"
   import {
     deviceLocation,
     HOME,
@@ -9,7 +9,6 @@
     THIS_PC,
   } from "../../locations"
   import type { Drive, KnownId } from "../../native"
-  import { rootRem, Splitter, track } from "@atrix/ui"
   import type { Explorer } from "../../store/explorer.svelte"
   import { openPlaceMenu, type Place } from "../../store/menus"
   import { driveName, places } from "../../store/places.svelte"
@@ -20,6 +19,7 @@
     pathShown,
     sectionShown,
   } from "../../store/sidebar"
+  import { browsable } from "../share/share.svelte"
   import NavEntry from "./NavEntry.svelte"
 
   type Entry = Place & {

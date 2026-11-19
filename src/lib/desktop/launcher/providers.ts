@@ -9,7 +9,7 @@ import {
   plainNumber,
 } from "@atrix/launcher-core"
 import type { WebSearchEngine } from "@atrix/settings"
-import { events } from "#lib/data/index.js"
+import { events } from "#lib/desktop/data/index.js"
 import { toggleDockPin } from "../dock/dock.svelte"
 import {
   type AppEntry,

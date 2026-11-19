@@ -1,9 +1,9 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { rootRem } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { emit, listen } from "@tauri-apps/api/event"
   import { t } from "svelte-i18n"
-  import * as native from "#lib/native/index.js"
+  import * as native from "#lib/desktop/native/index.js"
 
   type Slot = {
     hwnd: number
@@ -61,16 +61,13 @@
   }
 </script>
 
-<div
-  role="presentation"
-  class="atrix-card relative h-full w-full"
-  onmouseenter={() => setHover(true)}
-  onmouseleave={() => setHover(false)}
->
+<svelte:body onmouseenter={() => setHover(true)} onmouseleave={() => setHover(false)} />
+
+<div class="atrix-card relative h-full w-full">
   {#each slots as slot (slot.hwnd)}
     {@const active = hovered === slot.hwnd}
 
-    <div
+    <fieldset
       class={[
         "absolute rounded-field transition-colors duration-100",
         active ? "bg-base-content/10" : "bg-transparent",
@@ -79,7 +76,6 @@
       style:top="{slot.y / rem}rem"
       style:width="{slot.width / rem}rem"
       style:height="{slot.height / rem}rem"
-      role="group"
       onmouseenter={() => (hovered = slot.hwnd)}
       onmouseleave={() => (hovered = null)}
     >
@@ -108,6 +104,6 @@
           <Icon icon="lucide:x" class="size-4" />
         </button>
       </div>
-    </div>
+    </fieldset>
   {/each}
 </div>

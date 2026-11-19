@@ -4,7 +4,6 @@ import type {
   DockAlign,
   DockStyle,
   Profile,
-  SyncSettings,
   TerminalApp,
 } from "./model"
 
@@ -198,18 +197,6 @@ export const defaultProfile: Profile = {
   },
 }
 
-export const defaultSync: SyncSettings = {
-  enabled: false,
-  intervalMinutes: 5,
-  collections: {
-    todos: true,
-    events: true,
-    profile: true,
-    presets: true,
-    notes: true,
-  },
-}
-
 export const defaultDevice: DeviceSettings = {
   deviceId: "",
   deviceName: "",
@@ -266,7 +253,6 @@ export const defaultDevice: DeviceSettings = {
   showTaskView: false,
   showInputLanguage: true,
   showSeconds: false,
-  showSyncStatus: false,
   clock24h: false,
   launcherTrigger: "both",
   launcherShortcut: "Alt+Space",
@@ -297,15 +283,6 @@ export const defaultDevice: DeviceSettings = {
     "settings",
     "desktop",
   ],
-  sync: defaultSync,
-  note: {
-    enabled: true,
-    calendar: true,
-    style: true,
-    references: true,
-    preview: true,
-  },
-  studio: false,
 }
 
 export const DOCK_STYLES: DockStyle[] = ["windows", "mac"]

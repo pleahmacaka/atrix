@@ -3,11 +3,11 @@ import adapter from "@sveltejs/adapter-static"
 import { sveltekit } from "@sveltejs/kit/vite"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
-import { iconifySubset } from "vite-plugin-iconify-subset"
+import { iconifyEmbed } from "vite-plugin-iconify-embed"
 
 export default defineConfig({
   plugins: [
-    iconifySubset({
+    iconifyEmbed({
       collections: [lucide],
       scan: ["src", "../../packages/ui/src"],
     }),

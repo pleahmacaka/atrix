@@ -1,5 +1,4 @@
 import type { Language } from "@atrix/i18n"
-import type { SyncedCollection } from "@atrix/sync/protocol"
 
 export type DockStyle = "windows" | "mac"
 export type DockEdge = "bottom" | "top"
@@ -31,7 +30,13 @@ export type DockWidget = {
   size: number
 }
 export type WebSearchEngine = "google" | "duckduckgo" | "bing" | "naver"
-export type TerminalApp = "auto" | "atrix" | "wt" | "pwsh" | "powershell" | "cmd"
+export type TerminalApp =
+  | "auto"
+  | "atrix"
+  | "wt"
+  | "pwsh"
+  | "powershell"
+  | "cmd"
 export type TodoSort = "manual" | "due" | "priority"
 
 export type TimePicker = "wheel" | "clock"
@@ -55,20 +60,6 @@ export type TraySlot =
   | "bell"
   | "settings"
   | "desktop"
-
-export type NoteLink = {
-  enabled: boolean
-  calendar: boolean
-  style: boolean
-  references: boolean
-  preview: boolean
-}
-
-export type SyncSettings = {
-  enabled: boolean
-  intervalMinutes: number
-  collections: Record<SyncedCollection, boolean>
-}
 
 export type DeviceSettings = {
   deviceId: string
@@ -126,7 +117,6 @@ export type DeviceSettings = {
   showTaskView: boolean
   showInputLanguage: boolean
   showSeconds: boolean
-  showSyncStatus: boolean
   clock24h: boolean
   launcherTrigger: LauncherTrigger
   launcherShortcut: string
@@ -139,9 +129,6 @@ export type DeviceSettings = {
   trayOrder: string[]
   trayHidden: string[]
   traySlots: TraySlot[]
-  sync: SyncSettings
-  note: NoteLink
-  studio: boolean
 }
 
 export type Appearance = {

@@ -1,10 +1,10 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
+  import { http } from "#lib/desktop/http.js"
+  import { type ClaudeUsage, claudeUsage } from "#lib/desktop/native/index.js"
   import { claudeIcon } from "./claudeIcon"
   import { dockAwake } from "./dock.svelte"
-  import { http } from "#lib/http.js"
-  import { type ClaudeUsage, claudeUsage } from "#lib/native/index.js"
 
   type Props = {
     source?: string

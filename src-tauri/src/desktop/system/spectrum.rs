@@ -13,7 +13,7 @@ pub fn spectrum_stop() {
 }
 
 pub fn bands_from(samples: &[f32], rate: f32, previous: &mut [f32; BANDS]) -> [f32; BANDS] {
-    use rustfft::{num_complex::Complex, FftPlanner};
+    use rustfft::{FftPlanner, num_complex::Complex};
 
     const SMOOTH_UP: f32 = 0.55;
     const SMOOTH_DOWN: f32 = 0.12;
@@ -73,26 +73,26 @@ pub fn bands_from(samples: &[f32], rate: f32, previous: &mut [f32; BANDS]) -> [f
 }
 
 mod win {
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{Duration, Instant};
 
     use tauri::{AppHandle, Emitter};
     use windows::Win32::Media::Audio::{
-        eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
-        MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_LOOPBACK, WAVEFORMATEXTENSIBLE,
+        AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
+        IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator, MMDeviceEnumerator,
+        WAVEFORMATEXTENSIBLE, eConsole, eRender,
     };
     use windows::Win32::Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE;
     use windows::Win32::Media::Multimedia::{
         KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, WAVE_FORMAT_IEEE_FLOAT,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+        CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree,
     };
 
-    use super::{bands_from, BANDS};
-    use crate::system::audio::win::device_id;
+    use super::{BANDS, bands_from};
+    use crate::desktop::system::audio::win::device_id;
 
     const WINDOW: usize = 1024;
     const TICK: Duration = Duration::from_millis(33);
@@ -292,7 +292,7 @@ mod win {
 
 #[cfg(test)]
 mod tests {
-    use super::{bands_from, BANDS};
+    use super::{BANDS, bands_from};
 
     #[test]
     fn a_pure_tone_lands_in_one_band() {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n"
-  import { cycleInputLanguage, type InputLanguage, inputLanguage } from "#lib/native/quick.js"
+  import { cycleInputLanguage, type InputLanguage, inputLanguage } from "#lib/desktop/native/quick.js"
   import { dockAwake } from "./dock.svelte"
 
   type Props = {

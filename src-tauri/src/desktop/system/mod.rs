@@ -1,5 +1,3 @@
-//! OS controls, displays, media, and system observation.
-
 pub(crate) mod audio;
 pub(crate) mod com;
 pub(crate) mod controls;

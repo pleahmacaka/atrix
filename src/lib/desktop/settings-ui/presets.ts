@@ -3,8 +3,11 @@ import {
   CUSTOM_PRESET,
   defaultAppearance,
 } from "@atrix/settings"
-import type { Preset } from "#lib/data/index.js"
-import { presets as builtIn, type PresetDefinition } from "#lib/theme.js"
+import type { Preset } from "#lib/desktop/data/index.js"
+import {
+  presets as builtIn,
+  type PresetDefinition,
+} from "#lib/desktop/theme.js"
 
 const keys = Object.keys(defaultAppearance) as (keyof Appearance)[]
 

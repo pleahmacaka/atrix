@@ -12,7 +12,7 @@ pub struct InputLanguage {
     pub layouts: usize,
 }
 
-use crate::system::blocking;
+use crate::desktop::system::blocking;
 
 #[tauri::command]
 pub async fn radios() -> Result<Vec<RadioInfo>, String> {
@@ -65,7 +65,6 @@ fn language_label(locale: &str, iso3: &str) -> String {
 mod win {
     use std::sync::atomic::{AtomicIsize, Ordering};
 
-    use windows::core::{HSTRING, PCWSTR};
     use windows::Devices::Bluetooth::{
         BluetoothConnectionStatus, BluetoothDevice, BluetoothLEDevice,
     };
@@ -76,7 +75,7 @@ mod win {
         GetLocaleInfoEx, LCIDToLocaleName, LOCALE_SISO639LANGNAME2,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+        CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetKeyboardLayout, GetKeyboardLayoutList, HKL, VK_A, VK_D, VK_LWIN, VK_N, VK_TAB,
@@ -85,6 +84,7 @@ mod win {
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowThreadProcessId, PostMessageW, WM_INPUTLANGCHANGEREQUEST,
     };
+    use windows::core::{HSTRING, PCWSTR};
 
     use super::{InputLanguage, RadioInfo};
 
@@ -202,7 +202,7 @@ mod win {
     }
 
     pub fn open_or_chord(uri: &str, chord: Chord) -> Result<(), String> {
-        if crate::apps::launcher::shell_execute("open", uri, None, true).is_ok() {
+        if crate::desktop::apps::launcher::shell_execute("open", uri, None, true).is_ok() {
             return Ok(());
         }
 
@@ -211,13 +211,13 @@ mod win {
             Chord::QuickSettings => VK_A,
         };
 
-        crate::shell::winkey::chord(&[VK_LWIN, key]);
+        crate::desktop::shell::winkey::chord(&[VK_LWIN, key]);
 
         Ok(())
     }
 
     pub fn task_view() -> Result<(), String> {
-        crate::shell::winkey::chord(&[VK_LWIN, VK_TAB]);
+        crate::desktop::shell::winkey::chord(&[VK_LWIN, VK_TAB]);
 
         Ok(())
     }
@@ -234,7 +234,7 @@ mod win {
             return Ok(());
         }
 
-        crate::shell::winkey::chord(&[VK_LWIN, VK_D]);
+        crate::desktop::shell::winkey::chord(&[VK_LWIN, VK_D]);
 
         Ok(())
     }

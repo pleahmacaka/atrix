@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Logo } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { appIcon } from "#lib/apps.js"
+  import { appIcon } from "#lib/desktop/apps.js"
   import type { Launcher } from "./launcher.svelte"
   import ResultRow from "./ResultRow.svelte"
 

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Aura } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { getCurrentWindow } from "@tauri-apps/api/window"
   import { tick } from "svelte"
   import { t } from "svelte-i18n"
-  import { longDay } from "#lib/calendar/index.js"
-  import { dateKey } from "#lib/data/index.js"
-  import * as native from "#lib/native/index.js"
+  import { longDay } from "#lib/desktop/calendar/index.js"
+  import { dateKey } from "#lib/desktop/data/index.js"
+  import * as native from "#lib/desktop/native/index.js"
   import {
     CompactPanel,
     MonthGrid,
@@ -14,7 +14,7 @@
     Panel,
     PanelAside,
     PanelHeader,
-  } from "#lib/panel/index.js"
+  } from "#lib/desktop/panel/index.js"
 
   const PICKER_TYPES = ["date", "datetime-local", "time", "color", "file"]
   const BLUR_GRACE = 400
@@ -120,7 +120,7 @@
     class="panel-surface flex min-h-0 flex-col"
   >
     <header class="flex items-center justify-end px-3 py-2">
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs"
         aria-label={$t("common.close")}
         onclick={hide}

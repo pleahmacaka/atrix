@@ -1,4 +1,4 @@
-/// <reference types="vite-plugin-iconify-subset/client" />
+/// <reference types="vite-plugin-iconify-embed/client" />
 
 declare global {
   namespace App {}

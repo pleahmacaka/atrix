@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import type { EventTag } from "@atrix/settings"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { tagLabel } from "#lib/calendar/index.js"
+  import { tagLabel } from "#lib/desktop/calendar/index.js"
   import { colorMeta, eventColors, toColor } from "./colors"
   import type { Panel } from "./panel.svelte"
 

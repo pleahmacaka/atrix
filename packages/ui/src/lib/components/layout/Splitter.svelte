@@ -10,21 +10,16 @@
   const vertical = $derived(resize.axis === "x")
 </script>
 
-<div
-  role="separator"
+<hr
   aria-orientation={vertical ? "vertical" : "horizontal"}
   aria-label={label}
   class={[
-    "group relative z-10 flex shrink-0 items-center justify-center",
-    vertical ? "-mx-1 w-2 cursor-col-resize" : "-my-1 h-2 cursor-row-resize",
+    "relative z-10 flex shrink-0 items-center justify-center border-0",
+    "before:bg-base-content/10 before:transition-colors hover:before:bg-primary/50",
+    vertical
+      ? "-mx-1 h-auto w-2 cursor-col-resize before:h-full before:w-0.25 hover:before:w-0.5"
+      : "-my-1 h-2 cursor-row-resize before:h-0.25 before:w-full hover:before:h-0.5",
   ]}
   onpointerdown={e => resizeHandle(resize)(e)}
   ondblclick={onreset}
->
-  <div
-    class={[
-      "bg-base-content/10 transition-colors group-hover:bg-primary/50",
-      vertical ? "h-full w-0.25 group-hover:w-0.5" : "h-0.25 w-full group-hover:h-0.5",
-    ]}
-  ></div>
-</div>
+/>

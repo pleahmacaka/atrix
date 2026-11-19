@@ -5,8 +5,6 @@ export type SectionId =
   | "tray"
   | "launcher"
   | "calendar"
-  | "note"
-  | "sync"
   | "data"
   | "about"
   | "experimental"
@@ -35,8 +33,6 @@ export const sections: NavSection[] = [
   { id: "tray", icon: "lucide:blocks", group: "features", parent: "dock" },
   { id: "launcher", icon: "lucide:search", group: "features" },
   { id: "calendar", icon: "lucide:calendar-check", group: "features" },
-  { id: "note", icon: "lucide:notebook-pen", group: "features" },
-  { id: "sync", icon: "lucide:refresh-cw", group: "system" },
   { id: "data", icon: "lucide:database", group: "system" },
   { id: "about", icon: "lucide:info", group: "system" },
   { id: "experimental", icon: "lucide:flask-conical", group: "system" },
@@ -49,7 +45,7 @@ const entry = (
 ): SearchEntry => ({ section, key: `settings.rows.${row}`, keywords })
 
 export const index: SearchEntry[] = [
-  entry("general", "deviceName", "identity machine computer sync"),
+  entry("general", "deviceName", "identity machine computer"),
   entry("general", "autostart", "autostart startup boot sign in"),
   entry("general", "language", "english korean japanese chinese locale"),
   entry("general", "setupWizard", "onboarding first run"),
@@ -194,20 +190,6 @@ export const index: SearchEntry[] = [
   entry("calendar", "panelStart", "compact full expand size open"),
   entry("calendar", "sortBy", "order manual due priority"),
 
-  entry("sync", "enableSync", "background"),
-  entry("sync", "showSyncStatus", "dock dot indicator clock tray"),
-  entry("sync", "interval", "minutes frequency"),
-  entry("note", "noteStatus", "note arixlab vault installed"),
-  entry("note", "noteLink", "note arixlab link connect"),
-  entry("note", "note.calendar", "note calendar events sync"),
-  entry("note", "note.style", "note style theme appearance"),
-  entry("note", "note.references", "note page link citation reference"),
-  entry("note", "note.preview", "note preview hover"),
-  entry("sync", "collections", "events presets profile notes"),
-  entry("sync", "pairDevice", "pairing code invite peer"),
-  entry("sync", "joinDevice", "pairing code connect peer"),
-  entry("sync", "unlinkDevice", "disconnect leave unpair peer"),
-
   entry("data", "backup", "export import json file restore"),
   entry("data", "storedData", "counts events presets"),
   entry(
@@ -223,11 +205,6 @@ export const index: SearchEntry[] = [
   entry("about", "updates", "update installer version release"),
 
   entry("experimental", "editMode", "edit layout customize experimental"),
-  entry(
-    "experimental",
-    "studio",
-    "debug studio developer preview sandbox apply ipc",
-  ),
 ]
 
 const clean = (query: string) => query.trim().toLowerCase()

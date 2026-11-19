@@ -2,12 +2,12 @@
   import Icon from "@iconify/svelte"
   import { untrack } from "svelte"
   import { t } from "svelte-i18n"
-  import { isDone } from "#lib/data/index.js"
+  import { isDone } from "#lib/desktop/data/index.js"
   import { colorMeta } from "./colors"
   import { finalTitle } from "./draft"
-  import { editingState } from "./editing.svelte"
   import EventFields from "./EventFields.svelte"
   import EventNotes from "./EventNotes.svelte"
+  import { editingState } from "./editing.svelte"
   import type { Panel } from "./panel.svelte"
   import RelationField from "./RelationField.svelte"
   import ScopeSheet from "./ScopeSheet.svelte"
@@ -47,7 +47,7 @@
     <span class="flex-1"></span>
 
     {#if event}
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs text-error"
         aria-label={$t("common.delete")}
         onclick={() => panel.remove(event)}
@@ -105,7 +105,7 @@
       onparent={id => editor.change({ parent: id })}
     />
 
-    <EventNotes {panel} {event} {editor} />
+    <EventNotes {event} {editor} />
   </div>
 </div>
 

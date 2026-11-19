@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::Thread;
 
 use tauri::AppHandle;
@@ -30,14 +30,14 @@ mod win {
     use tauri::{AppHandle, Emitter, Manager};
     use windows::Win32::Foundation::{HWND, POINT, RECT};
     use windows::Win32::Graphics::Gdi::{
-        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+        GetMonitorInfoW, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint,
     };
     use windows::Win32::System::Threading::GetCurrentProcessId;
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetClassNameW, GetCursorInfo, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
-        GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, IsZoomed, SetWindowPos,
-        ShowWindow, CURSORINFO, CURSOR_SHOWING, GWL_STYLE, HWND_TOPMOST, SWP_NOACTIVATE,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, WS_POPUP,
+        CURSOR_SHOWING, CURSORINFO, GWL_STYLE, GetClassNameW, GetCursorInfo, GetCursorPos,
+        GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
+        HWND_TOPMOST, IsWindowVisible, IsZoomed, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_SHOWWINDOW, SetWindowPos, ShowWindow, WS_POPUP,
     };
 
     const TICK: Duration = Duration::from_millis(80);
@@ -81,7 +81,7 @@ mod win {
         let mut left_band: Option<Instant> = None;
 
         loop {
-            if !crate::shell::features::dock_on() {
+            if !crate::desktop::shell::features::dock_on() {
                 at_edge = false;
                 fullscreen = false;
                 revealed = false;
@@ -102,30 +102,30 @@ mod win {
                 let _ = app.emit("dock-edge", json!({ "atEdge": at_edge }));
             }
 
-            if let Some(maximized) = foreground_maximized(&screen) {
-                if super::MAXIMIZED.swap(maximized, Ordering::Relaxed) != maximized {
-                    let _ = app.emit("dock-maximized", json!({ "maximized": maximized }));
-                }
+            if let Some(maximized) = foreground_maximized(&screen)
+                && super::MAXIMIZED.swap(maximized, Ordering::Relaxed) != maximized
+            {
+                let _ = app.emit("dock-maximized", json!({ "maximized": maximized }));
             }
 
-            if crate::shell::appbar::desktop_pinned() {
-                if !crate::shell::appbar::desktop_reveals() {
+            if crate::desktop::shell::appbar::desktop_pinned() {
+                if !crate::desktop::shell::appbar::desktop_reveals() {
                     continue;
                 }
 
                 if at_edge
                     && !lifted
                     && (foreground_covers(&screen) != Some(true)
-                        || crate::shell::appbar::fullscreen_reveals(&app))
+                        || crate::desktop::shell::appbar::fullscreen_reveals(&app))
                 {
                     lifted = true;
                     left_band = None;
-                    crate::shell::appbar::lift(dock, true);
+                    crate::desktop::shell::appbar::lift(dock, true);
                 } else if lifted && !holds(cursor, at_edge, dock, preview) {
                     if left_band.get_or_insert_with(Instant::now).elapsed() >= LINGER {
                         lifted = false;
                         left_band = None;
-                        crate::shell::appbar::lift(dock, false);
+                        crate::desktop::shell::appbar::lift(dock, false);
                     }
                 } else {
                     left_band = None;
@@ -134,21 +134,21 @@ mod win {
                 continue;
             }
 
-            if let Some(fullscreen_now) = foreground_covers(&screen) {
-                if fullscreen_now != fullscreen {
-                    fullscreen = fullscreen_now;
-                    revealed = false;
-                    left_band = None;
-                    set_visible(&app, dock, !fullscreen);
-                    let _ = app.emit("dock-fullscreen", json!({ "fullscreen": fullscreen }));
-                }
+            if let Some(fullscreen_now) = foreground_covers(&screen)
+                && fullscreen_now != fullscreen
+            {
+                fullscreen = fullscreen_now;
+                revealed = false;
+                left_band = None;
+                set_visible(&app, dock, !fullscreen);
+                let _ = app.emit("dock-fullscreen", json!({ "fullscreen": fullscreen }));
             }
 
             if !fullscreen {
                 continue;
             }
 
-            if at_edge && !revealed && crate::shell::appbar::fullscreen_reveals(&app) {
+            if at_edge && !revealed && crate::desktop::shell::appbar::fullscreen_reveals(&app) {
                 revealed = true;
                 left_band = None;
                 set_visible(&app, dock, true);
@@ -169,7 +169,7 @@ mod win {
     }
 
     fn screen() -> RECT {
-        match crate::shell::appbar::dock_screen() {
+        match crate::desktop::shell::appbar::dock_screen() {
             Some([left, top, right, bottom]) => RECT {
                 left,
                 top,
@@ -216,7 +216,7 @@ mod win {
 
     // the dock window keeps room above the band for menus, so reveal logic follows the band alone
     fn band(dock: HWND) -> RECT {
-        match crate::shell::appbar::dock_frame() {
+        match crate::desktop::shell::appbar::dock_frame() {
             Some([left, top, width, height]) => RECT {
                 left,
                 top,
@@ -251,7 +251,7 @@ mod win {
     }
 
     fn edge_band(screen: &RECT) -> RECT {
-        if crate::shell::appbar::edge_is_top() {
+        if crate::desktop::shell::appbar::edge_is_top() {
             RECT {
                 bottom: screen.top + EDGE,
                 ..*screen
@@ -344,13 +344,13 @@ mod win {
     }
 
     fn set_visible(app: &AppHandle, dock: HWND, visible: bool) {
-        let topbar = crate::shell::appbar::topbar_on(app);
+        let topbar = crate::desktop::shell::appbar::topbar_on(app);
 
         if visible {
-            crate::shell::windowing::webview_visible(app, "taskbar", true);
+            crate::desktop::shell::windowing::webview_visible(app, "taskbar", true);
 
             if topbar {
-                crate::shell::windowing::webview_visible(app, "topbar", true);
+                crate::desktop::shell::windowing::webview_visible(app, "topbar", true);
             }
         }
 
@@ -390,8 +390,8 @@ mod win {
         }
 
         if !visible {
-            crate::shell::windowing::webview_visible(app, "taskbar", false);
-            crate::shell::windowing::webview_visible(app, "topbar", false);
+            crate::desktop::shell::windowing::webview_visible(app, "taskbar", false);
+            crate::desktop::shell::windowing::webview_visible(app, "topbar", false);
         }
 
         let _ = app.emit("dock-visible", json!({ "visible": visible }));

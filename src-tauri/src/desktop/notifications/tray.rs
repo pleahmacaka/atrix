@@ -45,31 +45,31 @@ mod win {
 
     use tauri::{AppHandle, Emitter};
     use tauri_plugin_store::StoreExt;
-    use windows::core::{w, GUID, PCWSTR, PWSTR};
     use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::System::DataExchange::COPYDATASTRUCT;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, HKEY, HKEY_CURRENT_USER, KEY_READ,
-        RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+        HKEY, HKEY_CURRENT_USER, KEY_READ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegCloseKey,
+        RegEnumKeyExW, RegGetValueW, RegOpenKeyExW,
     };
     use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
-        PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::Shell::{
-        SHGetKnownFolderPath, KF_FLAG_DEFAULT, NIN_SELECT, NOTIFYICON_VERSION, NOTIFYICON_VERSION_4,
+        KF_FLAG_DEFAULT, NIN_SELECT, NOTIFYICON_VERSION, NOTIFYICON_VERSION_4, SHGetKnownFolderPath,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetCursorPos, GetMessageW,
-        GetWindowThreadProcessId, IsWindow, PostMessageW, PostQuitMessage, RegisterClassExW,
-        RegisterWindowMessageW, SendMessageTimeoutW, SendNotifyMessageW, SetForegroundWindow,
-        SetWindowPos, UnregisterClassW, HWND_BOTTOM, HWND_BROADCAST, HWND_TOPMOST, MSG,
-        SMTO_ABORTIFHUNG, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WM_CLOSE, WM_COMMAND,
-        WM_CONTEXTMENU, WM_COPYDATA, WM_DESTROY, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN,
-        WM_RBUTTONUP, WNDCLASSEXW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+        GetWindowThreadProcessId, HWND_BOTTOM, HWND_BROADCAST, HWND_TOPMOST, IsWindow, MSG,
+        PostMessageW, PostQuitMessage, RegisterClassExW, RegisterWindowMessageW, SMTO_ABORTIFHUNG,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SendMessageTimeoutW, SendNotifyMessageW,
+        SetForegroundWindow, SetWindowPos, UnregisterClassW, WM_CLOSE, WM_COMMAND, WM_CONTEXTMENU,
+        WM_COPYDATA, WM_DESTROY, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
+        WNDCLASSEXW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
     };
+    use windows::core::{GUID, PCWSTR, PWSTR, w};
 
     use super::TrayIcon;
 
@@ -308,7 +308,7 @@ mod win {
 
         if incoming.flags & NIF_ICON != 0 {
             entry.icon = incoming.icon;
-            entry.png = crate::apps::icons::icon_url(incoming.icon);
+            entry.png = crate::desktop::apps::icons::icon_url(incoming.icon);
         }
     }
 
@@ -386,10 +386,10 @@ mod win {
     impl Promotions {
         // an app can move between versioned folders and swap uid for guid, so widen the match stepwise
         fn find(&self, entry: &Entry) -> Option<&(String, bool)> {
-            if entry.guid.iter().any(|byte| *byte != 0) {
-                if let Some(found) = self.by_guid.get(&guid_text(&entry.guid)) {
-                    return Some(found);
-                }
+            if entry.guid.iter().any(|byte| *byte != 0)
+                && let Some(found) = self.by_guid.get(&guid_text(&entry.guid))
+            {
+                return Some(found);
             }
 
             if let Some(found) = self.by_owner.get(&owner_key(&entry.owner, entry.id)) {
@@ -616,10 +616,10 @@ mod win {
     fn cached_promotions() -> Promotions {
         let mut cache = CACHED.lock().unwrap();
 
-        if let Some((at, found)) = cache.as_ref() {
-            if at.elapsed() < CACHE_LIFE {
-                return found.clone();
-            }
+        if let Some((at, found)) = cache.as_ref()
+            && at.elapsed() < CACHE_LIFE
+        {
+            return found.clone();
         }
 
         let found = promotions();
@@ -748,7 +748,7 @@ mod win {
     }
 
     unsafe fn relay(message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        let Some(shell) = crate::shell::appbar::shell_tray() else {
+        let Some(shell) = crate::desktop::shell::appbar::shell_tray() else {
             return LRESULT(0);
         };
 

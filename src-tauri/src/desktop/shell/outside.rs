@@ -5,18 +5,18 @@ pub fn watch(app: &AppHandle, on: bool) {
 }
 
 mod win {
-    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-    use std::sync::mpsc::{sync_channel, SyncSender};
     use std::sync::OnceLock;
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+    use std::sync::mpsc::{SyncSender, sync_channel};
 
     use tauri::{AppHandle, Emitter};
     use windows::Win32::Foundation::{LPARAM, LRESULT, POINT, WPARAM};
     use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
     use windows::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, DispatchMessageW, GetAncestor, GetMessageW, GetWindowThreadProcessId,
-        PeekMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WindowFromPoint,
-        GA_ROOT, MSG, MSLLHOOKSTRUCT, PM_NOREMOVE, WH_MOUSE_LL, WM_APP, WM_LBUTTONDOWN,
-        WM_MBUTTONDOWN, WM_RBUTTONDOWN, WM_XBUTTONDOWN,
+        CallNextHookEx, DispatchMessageW, GA_ROOT, GetAncestor, GetMessageW,
+        GetWindowThreadProcessId, MSG, MSLLHOOKSTRUCT, PM_NOREMOVE, PeekMessageW,
+        PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WH_MOUSE_LL, WM_APP,
+        WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_RBUTTONDOWN, WM_XBUTTONDOWN, WindowFromPoint,
     };
 
     const RECONCILE: u32 = WM_APP + 1;

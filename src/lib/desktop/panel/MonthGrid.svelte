@@ -1,15 +1,14 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
   import { currentLocale } from "@atrix/i18n"
   import { rootRem } from "@atrix/ui"
-  import { eventSpan, eventTime, longDay } from "#lib/calendar/index.js"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { eventSpan, eventTime, longDay } from "#lib/desktop/calendar/index.js"
   import {
     type CalendarEvent,
     dateKey,
     isDone,
-    splitCitations,
-  } from "#lib/data/index.js"
+  } from "#lib/desktop/data/index.js"
   import { colorMeta } from "./colors"
   import type { Panel } from "./panel.svelte"
 
@@ -28,7 +27,7 @@
   let previewTimer: ReturnType<typeof setTimeout> | undefined
 
   const startDrag = (e: PointerEvent, day: Date) => {
-    if (e.button === 0 && !(e.target as Element).closest("button")) {
+    if (e.button === 0) {
       panel.beginDrag(day)
     }
   }
@@ -64,9 +63,7 @@
   }
 
   const noteLines = (notes: string) =>
-    splitCitations(notes)
-      .map(part => (typeof part === "string" ? part : part.title))
-      .join("")
+    notes
       .split("\n")
       .filter(line => line.trim() !== "")
       .slice(0, NOTE_LINES)
@@ -91,17 +88,6 @@
     const yearStart = Date.UTC(at.getUTCFullYear(), 0, 1)
 
     return Math.ceil(((at.getTime() - yearStart) / 86_400_000 + 1) / 7)
-  }
-
-  const onKey = (e: KeyboardEvent, day: Date) => {
-    if (e.target !== e.currentTarget) {
-      return
-    }
-
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault()
-      panel.pick(day)
-    }
   }
 </script>
 
@@ -142,28 +128,31 @@
       {@const isSelected = dateKey(day) === dateKey(panel.selected)}
       {@const shown = dayEvents.length > CHIPS ? CHIPS - 1 : CHIPS}
       <div
-        role="button"
-        tabindex="0"
-        aria-label={[longDay(day), ...holidays].join(", ")}
-        aria-current={isToday ? "date" : undefined}
-        aria-pressed={isSelected}
         class={[
-          "flex min-h-0 cursor-pointer flex-col gap-0.5 overflow-hidden rounded-xl p-1",
+          "relative flex min-h-0 flex-col gap-0.5 overflow-hidden rounded-xl p-1",
           "text-left transition-colors duration-120",
-          "focus-visible:outline-2 focus-visible:-outline-offset-2",
-          "focus-visible:outline-primary",
           outside && "*:opacity-40",
           panel.rangeTone(day),
-          isSelected
-            ? "bg-base-content/8"
-            : !panel.inRange(day) && "hover:bg-base-content/5",
+          isSelected && "bg-base-content/8",
         ]}
-        onclick={() => panel.pick(day)}
-        onkeydown={e => onKey(e, day)}
-        onpointerdown={e => startDrag(e, day)}
-        onpointerenter={() => panel.extendDrag(day)}
       >
-        <div class="flex min-w-0 items-center gap-1">
+        <button
+          type="button"
+          aria-label={[longDay(day), ...holidays].join(", ")}
+          aria-current={isToday ? "date" : undefined}
+          aria-pressed={isSelected}
+          class={[
+            "absolute inset-0 cursor-pointer rounded-xl transition-colors duration-120",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2",
+            "focus-visible:outline-primary",
+            !isSelected && !panel.inRange(day) && "hover:bg-base-content/5",
+          ]}
+          onclick={() => panel.pick(day)}
+          onpointerdown={e => startDrag(e, day)}
+          onpointerenter={() => panel.extendDrag(day)}
+        ></button>
+
+        <div class="pointer-events-none relative flex min-w-0 items-center gap-1">
           <span
             class={[
               "grid size-6 shrink-0 place-items-center rounded-lg",
@@ -195,7 +184,7 @@
           <button
             type="button"
             class={[
-              "flex h-4 w-full min-w-0 shrink-0 cursor-pointer items-center",
+              "relative flex h-4 w-full min-w-0 shrink-0 cursor-pointer items-center",
               "gap-1 rounded-sm px-1 text-left text-3xs text-base-content/85",
               "transition-colors duration-120 outline-none",
               "focus-visible:ring-2 focus-visible:ring-primary/50",
@@ -226,7 +215,7 @@
         {#if dayEvents.length > shown}
           <span
             class={[
-              "flex h-4 shrink-0 items-center px-1",
+              "pointer-events-none relative flex h-4 shrink-0 items-center px-1",
               "text-3xs font-medium tabular-nums text-base-content/60",
             ]}
           >

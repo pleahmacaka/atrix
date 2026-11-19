@@ -70,11 +70,11 @@ mod verbs;
 mod watch;
 
 pub(crate) const IDENTIFIER: &str = "com.arixlab.atrix.files";
-const SCHEME: &str = atrix_window_kit::by_channel(
-    "atrix-files://",
-    "atrix-files-dev-channel://",
-    "atrix-files-dev://",
-);
+const SCHEME: &str = if cfg!(debug_assertions) {
+    "atrix-files-dev://"
+} else {
+    "atrix-files://"
+};
 
 pub type PeerList = fn(&AppHandle) -> Vec<(String, String)>;
 
@@ -312,7 +312,7 @@ pub fn init(host: Host) -> TauriPlugin<Wry> {
             #[cfg(desktop)]
             places::watch_drives(app.clone());
 
-            if atrix_window_kit::CHANNEL == atrix_window_kit::Channel::Stable {
+            if !cfg!(debug_assertions) {
                 default_app::repoint(&host);
             }
 

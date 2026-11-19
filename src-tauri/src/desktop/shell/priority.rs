@@ -2,26 +2,21 @@ use std::os::windows::io::{FromRawHandle, OwnedHandle};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use atrix_window_kit::{Channel, CHANNEL};
 use tauri::AppHandle;
-use windows::core::HSTRING;
 use windows::Win32::Foundation::ERROR_FILE_NOT_FOUND;
 use windows::Win32::System::Threading::{CreateMutexW, OpenMutexW, SYNCHRONIZATION_SYNCHRONIZE};
+use windows::core::HSTRING;
 
-use crate::notifications::tray;
-use crate::shell::features::{self, Hold};
+use crate::desktop::notifications::tray;
+use crate::desktop::shell::features::{self, Hold};
 
-const CHANNELS: usize = 3;
+const CHANNELS: usize = 2;
 const POLL: Duration = Duration::from_secs(1);
 
 static RUNNING: OnceLock<OwnedHandle> = OnceLock::new();
 
 fn rank() -> usize {
-    match CHANNEL {
-        Channel::Stable => 0,
-        Channel::DevChannel => 1,
-        Channel::Dev => 2,
-    }
+    usize::from(cfg!(debug_assertions))
 }
 
 fn name(kind: &str, rank: usize) -> HSTRING {
@@ -83,22 +78,24 @@ pub fn start(app: &AppHandle) {
 
     let app = app.clone();
 
-    std::thread::spawn(move || loop {
-        std::thread::sleep(POLL);
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(POLL);
 
-        match owner {
-            Some(_) if outranked(rank) => {
-                features::hold(&app, Hold::Yielded);
-                owner = None;
-            }
-            None => {
-                owner = claim(rank);
-
-                if owner.is_some() {
-                    features::release(&app, Hold::Yielded);
+            match owner {
+                Some(_) if outranked(rank) => {
+                    features::hold(&app, Hold::Yielded);
+                    owner = None;
                 }
+                None => {
+                    owner = claim(rank);
+
+                    if owner.is_some() {
+                        features::release(&app, Hold::Yielded);
+                    }
+                }
+                Some(_) => {}
             }
-            Some(_) => {}
         }
     });
 }

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { getVersion } from "@tauri-apps/api/app"
   import {
     Confirm,
     type PrefsPage,
@@ -9,7 +8,13 @@
     StandaloneTheme,
     toast,
   } from "@atrix/ui"
+  import { getVersion } from "@tauri-apps/api/app"
   import { t } from "svelte-i18n"
+  import { parentOf } from "../../locations"
+  import { logFile } from "../../native"
+  import { archives } from "../../store/archive.svelte"
+  import type { Explorer } from "../../store/explorer.svelte"
+  import { prefs, resetPrefs } from "../../store/prefs.svelte"
   import TranscribeSettings from "../audio/TranscribeSettings.svelte"
   import DeviceSettings from "../share/DeviceSettings.svelte"
   import TerminalSettings from "../terminal/TerminalSettings.svelte"
@@ -17,11 +22,6 @@
   import DefaultAppRows from "./DefaultAppRows.svelte"
   import MenuSettings from "./MenuSettings.svelte"
   import SidebarSettings from "./SidebarSettings.svelte"
-  import { parentOf } from "../../locations"
-  import { logFile } from "../../native"
-  import { archives } from "../../store/archive.svelte"
-  import type { Explorer } from "../../store/explorer.svelte"
-  import { prefs, resetPrefs } from "../../store/prefs.svelte"
 
   type Toggle =
     | "showHidden"

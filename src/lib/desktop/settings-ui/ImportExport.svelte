@@ -1,5 +1,15 @@
 <script lang="ts">
+  import {
+    defaultAppearance,
+    defaultDevice,
+    defaultProfile,
+    loadDevice,
+    loadProfile,
+    saveDevice,
+  } from "@atrix/settings"
+  import { toast } from "@atrix/ui"
   import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
   import {
     conform,
     events,
@@ -13,17 +23,7 @@
     presets,
     saveProfileSynced,
     todos,
-  } from "#lib/data/index.js"
-  import {
-    defaultAppearance,
-    defaultDevice,
-    defaultProfile,
-    loadDevice,
-    loadProfile,
-    saveDevice,
-  } from "@atrix/settings"
-  import { toast } from "@atrix/ui"
-  import { t } from "svelte-i18n"
+  } from "#lib/desktop/data/index.js"
 
   let busy = $state(false)
   let picker = $state<HTMLInputElement>()

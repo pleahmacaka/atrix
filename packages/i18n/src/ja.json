@@ -55,10 +55,6 @@
         "label": "カレンダー",
         "blurb": "開くときのサイズ、週の始まり、祝日を設定します"
       },
-      "sync": {
-        "label": "同期",
-        "blurb": "デバイス間でデータを直接同期します"
-      },
       "experimental": {
         "label": "試験的機能",
         "blurb": "正式リリース前の機能を試します"
@@ -74,10 +70,6 @@
       "about": {
         "label": "情報",
         "blurb": "バージョンを確認してアップデートをインストールします"
-      },
-      "note": {
-        "label": "Note",
-        "blurb": "ArixLab Note とカレンダー、スタイル、ページ参照を連携します"
       }
     },
     "groups": {
@@ -134,10 +126,6 @@
       "windowBackgrounds": {
         "title": "ウィンドウ別の背景",
         "description": "ウィンドウごとに背景を指定します"
-      },
-      "note": {
-        "title": "Note 連携",
-        "description": "この PC の Note と連携します。Atrix の同期や Note の同期とは別です"
       },
       "linkedStyle": "Atrix 連携"
     },
@@ -215,10 +203,6 @@
       "claudeBridge": "Claude Code 連携",
       "usageSnapshot": "使用量ファイル",
       "mediaSide": "メディアの位置",
-      "enableSync": "同期を有効にする",
-      "interval": "間隔",
-      "collections": "コレクション",
-      "unlinkDevice": "このデバイスの接続を解除",
       "dockSeparators": "区切り線",
       "clockAlign": "時計の配置",
       "editMode": "編集モード",
@@ -239,11 +223,7 @@
       "holidayRegion": "祝日の地域",
       "featureCalendar": "カレンダーパネルを使用",
       "dockLayout": "ウィジェット配置",
-      "pairDevice": "デバイスを追加",
-      "joinDevice": "別のデバイスに接続",
-      "showSyncStatus": "同期状態のドット",
       "dockGrowth": "幅の自動拡張",
-      "studio": "Studio",
       "hideDelay": "非表示までの待ち時間",
       "atrixFiles": "Atrix Files",
       "filesDefault": "既定のファイルマネージャー",
@@ -261,14 +241,6 @@
       "noticesBackground": "通知",
       "filesBackground": "Atrix Files",
       "terminalBackground": "Atrix Terminal",
-      "noteStatus": "状態",
-      "noteLink": "Note 連携",
-      "note": {
-        "calendar": "カレンダー",
-        "style": "スタイル",
-        "references": "ページ参照",
-        "preview": "プレビュー"
-      },
       "panelStart": "開くときのサイズ",
       "font": "フォント",
       "metersStacked": "CPU とメモリを 2 行で表示"
@@ -335,10 +307,6 @@
       "claudeBridge": "Claude Code のステータスラインから使用量を受け取ります",
       "usageSnapshot": "使用量ブリッジが書き込むファイルのパスまたは URL です",
       "mediaSide": "メディアコントロールを置くドックの側です",
-      "enableSync": "Atrix の起動中にバックグラウンドで実行します。",
-      "interval": "ペアリングしたデバイスと同期する頻度です。",
-      "collections": "このデバイスが送受信する内容です。",
-      "unlinkDevice": "ペアリングしたすべてのデバイスとの同期を停止します。",
       "dockSeparators": "ランチャー、アプリ、トレイの間に細い区切り線を表示します",
       "clockAlign": "時刻と日付を揃える位置です",
       "editMode": "画面を暗くし、Atrix の各部分をクリックしてオプションを変更します。",
@@ -359,13 +327,9 @@
       "holidayRegion": "祝日を表示する国です。システムは Windows に従います",
       "featureCalendar": "時計からカレンダーと予定のパネルを開きます",
       "dockLayout": "編集モードでウィジェットの順序と余白の幅を調整します",
-      "pairDevice": "ここでコードを作成し、もう一方のデバイスで入力してください。",
-      "joinDevice": "もう一方のデバイスで作成したコードを貼り付けてください。",
-      "showSyncStatus": "時計の横に同期状態をドットで表示します",
       "lastEntryPoint": "ドックかランチャーのどちらかはオンにしてください",
       "dockLayoutLocked": "試験的機能で編集モードをオンにすると使用できます",
       "dockGrowth": "ウィンドウが多いとこの割合まで広げて残りのアプリを ⋯ メニューにまとめ、0% では幅を固定します",
-      "studio": "自分の設定ですべてのウィンドウをサンドボックスでプレビューし、結果を Atrix に適用します",
       "hideDelay": "カーソルがドックを離れてから隠れるまでの時間です",
       "trayNeedsDock": "ドックをオンにすると使用できます",
       "atrixFiles": "Windows エクスプローラーに代わるファイルエクスプローラーです",
@@ -380,14 +344,6 @@
       "dockIcon": "ランチャーボタンと非表示時のロゴに使う画像です。",
       "gatherHideMs": "ドックがロゴにまとまって消えるまでの時間です。",
       "gatherShowMs": "ドックがロゴから再び広がるまでの時間です。",
-      "noteStatus": "Note をインストールすると連携できます",
-      "noteLink": "この PC の Note と下の項目をやり取りします",
-      "note": {
-        "calendar": "Atrix と Note の予定を互いに反映します",
-        "style": "Note が Atrix の外観設定に従います",
-        "references": "予定のメモで [[ と入力すると Note のページを探してリンクします",
-        "preview": "ページリンクにカーソルを合わせると左に Note の内容を表示します"
-      },
       "panelStart": "カレンダーを開いたときに最初に表示されるサイズです。",
       "font": "一覧にないフォントは、インストール済みの名前を入力してください。",
       "metersStacked": "CPU とメモリの使用量を 2 行で表示します"
@@ -414,7 +370,6 @@
       "deg": "{value} deg",
       "runSetup": "セットアップを実行",
       "inherit": "ウィンドウと同じ",
-      "openStudio": "Studio を開く",
       "systemFont": "システムフォント",
       "customFont": "直接入力"
     },
@@ -565,59 +520,6 @@
         "always": "常に"
       }
     },
-    "sync": {
-      "devices": {
-        "title": "デバイス",
-        "description": "このデバイスとペアリングしたデバイス"
-      },
-      "collections": {
-        "todos": "タスク",
-        "events": "予定",
-        "profile": "プロファイル",
-        "presets": "プリセット",
-        "notes": "メモ"
-      },
-      "everyHour": "1時間ごと",
-      "everyMinutes": "{minutes}分ごと",
-      "states": {
-        "disabled": "オフ",
-        "unpaired": "未接続",
-        "waiting": "ペアリング待ち",
-        "idle": "接続済み",
-        "syncing": "同期中",
-        "error": "エラー"
-      },
-      "lastSync": "最終同期: {when}",
-      "neverSynced": "未同期",
-      "justNow": "たった今",
-      "syncNow": "今すぐ同期",
-      "noDevices": "ペアリング済みのデバイスなし",
-      "seen": "最終確認: {when}",
-      "thisDevice": "このデバイス",
-      "unlink": "接続解除",
-      "toasts": {
-        "failed": "同期に失敗しました。",
-        "synced": "{count} 台のデバイスと同期しました。",
-        "unlinked": "接続を解除しました。",
-        "noPeers": "接続できるデバイスがありません。",
-        "joined": "接続しました。",
-        "copied": "コードをコピーしました。",
-        "removed": "デバイスを削除しました"
-      },
-      "confirm": {
-        "unlinkTitle": "このデバイスの接続を解除しますか?",
-        "unlinkBody": "他のデバイスとの同期を停止します。ローカルデータは保持されます。",
-        "removeTitle": "{name} を削除しますか?",
-        "removeBody": "すべてのデバイスから削除し、ペアリングコードを変更します。以前のペアリングコードは使えなくなります。"
-      },
-      "description": "{collections}をデバイス間で同期します。",
-      "neverSeen": "接続履歴なし",
-      "createCode": "ペアリングコードを作成",
-      "joinWithCode": "コードで接続",
-      "copyCode": "コードをコピー",
-      "codePlaceholder": "ペアリングコード",
-      "remove": "削除"
-    },
     "backup": {
       "exportJson": "JSON をエクスポート",
       "copyJson": "JSON をコピー",
@@ -634,20 +536,7 @@
       "features": "機能",
       "system": "システム"
     },
-    "tocAria": "グループ",
-    "themeLink": {
-      "title": "テーマの適用",
-      "body": "外観をコミュニティテーマ「{name}」に切り替えます。",
-      "apply": "適用"
-    },
-    "note": {
-      "states": {
-        "missing": "未インストール",
-        "waiting": "接続待ち",
-        "linked": "接続済み"
-      },
-      "open": "Note を開く"
-    }
+    "tocAria": "グループ"
   },
   "launcher": {
     "placeholder": "アプリ、ウィンドウ、コマンドを検索",
@@ -1064,8 +953,6 @@
       },
       "detail": "予定の詳細",
       "noNotes": "メモなし",
-      "openInNote": "Note で開く",
-      "previewMissing": "プレビューなし",
       "timeFromTitle": "{time} 開始",
       "tags": "タグ",
       "newTag": "新しいタグ",
@@ -1268,7 +1155,6 @@
       "style": "スタイル",
       "dock": "ドック",
       "hotkeys": "ホットキー",
-      "sync": "同期",
       "tips": "ヒント",
       "done": "完了"
     },
@@ -1305,10 +1191,6 @@
       "blurb": "ランチャーの呼び出し方を選んでください。",
       "info": "{win} を単独で押すと Atrix が開きます。{win} + {e} などの組み合わせは通常どおり使えます。",
       "winOr": "Win キーまたは {shortcut}"
-    },
-    "sync": {
-      "title": "デバイス間で同期",
-      "blurb": "省略できます。別のデバイスとペアリングするか、スキップしてあとで設定してください。"
     },
     "tips": {
       "title": "いくつかのヒント",
@@ -1364,15 +1246,6 @@
     "battery": {
       "level": "バッテリー {percent}%",
       "charging": "充電中"
-    },
-    "sync": {
-      "failed": "同期に失敗しました: {error}",
-      "unknownError": "不明なエラー",
-      "syncing": "同期中",
-      "synced": "同期済み: {time}",
-      "ready": "同期の準備完了",
-      "unpaired": "同期: 未接続",
-      "waiting": "同期: ペアリング待ち"
     },
     "notifications": {
       "title": "通知",
@@ -1460,32 +1333,5 @@
       "title": "Atrix のアップデート",
       "body": "設定の詳細設定からバージョン {version} をインストールしてください。"
     }
-  },
-  "studio": {
-    "windows": "ウィンドウ",
-    "pick": "左からウィンドウを選択してください。",
-    "reload": "再読み込み",
-    "reloadSettings": "自分の設定を読み込む",
-    "resetData": "データのリセット",
-    "apply": "Atrix に適用",
-    "applied": "適用済み",
-    "confirm": {
-      "title": "Atrix に適用しますか?",
-      "body": "外観、ドック、ランチャー、カレンダーの設定を Studio の設定に置き換えます。デバイス名、固定したアプリ、同期はそのままです。",
-      "action": "適用"
-    },
-    "names": {
-      "main": "ランチャー",
-      "taskbar": "ドック",
-      "topbar": "トップバー",
-      "settings": "設定",
-      "panel": "カレンダーパネル",
-      "notices": "通知",
-      "onboarding": "セットアップ",
-      "preview": "ウィンドウプレビュー",
-      "files": "Files",
-      "edit": "編集モード"
-    },
-    "publish": "テーマを公開"
   }
 }

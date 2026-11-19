@@ -13,7 +13,7 @@ import type {
   newId,
   removeOccurrence,
   updateProfileSynced,
-} from "#lib/data/index.js"
+} from "#lib/desktop/data/index.js"
 import {
   groupRecords,
   newTag,

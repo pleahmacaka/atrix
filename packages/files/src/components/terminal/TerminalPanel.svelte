@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import {
     acceptTabs,
     adoptTab,
@@ -11,9 +10,10 @@
     setHost,
     TabStrip,
   } from "@atrix/terminal"
-  import { t } from "svelte-i18n"
   import { Splitter } from "@atrix/ui"
-  import { fail, type Explorer } from "../../store/explorer.svelte"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { type Explorer, fail } from "../../store/explorer.svelte"
   import { terminal, terminalPrefs } from "../../store/terminal.svelte"
 
   let { explorer }: { explorer: Explorer } = $props()

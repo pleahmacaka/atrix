@@ -5,8 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use crate::apps::launcher;
-use crate::shell::windowing;
+use crate::desktop::apps::launcher;
+use crate::desktop::shell::windowing;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -153,7 +153,7 @@ mod win {
     use diesel::prelude::*;
     use diesel::sqlite::SqliteConnection;
 
-    use super::{database_copy, filetime_ms, now_ms, Notice};
+    use super::{Notice, database_copy, filetime_ms, now_ms};
 
     static DATABASE: Mutex<()> = Mutex::new(());
 

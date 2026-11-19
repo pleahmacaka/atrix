@@ -56,7 +56,7 @@ fn main() {
     }
 
     let pubkey = json_string(
-        "../../desktop/src-tauri/tauri.conf.json",
+        "../../../src-tauri/tauri.conf.json",
         "/plugins/updater/pubkey",
     );
     let version = json_string("../package.json", "/version");

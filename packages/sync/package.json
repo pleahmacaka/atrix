@@ -1,8 +1,9 @@
 {
   "name": "@atrix/sync",
-  "private": true,
-  "type": "module",
   "version": "0.0.0",
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
   "exports": {
     "./protocol": {
       "types": "./src/protocol.ts",
@@ -13,13 +14,9 @@
       "default": "./src/merge.ts"
     }
   },
+  "private": true,
   "scripts": {
     "check": "tsc -p tsconfig.json"
   },
-  "dependencies": {
-    "@atrix/bridge": "workspace:*"
-  },
-  "devDependencies": {
-    "typescript": "^6.0.3"
-  }
+  "type": "module"
 }

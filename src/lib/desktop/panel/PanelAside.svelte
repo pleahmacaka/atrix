@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Aura } from "@atrix/ui"
   import { Ssgoi } from "@ssgoi/svelte"
-  import { swapConfig } from "#lib/motion.js"
+  import { swapConfig } from "#lib/desktop/motion.js"
   import DayPane from "./DayPane.svelte"
   import EventDetail from "./EventDetail.svelte"
   import NotesPane from "./NotesPane.svelte"

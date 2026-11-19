@@ -4,7 +4,7 @@
   import { currentLocale } from "@atrix/i18n"
   import Icon from "@iconify/svelte"
   import { on } from "svelte/events"
-  import { longDay } from "#lib/calendar/index.js"
+  import { longDay } from "#lib/desktop/calendar/index.js"
 
   let {
     value,

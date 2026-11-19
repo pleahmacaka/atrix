@@ -20,7 +20,7 @@
   let dragging = $state(false)
 
   const natural = () =>
-    image && image.clientWidth ? image.naturalWidth / image.clientWidth : 1
+    image?.clientWidth ? image.naturalWidth / image.clientWidth : 1
 
   const percent = $derived(Math.round((scale / natural()) * 100))
 

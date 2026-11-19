@@ -1,13 +1,13 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { currentLocale } from "@atrix/i18n"
   import { Aura } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { longDay } from "#lib/calendar/index.js"
-  import { dateKey, isDone } from "#lib/data/index.js"
+  import { longDay } from "#lib/desktop/calendar/index.js"
+  import { dateKey, isDone } from "#lib/desktop/data/index.js"
   import type { Morph } from "./morph.svelte"
-  import type { Panel } from "./panel.svelte"
   import PanelAside from "./PanelAside.svelte"
+  import type { Panel } from "./panel.svelte"
 
   const DOTS = 3
 
@@ -47,7 +47,7 @@
       <div class="flex shrink-0 items-center gap-1">
 
         <div class="join">
-          <button
+          <button type="button"
             class="join-item btn btn-xs btn-ghost btn-square"
             aria-label={$t("common.previous")}
             onclick={() => panel.shift(-1)}
@@ -55,11 +55,11 @@
             <Icon icon="lucide:chevron-left" class="size-3.5" />
           </button>
 
-          <button class="join-item btn btn-xs btn-ghost" onclick={panel.jumpToday}>
+          <button type="button" class="join-item btn btn-xs btn-ghost" onclick={panel.jumpToday}>
             {$t("dates.today")}
           </button>
 
-          <button
+          <button type="button"
             class="join-item btn btn-xs btn-ghost btn-square"
             aria-label={$t("common.next")}
             onclick={() => panel.shift(1)}
@@ -68,7 +68,7 @@
           </button>
         </div>
 
-        <button
+        <button type="button"
           class={["btn btn-ghost btn-square btn-xs", panel.view.kind === "notes" && "btn-active"]}
           aria-label={$t("panel.notesAria")}
           aria-pressed={panel.view.kind === "notes"}
@@ -77,7 +77,7 @@
           <Icon icon="lucide:sticky-note" class="size-3.5" />
         </button>
 
-        <button
+        <button type="button"
           class="btn btn-ghost btn-square btn-xs"
           aria-label={$t("panel.expand")}
           onclick={morph.expand}

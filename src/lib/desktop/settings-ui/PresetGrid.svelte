@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { live, presets as userPresets } from "#lib/data/index.js"
   import { CUSTOM_PRESET, type Profile } from "@atrix/settings"
-  import { type PresetDefinition, presets as builtIn } from "#lib/theme.js"
-  import { allPresets, matchPreset, swatchFor } from "./presets"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
+  import { live, presets as userPresets } from "#lib/desktop/data/index.js"
+  import { presets as builtIn, type PresetDefinition } from "#lib/desktop/theme.js"
+  import { allPresets, matchPreset, swatchFor } from "./presets"
 
   let { profile = $bindable() }: { profile: Profile } = $props()
 

@@ -1,6 +1,4 @@
 @theme {
-  --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
-  --font-mono: "Pretendard Variable", Pretendard, system-ui, sans-serif;
   --blur-md: calc(0.75rem * var(--blur-scale));
   --blur-xl: calc(1.5rem * var(--blur-scale));
   --blur-2xl: calc(2.5rem * var(--blur-scale));
@@ -18,76 +16,6 @@
       transform: translateY(0.5rem);
     }
   }
-}
-
-@plugin "daisyui/theme" {
-  name: "atrix";
-  default: true;
-  prefersdark: true;
-  color-scheme: "dark";
-  --color-base-100: oklch(18% calc(var(--vividness) * 0.25) var(--accent-hue));
-  --color-base-200: oklch(15% calc(var(--vividness) * 0.25) var(--accent-hue));
-  --color-base-300: oklch(12% calc(var(--vividness) * 0.25) var(--accent-hue));
-  --color-base-content: oklch(96% calc(var(--vividness) * 0.12) var(--accent-hue));
-  --color-primary: oklch(70% min(0.25, calc(var(--vividness) * 2)) var(--accent-hue));
-  --color-primary-content: oklch(16% calc(var(--vividness) * 0.5) var(--accent-hue));
-  --color-secondary: oklch(72% var(--vividness) calc(var(--accent-hue) + var(--accent-spread)));
-  --color-secondary-content: oklch(16% calc(var(--vividness) * 0.5) calc(var(--accent-hue) + var(--accent-spread)));
-  --color-accent: oklch(78% var(--vividness) calc(var(--accent-hue) - var(--accent-spread)));
-  --color-accent-content: oklch(18% calc(var(--vividness) * 0.5) calc(var(--accent-hue) - var(--accent-spread)));
-  --color-neutral: oklch(24% calc(var(--vividness) * 0.25) var(--accent-hue));
-  --color-neutral-content: oklch(92% calc(var(--vividness) * 0.12) var(--accent-hue));
-  --color-info: oklch(74% 0.13 232);
-  --color-info-content: oklch(18% 0.05 232);
-  --color-success: oklch(74% 0.16 152);
-  --color-success-content: oklch(18% 0.05 152);
-  --color-warning: oklch(80% 0.16 75);
-  --color-warning-content: oklch(18% 0.05 75);
-  --color-error: oklch(66% 0.2 20);
-  --color-error-content: oklch(16% 0.05 20);
-  --radius-selector: calc(0.75rem * var(--radius-scale));
-  --radius-field: calc(0.5rem * var(--radius-scale));
-  --radius-box: calc(1rem * var(--radius-scale));
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 0.0625rem;
-  --depth: 0;
-  --noise: 0;
-}
-
-@plugin "daisyui/theme" {
-  name: "atrix-light";
-  default: false;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: oklch(97% calc(var(--vividness) * 0.15) var(--accent-hue));
-  --color-base-200: oklch(94% calc(var(--vividness) * 0.18) var(--accent-hue));
-  --color-base-300: oklch(90% calc(var(--vividness) * 0.2) var(--accent-hue));
-  --color-base-content: oklch(25% calc(var(--vividness) * 0.2) var(--accent-hue));
-  --color-primary: oklch(55% min(0.22, calc(var(--vividness) * 2)) var(--accent-hue));
-  --color-primary-content: oklch(98% calc(var(--vividness) * 0.1) var(--accent-hue));
-  --color-secondary: oklch(60% var(--vividness) calc(var(--accent-hue) + var(--accent-spread)));
-  --color-secondary-content: oklch(98% calc(var(--vividness) * 0.1) calc(var(--accent-hue) + var(--accent-spread)));
-  --color-accent: oklch(62% var(--vividness) calc(var(--accent-hue) - var(--accent-spread)));
-  --color-accent-content: oklch(98% calc(var(--vividness) * 0.1) calc(var(--accent-hue) - var(--accent-spread)));
-  --color-neutral: oklch(35% calc(var(--vividness) * 0.2) var(--accent-hue));
-  --color-neutral-content: oklch(96% calc(var(--vividness) * 0.1) var(--accent-hue));
-  --color-info: oklch(55% 0.13 232);
-  --color-info-content: oklch(98% 0.02 232);
-  --color-success: oklch(58% 0.15 152);
-  --color-success-content: oklch(98% 0.02 152);
-  --color-warning: oklch(72% 0.15 75);
-  --color-warning-content: oklch(20% 0.05 75);
-  --color-error: oklch(58% 0.2 20);
-  --color-error-content: oklch(98% 0.02 20);
-  --radius-selector: calc(0.75rem * var(--radius-scale));
-  --radius-field: calc(0.5rem * var(--radius-scale));
-  --radius-box: calc(1rem * var(--radius-scale));
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 0.0625rem;
-  --depth: 0;
-  --noise: 0;
 }
 
 @layer base {
@@ -156,20 +84,17 @@
     --shell-radius: 0rem;
   }
 
-  :root,
-  :root[data-theme],
-  body {
-    background-color: transparent;
-  }
-
-  html,
-  body {
+  :root[data-surface],
+  :root[data-surface] body {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    background-color: transparent;
   }
 
-  html {
+  :root[data-surface] {
+    --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    --font-mono: "Pretendard Variable", Pretendard, system-ui, sans-serif;
     font-family: var(--font-sans);
     font-size: calc(100% * var(--font-scale));
     font-feature-settings: "tnum" 1;
@@ -177,24 +102,21 @@
     text-rendering: optimizeLegibility;
   }
 
-  code,
-  kbd,
-  samp,
-  pre {
+  :root[data-surface] :is(code, kbd, samp, pre) {
     font-family: inherit;
   }
 
-  ::selection {
+  :root[data-surface] ::selection {
     background-color: var(--color-primary);
     color: var(--color-primary-content);
   }
 
-  :focus-visible {
+  :root[data-surface] :focus-visible {
     outline: 0.125rem solid var(--color-primary);
     outline-offset: 0.125rem;
   }
 
-  * {
+  :root[data-surface] * {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklch, var(--color-base-content) 18%, transparent)
       transparent;
@@ -228,11 +150,14 @@
 }
 
 @layer utilities {
-  .input:focus,
-  .input:focus-within,
-  .select:focus,
-  .select:focus-within,
-  .textarea:focus {
+  :root[data-surface]
+    :is(
+      .input:focus,
+      .input:focus-within,
+      .select:focus,
+      .select:focus-within,
+      .textarea:focus
+    ) {
     outline: none;
   }
 }

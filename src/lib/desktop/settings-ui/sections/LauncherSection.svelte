@@ -1,14 +1,14 @@
 <script lang="ts">
   import {
     type DeviceSettings,
-    type Profile,
-    type TerminalApp,
     defaultDevice,
     defaultProfile,
+    type Profile,
+    type TerminalApp,
   } from "@atrix/settings"
   import { Row, Section, Segmented, SubRows } from "@atrix/ui"
   import { t } from "svelte-i18n"
-  import { installedTerminals } from "#lib/native/index.js"
+  import { installedTerminals } from "#lib/desktop/native/index.js"
   import FeatureGate from "../FeatureGate.svelte"
   import HotkeyPicker from "../HotkeyPicker.svelte"
   import { pinnableRow, reset } from "../reset"

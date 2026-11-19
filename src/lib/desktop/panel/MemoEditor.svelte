@@ -1,17 +1,13 @@
 <script lang="ts">
-  import type { BlockLabels, CompletionSource, EditorView } from "@atrix/live-editor"
+  import type { BlockLabels, EditorView } from "@atrix/live-editor"
   import { t } from "svelte-i18n"
-  import { citationOf } from "#lib/data/index.js"
-  import { notePages } from "#lib/native/index.js"
 
   const {
     text,
-    references,
     onchange,
     onblur,
   }: {
     text: string
-    references: boolean
     onchange: (text: string) => void
     onblur: () => void
   } = $props()
@@ -30,40 +26,24 @@
     date: $t("panel.event.blocks.date"),
   })
 
-  const citations: CompletionSource = async context => {
-    const typed = context.matchBefore(/\[\[[^\]\n]*/)
-
-    if (!typed || !references) {
-      return null
-    }
-
-    const found = await notePages(typed.text.slice(2)).catch(() => [])
-
-    return {
-      from: typed.from,
-      filter: false,
-      options: found.map(page => ({
-        label: page.title,
-        detail: page.path,
-        apply: (view: EditorView, _completion: unknown, from: number, to: number) => {
-          const closed = view.state.sliceDoc(to, to + 2) === "]]" ? 2 : 0
-          const insert = citationOf(page.title, page.path)
-
-          view.dispatch({
-            changes: { from, to: to + closed, insert },
-            selection: { anchor: from + insert.length },
-          })
-        },
-      })),
-    }
-  }
-
-  let closingMenu = false
-
   const mount = (host: HTMLElement) => {
     let view: EditorView | undefined
     let gone = false
     let unsaved = false
+    let closingMenu = false
+
+    const noteMenu = (e: KeyboardEvent) => {
+      closingMenu = e.key === "Escape" && !!host.querySelector(".cm-tooltip-autocomplete")
+    }
+
+    const keepMenuEscape = (e: KeyboardEvent) => {
+      if (closingMenu) {
+        e.stopPropagation()
+      }
+    }
+
+    host.addEventListener("keydown", noteMenu, { capture: true })
+    host.addEventListener("keydown", keepMenuEscape)
 
     import("@atrix/live-editor").then(({ createLiveEditor, placeCaretAtEnd }) => {
       if (gone) {
@@ -75,7 +55,6 @@
         doc: text,
         placeholder: $t("panel.event.writeNotes"),
         blocks: blockLabels(),
-        completions: [citations],
         onChange: next => {
           unsaved = true
           onchange(next)
@@ -91,6 +70,8 @@
     // closing the panel removes the editor without a blur, so pending text is saved here
     return () => {
       gone = true
+      host.removeEventListener("keydown", noteMenu, { capture: true })
+      host.removeEventListener("keydown", keepMenuEscape)
       view?.destroy()
 
       if (unsaved) {
@@ -102,14 +83,5 @@
 
 <div
   {@attach mount}
-  role="presentation"
-  onkeydowncapture={e => {
-    closingMenu = e.key === "Escape" && !!e.currentTarget.querySelector(".cm-tooltip-autocomplete")
-  }}
-  onkeydown={e => {
-    if (closingMenu) {
-      e.stopPropagation()
-    }
-  }}
   class="memo -mx-2 min-h-7 rounded-field bg-base-content/6 px-2 py-1 text-sm"
 ></div>

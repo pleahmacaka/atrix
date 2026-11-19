@@ -105,7 +105,12 @@
         <span class="max-w-24 truncate">{head.branch}</span>
       </span>
     {:else if part === "fork" && host.fork}
-      <span class="flex shrink-0 items-center" title={forkLabel} aria-label={forkLabel}>
+      <span
+        role="img"
+        class="flex shrink-0 items-center"
+        title={forkLabel}
+        aria-label={forkLabel}
+      >
         <Icon icon="lucide:git-fork" class="size-3" />
       </span>
     {/if}

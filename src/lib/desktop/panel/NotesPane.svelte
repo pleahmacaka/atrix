@@ -10,7 +10,7 @@
     noteTitle,
     searchNotes,
     sortNotes,
-  } from "#lib/data/index.js"
+  } from "#lib/desktop/data/index.js"
 
   const { items, back }: { items: Note[]; back: () => void } = $props()
 
@@ -234,9 +234,8 @@
         onkeydown={onEditorKey}
       />
 
-      <div
+      <fieldset
         class="flex items-center gap-2 px-0.5"
-        role="radiogroup"
         aria-label={$t("panel.event.color")}
       >
         {#each COLORS as color (color.id)}
@@ -249,14 +248,13 @@
                 "ring-2 ring-base-content/80 ring-offset-2 ring-offset-base-100",
             ]}
             style:background={color.value ?? "var(--color-primary)"}
-            role="radio"
-            aria-checked={draft.color === color.value}
+            aria-pressed={draft.color === color.value}
             aria-label={$t(`panel.colors.${color.id}`)}
             onkeydown={onEditorKey}
             onclick={() => patch({ color: color.value })}
           ></button>
         {/each}
-      </div>
+      </fieldset>
 
       <textarea
         bind:value={draft.body}

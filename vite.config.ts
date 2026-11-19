@@ -1,5 +1,6 @@
 import { icons as logos } from "@iconify-json/logos"
 import { icons as lucide } from "@iconify-json/lucide"
+import { icons as materialIcons } from "@iconify-json/material-icon-theme"
 import { icons as simpleIcons } from "@iconify-json/simple-icons"
 import { icons as thesvg } from "@iconify-json/thesvg"
 import { paraglideVitePlugin } from "@inlang/paraglide-js"
@@ -25,8 +26,8 @@ export default defineConfig({
       disableAsyncLocalStorage: true,
     }),
     iconifyEmbed({
-      collections: [lucide, simpleIcons, logos, thesvg],
-      scan: ["src"],
+      collections: [lucide, simpleIcons, logos, thesvg, materialIcons],
+      scan: ["src", "packages"],
     }),
     tailwindcss(),
     sveltekit({

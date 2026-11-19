@@ -31,14 +31,14 @@ fn stamp(file: &str) -> String {
 
 // an app updated in place keeps its path, so the key also carries the stamps of the files behind its icon
 fn cache_key(path: &str) -> (String, String) {
-    let target = crate::apps::launcher::shortcut_target(path);
+    let target = crate::desktop::apps::launcher::shortcut_target(path);
     let stamps = std::iter::once(path)
         .chain(target.as_deref())
         .map(stamp)
         .collect::<Vec<_>>()
         .join("|");
-    let base = crate::apps::launcher::stable_id(path);
-    let version = crate::apps::launcher::stable_id(&stamps);
+    let base = crate::desktop::apps::launcher::stable_id(path);
+    let version = crate::desktop::apps::launcher::stable_id(&stamps);
 
     (base.clone(), format!("{base}-{version}"))
 }
@@ -170,21 +170,20 @@ pub fn clear_icon_cache(app: AppHandle) -> Result<(), String> {
 }
 
 mod win {
-    use windows::core::{HSTRING, PCWSTR};
-    use windows::Win32::Foundation::SIZE;
     use windows::Win32::Foundation::S_OK;
+    use windows::Win32::Foundation::SIZE;
     use windows::Win32::Graphics::Gdi::{
-        CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, GetDIBits, GetObjectW,
-        ReleaseDC, SelectObject, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
-        HBITMAP, HGDIOBJ,
+        BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
+        DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, GetObjectW, HBITMAP, HGDIOBJ,
+        ReleaseDC, SelectObject,
     };
-    use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+    use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
     use windows::Win32::UI::Shell::{
-        BHID_SFUIObject, IExtractIconW, IShellItem, IShellItemImageFactory,
-        SHCreateItemFromParsingName, SHDefExtractIconW, GIL_NOTFILENAME, SIIGBF_BIGGERSIZEOK,
-        SIIGBF_ICONONLY,
+        BHID_SFUIObject, GIL_NOTFILENAME, IExtractIconW, IShellItem, IShellItemImageFactory,
+        SHCreateItemFromParsingName, SHDefExtractIconW, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
     };
-    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, DrawIconEx, DI_NORMAL, HICON};
+    use windows::Win32::UI::WindowsAndMessaging::{DI_NORMAL, DestroyIcon, DrawIconEx, HICON};
+    use windows::core::{HSTRING, PCWSTR};
 
     const ICON_SIZE: i32 = 64;
     const TRAY_SIZE: i32 = 32;
@@ -294,9 +293,9 @@ mod win {
             return None;
         }
 
-        let opaque = buffer.chunks_exact(4).all(|pixel| pixel[3] == 0);
+        let opaque = buffer.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 0);
 
-        for pixel in buffer.chunks_exact_mut(4) {
+        for pixel in buffer.as_chunks_mut::<4>().0 {
             pixel.swap(0, 2);
 
             let alpha = pixel[3] as u32;
@@ -372,7 +371,7 @@ mod win {
             }
 
             let bitmap = image_of(path).or_else(|| {
-                crate::apps::launcher::shortcut_target(path)
+                crate::desktop::apps::launcher::shortcut_target(path)
                     .as_deref()
                     .and_then(|target| image_of(target))
             })?;
@@ -389,7 +388,7 @@ mod win {
 mod tests {
     #[test]
     fn renders_an_icon_from_a_start_menu_shortcut() {
-        let apps = crate::apps::launcher::list_apps();
+        let apps = crate::desktop::apps::launcher::list_apps();
 
         let png = apps
             .iter()

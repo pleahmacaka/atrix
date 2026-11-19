@@ -1,14 +1,13 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
-  import { t } from "svelte-i18n"
   import { SvelteSet } from "svelte/reactivity"
   import { fade } from "svelte/transition"
-  import { write } from "../pty"
+  import { t } from "svelte-i18n"
   import ClaudeSplit from "../claude/ClaudeSplit.svelte"
+  import { write } from "../pty"
   import Terminal from "../Terminal.svelte"
-  import { drag, onTabDrop } from "./drag.svelte"
   import DragGhost from "./DragGhost.svelte"
-  import { prefs } from "./prefs.svelte"
+  import { drag, onTabDrop } from "./drag.svelte"
   import {
     type Divider,
     isSplit,
@@ -18,6 +17,7 @@
     type Side,
     sideAt,
   } from "./layout"
+  import { prefs } from "./prefs.svelte"
   import {
     bindPty,
     closePane,
@@ -269,15 +269,15 @@
   {#each dividers as divider (`${divider.split.id}:${divider.index}`)}
     {@const row = divider.split.dir === "row"}
 
-    <div
-      role="separator"
+    <hr
       aria-orientation={row ? "vertical" : "horizontal"}
       aria-label={$t("terminal.panes.resize")}
       class={[
-        "group absolute z-10 flex items-center justify-center",
+        "absolute z-10 flex items-center justify-center border-0",
+        "before:bg-base-content/10 before:transition-colors hover:before:bg-primary/60",
         row
-          ? "w-2 -translate-x-1/2 cursor-col-resize"
-          : "h-2 -translate-y-1/2 cursor-row-resize",
+          ? "w-2 -translate-x-1/2 cursor-col-resize before:h-full before:w-0.25"
+          : "h-2 -translate-y-1/2 cursor-row-resize before:h-0.25 before:w-full",
       ]}
       style:left="{(row
         ? divider.rect.x + divider.at * divider.rect.w
@@ -289,14 +289,7 @@
       style:height={row ? `${divider.rect.h * 100}%` : undefined}
       onpointerdown={e => resize(e, divider)}
       ondblclick={() => equalize(divider)}
-    >
-      <span
-        class={[
-          "bg-base-content/10 transition-colors group-hover:bg-primary/60",
-          row ? "h-full w-0.25" : "h-0.25 w-full",
-        ]}
-      ></span>
-    </div>
+    />
   {/each}
 
   {#if target && preview}

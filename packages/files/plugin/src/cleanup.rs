@@ -50,7 +50,9 @@ fn version_strings(path: &str) -> Vec<String> {
     let pairs = unsafe { std::slice::from_raw_parts(pairs, bytes / 2) }.to_vec();
 
     pairs
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .flat_map(|pair| {
             [
                 "FileDescription",

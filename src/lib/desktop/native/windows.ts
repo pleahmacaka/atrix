@@ -12,15 +12,13 @@ export type WindowEntry = {
 }
 
 export type WindowLabel =
-  | "main"
+  | "launcher"
   | "taskbar"
   | "topbar"
   | "settings"
-  | "note"
   | "panel"
   | "notices"
   | "onboarding"
-  | "studio"
 
 export const listWindows = () => invoke<WindowEntry[]>("list_windows")
 
@@ -98,8 +96,3 @@ export type MonitorInfo = {
 }
 
 export const listMonitors = () => invoke<MonitorInfo[]>("list_monitors")
-
-export const takeThemeLink = () => invoke<string | null>("take_theme_link")
-
-export const onThemeLink = (handler: () => void) =>
-  listen("atrix-theme-link", handler)

@@ -1,7 +1,7 @@
 <script module lang="ts">
   import { relaunch } from "@tauri-apps/plugin-process"
   import { check, type Update } from "@tauri-apps/plugin-updater"
-  import { resumeShell, suspendShell } from "#lib/native/dock.js"
+  import { resumeShell, suspendShell } from "#lib/desktop/native/dock.js"
 
   type UpdateState = "idle" | "checking" | "none" | "available" | "downloading" | "installing" | "failed"
 
@@ -72,8 +72,8 @@
 </script>
 
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Row } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
 </script>
 

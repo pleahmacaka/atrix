@@ -55,10 +55,6 @@
         "label": "Calendar",
         "blurb": "Opening size, week start, and holidays"
       },
-      "sync": {
-        "label": "Sync",
-        "blurb": "Sync data directly between your devices"
-      },
       "experimental": {
         "label": "Experimental",
         "blurb": "Try features before they ship"
@@ -74,10 +70,6 @@
       "about": {
         "label": "About",
         "blurb": "Version and updates"
-      },
-      "note": {
-        "label": "Note",
-        "blurb": "Connect ArixLab Note for calendar, style, and page references"
       }
     },
     "groups": {
@@ -134,10 +126,6 @@
       "windowBackgrounds": {
         "title": "Per-window backgrounds",
         "description": "Give each window its own background"
-      },
-      "note": {
-        "title": "Note link",
-        "description": "Connect the Note installed on this PC, separate from Atrix sync and Note sync"
       },
       "linkedStyle": "Atrix link"
     },
@@ -215,10 +203,6 @@
       "claudeBridge": "Claude Code connection",
       "usageSnapshot": "Usage file",
       "mediaSide": "Media position",
-      "enableSync": "Enable sync",
-      "interval": "Interval",
-      "collections": "Collections",
-      "unlinkDevice": "Disconnect this device",
       "dockSeparators": "Separators",
       "clockAlign": "Clock alignment",
       "editMode": "Edit mode",
@@ -239,11 +223,7 @@
       "holidayRegion": "Holiday region",
       "featureCalendar": "Use the calendar panel",
       "dockLayout": "Widget layout",
-      "pairDevice": "Add a device",
-      "joinDevice": "Join another device",
-      "showSyncStatus": "Sync status dot",
       "dockGrowth": "Auto-widen",
-      "studio": "Studio",
       "hideDelay": "Hide delay",
       "atrixFiles": "Atrix Files",
       "filesDefault": "Default file manager",
@@ -261,14 +241,6 @@
       "noticesBackground": "Notifications",
       "filesBackground": "Atrix Files",
       "terminalBackground": "Atrix Terminal",
-      "noteStatus": "Status",
-      "noteLink": "Link Note",
-      "note": {
-        "calendar": "Calendar",
-        "style": "Style",
-        "references": "Page references",
-        "preview": "Preview"
-      },
       "panelStart": "Opening size",
       "font": "Font",
       "metersStacked": "CPU and memory on two lines"
@@ -335,10 +307,6 @@
       "claudeBridge": "Read usage from the Claude Code status line",
       "usageSnapshot": "File path or URL the usage bridge writes",
       "mediaSide": "Which side of the dock holds the media controls",
-      "enableSync": "Runs in the background while Atrix is open",
-      "interval": "How often to sync with paired devices",
-      "collections": "What this device sends and receives",
-      "unlinkDevice": "Stops syncing with every paired device",
       "dockSeparators": "Draw thin lines between the launcher, apps, and tray",
       "clockAlign": "How the time and date line up",
       "editMode": "Dim the screen and click any part of Atrix to change its options",
@@ -359,13 +327,9 @@
       "holidayRegion": "Country used for public holidays; System follows Windows",
       "featureCalendar": "Open the calendar and events panel from the clock",
       "dockLayout": "Arrange widget order and spacer widths in edit mode",
-      "pairDevice": "Create a code here and enter it on the other device",
-      "joinDevice": "Paste the code made on the other device",
-      "showSyncStatus": "Show a sync status dot next to the clock",
       "lastEntryPoint": "Keep the dock or the launcher on",
       "dockLayoutLocked": "Turn on edit mode under Experimental to use this",
       "dockGrowth": "With many windows the dock widens up to this much and gathers the rest under the ⋯ menu; 0% keeps the width fixed",
-      "studio": "Preview every window with your settings in a sandbox, then apply the result to Atrix",
       "hideDelay": "How long the dock waits after the cursor leaves before it hides",
       "trayNeedsDock": "Turn on the dock to use these settings",
       "atrixFiles": "The file explorer that replaces Windows File Explorer",
@@ -380,14 +344,6 @@
       "dockIcon": "Image for the launcher button and the hide logo.",
       "gatherHideMs": "How long the dock takes to gather into the logo and leave.",
       "gatherShowMs": "How long the dock takes to unfold from the logo.",
-      "noteStatus": "Install Note to connect it",
-      "noteLink": "Share the items below with Note on this PC",
-      "note": {
-        "calendar": "Keep events in step between Atrix and Note",
-        "style": "Note follows the Atrix appearance",
-        "references": "Type [[ in event notes to find and link a Note page",
-        "preview": "Hover a page link to show the note on the left"
-      },
       "panelStart": "Size the calendar opens at.",
       "font": "For any other font, type its installed name.",
       "metersStacked": "Show CPU and memory usage on two lines"
@@ -414,7 +370,6 @@
       "deg": "{value} deg",
       "runSetup": "Run setup",
       "inherit": "Same as windows",
-      "openStudio": "Open studio",
       "systemFont": "System font",
       "customFont": "Custom"
     },
@@ -565,59 +520,6 @@
         "always": "Always"
       }
     },
-    "sync": {
-      "devices": {
-        "title": "Devices",
-        "description": "Devices paired with this one"
-      },
-      "collections": {
-        "todos": "Todos",
-        "events": "Events",
-        "profile": "Profile",
-        "presets": "Presets",
-        "notes": "Notes"
-      },
-      "everyHour": "Every hour",
-      "everyMinutes": "Every {minutes} min",
-      "states": {
-        "disabled": "Off",
-        "unpaired": "Not connected",
-        "waiting": "Waiting for pairing",
-        "idle": "Connected",
-        "syncing": "Syncing",
-        "error": "Error"
-      },
-      "lastSync": "Last sync {when}",
-      "neverSynced": "Never synced",
-      "justNow": "just now",
-      "syncNow": "Sync now",
-      "noDevices": "No paired devices",
-      "seen": "Seen {when}",
-      "thisDevice": "This device",
-      "unlink": "Disconnect",
-      "toasts": {
-        "failed": "Sync failed",
-        "synced": "{count, plural, one {Synced with # device} other {Synced with # devices}}",
-        "unlinked": "Disconnected",
-        "noPeers": "No paired device is reachable",
-        "joined": "Connected",
-        "copied": "Code copied",
-        "removed": "Device removed"
-      },
-      "confirm": {
-        "unlinkTitle": "Disconnect this device?",
-        "unlinkBody": "This device stops syncing with the others. Local data stays.",
-        "removeTitle": "Remove {name}?",
-        "removeBody": "Every device drops it and the pairing code changes. Old pairing codes stop working."
-      },
-      "description": "Keeps {collections} in step across devices.",
-      "neverSeen": "Not seen yet",
-      "createCode": "Create pairing code",
-      "joinWithCode": "Connect with code",
-      "copyCode": "Copy code",
-      "codePlaceholder": "Pairing code",
-      "remove": "Remove"
-    },
     "backup": {
       "exportJson": "Export JSON",
       "copyJson": "Copy JSON",
@@ -634,20 +536,7 @@
       "features": "Features",
       "system": "System"
     },
-    "tocAria": "Groups",
-    "themeLink": {
-      "title": "Apply theme",
-      "body": "Switches your appearance to the community theme \"{name}\".",
-      "apply": "Apply"
-    },
-    "note": {
-      "states": {
-        "missing": "Not installed",
-        "waiting": "Waiting for Note",
-        "linked": "Connected"
-      },
-      "open": "Open Note"
-    }
+    "tocAria": "Groups"
   },
   "launcher": {
     "placeholder": "Search apps, windows and commands",
@@ -1064,8 +953,6 @@
       },
       "detail": "Event details",
       "noNotes": "No notes",
-      "openInNote": "Open in Note",
-      "previewMissing": "No preview",
       "timeFromTitle": "Starts at {time}",
       "tags": "Tags",
       "newTag": "New tag",
@@ -1268,7 +1155,6 @@
       "style": "Style",
       "dock": "Dock",
       "hotkeys": "Hotkeys",
-      "sync": "Sync",
       "tips": "Tips",
       "done": "Done"
     },
@@ -1305,10 +1191,6 @@
       "blurb": "Choose how the launcher comes up.",
       "info": "Tapping {win} alone opens Atrix. Combos such as {win} + {e} keep working as usual.",
       "winOr": "Win key or {shortcut}"
-    },
-    "sync": {
-      "title": "Sync across devices",
-      "blurb": "Optional. Pair with another device, or skip and set it up later."
     },
     "tips": {
       "title": "A few tips",
@@ -1364,15 +1246,6 @@
     "battery": {
       "level": "Battery {percent}%",
       "charging": "charging"
-    },
-    "sync": {
-      "failed": "Sync failed: {error}",
-      "unknownError": "unknown error",
-      "syncing": "Syncing",
-      "synced": "Synced {time}",
-      "ready": "Sync ready",
-      "unpaired": "Sync: not connected",
-      "waiting": "Sync: waiting for pairing"
     },
     "notifications": {
       "title": "Notifications",
@@ -1460,32 +1333,5 @@
       "title": "Atrix update available",
       "body": "Install version {version} from Settings, Advanced."
     }
-  },
-  "studio": {
-    "windows": "Windows",
-    "pick": "Select a window on the left.",
-    "reload": "Reload",
-    "reloadSettings": "Load my settings",
-    "resetData": "Reset data",
-    "apply": "Apply to Atrix",
-    "applied": "Applied",
-    "confirm": {
-      "title": "Apply to Atrix?",
-      "body": "Your appearance, dock, launcher and calendar settings are replaced with the Studio ones. Device name, pinned apps and sync stay as they are.",
-      "action": "Apply"
-    },
-    "names": {
-      "main": "Launcher",
-      "taskbar": "Dock",
-      "topbar": "Top bar",
-      "settings": "Settings",
-      "panel": "Calendar panel",
-      "notices": "Notifications",
-      "onboarding": "Setup",
-      "preview": "Window preview",
-      "files": "Files",
-      "edit": "Edit mode"
-    },
-    "publish": "Publish theme"
   }
 }

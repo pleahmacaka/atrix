@@ -42,9 +42,11 @@ const overlay = location.pathname.startsWith("/overlay")
 
 const floating = location.pathname.startsWith("/float")
 
+const shell = location.pathname.startsWith("/shell/")
+
 document.documentElement.lang = currentLocale()
 
-if (!overlay) {
+if (!overlay && !shell) {
   if (!floating) {
     startLogging()
     screen.watch()
@@ -56,7 +58,7 @@ if (!overlay) {
 }
 
 onMount(async () => {
-  if (overlay) {
+  if (overlay || shell) {
     return
   }
 
@@ -116,7 +118,9 @@ onMount(async () => {
 })
 </script>
 
-{#if headless}
+{#if shell}
+  {@render children()}
+{:else if headless}
   <main class="grid h-dvh place-items-center">{m.headless_running()}</main>
 {:else if !overlay && !floating && client && sync.loaded && sync.peers.size === 0}
   <Onboarding />
@@ -157,7 +161,7 @@ onMount(async () => {
   </div>
 {/if}
 
-{#if !overlay && !floating}
+{#if !overlay && !floating && !shell}
   <UpdatePrompt />
 {/if}
 

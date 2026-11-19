@@ -7,9 +7,9 @@ import {
   rank,
 } from "@atrix/launcher-core"
 import type { Profile } from "@atrix/settings"
-import type { AppEntry } from "#lib/native/apps.js"
-import type { ClipEntry } from "#lib/native/clipboard.js"
-import type { WindowEntry } from "#lib/native/windows.js"
+import type { AppEntry } from "#lib/desktop/native/apps.js"
+import type { ClipEntry } from "#lib/desktop/native/clipboard.js"
+import type { WindowEntry } from "#lib/desktop/native/windows.js"
 import { boost } from "./frecency"
 import {
   appResult,

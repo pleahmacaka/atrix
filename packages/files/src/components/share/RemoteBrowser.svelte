@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { toast } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { locale, t } from "svelte-i18n"
   import { formatBytes } from "../../format"
   import { openItem } from "../../native"
@@ -207,6 +207,6 @@
   </div>
 
   <form method="dialog" class="modal-backdrop">
-    <button>{$t("remote.close")}</button>
+    <button type="submit">{$t("remote.close")}</button>
   </form>
 </dialog>

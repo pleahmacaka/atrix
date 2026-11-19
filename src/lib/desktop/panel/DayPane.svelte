@@ -1,9 +1,9 @@
 <script lang="ts">
+  import { currentLocale } from "@atrix/i18n"
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { currentLocale } from "@atrix/i18n"
-  import { clock, shortDay, tagLabel, tagsOf } from "#lib/calendar/index.js"
-  import { type Occurrence, isDone, openEnded, parseLocal } from "#lib/data/index.js"
+  import { clock, shortDay, tagLabel, tagsOf } from "#lib/desktop/calendar/index.js"
+  import { isDone, type Occurrence, openEnded, parseLocal } from "#lib/desktop/data/index.js"
   import type { Panel } from "./panel.svelte"
 
   type Zone = "before" | "after" | "group"

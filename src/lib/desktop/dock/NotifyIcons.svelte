@@ -1,12 +1,12 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { MenuBox } from "./layout.svelte"
-  import { t } from "svelte-i18n"
-  import { flip } from "svelte/animate"
-  import { notifyIconClick, notifyIconPromote, notifyIcons, onTrayIcons, type TrayIcon } from "#lib/native/tray.js"
   import type { DockEdge } from "@atrix/settings"
-  import { ContextMenu } from "@atrix/ui"
   import type { MenuItem } from "@atrix/ui"
+  import { ContextMenu } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
+  import { flip } from "svelte/animate"
+  import { t } from "svelte-i18n"
+  import { notifyIconClick, notifyIconPromote, notifyIcons, onTrayIcons, type TrayIcon } from "#lib/desktop/native/tray.js"
+  import type { MenuBox } from "./layout.svelte"
 
   type Props = {
     compact?: boolean
@@ -261,7 +261,7 @@
 </script>
 
 {#snippet trayButton(icon: TrayIcon, small: boolean)}
-  <button
+  <button type="button"
     class={["btn btn-ghost btn-square", small ? "btn-sm" : compact ? "btn-xs" : "btn-sm"]}
     title={icon.tooltip}
     aria-label={icon.tooltip || $t("tray.icons.icon")}
@@ -312,9 +312,8 @@
 />
 
 {#if icons.length > 0}
-  <div
+  <fieldset
     class={["relative flex items-center gap-0.25", flat && "flex-wrap justify-end"]}
-    role="list"
     bind:this={row}
     ondragover={e => e.preventDefault()}
     ondrop={e => {
@@ -329,7 +328,7 @@
     }}
   >
     {#if overflow.length > 0}
-      <button
+      <button type="button"
         class={["btn btn-ghost btn-square", compact ? "btn-xs" : "btn-sm"]}
         title={$t("tray.icons.hiddenCount", { values: { count: overflow.length } })}
         aria-label={$t("tray.icons.hidden")}
@@ -354,10 +353,10 @@
       </button>
     {/if}
 
+    <ul class="contents">
     {#each shown as icon (icon.id)}
-      <div
+      <li
         animate:flip={{ duration: 120 }}
-        role="listitem"
         class={[
           "relative flex transition-opacity duration-100",
           dragId === icon.id && "opacity-30",
@@ -382,18 +381,18 @@
         {/if}
 
         {@render trayButton(icon, false)}
-      </div>
+      </li>
     {/each}
+    </ul>
 
     {#if stashOpen && overflow.length > 0}
-      <div
+      <fieldset
         bind:this={stash}
         bind:offsetHeight={stashHeight}
         class={[
           "atrix-card absolute right-0 z-50 w-max p-2",
           edge === "top" ? "top-full mt-2" : "bottom-full mb-2",
         ]}
-        role="group"
         aria-label={$t("tray.icons.hidden")}
         ondragover={e => e.preventDefault()}
         ondrop={e => {
@@ -407,13 +406,12 @@
         }}
       >
         {#if stashed.length > 0}
-          <div class="grid grid-cols-6 gap-0.5">
+          <ul class="grid grid-cols-6 gap-0.5">
             {#each stashed as icon (icon.id)}
               {@const off = hiddenSet.has(icon.id)}
 
-              <div
+              <li
                 class={["relative", off && "opacity-40"]}
-                role="listitem"
                 ondragend={() => {
                   dragId = null
                   dropId = null
@@ -436,9 +434,9 @@
                     <Icon icon={off ? "lucide:eye" : "lucide:eye-off"} class="size-2.5" />
                   </button>
                 {/if}
-              </div>
+              </li>
             {/each}
-          </div>
+          </ul>
         {:else}
           <p class="px-2 py-2 text-center text-xs text-base-content/40">
             {$t("tray.icons.allHidden", { values: { count: hiddenCount } })}
@@ -452,9 +450,9 @@
 
           <input type="checkbox" class="toggle toggle-primary toggle-xs" bind:checked={showAll} />
         </label>
-      </div>
+      </fieldset>
     {/if}
-  </div>
+  </fieldset>
 
   <ContextMenu
     bind:open={iconMenuOpen}

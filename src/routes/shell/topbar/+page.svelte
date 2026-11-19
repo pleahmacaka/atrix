@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { untrack } from "svelte"
+  import { type DeviceSettings, onDevice } from "@atrix/settings"
   import { listen } from "@tauri-apps/api/event"
   import { getCurrentWindow } from "@tauri-apps/api/window"
-  import { ensureDevice } from "#lib/device.js"
-  import { DockLayout } from "#lib/dock/index.js"
-  import LeadWidgets from "#lib/dock/LeadWidgets.svelte"
-  import Tray from "#lib/dock/Tray.svelte"
-  import * as native from "#lib/native/index.js"
-  import { onDevice, type DeviceSettings } from "@atrix/settings"
+  import { untrack } from "svelte"
+  import { ensureDevice } from "#lib/desktop/device.js"
+  import { DockLayout } from "#lib/desktop/dock/index.js"
+  import LeadWidgets from "#lib/desktop/dock/LeadWidgets.svelte"
+  import Tray from "#lib/desktop/dock/Tray.svelte"
+  import * as native from "#lib/desktop/native/index.js"
 
   document.documentElement.dataset.surface = "dock"
 

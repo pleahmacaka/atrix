@@ -6,7 +6,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_store::StoreExt;
 
-use crate::system::monitors;
+use crate::desktop::system::monitors;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -163,7 +163,7 @@ pub fn release_topbar(app: AppHandle) -> Result<(), String> {
         .ok_or("topbar window is missing")?;
 
     release(&window);
-    crate::shell::windowing::hide(&app, "topbar");
+    crate::desktop::shell::windowing::hide(&app, "topbar");
 
     Ok(())
 }
@@ -323,27 +323,26 @@ pub fn shell_tray() -> Option<isize> {
 mod win {
     use std::collections::{HashMap, HashSet};
     use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
-    use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
+    use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
     use std::sync::{LazyLock, Mutex, OnceLock};
     use std::thread::JoinHandle;
     use std::time::Duration;
 
     use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize, WebviewWindow};
     use tauri_plugin_store::StoreExt;
-    use windows::core::w;
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows::Win32::System::Threading::GetCurrentProcessId;
     use windows::Win32::UI::Shell::{
-        DefSubclassProc, SHAppBarMessage, SetWindowSubclass, ABE_BOTTOM, ABE_TOP, ABM_GETSTATE,
-        ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETAUTOHIDEBAR, ABM_SETPOS, ABM_SETSTATE,
-        ABN_POSCHANGED, ABS_AUTOHIDE, APPBARDATA,
+        ABE_BOTTOM, ABE_TOP, ABM_GETSTATE, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETAUTOHIDEBAR,
+        ABM_SETPOS, ABM_SETSTATE, ABN_POSCHANGED, ABS_AUTOHIDE, APPBARDATA, DefSubclassProc,
+        SHAppBarMessage, SetWindowSubclass,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowExW, GetWindowThreadProcessId, PostMessageW, RegisterWindowMessageW,
-        SetWindowPos, ShowWindow, HWND_BOTTOM, HWND_TOPMOST, MA_NOACTIVATE, SWP_NOACTIVATE,
-        SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOW, WM_DISPLAYCHANGE, WM_DPICHANGED,
-        WM_MOUSEACTIVATE,
+        FindWindowExW, GetWindowThreadProcessId, HWND_BOTTOM, HWND_TOPMOST, MA_NOACTIVATE,
+        PostMessageW, RegisterWindowMessageW, SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOSIZE, SetWindowPos, ShowWindow, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_MOUSEACTIVATE,
     };
+    use windows::core::w;
 
     use super::TaskbarLayout;
 
@@ -475,7 +474,7 @@ mod win {
 
                 None
             }
-            None => crate::notifications::tray::beside_host(|| unsafe {
+            None => crate::desktop::notifications::tray::beside_host(|| unsafe {
                 if layout.desktop {
                     if was_registered {
                         SHAppBarMessage(ABM_REMOVE, &mut data);
@@ -565,8 +564,8 @@ mod win {
             let had_hole = bar.hole.is_some();
 
             bar.reach = (px.max(0.0) * frame.scale).round() as i32;
-            bar.hole =
-                rect.map(|rect| crate::shell::windowing::region::physical(rect, frame.scale));
+            bar.hole = rect
+                .map(|rect| crate::desktop::shell::windowing::region::physical(rect, frame.scale));
 
             let (reach, hole) = (bar.reach, bar.hole);
             let menus_open = bars.values().any(|bar| bar.hole.is_some());
@@ -577,7 +576,7 @@ mod win {
         let hwnd = window.hwnd()?;
 
         shape(hwnd, &frame, reach, hole);
-        crate::shell::outside::watch(window.app_handle(), menus_open);
+        crate::desktop::shell::outside::watch(window.app_handle(), menus_open);
 
         // restacking on every reshape buries a tray app's context menu opened over the dock
         if hole.is_some() == had_hole {
@@ -623,7 +622,7 @@ mod win {
             ]);
         }
 
-        crate::shell::windowing::region::set(hwnd, Some(&rects), false);
+        crate::desktop::shell::windowing::region::set(hwnd, Some(&rects), false);
     }
 
     pub fn raise(window: &WebviewWindow) {
@@ -767,7 +766,7 @@ mod win {
         if let Ok(hwnd) = window.hwnd() {
             let mut data = payload(hwnd, ABE_BOTTOM);
 
-            crate::notifications::tray::beside_host(|| unsafe {
+            crate::desktop::notifications::tray::beside_host(|| unsafe {
                 SHAppBarMessage(ABM_REMOVE, &mut data);
             });
         }
@@ -828,7 +827,7 @@ mod win {
 
         data.lParam = LPARAM(state as isize);
 
-        crate::notifications::tray::beside_host(|| unsafe {
+        crate::desktop::notifications::tray::beside_host(|| unsafe {
             SHAppBarMessage(ABM_SETSTATE, &mut data);
         });
 
@@ -838,7 +837,7 @@ mod win {
     fn current_shell_state() -> usize {
         let mut data = payload(HWND::default(), ABE_BOTTOM);
 
-        crate::notifications::tray::beside_host(|| unsafe {
+        crate::desktop::notifications::tray::beside_host(|| unsafe {
             SHAppBarMessage(ABM_GETSTATE, &mut data)
         })
     }
@@ -878,10 +877,10 @@ mod win {
 
             save_shell_state(Some(previous));
             set_shell_state(previous | ABS_AUTOHIDE as usize);
-        } else if let Some(previous) = saved_shell_state() {
-            if set_shell_state(previous) {
-                save_shell_state(None);
-            }
+        } else if let Some(previous) = saved_shell_state()
+            && set_shell_state(previous)
+        {
+            save_shell_state(None);
         }
     }
 
@@ -952,11 +951,13 @@ mod win {
         shell_taskbar_autohide(true);
 
         let (stop, stopped) = channel::<()>();
-        let worker = std::thread::spawn(move || loop {
-            set_system_taskbar_visible(false);
+        let worker = std::thread::spawn(move || {
+            loop {
+                set_system_taskbar_visible(false);
 
-            if stopped.recv_timeout(HIDE_POLL) != Err(RecvTimeoutError::Timeout) {
-                break;
+                if stopped.recv_timeout(HIDE_POLL) != Err(RecvTimeoutError::Timeout) {
+                    break;
+                }
             }
         });
 
@@ -969,7 +970,7 @@ mod tests {
     use windows::Win32::Foundation::RECT;
 
     use super::win::{offset, span};
-    use super::{bar_height, TaskbarLayout};
+    use super::{TaskbarLayout, bar_height};
 
     #[test]
     fn islands_reserve_their_inset_above_and_below_the_configured_height() {

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Row, Section, Segmented } from "@atrix/ui"
   import { defaultShell, loadShells, session } from "@atrix/terminal"
+  import { Row, Section, Segmented } from "@atrix/ui"
   import { t } from "svelte-i18n"
   import {
     fallbackManager,

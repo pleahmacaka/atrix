@@ -3,7 +3,7 @@
 use tauri::{AppHandle, Manager, PhysicalPosition, WebviewWindow};
 use tauri_plugin_store::StoreExt;
 
-use crate::shell::appbar;
+use crate::desktop::shell::appbar;
 
 fn physical_size_on(window: &WebviewWindow, scale: f64) -> tauri::Result<(i32, i32)> {
     let logical = window

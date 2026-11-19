@@ -104,7 +104,7 @@ export const applyAppearance = async (
     : null
   const mode = resolveMode(a.mode)
 
-  root.dataset.theme = mode === "light" ? "atrix-light" : "atrix"
+  root.dataset.theme = mode === "light" ? "atrix-light" : "atrix-dark"
   root.dataset.mode = mode
   root.dataset.background = background
   root.dataset.density = a.density

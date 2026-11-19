@@ -2,12 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Emitter, Manager, Webview, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Webview, WebviewWindow, WindowEvent};
 
-use crate::shell::desktop;
+use crate::desktop::shell::desktop;
 
 mod geometry;
 pub(crate) mod region;
+
+const RESIDENT: [&str; 3] = ["launcher", "taskbar", "preview"];
 
 const BLUR_TOGGLE_GUARD: Duration = Duration::from_millis(250);
 const SHOW_SETTLE: Duration = Duration::from_millis(400);
@@ -139,7 +141,7 @@ pub fn hide_on_blur(window: &WebviewWindow) {
         std::thread::sleep(SHOW_SETTLE);
 
         let _ = app.run_on_main_thread(move || {
-            if crate::shell::edit::editing()
+            if crate::desktop::shell::edit::editing()
                 || window.is_focused().unwrap_or(true)
                 || !window.is_visible().unwrap_or(false)
             {
@@ -169,10 +171,10 @@ pub fn webview_visible(app: &AppHandle, label: &str, visible: bool) {
     }
 }
 
-// child windows start hidden and show themselves from the page, which never re-shows a concealed webview
-pub fn conceal_hidden(app: &AppHandle) {
-    for config in &app.config().app.windows {
-        let Some(window) = app.get_webview_window(&config.label) else {
+// shell code reaches these by label at any time, so they are built with the shell and never retire
+pub(crate) fn build_resident(app: &AppHandle) {
+    for label in RESIDENT {
+        let Some(window) = window_for(app, label) else {
             continue;
         };
 
@@ -188,11 +190,11 @@ fn conceal(window: &WebviewWindow) {
 
     let _ = app.emit("window-hiding", label.clone());
 
-    let gen = {
+    let generation = {
         let mut fades = FADES.lock().unwrap();
-        let gen = fades.get(&label).copied().unwrap_or(0) + 1;
-        fades.insert(label.clone(), gen);
-        gen
+        let generation = fades.get(&label).copied().unwrap_or(0) + 1;
+        fades.insert(label.clone(), generation);
+        generation
     };
     let window = window.clone();
 
@@ -202,7 +204,7 @@ fn conceal(window: &WebviewWindow) {
         let proceed = {
             let mut fades = FADES.lock().unwrap();
 
-            if fades.get(&label) == Some(&gen) {
+            if fades.get(&label) == Some(&generation) {
                 fades.remove(&label);
                 true
             } else {
@@ -229,11 +231,11 @@ fn conceal(window: &WebviewWindow) {
 // lazy windows stay warm for a while after hiding, then close to free their renderer
 fn retire(window: WebviewWindow) {
     let label = window.label().to_string();
-    let gen = {
+    let generation = {
         let mut retiring = RETIRING.lock().unwrap();
-        let gen = retiring.get(&label).copied().unwrap_or(0) + 1;
-        retiring.insert(label.clone(), gen);
-        gen
+        let generation = retiring.get(&label).copied().unwrap_or(0) + 1;
+        retiring.insert(label.clone(), generation);
+        generation
     };
 
     std::thread::spawn(move || {
@@ -244,7 +246,7 @@ fn retire(window: WebviewWindow) {
         let _ = app.run_on_main_thread(move || {
             let mut retiring = RETIRING.lock().unwrap();
 
-            if retiring.get(&label) == Some(&gen) && !window.is_visible().unwrap_or(true) {
+            if retiring.get(&label) == Some(&generation) && !window.is_visible().unwrap_or(true) {
                 retiring.remove(&label);
                 let _ = window.destroy();
             }
@@ -262,7 +264,7 @@ fn lazy_config(app: &AppHandle, label: &str) -> Option<tauri::utils::config::Win
 }
 
 fn lazy(app: &AppHandle, label: &str) -> bool {
-    lazy_config(app, label).is_some()
+    !RESIDENT.contains(&label) && lazy_config(app, label).is_some()
 }
 
 pub(crate) fn window_for(app: &AppHandle, label: &str) -> Option<WebviewWindow> {
@@ -271,25 +273,28 @@ pub(crate) fn window_for(app: &AppHandle, label: &str) -> Option<WebviewWindow> 
     }
 
     let config = lazy_config(app, label)?;
-
     let builder = tauri::WebviewWindowBuilder::from_config(app, &config).ok()?;
-    let builder = if label == "studio" {
-        builder
-            .icon(tauri::include_image!("icons/studio.png"))
-            .ok()?
-    } else {
-        builder
-    };
-
     let window = atrix_window_kit::build(builder).ok()?;
 
     UNPAINTED.lock().unwrap().insert(label.to_string());
+
+    if label == "launcher" {
+        let launcher = window.clone();
+
+        window.on_window_event(move |event| {
+            if matches!(event, WindowEvent::Focused(false)) {
+                hide_on_blur(&launcher);
+            }
+        });
+    }
 
     Some(window)
 }
 
 fn reveal(window: &WebviewWindow) {
-    if atrix_window_kit::headless() || crate::shell::features::dock_deferred(window.label()) {
+    if atrix_window_kit::headless()
+        || crate::desktop::shell::features::dock_deferred(window.label())
+    {
         return;
     }
 
@@ -316,7 +321,7 @@ pub fn toggle(app: &AppHandle, label: &str) {
 
         if visible && !fading(label) {
             hide(app, label);
-        } else if !(label == "main" && just_hidden_by_blur()) {
+        } else if !(label == "launcher" && just_hidden_by_blur()) {
             show(app, label);
         }
     });
@@ -345,9 +350,7 @@ fn show_now(app: &AppHandle, label: &str) {
     };
 
     let _ = match label {
-        "main" | "settings" | "note" | "onboarding" | "studio" => {
-            geometry::center_on_cursor_monitor(&window)
-        }
+        "launcher" | "settings" | "onboarding" => geometry::center_on_cursor_monitor(&window),
         "panel" | "notices" => geometry::dock_panel(app, &window),
         _ => Ok(()),
     };
@@ -400,7 +403,7 @@ fn present(app: &AppHandle, window: &WebviewWindow, label: &str) {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use super::{just_hidden_by_blur, BLUR_HIDDEN_AT, BLUR_TOGGLE_GUARD};
+    use super::{BLUR_HIDDEN_AT, BLUR_TOGGLE_GUARD, just_hidden_by_blur};
 
     #[test]
     fn a_toggle_right_after_a_blur_hide_is_swallowed_once() {

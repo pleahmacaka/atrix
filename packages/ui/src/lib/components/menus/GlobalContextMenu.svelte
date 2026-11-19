@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { t } from "svelte-i18n"
   import {
     readText,
     writeText,
   } from "@tauri-apps/plugin-clipboard-manager"
+  import { t } from "svelte-i18n"
+  import type { MenuItem } from "../../menus/menu"
   import {
     closeContextMenu,
     contextMenu,
     openContextMenu,
   } from "../../store/context.svelte"
-  import type { MenuItem } from "../../menus/menu"
   import ContextMenu from "./ContextMenu.svelte"
 
   let { dense = false }: { dense?: boolean } = $props()

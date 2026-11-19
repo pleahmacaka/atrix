@@ -55,10 +55,6 @@
         "label": "日历",
         "blurb": "设置打开大小、每周起始日和节假日"
       },
-      "sync": {
-        "label": "同步",
-        "blurb": "在设备之间直接同步数据"
-      },
       "experimental": {
         "label": "实验功能",
         "blurb": "试用正式发布前的功能"
@@ -74,10 +70,6 @@
       "about": {
         "label": "关于",
         "blurb": "查看版本并安装更新"
-      },
-      "note": {
-        "label": "Note",
-        "blurb": "将 ArixLab Note 与日历、样式和页面引用相连"
       }
     },
     "groups": {
@@ -134,10 +126,6 @@
       "windowBackgrounds": {
         "title": "按窗口设置背景",
         "description": "为每个窗口指定不同的背景"
-      },
-      "note": {
-        "title": "Note 连接",
-        "description": "连接本机安装的 Note,与 Atrix 同步和 Note 同步相互独立"
       },
       "linkedStyle": "Atrix 联动"
     },
@@ -215,10 +203,6 @@
       "claudeBridge": "Claude Code 连接",
       "usageSnapshot": "用量文件",
       "mediaSide": "媒体位置",
-      "enableSync": "启用同步",
-      "interval": "间隔",
-      "collections": "集合",
-      "unlinkDevice": "断开此设备",
       "dockSeparators": "分隔线",
       "clockAlign": "时钟对齐",
       "editMode": "编辑模式",
@@ -239,11 +223,7 @@
       "holidayRegion": "节假日地区",
       "featureCalendar": "使用日历面板",
       "dockLayout": "小组件布局",
-      "pairDevice": "添加设备",
-      "joinDevice": "连接到其他设备",
-      "showSyncStatus": "同步状态点",
       "dockGrowth": "自动加宽",
-      "studio": "Studio",
       "hideDelay": "隐藏延迟",
       "atrixFiles": "Atrix Files",
       "filesDefault": "默认文件管理器",
@@ -261,14 +241,6 @@
       "noticesBackground": "通知",
       "filesBackground": "Atrix Files",
       "terminalBackground": "Atrix Terminal",
-      "noteStatus": "状态",
-      "noteLink": "连接 Note",
-      "note": {
-        "calendar": "日历",
-        "style": "样式",
-        "references": "页面引用",
-        "preview": "预览"
-      },
       "panelStart": "打开时的大小",
       "font": "字体",
       "metersStacked": "CPU 和内存两行显示"
@@ -335,10 +307,6 @@
       "claudeBridge": "从 Claude Code 状态栏读取用量",
       "usageSnapshot": "用量桥写入的文件路径或 URL",
       "mediaSide": "媒体控件在程序坞上的位置",
-      "enableSync": "Atrix 打开时在后台运行",
-      "interval": "与已配对设备同步的频率",
-      "collections": "此设备发送和接收的内容",
-      "unlinkDevice": "停止与所有已配对设备同步",
       "dockSeparators": "在启动器、应用和托盘之间显示细分隔线",
       "clockAlign": "时间和日期的对齐位置",
       "editMode": "调暗屏幕，点击 Atrix 的任意部分即可更改其选项",
@@ -359,13 +327,9 @@
       "holidayRegion": "显示节假日的国家/地区。系统跟随 Windows",
       "featureCalendar": "从时钟打开日历和日程面板",
       "dockLayout": "在编辑模式中调整小组件顺序和间隔宽度",
-      "pairDevice": "在此创建配对码，然后在另一台设备上输入",
-      "joinDevice": "粘贴在另一台设备上创建的配对码",
-      "showSyncStatus": "在时钟旁用圆点显示同步状态",
       "lastEntryPoint": "请至少保持程序坞或启动器其中一个开启",
       "dockLayoutLocked": "在实验功能中开启编辑模式后可用",
       "dockGrowth": "窗口较多时最多加宽到此比例并将其余应用收进 ⋯ 菜单，0% 时宽度固定",
-      "studio": "在沙盒中用你的设置预览所有窗口，并将结果应用到 Atrix",
       "hideDelay": "光标离开程序坞后到隐藏前的等待时间",
       "trayNeedsDock": "开启程序坞后可用",
       "atrixFiles": "替代 Windows 文件资源管理器的文件管理器",
@@ -380,14 +344,6 @@
       "dockIcon": "用于启动器按钮和隐藏标志的图像。",
       "gatherHideMs": "程序坞收拢为标志并移出所需的时间。",
       "gatherShowMs": "程序坞从标志重新展开所需的时间。",
-      "noteStatus": "安装 Note 后即可连接",
-      "noteLink": "与本机的 Note 交换以下内容",
-      "note": {
-        "calendar": "在 Atrix 与 Note 之间同步日程",
-        "style": "Note 跟随 Atrix 的外观设置",
-        "references": "在日程备注中输入 [[ 即可查找并链接 Note 页面",
-        "preview": "将光标悬停在页面链接上时,在左侧显示 Note 内容"
-      },
       "panelStart": "打开日历时最初显示的大小。",
       "font": "其他字体请直接输入已安装的字体名称。",
       "metersStacked": "将 CPU 和内存使用率分两行显示"
@@ -414,7 +370,6 @@
       "deg": "{value} 度",
       "runSetup": "运行向导",
       "inherit": "与窗口相同",
-      "openStudio": "打开 Studio",
       "systemFont": "系统字体",
       "customFont": "自定义"
     },
@@ -565,59 +520,6 @@
         "always": "始终"
       }
     },
-    "sync": {
-      "devices": {
-        "title": "设备",
-        "description": "与此设备配对的设备"
-      },
-      "collections": {
-        "todos": "待办",
-        "events": "日程",
-        "profile": "个人资料",
-        "presets": "预设",
-        "notes": "笔记"
-      },
-      "everyHour": "每小时",
-      "everyMinutes": "每 {minutes} 分钟",
-      "states": {
-        "disabled": "已关闭",
-        "unpaired": "未连接",
-        "waiting": "等待配对",
-        "idle": "已连接",
-        "syncing": "同步中",
-        "error": "错误"
-      },
-      "lastSync": "上次同步 {when}",
-      "neverSynced": "从未同步",
-      "justNow": "刚刚",
-      "syncNow": "立即同步",
-      "noDevices": "暂无已配对设备",
-      "seen": "上次在线 {when}",
-      "thisDevice": "此设备",
-      "unlink": "断开连接",
-      "toasts": {
-        "failed": "同步失败",
-        "synced": "已与 {count} 台设备同步",
-        "unlinked": "已断开连接",
-        "noPeers": "没有可连接的设备",
-        "joined": "已连接",
-        "copied": "已复制配对码",
-        "removed": "已移除设备"
-      },
-      "confirm": {
-        "unlinkTitle": "断开此设备？",
-        "unlinkBody": "此设备将停止与其他设备同步。本地数据会保留。",
-        "removeTitle": "移除 {name}?",
-        "removeBody": "所有设备都会移除它,配对码也会更换。旧配对码将失效。"
-      },
-      "description": "让{collections}在各设备间保持一致。",
-      "neverSeen": "暂无在线记录",
-      "createCode": "创建配对码",
-      "joinWithCode": "用配对码连接",
-      "copyCode": "复制配对码",
-      "codePlaceholder": "配对码",
-      "remove": "移除"
-    },
     "backup": {
       "exportJson": "导出 JSON",
       "copyJson": "复制 JSON",
@@ -634,20 +536,7 @@
       "features": "功能",
       "system": "系统"
     },
-    "tocAria": "分组",
-    "themeLink": {
-      "title": "应用主题",
-      "body": "将外观切换为社区主题“{name}”。",
-      "apply": "应用"
-    },
-    "note": {
-      "states": {
-        "missing": "未安装",
-        "waiting": "等待连接",
-        "linked": "已连接"
-      },
-      "open": "打开 Note"
-    }
+    "tocAria": "分组"
   },
   "launcher": {
     "placeholder": "搜索应用、窗口和命令",
@@ -1064,8 +953,6 @@
       },
       "detail": "日程详情",
       "noNotes": "无备注",
-      "openInNote": "在 Note 中打开",
-      "previewMissing": "无预览",
       "timeFromTitle": "{time} 开始",
       "tags": "标签",
       "newTag": "新标签",
@@ -1268,7 +1155,6 @@
       "style": "样式",
       "dock": "程序坞",
       "hotkeys": "快捷键",
-      "sync": "同步",
       "tips": "提示",
       "done": "完成"
     },
@@ -1305,10 +1191,6 @@
       "blurb": "选择如何呼出启动器。",
       "info": "单独轻按 {win} 打开 Atrix。{win} + {e} 等组合键照常可用。",
       "winOr": "Win 键或 {shortcut}"
-    },
-    "sync": {
-      "title": "跨设备同步",
-      "blurb": "可选。与另一台设备配对，或跳过并稍后设置。"
     },
     "tips": {
       "title": "几点提示",
@@ -1364,15 +1246,6 @@
     "battery": {
       "level": "电池 {percent}%",
       "charging": "充电中"
-    },
-    "sync": {
-      "failed": "同步失败：{error}",
-      "unknownError": "未知错误",
-      "syncing": "正在同步",
-      "synced": "已同步 {time}",
-      "ready": "同步就绪",
-      "unpaired": "同步：未连接",
-      "waiting": "同步：等待配对"
     },
     "notifications": {
       "title": "通知",
@@ -1460,32 +1333,5 @@
       "title": "Atrix 有可用更新",
       "body": "请在设置的高级中安装 {version} 版本。"
     }
-  },
-  "studio": {
-    "windows": "窗口",
-    "pick": "请从左侧选择窗口。",
-    "reload": "重新加载",
-    "reloadSettings": "载入我的设置",
-    "resetData": "重置数据",
-    "apply": "应用到 Atrix",
-    "applied": "已应用",
-    "confirm": {
-      "title": "应用到 Atrix?",
-      "body": "外观、程序坞、启动器和日历设置将替换为 Studio 中的设置。设备名称、固定的应用和同步保持不变。",
-      "action": "应用"
-    },
-    "names": {
-      "main": "启动器",
-      "taskbar": "程序坞",
-      "topbar": "顶栏",
-      "settings": "设置",
-      "panel": "日历面板",
-      "notices": "通知",
-      "onboarding": "设置向导",
-      "preview": "窗口预览",
-      "files": "Files",
-      "edit": "编辑模式"
-    },
-    "publish": "发布主题"
   }
 }

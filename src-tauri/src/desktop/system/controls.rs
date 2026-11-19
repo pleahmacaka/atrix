@@ -1,7 +1,7 @@
 use serde::Serialize;
 
-use crate::apps::launcher;
-use crate::system::audio;
+use crate::desktop::apps::launcher;
+use crate::desktop::system::audio;
 
 #[derive(Serialize)]
 pub struct Battery {
@@ -43,7 +43,7 @@ pub fn power_action(action: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn empty_recycle_bin() -> Result<(), String> {
-    crate::system::blocking(win::empty_recycle_bin).await
+    crate::desktop::system::blocking(win::empty_recycle_bin).await
 }
 
 #[tauri::command]
@@ -100,21 +100,21 @@ pub fn open_data_folder(app: tauri::AppHandle) -> Result<(), String> {
 mod win {
     use std::os::windows::process::CommandExt;
 
-    use windows::core::{w, PCWSTR};
     use windows::Win32::Foundation::{CloseHandle, E_UNEXPECTED, HANDLE, LUID};
     use windows::Win32::Security::{
-        AdjustTokenPrivileges, LookupPrivilegeValueW, LUID_AND_ATTRIBUTES, SE_PRIVILEGE_ENABLED,
+        AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
         SE_SHUTDOWN_NAME, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
     };
     use windows::Win32::System::Power::{
-        GetSystemPowerStatus, SetSuspendState, SYSTEM_POWER_STATUS,
+        GetSystemPowerStatus, SYSTEM_POWER_STATUS, SetSuspendState,
     };
-    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
+    use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
     use windows::Win32::System::Shutdown::LockWorkStation;
     use windows::Win32::System::Threading::{
-        GetCurrentProcess, OpenProcessToken, CREATE_NO_WINDOW,
+        CREATE_NO_WINDOW, GetCurrentProcess, OpenProcessToken,
     };
-    use windows::Win32::UI::Shell::{SHEmptyRecycleBinW, SHERB_NOCONFIRMATION, SHERB_NOPROGRESSUI};
+    use windows::Win32::UI::Shell::{SHERB_NOCONFIRMATION, SHERB_NOPROGRESSUI, SHEmptyRecycleBinW};
+    use windows::core::{PCWSTR, w};
 
     use super::Battery;
 

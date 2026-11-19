@@ -1,11 +1,11 @@
+use std::sync::Mutex;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::channel;
-use std::sync::Mutex;
 
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::shell::{features, windowing};
+use crate::desktop::shell::{features, windowing};
 
 static LAUNCHER_SHORTCUT: Mutex<Option<Shortcut>> = Mutex::new(None);
 static REQUESTED: Mutex<Option<String>> = Mutex::new(None);
@@ -34,7 +34,7 @@ fn bind(app: &AppHandle) -> Result<(), String> {
                 if event.state() == ShortcutState::Pressed
                     && features::LAUNCHER_ON.load(Ordering::Relaxed)
                 {
-                    windowing::toggle(app, "main");
+                    windowing::toggle(app, "launcher");
                 }
             })
             .map_err(|e| e.to_string())?;

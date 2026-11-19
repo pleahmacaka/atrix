@@ -1,16 +1,16 @@
 <script lang="ts">
+  import { type DeviceSettings, defaultDevice, onDevice } from "@atrix/settings"
   import Icon from "@iconify/svelte"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
   import { listen } from "@tauri-apps/api/event"
+  import { getCurrentWindow } from "@tauri-apps/api/window"
   import { flip } from "svelte/animate"
   import { cubicOut } from "svelte/easing"
   import { fly } from "svelte/transition"
   import { t } from "svelte-i18n"
-  import { type DeviceSettings, defaultDevice, onDevice } from "@atrix/settings"
-  import { ensureDevice } from "#lib/device.js"
-  import { relativeTime } from "#lib/launcher/providers.js"
-  import * as native from "#lib/native/index.js"
-  import type { Notice } from "#lib/native/notices.js"
+  import { ensureDevice } from "#lib/desktop/device.js"
+  import { relativeTime } from "#lib/desktop/launcher/providers.js"
+  import * as native from "#lib/desktop/native/index.js"
+  import type { Notice } from "#lib/desktop/native/notices.js"
 
   const appWindow = getCurrentWindow()
   const BLUR_GRACE = 400
@@ -200,7 +200,7 @@
 
     <div class="flex items-center gap-0.5">
       {#if items.length > 0}
-        <button
+        <button type="button"
           class="btn btn-ghost btn-xs rounded-full"
           onclick={dismissAll}
         >
@@ -209,7 +209,7 @@
         </button>
       {/if}
 
-      <button
+      <button type="button"
         class="btn btn-ghost btn-square btn-xs rounded-full"
         aria-label={$t("common.close")}
         onclick={hide}
@@ -259,7 +259,7 @@
                 {group.app}
               </span>
 
-              <button
+              <button type="button"
                 class={[
                   "btn btn-ghost btn-square btn-xs rounded-full",
                   "opacity-0 transition-opacity duration-140",
@@ -307,7 +307,7 @@
                     {/if}
                   </button>
 
-                  <button
+                  <button type="button"
                     class={[
                       "btn btn-ghost btn-square btn-xs -mt-1 -mr-1.5 shrink-0 rounded-full",
                       "opacity-0 transition-opacity duration-140",

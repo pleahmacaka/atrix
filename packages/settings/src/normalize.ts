@@ -4,17 +4,16 @@ import {
   defaultAppearance,
   defaultDevice,
   defaultProfile,
-  defaultSync,
   presetAppearances,
   WINDOW_BACKGROUNDS,
 } from "./defaults"
 import type {
   Appearance,
+  AtrixStyle,
   DeviceSettings,
   DockAlign,
   DockWidget,
   DockWidgetKind,
-  AtrixStyle,
   Features,
   Profile,
   ThemePrefs,
@@ -77,13 +76,6 @@ export const withDeviceDefaults = (
     ...migrated,
     dockWidgets: sanitizeWidgets(saved?.dockWidgets),
     features: { ...defaultDevice.features, ...features },
-    sync: {
-      enabled: saved?.sync?.enabled ?? defaultSync.enabled,
-      intervalMinutes:
-        saved?.sync?.intervalMinutes ?? defaultSync.intervalMinutes,
-      collections: { ...defaultSync.collections, ...saved?.sync?.collections },
-    },
-    note: { ...defaultDevice.note, ...saved?.note },
   }
 }
 

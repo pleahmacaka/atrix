@@ -5,15 +5,12 @@
 </script>
 
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { MenuBox } from "./layout.svelte"
-  import { t } from "svelte-i18n"
-  import * as native from "#lib/native/index.js"
   import type { DockEdge } from "@atrix/settings"
-  import { ContextMenu } from "@atrix/ui"
-  import { closePreview, dismissPreview, openPreview, togglePreview } from "./preview.svelte"
-  import { rem } from "./rem.svelte"
   import type { MenuItem } from "@atrix/ui"
+  import { ContextMenu } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import * as native from "#lib/desktop/native/index.js"
   import {
     type DockGroup,
     iconFor,
@@ -21,6 +18,9 @@
     toggleDockHidden,
     toggleDockPin,
   } from "./dock.svelte"
+  import type { MenuBox } from "./layout.svelte"
+  import { closePreview, dismissPreview, openPreview, togglePreview } from "./preview.svelte"
+  import { rem } from "./rem.svelte"
 
   type Props = {
     group: DockGroup
@@ -232,9 +232,7 @@
 
 <div
   bind:this={root}
-  role="listitem"
   class={["relative transition-opacity duration-100", dragging && "opacity-30"]}
-  {ondragend}
 >
   {#if dropBefore}
     <span
@@ -248,9 +246,10 @@
     ></span>
   {/if}
 
-  <button
+  <button type="button"
     draggable={reorder}
     ondragstart={reorder ? dragStart : undefined}
+    {ondragend}
     class={[
       "relative origin-bottom will-change-transform active:scale-90",
       mac

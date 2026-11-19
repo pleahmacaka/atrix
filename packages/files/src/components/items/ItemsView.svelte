@@ -1,9 +1,9 @@
 <script lang="ts">
+  import { rootRem, track } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { untrack } from "svelte"
   import { t } from "svelte-i18n"
   import { displayName, type Item } from "../../items"
-  import { rootRem, track } from "@atrix/ui"
   import type { Explorer } from "../../store/explorer.svelte"
   import { openMenu } from "../../store/menus"
   import { prefs, SORT_KEYS, VIEWS } from "../../store/prefs.svelte"
@@ -366,7 +366,7 @@
 
 <div
   bind:this={scroller}
-  role="grid"
+  role="listbox"
   tabindex="0"
   aria-multiselectable="true"
   aria-label={explorer.title(tab, $t)}

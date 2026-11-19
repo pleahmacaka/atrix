@@ -1,8 +1,8 @@
 <script lang="ts">
+  import type { DockWidget } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import type { DockWidget } from "@atrix/settings"
-  import { EditSpot, editing } from "#lib/edit/index.js"
+  import { EditSpot, editing } from "#lib/desktop/edit/index.js"
   import type { DockLayout } from "./layout.svelte"
   import { rem } from "./rem.svelte"
 

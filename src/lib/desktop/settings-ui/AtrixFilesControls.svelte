@@ -6,7 +6,7 @@
     filesDefault,
     openAtrixFiles,
     openFilesDefaults,
-  } from "#lib/native/files.js"
+  } from "#lib/desktop/native/files.js"
 
   let { launch = true }: { launch?: boolean } = $props()
 

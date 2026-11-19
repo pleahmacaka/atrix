@@ -179,7 +179,7 @@
 />
 
 {#if open}
-  <ul
+  <div
     bind:this={list}
     role="menu"
     aria-label={label ?? $t("menu.label")}
@@ -233,66 +233,68 @@
     {/snippet}
 
     {#snippet separator()}
-      <li
-        class={["mx-1 border-t border-base-content/10", dense ? "my-1" : "my-1.5"]}
-        role="separator"
-      ></li>
+      <li role="none" class={["menu-title mx-1 p-0", dense ? "my-1" : "my-1.5"]}>
+        <hr class="border-base-content/10" />
+      </li>
     {/snippet}
 
-    {#each items as item, index (index)}
-      {#if item === "separator"}
-        {@render separator()}
-      {:else if isGroup(item)}
-        {@const empty = !item.items.some(i => isAction(i) && !i.disabled)}
+    <ul role="none" class="contents">
+      {#each items as item, index (index)}
+        {#if item === "separator"}
+          {@render separator()}
+        {:else if isGroup(item)}
+          {@const empty = !item.items.some(i => isAction(i) && !i.disabled)}
 
-        <li role="none" class={["group/sub relative", empty && "menu-disabled"]}>
-          <button
-            role="menuitem"
-            type="button"
-            aria-haspopup="menu"
-            class={[
-              "rounded-field text-sm",
-              dense ? "min-h-7 gap-2 px-2.5 py-1" : "min-h-9 gap-2.5 px-3 py-2",
-            ]}
-            disabled={empty}
-            tabindex="-1"
-            onmousemove={() => (cursor = index)}
-          >
-            {#if item.icon}
-              <Icon
-                icon={item.icon}
-                class={[dense ? "size-3.5" : "size-4", "shrink-0 text-base-content/60"]}
-              />
-            {/if}
-
-            <span class="truncate">{item.label}</span>
-
-            <Icon icon="lucide:chevron-right" class="ml-auto size-3.5 shrink-0 text-base-content/40" />
-          </button>
-
-          {#if !empty}
-            <ul
-              role="menu"
-              aria-label={item.label}
+          <li role="none" class={["group/sub relative", empty && "menu-disabled"]}>
+            <button
+              role="menuitem"
+              type="button"
+              aria-haspopup="menu"
               class={[
-                "menu atrix-card absolute top-0 z-50 ms-0 hidden w-max min-w-48 flex-col ps-0 before:hidden group-hover/sub:flex",
-                dense ? "gap-0 p-1" : "gap-0.5 p-2",
-                flip ? "right-full" : "left-full",
+                "rounded-field text-sm",
+                dense ? "min-h-7 gap-2 px-2.5 py-1" : "min-h-9 gap-2.5 px-3 py-2",
               ]}
+              disabled={empty}
+              tabindex="-1"
+              onmousemove={() => (cursor = index)}
             >
-              {#each item.items as child, at (at)}
-                {#if child === "separator"}
-                  {@render separator()}
-                {:else if isAction(child)}
-                  {@render action(child, false, () => undefined)}
-                {/if}
-              {/each}
-            </ul>
-          {/if}
-        </li>
-      {:else}
-        {@render action(item, index === cursor, () => (cursor = index))}
-      {/if}
-    {/each}
-  </ul>
+              {#if item.icon}
+                <Icon
+                  icon={item.icon}
+                  class={[dense ? "size-3.5" : "size-4", "shrink-0 text-base-content/60"]}
+                />
+              {/if}
+
+              <span class="truncate">{item.label}</span>
+
+              <Icon icon="lucide:chevron-right" class="ml-auto size-3.5 shrink-0 text-base-content/40" />
+            </button>
+
+            {#if !empty}
+              <div role="menu" aria-label={item.label} class="contents cursor-auto text-inherit">
+                <ul
+                  role="none"
+                  class={[
+                    "menu atrix-card absolute top-0 z-50 ms-0 hidden w-max min-w-48 flex-col ps-0 before:hidden group-hover/sub:flex",
+                    dense ? "gap-0 p-1" : "gap-0.5 p-2",
+                    flip ? "right-full" : "left-full",
+                  ]}
+                >
+                  {#each item.items as child, at (at)}
+                    {#if child === "separator"}
+                      {@render separator()}
+                    {:else if isAction(child)}
+                      {@render action(child, false, () => undefined)}
+                    {/if}
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          </li>
+        {:else}
+          {@render action(item, index === cursor, () => (cursor = index))}
+        {/if}
+      {/each}
+    </ul>
+  </div>
 {/if}

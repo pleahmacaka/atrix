@@ -1,11 +1,11 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { MenuBox } from "./layout.svelte"
-  import { t } from "svelte-i18n"
-  import { openUrl } from "#lib/native/system.js"
-  import { bluetoothDevices, type RadioState, radios, setRadio } from "#lib/native/quick.js"
   import type { DockEdge } from "@atrix/settings"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { bluetoothDevices, type RadioState, radios, setRadio } from "#lib/desktop/native/quick.js"
+  import { openUrl } from "#lib/desktop/native/system.js"
   import { dockAwake } from "./dock.svelte"
+  import type { MenuBox } from "./layout.svelte"
 
   type Props = {
     edge?: DockEdge

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { applyAppearance, standaloneLook } from "@atrix/settings"
   import { StandaloneShell } from "@atrix/ui"
-  import "virtual:iconify-subset"
+  import "virtual:iconify-embed"
   import "./layout.css"
 
   let { children } = $props()

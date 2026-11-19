@@ -1,8 +1,8 @@
 <script lang="ts">
   import { loadProfile, onDevice, onProfile } from "@atrix/settings"
   import { listen } from "@tauri-apps/api/event"
-  import { ensureDevice } from "#lib/device.js"
-  import { watchEdit } from "#lib/edit/index.js"
+  import { ensureDevice } from "#lib/desktop/device.js"
+  import { watchEdit } from "#lib/desktop/edit/index.js"
   import {
     contextmenu,
     keydown,
@@ -14,9 +14,9 @@
     ResultList,
     SearchBox,
     subscribeTimers,
-  } from "#lib/launcher/index.js"
-  import { onAppsChanged, onPinsChanged } from "#lib/native/apps.js"
-  import { onWindowShown } from "#lib/native/windows.js"
+  } from "#lib/desktop/launcher/index.js"
+  import { onAppsChanged, onPinsChanged } from "#lib/desktop/native/apps.js"
+  import { onWindowShown } from "#lib/desktop/native/windows.js"
 
   const launcher = new Launcher()
 
@@ -46,7 +46,7 @@
       onDevice(d => {
         launcher.device = d
       }),
-      onWindowShown("main", () => {
+      onWindowShown("launcher", () => {
         launcher.setQuery("")
         launcher.usage += 1
         launcher.reopen()

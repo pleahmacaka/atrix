@@ -1,11 +1,11 @@
 <script lang="ts">
+  import { acceptTabs } from "./drag.svelte"
   import { sessionShortcut } from "./keys"
   import PaneArea from "./PaneArea.svelte"
   import { prefs, savePrefs } from "./prefs.svelte"
   import SettingsDialog from "./SettingsDialog.svelte"
-  import { acceptTabs } from "./drag.svelte"
-  import { adoptTab, loadShells, openTab, session } from "./tabs.svelte"
   import TitleBar from "./TitleBar.svelte"
+  import { adoptTab, loadShells, openTab, session } from "./tabs.svelte"
   import { newWindow, takeIntent } from "./windows"
 
   let { standalone = false }: { standalone?: boolean } = $props()

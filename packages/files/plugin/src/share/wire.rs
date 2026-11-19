@@ -15,8 +15,11 @@ pub const ALPN: &[u8] = b"atrix/files/1";
 pub const REQUEST_LIMIT: usize = 16 * 1024;
 pub const REPLY_LIMIT: usize = 64 * 1024 * 1024;
 
-pub const SCHEME: &str =
-    atrix_window_kit::by_channel("atrix-files", "atrix-files-dev-channel", "atrix-files-dev");
+pub const SCHEME: &str = if cfg!(debug_assertions) {
+    "atrix-files-dev"
+} else {
+    "atrix-files"
+};
 
 const RESERVED: [&str; 22] = [
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",

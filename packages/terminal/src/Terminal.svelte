@@ -2,6 +2,7 @@
   import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager"
   import type { FitAddon, Terminal as Screen } from "ghostty-web"
   import { untrack } from "svelte"
+  import { on } from "svelte/events"
   import { conpty, escapeKey } from "./escape"
   import { type Attachment, attach, resize, spawn, write } from "./pty"
   import { DEFAULT_FONT, fontStack, loadFont, prepare } from "./ready"
@@ -159,6 +160,20 @@
     }
   }
 
+  const listen = (node: HTMLDivElement) => {
+    const stops = [
+      on(node, "keydown", e => e.stopPropagation()),
+      on(node, "beforeinput", onbeforeinput),
+      on(node, "contextmenu", oncontextmenu, { capture: true }),
+    ]
+
+    return () => {
+      for (const stop of stops) {
+        stop()
+      }
+    }
+  }
+
   $effect(() => {
     const node = host
 
@@ -307,13 +322,13 @@
     }
 
     if (shown) {
-      screen["startRenderLoop"]()
+      screen.startRenderLoop()
 
       return
     }
 
     // ghostty-web redraws every frame until disposed and restarts the loop after each resize
-    const pause = () => screen["cancelRenderLoop"]()
+    const pause = () => screen.cancelRenderLoop()
     const resized = screen.onResize(() => queueMicrotask(pause))
 
     pause()
@@ -331,10 +346,6 @@
 
 <div
   bind:this={host}
-  role="textbox"
-  tabindex="0"
   class={["size-full overflow-hidden caret-transparent", className]}
-  oncontextmenucapture={oncontextmenu}
-  {onbeforeinput}
-  onkeydown={e => e.stopPropagation()}
+  {@attach listen}
 ></div>

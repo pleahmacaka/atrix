@@ -7,37 +7,21 @@ import {
 } from "@atrix/data"
 import {
   loadDevice,
-  loadSyncedProfile,
   type PinPath,
   type Profile,
   saveProfile,
-  saveSyncedProfile,
   togglePin,
   updateProfile,
 } from "@atrix/settings"
-import {
-  isPoisoned,
-  type LocalItem,
-  remoteWins,
-  toLocal,
-} from "@atrix/sync/merge"
-import {
-  type SyncedCollection,
-  type SyncRecord,
-  TOMBSTONE_TTL,
-} from "@atrix/sync/protocol"
+import { isPoisoned, type LocalItem } from "@atrix/sync/merge"
+import type { SyncedCollection, SyncRecord } from "@atrix/sync/protocol"
 import { invoke } from "@tauri-apps/api/core"
 import { emit, listen } from "@tauri-apps/api/event"
 import { load, type Store } from "@tauri-apps/plugin-store"
 
 export const DATA_EVENT = "data-changed"
 
-export type DataChange = { collection: SyncedCollection; remote: boolean }
-
-export type SyncMeta = {
-  lastSyncAt: number | null
-  lastError: string | null
-}
+export type DataChange = { collection: SyncedCollection }
 
 export type Collection<T extends LocalItem> = {
   name: SyncedCollection
@@ -50,7 +34,6 @@ export type Collection<T extends LocalItem> = {
 }
 
 const FILE = "data.json"
-const META_KEY = "sync"
 
 const itemKey = (collection: SyncedCollection, id: string) =>
   `${collection}/${id}`
@@ -68,19 +51,14 @@ const store = () => {
 
 const ownDeviceId = async () => (await loadDevice()).deviceId
 
-const prefixed = <T>(entries: [string, unknown][], prefix: string) =>
-  entries
-    .filter(([key]) => key.startsWith(prefix))
-    .map(([, value]) => value as T)
-
 const valuesByPrefix = async <T>(prefix: string) => {
   await store()
 
   return invoke<T[]>("data_entries", { prefix })
 }
 
-const notify = (collection: SyncedCollection, remote = false) =>
-  emit(DATA_EVENT, { collection, remote } satisfies DataChange)
+const notify = (collection: SyncedCollection) =>
+  emit(DATA_EVENT, { collection } satisfies DataChange)
 
 const lastStamp = (updatedAt: number | undefined) =>
   updatedAt === undefined || isPoisoned(updatedAt) ? 0 : updatedAt
@@ -270,116 +248,3 @@ export const updateProfileSynced = (change: (profile: Profile) => Profile) =>
 
 export const togglePinSynced = (path: PinPath) =>
   stampIfChanged(togglePin(path))
-
-export const localRecords = async (
-  collections: readonly SyncedCollection[],
-  now = Date.now(),
-): Promise<SyncRecord[]> => {
-  const db = await store()
-  const entries = await db.entries()
-  const deviceId = await ownDeviceId()
-  const records: SyncRecord[] = []
-  const expired: SyncRecord[] = []
-
-  for (const name of collections) {
-    const profile = name === "profile" ? await loadSyncedProfile() : null
-
-    for (const item of prefixed<LocalItem>(entries, `${name}/`)) {
-      records.push({
-        collection: name,
-        id: item.id,
-        updatedAt: item.updatedAt,
-        deviceId: item.deviceId ?? deviceId,
-        deleted: false,
-        data: profile ?? item,
-      })
-    }
-
-    for (const tombstone of prefixed<SyncRecord>(
-      entries,
-      tombstoneKey(name, ""),
-    )) {
-      if (tombstone.updatedAt < now - TOMBSTONE_TTL) {
-        expired.push(tombstone)
-      } else {
-        records.push(tombstone)
-      }
-    }
-  }
-
-  if (expired.length > 0) {
-    for (const tombstone of expired) {
-      await db.delete(tombstoneKey(tombstone.collection, tombstone.id))
-    }
-
-    await db.save()
-  }
-
-  return records
-}
-
-// ponytail: get-then-write is not atomic across windows; a put landing mid-loop loses to the remote
-export const applyRemote = async (
-  records: SyncRecord[],
-): Promise<SyncedCollection[]> => {
-  const db = await store()
-  const deviceId = await ownDeviceId()
-  const changed = new Set<SyncedCollection>()
-  let profile: Profile | null = null
-
-  for (const record of records) {
-    const key = itemKey(record.collection, record.id)
-    const dead = tombstoneKey(record.collection, record.id)
-    const local =
-      (await db.get<LocalItem>(key)) ?? (await db.get<SyncRecord>(dead))
-
-    if (!remoteWins(record, local, deviceId)) {
-      continue
-    }
-
-    if (record.deleted) {
-      await db.delete(key)
-      await db.set(dead, { ...record, data: null })
-    } else {
-      await db.set(key, toLocal(record))
-      await db.delete(dead)
-
-      if (record.collection === "profile") {
-        profile = record.data as Profile
-      }
-    }
-
-    changed.add(record.collection)
-  }
-
-  await db.save()
-
-  if (profile) {
-    await saveSyncedProfile(profile)
-  }
-
-  for (const name of changed) {
-    await notify(name, true)
-  }
-
-  return [...changed]
-}
-
-export const syncMeta = async (): Promise<SyncMeta> => {
-  const saved = await (await store()).get<Partial<SyncMeta>>(META_KEY)
-
-  return {
-    lastSyncAt: saved?.lastSyncAt ?? null,
-    lastError: saved?.lastError ?? null,
-  }
-}
-
-export const updateSyncMeta = async (patch: Partial<SyncMeta>) => {
-  const db = await store()
-  const next = { ...(await syncMeta()), ...patch }
-
-  await db.set(META_KEY, next)
-  await db.save()
-
-  return next
-}

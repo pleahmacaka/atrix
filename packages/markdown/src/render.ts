@@ -1,4 +1,3 @@
-import { NOTE_SCHEME, notePathOf } from "@atrix/bridge"
 import { katex } from "@mdit/plugin-katex"
 import { tasklist } from "@mdit/plugin-tasklist"
 import katexEngine from "katex"
@@ -44,18 +43,7 @@ const wikilinks = (md: MarkdownIt) => {
   )
 }
 
-const noteTitle = (path: string) => {
-  const file = path.slice(path.lastIndexOf("/") + 1)
-
-  return file.toLowerCase().endsWith(".md") ? file.slice(0, -3) : file
-}
-
-const noteLinks = (md: MarkdownIt) => {
-  md.linkify.add(`${NOTE_SCHEME}:`, {
-    validate: (text, pos) =>
-      text.slice(pos).match(/^\/\/open\?path=[^\s)]+/)?.[0].length ?? 0,
-  })
-
+const externalLinks = (md: MarkdownIt) => {
   const fallback: NonNullable<typeof md.renderer.rules.link_open> = (
     tokens,
     index,
@@ -69,18 +57,8 @@ const noteLinks = (md: MarkdownIt) => {
   md.renderer.rules.link_open = (tokens, index, options, env, self) => {
     const token = tokens[index]
     const href = String(token.attrGet("href") ?? "")
-    const path = notePathOf(href)
 
-    if (path) {
-      token.attrJoin("class", "note-cite")
-      token.attrSet("data-note-path", path)
-
-      const label = tokens[index + 1]
-
-      if (token.markup === "linkify" && label?.type === "text") {
-        label.content = noteTitle(path)
-      }
-    } else if (/^https?:/i.test(href)) {
+    if (/^https?:/i.test(href)) {
       token.attrSet("data-external", "")
     }
 
@@ -92,7 +70,7 @@ const build = (html: boolean) =>
   markdownit({ html, linkify: true, breaks: true })
     .use(wikilinks)
     .use(katex, { throwOnError: false, mathFence: true })
-    .use(noteLinks)
+    .use(externalLinks)
     .use(tasklist, { label: false })
 
 const safe = build(false)

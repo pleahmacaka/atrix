@@ -1,21 +1,20 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import { live, newId, presets as userPresets } from "#lib/data/index.js"
   import {
     type Appearance,
-    type DockBackground,
-    type Profile,
     CUSTOM_PRESET,
+    type DockBackground,
     defaultAppearance,
     defaultProfile,
+    type Profile,
     WINDOW_BACKGROUNDS,
   } from "@atrix/settings"
+  import { AppearanceRows, Row, Section, Segmented, toast } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { live, newId, presets as userPresets } from "#lib/desktop/data/index.js"
   import { pinState } from "./pins.svelte"
   import { allPresets, sameAppearance } from "./presets"
   import { reset as resetField } from "./reset"
-  import { AppearanceRows, Row, Section, Segmented } from "@atrix/ui"
-  import { toast } from "@atrix/ui"
-  import { t } from "svelte-i18n"
 
   let {
     profile = $bindable(),

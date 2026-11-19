@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { updateDevice, type WebSearchEngine } from "@atrix/settings"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
-  import { EditSpot } from "#lib/edit/index.js"
+  import { EditSpot } from "#lib/desktop/edit/index.js"
   import type { Launcher } from "./launcher.svelte"
   import { timerKindLabel } from "./providers"
 
@@ -102,6 +102,8 @@
   class="input input-lg flex h-14 w-full shrink-0 items-center gap-3 atrix-card px-4 outline-none transition-[border-color,box-shadow] duration-100 focus-within:border-primary/40 focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/20"
 >
   <Icon icon="lucide:search" class="size-5 shrink-0 text-base-content/60" />
+
+  <span class="sr-only">{$t("launcher.placeholder")}</span>
 
   <input
     bind:this={launcher.input}

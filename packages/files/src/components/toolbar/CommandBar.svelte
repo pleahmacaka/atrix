@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
+  import { THIS_PC } from "../../locations"
   import {
     COMMANDS,
     type CommandId,
@@ -16,7 +17,6 @@
     VIEW_ICONS,
     VIEWS,
   } from "../../store/prefs.svelte"
-  import { THIS_PC } from "../../locations"
   import CommandButton from "./CommandButton.svelte"
 
   let { explorer, compact = false }: { explorer: Explorer; compact?: boolean } =
@@ -81,19 +81,18 @@
 {/snippet}
 
 {#snippet separator()}
-  <li class="mx-1 my-1 border-t border-base-content/10" role="separator"></li>
+  <li aria-hidden="true" class="mx-1 my-1 border-t border-base-content/10"></li>
 {/snippet}
 
 {#snippet moreMenu()}
   <div class="dropdown dropdown-end">
-    <div
-      tabindex="0"
-      role="button"
+    <button
+      type="button"
       class="btn btn-ghost btn-square btn-sm"
       aria-label={$t("explorer.commands.more")}
     >
       <Icon icon="lucide:ellipsis" class="size-4" />
-    </div>
+    </button>
 
     <ul tabindex="-1" class={MENU}>
       {#if explorer.tab.location === THIS_PC}
@@ -149,19 +148,15 @@
     <div class="mx-1 h-5 border-l border-base-content/10"></div>
 
     <div class="dropdown">
-      <div
-        tabindex={explorer.arrangeable ? 0 : -1}
-        role="button"
-        aria-disabled={!explorer.arrangeable}
-        class={[
-          "btn btn-ghost btn-sm gap-2",
-          !explorer.arrangeable && "btn-disabled",
-        ]}
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm gap-2"
+        disabled={!explorer.arrangeable}
       >
         <Icon icon="lucide:arrow-up-down" class="size-4" />
         {$t("explorer.commands.sort")}
         <Icon icon="lucide:chevron-down" class="size-3.5 opacity-60" />
-      </div>
+      </button>
 
       <ul tabindex="-1" class={MENU}>
         {#each SORT_KEYS as key (key)}
@@ -201,11 +196,11 @@
     </div>
 
     <div class="dropdown">
-      <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2">
+      <button type="button" class="btn btn-ghost btn-sm gap-2">
         <Icon icon={VIEW_ICONS[explorer.view]} class="size-4" />
         {$t("explorer.commands.view")}
         <Icon icon="lucide:chevron-down" class="size-3.5 opacity-60" />
-      </div>
+      </button>
 
       <ul tabindex="-1" class={MENU}>
         {#each VIEWS as view (view)}

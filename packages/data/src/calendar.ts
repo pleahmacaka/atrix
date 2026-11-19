@@ -167,11 +167,8 @@ export const openEnded = (event: CalendarEvent) =>
 const span = (event: CalendarEvent) => {
   const start = parseLocal(event.start)
   const rawEnd = parseLocal(event.end)
-  const end = event.allDay
-    ? addDays(startOfDay(rawEnd < start ? start : rawEnd), 1)
-    : rawEnd < start
-      ? start
-      : rawEnd
+  const latest = new Date(Math.max(rawEnd.getTime(), start.getTime()))
+  const end = event.allDay ? addDays(startOfDay(latest), 1) : latest
 
   return { start, end }
 }

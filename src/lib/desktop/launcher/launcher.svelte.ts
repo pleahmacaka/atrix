@@ -9,14 +9,21 @@ import {
 import { rootRem } from "@atrix/ui"
 import { fromStore } from "svelte/store"
 import { t } from "svelte-i18n"
-import { saveProfileSynced } from "#lib/data/index.js"
-import { type AppEntry, listApps, pinnedApps } from "#lib/native/apps.js"
-import { type ClipEntry, clipboardHistory } from "#lib/native/clipboard.js"
+import { saveProfileSynced } from "#lib/desktop/data/index.js"
+import {
+  type AppEntry,
+  listApps,
+  pinnedApps,
+} from "#lib/desktop/native/apps.js"
+import {
+  type ClipEntry,
+  clipboardHistory,
+} from "#lib/desktop/native/clipboard.js"
 import {
   hideWindow,
   listWindows,
   type WindowEntry,
-} from "#lib/native/windows.js"
+} from "#lib/desktop/native/windows.js"
 import { settingsLinks, systemCommands } from "./commands"
 import { record, top } from "./frecency"
 import { buildGroups, RECENT } from "./groups"
@@ -207,7 +214,7 @@ export class Launcher {
 
   async hide() {
     this.menu = null
-    await hideWindow("main")
+    await hideWindow("launcher")
     this.setQuery("")
   }
 

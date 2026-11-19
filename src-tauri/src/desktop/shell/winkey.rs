@@ -127,7 +127,7 @@ pub use win::{chord, install, release, settle};
 
 mod win {
     use std::sync::atomic::{AtomicU16, AtomicU32, Ordering};
-    use std::sync::mpsc::{channel, sync_channel, Sender, SyncSender};
+    use std::sync::mpsc::{Sender, SyncSender, channel, sync_channel};
     use std::sync::{Mutex, OnceLock};
     use std::time::Duration;
 
@@ -135,16 +135,17 @@ mod win {
     use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
     use windows::Win32::System::Threading::GetCurrentThreadId;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-        KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_LWIN, VK_RWIN,
+        GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT,
+        KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY, VK_LWIN, VK_RWIN,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, DispatchMessageW, GetMessageW, PeekMessageW, PostThreadMessageW,
-        SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, KBDLLHOOKSTRUCT, LLKHF_EXTENDED,
-        MSG, PM_NOREMOVE, WH_KEYBOARD_LL, WM_APP, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        CallNextHookEx, DispatchMessageW, GetMessageW, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, MSG,
+        PM_NOREMOVE, PeekMessageW, PostThreadMessageW, SetWindowsHookExW, TranslateMessage,
+        UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_APP, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
+        WM_SYSKEYUP,
     };
 
-    use super::{now, WinUp, CAPTURE, KEYS, LWIN_BIT, RWIN_BIT};
+    use super::{CAPTURE, KEYS, LWIN_BIT, RWIN_BIT, WinUp, now};
 
     const TAG: usize = 0x4552_4953;
     const RELEASE_TRIES: usize = 2;
@@ -385,8 +386,8 @@ mod win {
 
         std::thread::spawn(move || {
             while receiver.recv().is_ok() {
-                if crate::shell::features::LAUNCHER_ON.load(Ordering::Relaxed) {
-                    crate::shell::windowing::toggle(&app, "main");
+                if crate::desktop::shell::features::LAUNCHER_ON.load(Ordering::Relaxed) {
+                    crate::desktop::shell::windowing::toggle(&app, "launcher");
                 }
             }
         });
@@ -401,7 +402,8 @@ mod win {
 
             loop {
                 let settled = SETTLED.lock().unwrap().take();
-                let capture = CAPTURE.load(Ordering::Relaxed) && !crate::shell::features::held();
+                let capture =
+                    CAPTURE.load(Ordering::Relaxed) && !crate::desktop::shell::features::held();
 
                 match (capture, hook) {
                     (true, None) => {
@@ -443,7 +445,7 @@ mod win {
 
 #[cfg(test)]
 mod tests {
-    use super::{Keys, WinUp, HOLD_LIMIT, LONE_LIMIT, LWIN_BIT, RWIN_BIT};
+    use super::{HOLD_LIMIT, Keys, LONE_LIMIT, LWIN_BIT, RWIN_BIT, WinUp};
 
     const BOTH: u8 = LWIN_BIT | RWIN_BIT;
 

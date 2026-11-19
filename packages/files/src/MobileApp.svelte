@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Logo } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { onBackButtonPress } from "@tauri-apps/api/app"
   import { t } from "svelte-i18n"
-  import { keepAlive, sendToBack } from "./components/mobile/mobile"
   import MobileFiles from "./components/mobile/MobileFiles.svelte"
+  import { keepAlive, sendToBack } from "./components/mobile/mobile"
   import Devices from "./components/share/Devices.svelte"
   import { share, startShare } from "./components/share/share.svelte"
 

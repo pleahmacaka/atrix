@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { locale, t } from "svelte-i18n"
   import type { ClockAlign } from "@atrix/settings"
+  import { locale, t } from "svelte-i18n"
 
   type Props = {
     clock24h: boolean
@@ -60,7 +60,7 @@
   )
 </script>
 
-<button
+<button type="button"
   class={[
     "btn btn-ghost h-auto min-h-0 flex-col gap-0 rounded-field px-2.5 py-1 leading-tight",
     ALIGN[align],

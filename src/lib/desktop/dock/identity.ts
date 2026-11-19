@@ -70,7 +70,7 @@ export const matchPin = (app: AppEntry, entry: WindowEntry): number => {
       return 1
     }
   }
-  // Older cached entries and Studio fixtures predate native identity metadata.
+  // Older cached entries predate native identity metadata.
   // Never apply basename matching to an entry returned by the current backend.
   if (
     app.app_id === undefined &&

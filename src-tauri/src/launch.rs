@@ -8,6 +8,12 @@ const PAIR: &str = "--pair";
 
 const WEB_DEFAULT: &str = "127.0.0.1:1461";
 
+#[cfg(windows)]
+const USAGE_BRIDGE: &str = "--usage-bridge";
+
+#[cfg(windows)]
+const CHAIN: &str = "--chain";
+
 pub struct Launch {
     pub headless: bool,
     pub web: Option<String>,
@@ -36,6 +42,21 @@ fn web(args: &[String]) -> Option<String> {
 
 pub fn pair_code(args: &[String]) -> Option<String> {
     value_after(args, PAIR).map(str::to_owned)
+}
+
+// a statusLine command and the installer hooks run the exe per call, so these exit before single-instance can forward them
+#[cfg(windows)]
+pub fn one_shot(args: &[String]) -> Option<i32> {
+    if args.iter().any(|arg| arg == USAGE_BRIDGE) {
+        crate::desktop::usage::bridge(value_after(args, CHAIN).map(str::to_owned));
+
+        return Some(0);
+    }
+
+    tauri_plugin_atrix_files::default_app::cli(
+        &crate::desktop::files::HOST,
+        args.get(1..).unwrap_or_default(),
+    )
 }
 
 impl Launch {

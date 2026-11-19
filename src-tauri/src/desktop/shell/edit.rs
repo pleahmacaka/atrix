@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
-use crate::shell::{appbar, windowing};
+use crate::desktop::shell::{appbar, windowing};
 
 static EDITING: AtomicBool = AtomicBool::new(false);
 
@@ -30,7 +30,7 @@ pub fn edit_mode(app: AppHandle, on: bool) {
     }
 
     windowing::hide(&app, "edit");
-    windowing::hide(&app, "main");
+    windowing::hide(&app, "launcher");
     lift_features(&app, false);
 
     let _ = app.emit("edit-mode", false);
@@ -39,7 +39,7 @@ pub fn edit_mode(app: AppHandle, on: bool) {
 #[tauri::command]
 pub fn edit_raise(app: AppHandle) {
     lift_features(&app, true);
-    windowing::show(&app, "main");
+    windowing::show(&app, "launcher");
 
     let _ = app.emit("edit-mode", true);
 }

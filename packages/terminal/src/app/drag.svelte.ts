@@ -229,7 +229,9 @@ export const acceptTabs = (adopt: (handoff: Handoff) => void) => {
   const view = getCurrentWebviewWindow()
   const stops = [
     view.listen<Point | null>("atrix-terminal:hover", e => hover(e.payload)),
-    view.listen<Handoff>("atrix-terminal:adopt", e => receive(e.payload, adopt)),
+    view.listen<Handoff>("atrix-terminal:adopt", e =>
+      receive(e.payload, adopt),
+    ),
   ]
 
   registerHost().catch(() => undefined)

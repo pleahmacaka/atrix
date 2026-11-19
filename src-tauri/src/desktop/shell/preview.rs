@@ -29,11 +29,11 @@ mod win {
     use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
     use windows::Win32::Foundation::{HWND, RECT};
     use windows::Win32::Graphics::Dwm::{
-        DwmRegisterThumbnail, DwmUnregisterThumbnail, DwmUpdateThumbnailProperties,
         DWM_THUMBNAIL_PROPERTIES, DWM_TNP_OPACITY, DWM_TNP_RECTDESTINATION,
-        DWM_TNP_SOURCECLIENTAREAONLY, DWM_TNP_VISIBLE,
+        DWM_TNP_SOURCECLIENTAREAONLY, DWM_TNP_VISIBLE, DwmRegisterThumbnail,
+        DwmUnregisterThumbnail, DwmUpdateThumbnailProperties,
     };
-    use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextW, ShowWindow, SW_HIDE, SW_SHOWNA};
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextW, SW_HIDE, SW_SHOWNA, ShowWindow};
 
     use super::PreviewSlot;
 
@@ -106,21 +106,23 @@ mod win {
         };
 
         // a menu extends the dock window upward, so anchor to the band it reserves instead
-        let [dock_left, dock_top, _, dock_height] = match crate::shell::appbar::dock_frame() {
-            Some(frame) => frame,
-            None => {
-                let (Ok(position), Ok(size)) = (dock.outer_position(), dock.outer_size()) else {
-                    return hide(app);
-                };
+        let [dock_left, dock_top, _, dock_height] =
+            match crate::desktop::shell::appbar::dock_frame() {
+                Some(frame) => frame,
+                None => {
+                    let (Ok(position), Ok(size)) = (dock.outer_position(), dock.outer_size())
+                    else {
+                        return hide(app);
+                    };
 
-                [
-                    position.x,
-                    position.y,
-                    size.width as i32,
-                    size.height as i32,
-                ]
-            }
-        };
+                    [
+                        position.x,
+                        position.y,
+                        size.width as i32,
+                        size.height as i32,
+                    ]
+                }
+            };
 
         let (width, height) = layout(sources.len());
         let physical_width = (width * scale).round() as i32;
@@ -133,7 +135,7 @@ mod win {
 
         let gap = (DOCK_GAP * scale).round() as i32;
 
-        let top = if crate::shell::appbar::edge_is_top() {
+        let top = if crate::desktop::shell::appbar::edge_is_top() {
             dock_top + dock_height + gap
         } else {
             dock_top - gap - physical_height
@@ -214,7 +216,7 @@ mod win {
 
         let _ = app.emit("preview-shown", placed);
 
-        crate::shell::windowing::webview_visible(app, "preview", true);
+        crate::desktop::shell::windowing::webview_visible(app, "preview", true);
 
         unsafe {
             let _ = ShowWindow(destination, SW_SHOWNA);
@@ -236,6 +238,6 @@ mod win {
             }
         }
 
-        crate::shell::windowing::webview_visible(app, "preview", false);
+        crate::desktop::shell::windowing::webview_visible(app, "preview", false);
     }
 }

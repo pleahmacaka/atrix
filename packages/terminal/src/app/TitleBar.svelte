@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Logo, WindowControls } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import TabStrip from "./TabStrip.svelte"
   import { session } from "./tabs.svelte"

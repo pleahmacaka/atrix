@@ -1,16 +1,16 @@
-use windows::core::w;
 use windows::Win32::Foundation::{HANDLE, HGLOBAL, POINT};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardSequenceNumber,
     IsClipboardFormatAvailable, OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
 };
 use windows::Win32::System::Memory::{
-    GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
+    GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
 };
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_V};
-use windows::Win32::UI::Shell::{DragQueryFileW, DROPFILES, HDROP};
+use windows::Win32::UI::Shell::{DROPFILES, DragQueryFileW, HDROP};
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows::core::w;
 
 use super::ClipboardFiles;
 
@@ -70,7 +70,7 @@ pub fn foreign_foreground() -> bool {
 }
 
 pub fn paste() {
-    crate::shell::winkey::chord(&[VK_CONTROL, VK_V]);
+    crate::desktop::shell::winkey::chord(&[VK_CONTROL, VK_V]);
 }
 
 const CF_HDROP: u32 = 15;

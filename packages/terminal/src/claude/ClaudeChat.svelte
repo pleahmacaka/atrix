@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { renderMarkdown } from "@atrix/markdown"
+  import Icon from "@iconify/svelte"
   import "@atrix/markdown/markdown.css"
   import { t } from "svelte-i18n"
   import type { ClaudeCommand } from "../pty"
@@ -361,7 +361,7 @@
 
             <div class="flex flex-wrap gap-2">
               {#each screen.prompt.choices as choice, at (choice.key)}
-                <button
+                <button type="button"
                   class={[
                     "btn btn-sm h-auto min-h-8 max-w-full justify-start py-1.5",
                     "text-left",
@@ -380,7 +380,7 @@
 
         <div class="relative">
           {#if matches.length > 0}
-            <ul
+            <div
               class={[
                 "absolute inset-x-0 bottom-full z-10 mb-2 flex flex-col",
                 "overflow-hidden rounded-box border border-base-content/15",
@@ -388,33 +388,33 @@
               ]}
               role="listbox"
               aria-label={$t("terminal.claude.commands")}
-                          >
+            >
               {#each matches as entry, at (entry.name)}
-                <li role="option" aria-selected={at === pick}>
-                  <button
-                    type="button"
-                    class={[
-                      "flex w-full min-w-0 cursor-pointer items-baseline gap-3",
-                      "rounded-field px-3 py-1.5 text-left text-sm",
-                      at === pick ? "bg-primary/15" : "hover:bg-base-content/5",
-                    ]}
-                    onmouseenter={() => (pick = at)}
-                    onclick={() => complete(entry)}
-                  >
-                    <span class="shrink-0 font-medium">/{entry.name}</span>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={at === pick}
+                  class={[
+                    "flex w-full min-w-0 cursor-pointer items-baseline gap-3",
+                    "rounded-field px-3 py-1.5 text-left text-sm",
+                    at === pick ? "bg-primary/15" : "hover:bg-base-content/5",
+                  ]}
+                  onmouseenter={() => (pick = at)}
+                  onclick={() => complete(entry)}
+                >
+                  <span class="shrink-0 font-medium">/{entry.name}</span>
 
-                    {#if entry.description}
-                      <span
-                        class="min-w-0 truncate text-xs text-base-content/50"
-                        title={entry.description}
-                      >
-                        {entry.description}
-                      </span>
-                    {/if}
-                  </button>
-                </li>
+                  {#if entry.description}
+                    <span
+                      class="min-w-0 truncate text-xs text-base-content/50"
+                      title={entry.description}
+                    >
+                      {entry.description}
+                    </span>
+                  {/if}
+                </button>
               {/each}
-            </ul>
+            </div>
           {/if}
 
           <div
@@ -439,7 +439,7 @@
             ></textarea>
 
             {#if screen.busy && !draft.trim()}
-              <button
+              <button type="button"
                 class="btn btn-sm btn-square rounded-full"
                 title={$t("terminal.claude.stop")}
                 aria-label={$t("terminal.claude.stop")}
@@ -448,7 +448,7 @@
                 <Icon icon="lucide:square" class="size-3.5" />
               </button>
             {:else}
-              <button
+              <button type="button"
                 class="btn btn-primary btn-sm btn-square rounded-full"
                 title={$t("terminal.claude.send")}
                 aria-label={$t("terminal.claude.send")}

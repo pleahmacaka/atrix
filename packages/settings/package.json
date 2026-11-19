@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@atrix/i18n": "workspace:*",
-    "@atrix/sync": "workspace:*",
     "es-toolkit": "^1.52.0"
   },
   "peerDependencies": {

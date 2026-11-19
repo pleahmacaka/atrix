@@ -1,7 +1,7 @@
 import { type TraySlot, updateDevice } from "@atrix/settings"
 import type { MenuItem } from "@atrix/ui"
 import { exit } from "@tauri-apps/plugin-process"
-import * as native from "#lib/native/index.js"
+import * as native from "#lib/desktop/native/index.js"
 import { hidePatch, type Translate } from "./policy"
 
 function hideItem(id: TraySlot, t: Translate): MenuItem {

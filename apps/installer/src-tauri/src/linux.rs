@@ -87,7 +87,9 @@ pub fn install(app: &App, payload: &[u8]) -> Result<(), String> {
 pub fn launch_installer(bytes: &[u8], version: &str) -> Result<(), String> {
     let path = std::env::var_os("APPIMAGE")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join(format!("Atrix_{version}_installer.AppImage")));
+        .unwrap_or_else(|| {
+            std::env::temp_dir().join(format!("Atrix_{version}_installer.AppImage"))
+        });
 
     write(&path, bytes, 0o755)?;
     Command::new(path).spawn().map_err(fail)?;

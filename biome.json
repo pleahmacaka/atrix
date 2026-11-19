@@ -4,6 +4,13 @@
     "includes": [
       "src/**/*.ts",
       "src/**/*.svelte",
+      "packages/**/*.ts",
+      "packages/**/*.svelte",
+      "packages/*/*.json",
+      "apps/installer/src/**/*.ts",
+      "apps/installer/src/**/*.svelte",
+      "apps/installer/*.ts",
+      "apps/installer/*.json",
       "scripts/**/*.ts",
       "*.ts",
       "*.json",

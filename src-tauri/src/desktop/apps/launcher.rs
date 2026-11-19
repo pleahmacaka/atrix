@@ -202,10 +202,10 @@ fn refresh_in_background() {
 
         REFRESHING.store(false, Ordering::Relaxed);
 
-        if previous.is_none_or(|(_, previous)| previous != apps) {
-            if let Some(app) = APP.get() {
-                let _ = app.emit("apps-changed", ());
-            }
+        if previous.is_none_or(|(_, previous)| previous != apps)
+            && let Some(app) = APP.get()
+        {
+            let _ = app.emit("apps-changed", ());
         }
     });
 }
@@ -222,7 +222,7 @@ pub fn watch(app: AppHandle) {
     });
 
     std::thread::spawn(move || {
-        crate::apps::pins::watch(|| {
+        crate::desktop::apps::pins::watch(|| {
             let next = scan_pins();
             let changed = PINS.lock().unwrap().replace(next.clone()) != Some(next);
 
@@ -266,14 +266,14 @@ pub fn pinned_apps() -> Vec<AppEntry> {
 }
 
 fn scan_pins() -> Vec<AppEntry> {
-    let Some(root) = crate::apps::pins::folder() else {
+    let Some(root) = crate::desktop::apps::pins::folder() else {
         return Vec::new();
     };
 
     let mut entries = shortcuts_in(root, 1);
     let names: Vec<String> = entries.iter().map(|found| file_name(&found.path)).collect();
-    let order = crate::apps::pins::read_favorites()
-        .map(|favorites| crate::apps::pins::taskbar_order(&favorites, &names))
+    let order = crate::desktop::apps::pins::read_favorites()
+        .map(|favorites| crate::desktop::apps::pins::taskbar_order(&favorites, &names))
         .unwrap_or_default();
 
     entries.sort_by_key(|found| {
@@ -300,8 +300,8 @@ fn file_name(path: &str) -> String {
 
 #[tauri::command]
 pub async fn launch_app(app: AppHandle, path: String, admin: bool) -> Result<(), String> {
-    crate::system::blocking(move || {
-        if !admin && opens_explorer(&path) && crate::apps::files::open_instead(&app, None) {
+    crate::desktop::system::blocking(move || {
+        if !admin && opens_explorer(&path) && crate::desktop::files::open_instead(&app, None) {
             return Ok(());
         }
 
@@ -316,7 +316,7 @@ pub async fn launch_app(app: AppHandle, path: String, admin: bool) -> Result<(),
 pub fn open_location(app: AppHandle, path: String) -> Result<(), String> {
     let target = shortcut_target(&path).unwrap_or(path);
 
-    if crate::apps::files::open_instead(&app, Some(target.clone())) {
+    if crate::desktop::files::open_instead(&app, Some(target.clone())) {
         return Ok(());
     }
 
@@ -346,31 +346,31 @@ pub fn shell_execute(
 mod win {
     use std::path::{Path, PathBuf};
 
-    use windows::core::{w, Interface, HSTRING, PCWSTR};
-    use windows::Win32::Foundation::{LocalFree, HANDLE, HLOCAL, WAIT_EVENT, WAIT_OBJECT_0};
+    use windows::Win32::Foundation::{HANDLE, HLOCAL, LocalFree, WAIT_EVENT, WAIT_OBJECT_0};
     use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
     use windows::Win32::Storage::FileSystem::{
-        FindCloseChangeNotification, FindFirstChangeNotificationW, FindNextChangeNotification,
         FILE_NOTIFY_CHANGE, FILE_NOTIFY_CHANGE_DIR_NAME, FILE_NOTIFY_CHANGE_FILE_NAME,
-        FILE_NOTIFY_CHANGE_LAST_WRITE,
+        FILE_NOTIFY_CHANGE_LAST_WRITE, FindCloseChangeNotification, FindFirstChangeNotificationW,
+        FindNextChangeNotification,
     };
     use windows::Win32::System::Com::StructuredStorage::{
         PropVariantClear, PropVariantToStringAlloc,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoTaskMemFree, IPersistFile, CLSCTX_INPROC_SERVER, STGM_READ,
+        CLSCTX_INPROC_SERVER, CoCreateInstance, CoTaskMemFree, IPersistFile, STGM_READ,
     };
-    use windows::Win32::System::Threading::{WaitForMultipleObjects, INFINITE};
+    use windows::Win32::System::Threading::{INFINITE, WaitForMultipleObjects};
     use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
     use windows::Win32::UI::Shell::{
         BHID_EnumItems, CommandLineToArgvW, IEnumShellItems, IShellItem, IShellLinkW,
-        SHCreateItemFromParsingName, ShellExecuteW, ShellLink, SIGDN, SIGDN_NORMALDISPLAY,
-        SIGDN_PARENTRELATIVEPARSING,
+        SHCreateItemFromParsingName, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING,
+        ShellExecuteW, ShellLink,
     };
     use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOWNORMAL};
+    use windows::core::{HSTRING, Interface, PCWSTR, w};
 
-    use super::{entry, AppEntry, ShortcutMetadata};
-    use crate::system::com::Apartment;
+    use super::{AppEntry, ShortcutMetadata, entry};
+    use crate::desktop::system::com::Apartment;
 
     pub fn shell_execute(
         verb: &str,
@@ -685,9 +685,10 @@ mod tests {
         assert!(!apps.is_empty(), "no apps found");
         assert!(apps.iter().any(|app| app.kind == "shortcut"));
         assert!(apps.iter().any(|app| app.kind == "store"));
-        assert!(apps
-            .iter()
-            .all(|app| !app.id.is_empty() && !app.name.is_empty()));
+        assert!(
+            apps.iter()
+                .all(|app| !app.id.is_empty() && !app.name.is_empty())
+        );
     }
 
     #[test]
@@ -724,10 +725,10 @@ mod tests {
             win::argument_executables(r#"--launch "An App.exe" Another.exe --flag"#),
             ["An App.exe", "Another.exe"]
         );
-        assert!(win::argument_executables(
-            r#"--foo=App.exe C:\Other\App.exe ../App.exe --flag.exe"#
-        )
-        .is_empty());
+        assert!(
+            win::argument_executables(r#"--foo=App.exe C:\Other\App.exe ../App.exe --flag.exe"#)
+                .is_empty()
+        );
         assert!(win::argument_executables("").is_empty());
     }
 }

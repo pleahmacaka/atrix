@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { logoSvg } from "@atrix/ui/logo"
-  import "virtual:iconify-subset"
   import { setupI18n } from "@atrix/i18n"
   import {
     type Appearance,
@@ -11,24 +9,24 @@
     onProfile,
     type WindowSurface,
   } from "@atrix/settings"
-  import { applyAppearance } from "#lib/theme.js"
-  import { fadeShell } from "#lib/motion.js"
-  import { page } from "$app/state"
-  import { getCurrentWindow } from "@tauri-apps/api/window"
   import { Aura, GlobalContextMenu } from "@atrix/ui"
+  import { logoSvg } from "@atrix/ui/logo"
+  import { getCurrentWindow } from "@tauri-apps/api/window"
+  import { fadeShell } from "#lib/desktop/motion.js"
   import {
     onWindowHiding,
     onWindowShown,
     type WindowLabel,
     windowReady,
-  } from "#lib/native/index.js"
+  } from "#lib/desktop/native/index.js"
+  import { applyAppearance } from "#lib/desktop/theme.js"
+  import { page } from "$app/state"
   import "@atrix/markdown/markdown.css"
-  import "./layout.css"
 
   let { children } = $props()
 
   const WINDOWS: Record<string, WindowSurface> = {
-    "": "launcher",
+    launcher: "launcher",
     panel: "panel",
     settings: "settings",
     notices: "notices",
@@ -38,7 +36,9 @@
 
   const favicon = `data:image/svg+xml,${encodeURIComponent(logoSvg())}`
 
-  const surface = WINDOWS[page.route.id?.split("/")[1] ?? ""]
+  const surface = WINDOWS[page.route.id?.split("/")[2] ?? ""]
+
+  document.documentElement.dataset.surface = "window"
 
   if (surface) {
     document.documentElement.dataset.window = surface

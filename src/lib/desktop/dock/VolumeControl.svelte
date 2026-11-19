@@ -1,9 +1,9 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { MenuBox } from "./layout.svelte"
-  import { t } from "svelte-i18n"
-  import * as native from "#lib/native/index.js"
   import type { DockEdge } from "@atrix/settings"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import * as native from "#lib/desktop/native/index.js"
+  import type { MenuBox } from "./layout.svelte"
 
   type Props = {
     volume: native.Volume
@@ -124,7 +124,7 @@
 <svelte:window {onmousedown} {onkeydown} />
 
 <div class="relative" data-volume>
-  <button
+  <button type="button"
     class={["btn btn-ghost btn-square btn-sm", volume.muted && "text-base-content/50"]}
     title={label}
     aria-label={label}
@@ -148,7 +148,7 @@
       aria-label={$t("tray.volume.sound")}
     >
       <div class="flex items-center gap-2">
-        <button
+        <button type="button"
           class="btn btn-ghost btn-square btn-sm"
           aria-label={volume.muted ? $t("tray.volume.unmute") : $t("tray.volume.mute")}
           onclick={toggleMute}

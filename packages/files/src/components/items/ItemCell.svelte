@@ -8,8 +8,8 @@
   import { openMenu } from "../../store/menus"
   import { driveLabel } from "../../store/places.svelte"
   import { prefetchOnHover } from "../../store/prefetch"
-  import { middleClick } from "../middleClick"
   import { prefs, SORT_KEYS } from "../../store/prefs.svelte"
+  import { middleClick } from "../middleClick"
   import { cellText, kindText } from "./cells"
   import { duplicateTint, GIT_TONES } from "./decor"
   import ItemBadges from "./ItemBadges.svelte"
@@ -87,7 +87,7 @@
 {/snippet}
 
 <div
-  role="row"
+  role="option"
   tabindex="-1"
   data-key={item.key}
   {@attach prefetchOnHover(item.dir ? item.path : null)}

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { Section } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import { imageIcon } from "../../image-icon"
   import { type GitHost, prefs } from "../../store/prefs.svelte"

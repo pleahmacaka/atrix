@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
-  import { customIcon } from "../../fileicons"
   import type { ClassValue } from "svelte/elements"
+  import { customIcon } from "../../fileicons"
   import {
     forgetSample,
     hasThumbnail,

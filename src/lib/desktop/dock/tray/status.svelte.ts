@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event"
-import * as native from "#lib/native/index.js"
+import * as native from "#lib/desktop/native/index.js"
 import { dockAwake } from "../dock.svelte"
 
 // Each Tray owns its polling and subscription; effects are disposed with its

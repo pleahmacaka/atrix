@@ -1,10 +1,10 @@
 <script lang="ts">
   import { type Appearance, standaloneLook } from "@atrix/settings"
   import { t } from "svelte-i18n"
-  import AppearanceRows from "./AppearanceRows.svelte"
+  import { atrixStyle } from "../../store/standalone.svelte"
   import Row from "../forms/Row.svelte"
   import Section from "../forms/Section.svelte"
-  import { atrixStyle } from "../../store/standalone.svelte"
+  import AppearanceRows from "./AppearanceRows.svelte"
 
   let {
     prefs,

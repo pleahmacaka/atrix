@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { type DeviceSettings, isLastEntryPoint } from "@atrix/settings"
   import { Row } from "@atrix/ui"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
 
   type Feature = keyof DeviceSettings["features"]
@@ -34,14 +34,13 @@
 </script>
 
 {#if presets}
-  <div class="grid grid-cols-2 gap-3 px-4 pt-3" role="radiogroup" aria-label={$t("settings.featurePresets.aria")}>
+  <fieldset class="grid grid-cols-2 gap-3 px-4 pt-3" aria-label={$t("settings.featurePresets.aria")}>
     {#each PRESETS as preset (preset.id)}
       {@const active = same(device.features, preset.features)}
 
       <button
         type="button"
-        role="radio"
-        aria-checked={active}
+        aria-pressed={active}
         class={[
           "flex items-start gap-3 rounded-box border p-3 text-left outline-none transition duration-100 focus-visible:ring-2 focus-visible:ring-primary/50",
           active
@@ -61,7 +60,7 @@
         </span>
       </button>
     {/each}
-  </div>
+  </fieldset>
 {/if}
 
 {#each FEATURES as feature (feature.key)}

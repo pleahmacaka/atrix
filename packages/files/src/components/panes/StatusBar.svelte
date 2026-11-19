@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
   import { currentLocale } from "@atrix/i18n"
+  import Icon from "@iconify/svelte"
   import { t } from "svelte-i18n"
   import { formatBytes } from "../../format"
   import { cancelSearch, measureDirs, randomToken } from "../../native"

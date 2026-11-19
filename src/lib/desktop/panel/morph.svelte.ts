@@ -1,7 +1,7 @@
 import { rootRem } from "@atrix/ui"
 import { flushSync } from "svelte"
 import type { Attachment } from "svelte/attachments"
-import * as native from "#lib/native/index.js"
+import * as native from "#lib/desktop/native/index.js"
 
 const FULL_CLIP = "inset(0 round var(--radius-box))"
 

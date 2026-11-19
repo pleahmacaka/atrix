@@ -77,7 +77,7 @@ mod win {
 
     // GlobalMemoryStatusEx sits behind a windows-crate feature this build does not enable
     #[link(name = "kernel32")]
-    extern "system" {
+    unsafe extern "system" {
         fn GlobalMemoryStatusEx(buffer: *mut MemoryStatus) -> i32;
     }
 

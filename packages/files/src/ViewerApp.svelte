@@ -1,7 +1,7 @@
 <script lang="ts">
+  import { WindowControls } from "@atrix/ui"
   import Icon from "@iconify/svelte"
   import { locale, t } from "svelte-i18n"
-  import { WindowControls } from "@atrix/ui"
   import { windowLabels } from "./components/window/labels"
   import { baseName } from "./locations"
   import { assetUrl, modelFiles, takeIntent } from "./native"

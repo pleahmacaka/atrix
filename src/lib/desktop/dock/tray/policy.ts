@@ -1,6 +1,5 @@
 import type { DeviceSettings, TraySlot } from "@atrix/settings"
-import type { Battery, SystemInfo } from "#lib/native/index.js"
-import type { SyncStatus } from "#lib/sync/index.js"
+import type { Battery, SystemInfo } from "#lib/desktop/native/index.js"
 
 export type Translate = (
   key: string,
@@ -107,43 +106,4 @@ export function batteryTitle(battery: Battery | null, t: Translate): string {
     values: { percent: battery.percent },
   })
   return battery.charging ? `${level}, ${t("tray.battery.charging")}` : level
-}
-
-export function syncTone(status: SyncStatus): string {
-  return status.state === "error"
-    ? "bg-error"
-    : status.state === "syncing"
-      ? "bg-info animate-pulse"
-      : status.state === "idle" && status.peers > 0
-        ? "bg-success"
-        : "bg-base-content/30"
-}
-
-export function syncTitle(
-  status: SyncStatus,
-  t: Translate,
-  locale: string,
-): string {
-  if (status.state === "error") {
-    return t("tray.sync.failed", {
-      values: { error: status.lastError ?? t("tray.sync.unknownError") },
-    })
-  }
-  if (status.state === "syncing") {
-    return t("tray.sync.syncing")
-  }
-  if (status.state === "unpaired") {
-    return t("tray.sync.unpaired")
-  }
-  if (status.peers === 0) {
-    return t("tray.sync.waiting")
-  }
-  if (!status.lastSyncAt) {
-    return t("tray.sync.ready")
-  }
-  const at = new Date(status.lastSyncAt).toLocaleTimeString(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-  })
-  return t("tray.sync.synced", { values: { time: at } })
 }

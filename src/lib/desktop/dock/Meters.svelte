@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Icon from "@iconify/svelte"
-  import type { MenuBox } from "./layout.svelte"
-  import { t } from "svelte-i18n"
-  import { type Meters, runCommand, systemMeters } from "#lib/native/system.js"
   import type { DockEdge } from "@atrix/settings"
+  import Icon from "@iconify/svelte"
+  import { t } from "svelte-i18n"
+  import { type Meters, runCommand, systemMeters } from "#lib/desktop/native/system.js"
   import { dockAwake } from "./dock.svelte"
+  import type { MenuBox } from "./layout.svelte"
   import Network from "./Network.svelte"
 
   type Props = {
@@ -128,7 +128,7 @@
   const network = $derived(meters?.network ?? null)
 
   const networkLabel = $derived(
-    !network || !network.connected
+    !network?.connected
       ? $t("tray.network.none")
       : network.ssid || network.name || $t("tray.network.connected"),
   )

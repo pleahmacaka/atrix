@@ -16,8 +16,7 @@
   } = $props()
 </script>
 
-<div
-  role="radiogroup"
+<fieldset
   aria-label={label}
   class="inline-flex gap-0.5 rounded-field border border-base-content/10 bg-base-content/5 p-0.5"
 >
@@ -26,8 +25,7 @@
 
     <button
       type="button"
-      role="radio"
-      aria-checked={active}
+      aria-pressed={active}
       class={[
         "flex items-center gap-1.5 rounded-field px-3 py-1 text-sm outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/50",
         active
@@ -46,4 +44,4 @@
       {o.label}
     </button>
   {/each}
-</div>
+</fieldset>

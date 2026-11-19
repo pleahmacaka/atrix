@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { installUsageBridge, usageBridgeInstalled } from "#lib/native/usage.js"
   import { type ClockAlign, type DeviceSettings, defaultDevice } from "@atrix/settings"
   import { Row, Section, Segmented, SubRows, toast } from "@atrix/ui"
   import { t } from "svelte-i18n"
+  import { installUsageBridge, usageBridgeInstalled } from "#lib/desktop/native/usage.js"
   import { reset } from "../reset"
 
   let { device = $bindable() }: { device: DeviceSettings } = $props()

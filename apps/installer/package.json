@@ -34,7 +34,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.3.4",
-    "vite-plugin-iconify-subset": "workspace:*"
+    "vite-plugin-iconify-embed": "git+https://github.com/pleahmacaka/vite-plugin-iconify-embed.git#f38b49e"
   },
   "imports": {
     "#lib": "./src/lib/index.js",
