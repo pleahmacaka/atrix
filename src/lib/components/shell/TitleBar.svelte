@@ -2,13 +2,13 @@
 import Icon from "@iconify/svelte"
 import { repoIcon } from "#lib/components/harness/brands.ts"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import WindowControls from "#lib/components/ui/WindowControls.svelte"
 import { logFailure } from "#lib/logging.ts"
 import { floatChat, floating, floatOut } from "#lib/p2p/float.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { baseName } from "#lib/path.ts"
 import { desktop } from "#lib/platform.ts"
-import { frame } from "#lib/store/appearance.svelte.ts"
 import { keyOf } from "#lib/store/keys.ts"
 import { nav, openConversation } from "#lib/store/nav.svelte.ts"
 import { panes } from "#lib/store/panes.svelte.ts"
@@ -55,8 +55,6 @@ const cwd = $derived(
 )
 
 let renaming = $state(false)
-
-const win = () => import("@tauri-apps/api/window").then(w => w.getCurrentWindow())
 
 const rename = (current: Recent["current"], key: string, value: string) => {
   const title = value.trim()
@@ -166,27 +164,6 @@ const rename = (current: Recent["current"], key: string, value: string) => {
     />
   {/if}
   {#if desktop}
-    <span class="mx-1.5 h-4 w-px shrink-0 bg-base-content/15" aria-hidden="true"></span>
-    <div class="-me-1.5 flex h-full shrink-0 items-center self-stretch">
-      <IconButton
-        icon="lucide:minus"
-        label={m.shell_minimize()}
-        class="h-full w-11 rounded-none"
-        onclick={() => win().then(w => w.minimize())}
-      />
-      <IconButton
-        icon={frame.maximized ? "lucide:copy" : "lucide:square"}
-        label={frame.maximized ? m.shell_restore() : m.shell_maximize()}
-        iconClass="size-3.5"
-        class="h-full w-11 rounded-none"
-        onclick={() => win().then(w => w.toggleMaximize())}
-      />
-      <IconButton
-        icon="lucide:x"
-        label={m.common_close()}
-        class="h-full w-11 rounded-none hover:bg-error hover:text-error-content"
-        onclick={() => win().then(w => w.close())}
-      />
-    </div>
+    <WindowControls />
   {/if}
 </header>

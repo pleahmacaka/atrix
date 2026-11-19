@@ -3,7 +3,6 @@ use tauri_plugin_atrix_files::Host;
 pub const HOST: Host = Host {
     main_route: "/shell/files",
     viewer_route: "/shell/files/viewer",
-    menu_route: "/shell/files/menu",
     marker: Some("--files"),
     app_name: "Atrix",
     prog_prefix: "Atrix",

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { type DeviceSettings, updateDevice } from "@atrix/settings"
 import Icon from "@iconify/svelte"
 import { relaunch } from "@tauri-apps/plugin-process"
 import { isEqual } from "es-toolkit"
@@ -23,6 +22,7 @@ import {
   setWinKeyCapture,
 } from "#lib/desktop/native/dock.ts"
 import { hideWindow, onWindowShown } from "#lib/desktop/native/windows.ts"
+import { type DeviceSettings, updateDevice } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 type Choices = Pick<

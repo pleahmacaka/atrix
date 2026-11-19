@@ -32,9 +32,6 @@ mod launch;
 #[cfg_attr(not(windows), path = "unix/listing.rs")]
 mod listing;
 #[cfg(desktop)]
-#[cfg_attr(not(windows), path = "unix/menu.rs")]
-mod menu;
-#[cfg(desktop)]
 #[cfg_attr(not(windows), path = "unix/network.rs")]
 mod network;
 #[cfg(any(desktop, target_os = "android"))]
@@ -77,7 +74,6 @@ pub type PeerList = fn(&AppHandle) -> Vec<(String, String)>;
 pub struct Host {
     pub main_route: &'static str,
     pub viewer_route: &'static str,
-    pub menu_route: &'static str,
     pub marker: Option<&'static str>,
     pub app_name: &'static str,
     pub prog_prefix: &'static str,
@@ -87,7 +83,6 @@ pub struct Host {
 pub const STANDALONE: Host = Host {
     main_route: "/",
     viewer_route: "/viewer",
-    menu_route: "/menu",
     marker: None,
     app_name: "Atrix Files",
     prog_prefix: "AtrixFiles",
@@ -127,16 +122,6 @@ pub fn init(host: Host) -> TauriPlugin<Wry> {
             usage::usage_scan,
             usage::usage_tree,
             usage::usage_forget,
-            #[cfg(desktop)]
-            menu::menu_prepare,
-            #[cfg(desktop)]
-            menu::menu_ready,
-            #[cfg(desktop)]
-            menu::menu_place,
-            #[cfg(desktop)]
-            menu::menu_hide,
-            #[cfg(desktop)]
-            menu::menu_owner_active,
             #[cfg(desktop)]
             archive::list_archive,
             #[cfg(desktop)]
@@ -279,7 +264,9 @@ pub fn init(host: Host) -> TauriPlugin<Wry> {
         ]))
         .setup(move |app, api| {
             #[cfg(target_os = "android")]
-            api.register_android_plugin("app.atrix.files", "FilesPlugin")?;
+            app.manage(share::Mobile(
+                api.register_android_plugin("app.atrix.files", "FilesPlugin")?,
+            ));
             #[cfg(not(target_os = "android"))]
             let _ = api;
 

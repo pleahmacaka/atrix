@@ -93,6 +93,17 @@ fn guard(node: Arc<Node>) -> EventSender {
                         .is_some_and(|peer| node.may_serve(peer, &message.request));
 
                     message.tx.send(verdict(allowed)).await.ok();
+
+                    if allowed {
+                        let transfer = node.transfer();
+                        let mut updates = message.rx;
+
+                        tauri::async_runtime::spawn(async move {
+                            while let Ok(Some(_)) = updates.recv().await {}
+
+                            drop(transfer);
+                        });
+                    }
                 }
                 _ => {}
             }

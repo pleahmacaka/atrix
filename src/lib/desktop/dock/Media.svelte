@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { SpectrumStyle } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import { listen } from "@tauri-apps/api/event"
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import Popover, { type Placement } from "#lib/components/ui/Popover.svelte"
   import * as native from "#lib/desktop/native/index.js"
   import { type MediaAction, type MediaStatus, mediaCommand, mediaStatus } from "#lib/desktop/native/media.js"
+  import type { SpectrumStyle } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import { dockAwake } from "./dock.svelte"
   import Spectrum from "./Spectrum.svelte"

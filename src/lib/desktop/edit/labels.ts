@@ -1,5 +1,9 @@
-import type { ShellItemKind, ShellZoneId, ShellZoneSize } from "@atrix/settings"
 import type { BarId } from "#lib/desktop/dock/zones.ts"
+import type {
+  ShellItemKind,
+  ShellZoneId,
+  ShellZoneSize,
+} from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 
 export const ICONS: Record<ShellItemKind, string> = {

@@ -1,1 +1,1 @@
-export const load = () => ({ framed: true, denseMenu: true })
+export const load = () => ({ framed: true })

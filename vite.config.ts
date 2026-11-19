@@ -27,7 +27,7 @@ export default defineConfig({
     }),
     iconifyEmbed({
       collections: [lucide, simpleIcons, logos, thesvg, materialIcons],
-      scan: ["src", "packages"],
+      scan: ["src"],
     }),
     tailwindcss(),
     sveltekit({

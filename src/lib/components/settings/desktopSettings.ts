@@ -1,7 +1,8 @@
-import type { LauncherTrigger } from "@atrix/settings"
 import { invoke } from "@tauri-apps/api/core"
 import { emitTo } from "@tauri-apps/api/event"
+import type { LauncherTrigger } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
+import type { SettingsTab } from "#lib/store/nav.svelte.ts"
 
 export type Components = { shell: boolean; files: boolean; terminal: boolean }
 
@@ -42,7 +43,12 @@ export const DESKTOP_SECTIONS: {
   },
 ]
 
-export const DESKTOP_SETTINGS = "desktop:settings"
+export const MAIN_SETTINGS = "main:settings"
+
+export type SettingsRequest = {
+  tab: SettingsTab
+  section: DesktopSection | null
+}
 
 export const TRIGGERS: { id: LauncherTrigger; label: string }[] = [
   { id: "win", label: m.desktop_trigger_win() },
@@ -50,8 +56,14 @@ export const TRIGGERS: { id: LauncherTrigger; label: string }[] = [
   { id: "both", label: m.desktop_trigger_both() },
 ]
 
+export const openMainSettings = (tab: SettingsTab, section?: DesktopSection) =>
+  emitTo("main", MAIN_SETTINGS, {
+    tab,
+    section: section ?? null,
+  } satisfies SettingsRequest)
+
 export const openDesktopSettings = (section?: DesktopSection) =>
-  emitTo("main", DESKTOP_SETTINGS, section ?? null)
+  openMainSettings("desktop", section)
 
 export const loadComponents = () => invoke<Components>("desktop_components_get")
 

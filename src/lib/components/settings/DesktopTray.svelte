@@ -1,10 +1,4 @@
 <script lang="ts">
-import type {
-  ClockAlign,
-  DeviceSettings,
-  DockSide,
-  SpectrumStyle,
-} from "@atrix/settings"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import Segmented from "#lib/components/ui/Segmented.svelte"
@@ -13,6 +7,12 @@ import {
   installUsageBridge,
   usageBridgeInstalled,
 } from "#lib/desktop/native/usage.ts"
+import type {
+  ClockAlign,
+  DeviceSettings,
+  DockSide,
+  SpectrumStyle,
+} from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import DesktopSection from "./DesktopSection.svelte"
 import { desktopSettings } from "./desktop.svelte.ts"

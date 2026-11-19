@@ -13,15 +13,15 @@ const handheld = new MediaQuery("(pointer: coarse) and (width < 40rem)")
 
 const HANDHELD_SCALE = 1.15
 
-export const frame = $state({ maximized: false })
-
 const trackFrame = async () => {
   const { getCurrentWindow } = await import("@tauri-apps/api/window")
   const win = getCurrentWindow()
 
   const sync = async () => {
-    frame.maximized = await win.isMaximized()
-    document.documentElement.toggleAttribute("data-maximized", frame.maximized)
+    document.documentElement.toggleAttribute(
+      "data-maximized",
+      await win.isMaximized(),
+    )
   }
 
   await win.onResized(sync)

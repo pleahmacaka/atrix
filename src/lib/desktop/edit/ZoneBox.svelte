@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { ShellGroup, ShellZoneId, ShellZoneSize } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import Popover from "#lib/components/ui/Popover.svelte"
@@ -13,6 +12,7 @@
     ZONE_SIZES,
     ZONES,
   } from "#lib/desktop/dock/zones.ts"
+  import type { ShellGroup, ShellZoneId, ShellZoneSize } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import type { Editor } from "./editor.svelte"
   import ItemChip from "./ItemChip.svelte"

@@ -1,4 +1,3 @@
-import type { Profile } from "@atrix/settings"
 import type {
   Result,
   ResultGroup,
@@ -14,6 +13,7 @@ import {
 import type { AppEntry } from "#lib/desktop/native/apps.js"
 import type { ClipEntry } from "#lib/desktop/native/clipboard.js"
 import type { WindowEntry } from "#lib/desktop/native/windows.js"
+import type { Profile } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { boost } from "./frecency"
 import {

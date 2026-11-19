@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { ShellItem } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import { tick } from "svelte"
   import { BARS, canPlace, locate, removable, ZONES, zoneEnd } from "#lib/desktop/dock/zones.ts"
+  import type { ShellItem } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
   import type { Editor } from "./editor.svelte"

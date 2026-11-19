@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "@iconify/svelte"
   import type { Snippet } from "svelte"
+  import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte"
   import EmptyState from "#lib/components/ui/EmptyState.svelte"
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import Modal from "#lib/components/ui/Modal.svelte"
@@ -10,7 +11,6 @@
   import { currentLocale } from "#lib/store/locale.ts"
   import { formatBytes } from "../../format"
   import { randomToken, usageForget, usageScan } from "../../native"
-  import ConfirmDialog from "../window/ConfirmDialog.svelte"
   import MobileThumb from "./MobileThumb.svelte"
   import {
     CATEGORIES,

@@ -320,6 +320,10 @@ pub fn shell_tray() -> Option<isize> {
     win::tray_window().map(|hwnd| hwnd.0 as isize)
 }
 
+pub fn recover_taskbar(app: &AppHandle) {
+    win::recover_taskbar(app);
+}
+
 mod win {
     use std::collections::{HashMap, HashSet};
     use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
@@ -881,6 +885,15 @@ mod win {
             && set_shell_state(previous)
         {
             save_shell_state(None);
+        }
+    }
+
+    pub fn recover_taskbar(app: &AppHandle) {
+        let _ = APP.set(app.clone());
+
+        if saved_shell_state().is_some() {
+            shell_taskbar_autohide(false);
+            set_system_taskbar_visible(true);
         }
     }
 

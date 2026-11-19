@@ -100,7 +100,6 @@ fn node<'a>(net: &'a State<'_, Net>) -> Result<&'a Node> {
     net.node.get().ok_or("net_stopped:".into())
 }
 
-#[cfg(desktop)]
 pub fn paired(app: &AppHandle) -> Vec<(String, String)> {
     let Some(node) = app.state::<Net>().inner().node.get() else {
         return Vec::new();
@@ -119,7 +118,6 @@ async fn launch(app: &AppHandle, sink: Sink, info: Info) -> Result<Node> {
     fs::create_dir_all(&dir)?;
 
     let router = atrix_net::bind(load_key(&dir.join("key"))?).await?;
-    #[cfg(desktop)]
     let router = tauri_plugin_atrix_files::mount_share(app, router).await;
     let roster = dir.join("peers.json");
     let (node, events) = Node::serve(router, load_peers(&roster), info);

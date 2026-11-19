@@ -1,10 +1,10 @@
 <script lang="ts">
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import WindowControls from "#lib/components/ui/WindowControls.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import type { Explorer } from "../../store/explorer.svelte"
 import ItemIcon from "../items/ItemIcon.svelte"
 import { middleClick } from "../middleClick"
-import WindowControls from "./WindowControls.svelte"
 
 let { explorer }: { explorer: Explorer } = $props()
 </script>

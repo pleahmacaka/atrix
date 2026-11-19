@@ -1,8 +1,7 @@
-import { updateDevice } from "@atrix/settings"
 import { openDesktopSettings } from "#lib/components/settings/desktopSettings.ts"
-import { editing } from "#lib/desktop/edit/index.js"
 import { type PowerAction, powerAction } from "#lib/desktop/native/system.js"
 import { hideWindow } from "#lib/desktop/native/windows.js"
+import { updateDevice } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import { powerLabel } from "./commands"
@@ -100,7 +99,6 @@ export const pointerdown = (e: PointerEvent) => {
   if (
     contextMenu.current ||
     e.button !== 0 ||
-    editing.on ||
     target?.closest("[data-launcher]")
   ) {
     return

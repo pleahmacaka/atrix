@@ -1,7 +1,7 @@
 <script lang="ts">
+  import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte"
   import { m } from "#lib/paraglide/messages.js"
   import { answerRemoval, removal } from "../../store/removal.svelte"
-  import ConfirmDialog from "./ConfirmDialog.svelte"
 
   const open = () => removal.names !== null
 

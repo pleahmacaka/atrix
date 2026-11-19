@@ -1,0 +1,11 @@
+{
+  "match": ["LAN9352"],
+  "label": "lan9352",
+  "node": "ethernet-switch",
+  "maxHz": 80000000,
+  "active": { "CS": "low", "IRQ": "low", "RESET": "low" },
+  "source": [
+    "Microchip LAN9352 Data Sheet DS00001923B, section 10 SPI/SQI Slave: the SPI interface accepts up to an 80 MHz clock (page 134).",
+    "Microchip LAN9352 Data Sheet DS00001923B, IRQ_CFG register: IRQ_POL defaults to 0, active-low output; open-drain IRQ is always active-low (page 80)."
+  ]
+}

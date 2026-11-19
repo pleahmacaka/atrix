@@ -1,4 +1,5 @@
 <script lang="ts">
+import ResizeHandle from "#lib/components/ui/ResizeHandle.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import { KNOWN_LABELS } from "../../labels"
 import {
@@ -9,7 +10,7 @@ import {
   THIS_PC,
 } from "../../locations"
 import type { Drive, KnownId } from "../../native"
-import { rootRem, track } from "../../pointer"
+import { resizeHandle, rootRem, track } from "../../pointer"
 import type { Explorer } from "../../store/explorer.svelte"
 import { openPlaceMenu, type Place } from "../../store/menus"
 import { driveName, places } from "../../store/places.svelte"
@@ -22,7 +23,6 @@ import {
   sidebarIcon,
 } from "../../store/sidebar"
 import { browsable } from "../share/share.svelte"
-import ResizeHandle from "../window/ResizeHandle.svelte"
 import NavEntry from "./NavEntry.svelte"
 
 type Entry = Place & {
@@ -294,12 +294,12 @@ const fit = () => {
 
 <ResizeHandle
   label={m.files_nav_navigation()}
-  resize={{
+  onpointerdown={resizeHandle({
     axis: "x",
     min: NAV_MIN,
     max: NAV_MAX,
     get: () => prefs.navWidth,
     set: width => (prefs.navWidth = width),
-  }}
-  onreset={fit}
+  })}
+  ondblclick={fit}
 />

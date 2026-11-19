@@ -1,4 +1,8 @@
 <script lang="ts">
+import Segmented from "#lib/components/ui/Segmented.svelte"
+import Select from "#lib/components/ui/Select.svelte"
+import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { listMonitors, type MonitorInfo } from "#lib/desktop/native/windows.ts"
 import {
   type DeviceSettings,
   type DockAlign,
@@ -8,12 +12,7 @@ import {
   defaultDevice,
   isLastEntryPoint,
   type PanelPosition,
-  type PanelStart,
-} from "@atrix/settings"
-import Segmented from "#lib/components/ui/Segmented.svelte"
-import Select from "#lib/components/ui/Select.svelte"
-import SettingRow from "#lib/components/ui/SettingRow.svelte"
-import { listMonitors, type MonitorInfo } from "#lib/desktop/native/windows.ts"
+} from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import DesktopSection from "./DesktopSection.svelte"
 import { desktopSettings } from "./desktop.svelte.ts"
@@ -49,11 +48,6 @@ const PANEL_POSITIONS: { id: PanelPosition; label: string }[] = [
   { id: "left", label: m.desktop_left() },
   { id: "center", label: m.desktop_center() },
   { id: "right", label: m.desktop_right() },
-]
-
-const PANEL_STARTS: { id: PanelStart; label: string }[] = [
-  { id: "compact", label: m.desktop_panel_compact() },
-  { id: "full", label: m.desktop_panel_full() },
 ]
 
 const HEIGHT = { min: 32, max: 140, step: 4, base: defaultDevice.dockHeight }
@@ -229,11 +223,6 @@ const floating = $derived(device.dockStyle === "mac")
         onchange={gap => set("dockIslandGap", gap)}
       />
     {/if}
-    <ToggleRow
-      title={m.desktop_dock_separators()}
-      checked={device.dockSeparators}
-      onchange={on => set("dockSeparators", on)}
-    />
     {#if device.features.launcher}
       <ToggleRow
         title={m.desktop_dock_launcher_button()}
@@ -255,25 +244,12 @@ const floating = $derived(device.dockStyle === "mac")
 {/if}
 
 <DesktopSection id="panel">
-  <ToggleRow
-    title={m.desktop_panel_calendar()}
-    checked={device.features.calendar}
-    onchange={on => set("features", { ...device.features, calendar: on })}
-  />
   <SettingRow title={m.desktop_position()}>
     <Segmented
       label={m.desktop_position()}
       items={PANEL_POSITIONS}
       value={device.panelPosition}
       onpick={position => set("panelPosition", position)}
-    />
-  </SettingRow>
-  <SettingRow title={m.desktop_panel_start()}>
-    <Segmented
-      label={m.desktop_panel_start()}
-      items={PANEL_STARTS}
-      value={device.panelStart}
-      onpick={start => set("panelStart", start)}
     />
   </SettingRow>
 </DesktopSection>

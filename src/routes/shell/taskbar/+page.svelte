@@ -1,11 +1,4 @@
 <script lang="ts">
-  import {
-    defaultProfile,
-    loadProfile,
-    onDevice,
-    onProfile,
-    type Profile,
-  } from "@atrix/settings"
   import { listen } from "@tauri-apps/api/event"
   import { getCurrentWindow, Window } from "@tauri-apps/api/window"
   import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart"
@@ -22,25 +15,23 @@
   } from "#lib/desktop/dock/index.js"
   import { watchEdit } from "#lib/desktop/edit/index.js"
   import { startTimerWatch } from "#lib/desktop/launcher/index.js"
+  import { reducedMotion } from "#lib/desktop/motion.ts"
   import * as native from "#lib/desktop/native/index.js"
+  import { onDevice } from "#lib/desktop/settings/index.ts"
 
   const HIDE_SLIDE = 140
   const REOPEN_GUARD = 400
-
-  document.documentElement.dataset.surface = "dock"
 
   const layout = new DockLayout()
 
   const status = new TrayStatus(() => layout.device.showNotifications && dockAwake.visible)
 
-  let profile = $state<Profile>(defaultProfile)
   let ready = $state(false)
   let hovered = $state(false)
   let edgeHover = $state(false)
   let held = $state(false)
   let panelOpen = $state(false)
   let pageHidden = $state(false)
-  let peeking = $state(false)
   let hiddenAt = 0
 
   const device = $derived(layout.device)
@@ -100,16 +91,10 @@
         layout.maximized = maximized
       })
       .catch(() => undefined)
-    loadProfile().then(p => {
-      profile = p
-    })
 
     const stops = [
       onDevice(d => {
         layout.device = d
-      }),
-      onProfile(p => {
-        profile = p
       }),
       native.onWindowShown("panel", refreshVisibility),
       native.onWindowShown("launcher", refreshVisibility),
@@ -119,9 +104,6 @@
         }
 
         refreshVisibility()
-      }),
-      listen<boolean>("dock-peek", e => {
-        peeking = e.payload
       }),
       listen("foreground-changed", () => {
         // the pointer still being over the dock means the user is interacting, not leaving
@@ -241,7 +223,6 @@
       hovered ||
       edgeHover ||
       held ||
-      peeking ||
       previewHover.over ||
       layout.menuBox !== null,
   )
@@ -255,7 +236,7 @@
 
     layout.closeMenus()
 
-    if (device.dockHideAnimation && profile.appearance.motion) {
+    if (device.dockHideAnimation && !reducedMotion()) {
       layout.hiding = true
       await new Promise(resolve => setTimeout(resolve, HIDE_SLIDE))
     }

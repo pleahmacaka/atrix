@@ -1,4 +1,8 @@
-import { type DeviceSettings, loadDevice, updateDevice } from "@atrix/settings"
+import {
+  type DeviceSettings,
+  loadDevice,
+  updateDevice,
+} from "#lib/desktop/settings/index.ts"
 import { machineName } from "./native"
 
 const LOCK = "atrix-device"

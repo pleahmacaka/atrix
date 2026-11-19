@@ -15,11 +15,6 @@ pub struct SystemInfo {
     pub volume: Option<audio::Volume>,
 }
 
-#[tauri::command]
-pub fn system_accent() -> Option<String> {
-    win::accent()
-}
-
 #[tauri::command(async)]
 pub fn system_info() -> SystemInfo {
     SystemInfo {
@@ -108,40 +103,14 @@ mod win {
     use windows::Win32::System::Power::{
         GetSystemPowerStatus, SYSTEM_POWER_STATUS, SetSuspendState,
     };
-    use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
     use windows::Win32::System::Shutdown::LockWorkStation;
     use windows::Win32::System::Threading::{
         CREATE_NO_WINDOW, GetCurrentProcess, OpenProcessToken,
     };
     use windows::Win32::UI::Shell::{SHERB_NOCONFIRMATION, SHERB_NOPROGRESSUI, SHEmptyRecycleBinW};
-    use windows::core::{PCWSTR, w};
+    use windows::core::PCWSTR;
 
     use super::Battery;
-
-    pub fn accent() -> Option<String> {
-        let mut value: u32 = 0;
-        let mut size = std::mem::size_of::<u32>() as u32;
-
-        let status = unsafe {
-            RegGetValueW(
-                HKEY_CURRENT_USER,
-                w!(r"Software\Microsoft\Windows\DWM"),
-                w!("AccentColor"),
-                RRF_RT_REG_DWORD,
-                None,
-                Some(&mut value as *mut u32 as *mut _),
-                Some(&mut size),
-            )
-        };
-
-        if status.is_err() {
-            return None;
-        }
-
-        let (red, green, blue) = (value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF);
-
-        Some(format!("#{red:02x}{green:02x}{blue:02x}"))
-    }
 
     pub fn battery() -> Option<Battery> {
         let mut status = SYSTEM_POWER_STATUS::default();

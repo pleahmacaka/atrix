@@ -10,11 +10,6 @@ const COMMANDS: &[&str] = &[
     "usage_scan",
     "usage_tree",
     "usage_forget",
-    "menu_prepare",
-    "menu_ready",
-    "menu_place",
-    "menu_hide",
-    "menu_owner_active",
     "list_archive",
     "extract_entry",
     "bandizip_available",
@@ -97,10 +92,8 @@ const COMMANDS: &[&str] = &[
     "share_files",
     "scan_files",
     "storage_stats",
-    "keep_alive",
     "send_to_back",
     "thumbnail",
-    "open_with",
 ];
 
 fn main() {

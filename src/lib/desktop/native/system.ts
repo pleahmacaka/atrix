@@ -1,5 +1,5 @@
-import type { TerminalApp } from "@atrix/settings"
 import { invoke } from "@tauri-apps/api/core"
+import type { TerminalApp } from "#lib/desktop/settings/index.ts"
 
 export type Battery = { percent: number; charging: boolean }
 

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { DockEdge, DockStyle } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import type { Snippet } from "svelte"
   import Popover from "#lib/components/ui/Popover.svelte"
   import Segmented from "#lib/components/ui/Segmented.svelte"
   import Stepper from "#lib/components/ui/Stepper.svelte"
+  import type { DockEdge, DockStyle } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import type { Editor } from "./editor.svelte"
 

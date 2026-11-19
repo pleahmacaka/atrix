@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { ShellZone, ShellZoneId } from "@atrix/settings"
   import type { Placement } from "#lib/components/ui/Popover.svelte"
   import { editing } from "#lib/desktop/edit/edit.svelte.ts"
+  import type { ShellZone, ShellZoneId } from "#lib/desktop/settings/index.ts"
   import BarGroup from "./BarGroup.svelte"
   import type { DockLayout } from "./layout.svelte"
   import { rem } from "./rem.svelte"

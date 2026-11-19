@@ -1,6 +1,5 @@
 package app.atrix.files
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.NotificationCompat
 
 class NodeService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
@@ -24,9 +24,7 @@ class NodeService : Service() {
 
     val launch = packageManager.getLaunchIntentForPackage(packageName)
     val open = PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_IMMUTABLE)
-    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL) else Notification.Builder(this)
-
-    val notification = builder
+    val notification = NotificationCompat.Builder(this, CHANNEL)
       .setSmallIcon(applicationInfo.icon)
       .setContentTitle(getString(R.string.atrix_node_title))
       .setContentText(getString(R.string.atrix_node_text))

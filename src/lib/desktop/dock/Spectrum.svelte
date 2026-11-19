@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { SpectrumStyle } from "@atrix/settings"
   import { listen } from "@tauri-apps/api/event"
   import * as native from "#lib/desktop/native/index.js"
+  import type { SpectrumStyle } from "#lib/desktop/settings/index.ts"
   import { dockAwake } from "./dock.svelte"
   import { rem } from "./rem.svelte"
 

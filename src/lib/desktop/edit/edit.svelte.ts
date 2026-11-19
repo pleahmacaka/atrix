@@ -1,18 +1,7 @@
 import { listen } from "@tauri-apps/api/event"
 import * as native from "#lib/desktop/native/index.js"
 
-export const editing = $state({ on: false, open: null as string | null })
-
-export const reorder = $state({
-  id: null as string | null,
-  over: null as string | null,
-  after: false,
-})
-
-export const clearReorder = () => {
-  reorder.id = null
-  reorder.over = null
-}
+export const editing = $state({ on: false })
 
 export const startEdit = () => native.editMode(true).catch(() => undefined)
 
@@ -21,7 +10,6 @@ export const stopEdit = () => native.editMode(false).catch(() => undefined)
 export const watchEdit = () => {
   const stop = listen<boolean>("edit-mode", e => {
     editing.on = e.payload
-    editing.open = null
   })
 
   const onkeydown = (e: KeyboardEvent) => {
@@ -31,13 +19,6 @@ export const watchEdit = () => {
 
     e.preventDefault()
     e.stopImmediatePropagation()
-
-    if (editing.open) {
-      editing.open = null
-
-      return
-    }
-
     stopEdit()
   }
 

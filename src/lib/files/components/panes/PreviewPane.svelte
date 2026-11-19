@@ -1,6 +1,7 @@
 <script lang="ts">
 import { untrack } from "svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
+import ResizeHandle from "#lib/components/ui/ResizeHandle.svelte"
 import { docKind } from "#lib/doc-preview/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { currentLocale } from "#lib/store/locale.ts"
@@ -17,12 +18,12 @@ import {
   previewText,
   type Tensors,
 } from "../../native"
+import { resizeHandle } from "../../pointer"
 import { archiveListing, isArchive } from "../../store/archive.svelte"
 import { prefs } from "../../store/prefs.svelte"
 import { confirmPrivate } from "../../store/privacy.svelte"
 import type { Tab } from "../../store/tab.svelte"
 import ItemIcon from "../items/ItemIcon.svelte"
-import ResizeHandle from "../window/ResizeHandle.svelte"
 import DocumentPeek from "./DocumentPeek.svelte"
 import FolderPane from "./FolderPane.svelte"
 import FolderPeek from "./FolderPeek.svelte"
@@ -176,16 +177,16 @@ const facts = $derived(
 </script>
 
 <ResizeHandle
-  resize={{
+  label={m.shell_resize_pane()}
+  onpointerdown={resizeHandle({
     axis: "x",
     invert: true,
     min: 14,
     max: 40,
     get: () => prefs.previewWidth,
     set: width => (prefs.previewWidth = width),
-  }}
-  label={m.shell_resize_pane()}
-  onreset={() => (prefs.previewWidth = DEFAULT_WIDTH)}
+  })}
+  ondblclick={() => (prefs.previewWidth = DEFAULT_WIDTH)}
 />
 
 <aside

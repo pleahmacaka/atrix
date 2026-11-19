@@ -9,7 +9,7 @@ import type {
   ShellZoneId,
   ShellZoneSize,
   TraySlot,
-} from "@atrix/settings"
+} from "#lib/desktop/settings/index.ts"
 
 export type BarId = "dock" | "top"
 

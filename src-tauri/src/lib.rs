@@ -185,7 +185,13 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder
         .plugin(tauri_plugin_barcode_scanner::init())
-        .plugin(tauri_plugin_calendar_sync::init());
+        .plugin(tauri_plugin_calendar_sync::init())
+        .plugin(tauri_plugin_atrix_files::init(
+            tauri_plugin_atrix_files::Host {
+                peers: Some(net::paired),
+                ..tauri_plugin_atrix_files::STANDALONE
+            },
+        ));
 
     builder
         .manage(agents::Agents::default())

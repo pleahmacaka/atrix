@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { ShellItem } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import IconButton from "#lib/components/ui/IconButton.svelte"
   import type { Placement } from "#lib/components/ui/Popover.svelte"
   import * as native from "#lib/desktop/native/index.js"
+  import type { ShellItem } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import AppsStrip from "./AppsStrip.svelte"
   import Bluetooth from "./Bluetooth.svelte"

@@ -1,4 +1,3 @@
-import { updateDevice } from "@atrix/settings"
 import { untrack } from "svelte"
 import {
   type AppEntry,
@@ -13,6 +12,7 @@ import {
   onWindowsChanged,
   type WindowEntry,
 } from "#lib/desktop/native/windows.js"
+import { updateDevice } from "#lib/desktop/settings/index.ts"
 import { fallbackPin, matchPin, windowIdentity } from "./identity"
 
 export type DockPin = "windows" | "device" | null

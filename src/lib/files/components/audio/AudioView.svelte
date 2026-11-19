@@ -6,6 +6,7 @@ const sound = persisted("atrix-files.audio", { volume: 1, muted: false })
 
 <script lang="ts">
 import Icon from "@iconify/svelte"
+import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import SearchField from "#lib/components/ui/SearchField.svelte"
 import { toast } from "#lib/files/store/toast.svelte.ts"
@@ -14,7 +15,6 @@ import { currentLocale } from "#lib/store/locale.ts"
 import { formatBytes } from "../../format"
 import { baseName } from "../../locations"
 import { allowPreview, assetUrl } from "../../native"
-import ConfirmDialog from "../window/ConfirmDialog.svelte"
 import {
   audioWaveform,
   clock,

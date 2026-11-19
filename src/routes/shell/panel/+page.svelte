@@ -1,10 +1,4 @@
 <script lang="ts">
-import {
-  type DeviceSettings,
-  defaultDevice,
-  loadDevice,
-  onDevice,
-} from "@atrix/settings"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { calendar, WEEKS } from "#lib/calendar/calendar.svelte.ts"
@@ -19,6 +13,12 @@ import { askAtrix } from "#lib/desktop/launcher/atrix.ts"
 import { hideWindow, onWindowShown } from "#lib/desktop/native/windows.ts"
 import QuickMemo from "#lib/desktop/panel/QuickMemo.svelte"
 import { overlayOpen, windowRegion } from "#lib/desktop/panel/region.ts"
+import {
+  type DeviceSettings,
+  defaultDevice,
+  loadDevice,
+  onDevice,
+} from "#lib/desktop/settings/index.ts"
 import { logFailure } from "#lib/logging.ts"
 import { askNav, type HostEntry, RemoteHosts } from "#lib/p2p/float.svelte.ts"
 import { hostList } from "#lib/p2p/hosts.svelte.ts"

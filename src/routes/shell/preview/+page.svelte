@@ -22,8 +22,6 @@
   let rem = $state(rootRem())
 
   $effect(() => {
-    document.documentElement.dataset.surface = "overlay"
-
     const stops = [
       listen<Slot[]>("preview-shown", e => {
         rem = rootRem()

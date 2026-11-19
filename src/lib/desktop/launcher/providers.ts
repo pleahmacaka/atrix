@@ -1,4 +1,3 @@
-import type { WebSearchEngine } from "@atrix/settings"
 import { addTaskInMain } from "#lib/calendar/desktop.ts"
 import { dueLabel, quickTask } from "#lib/calendar/tasks.ts"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
@@ -9,6 +8,7 @@ import {
   matchEmoji,
   plainNumber,
 } from "#lib/desktop/launcher/core/index.ts"
+import type { WebSearchEngine } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { toggleDockPin } from "../dock/dock.svelte"
 import {
@@ -262,8 +262,6 @@ const ENGINES: Record<WebSearchEngine, { name: string; url: string }> = {
     url: "https://search.naver.com/search.naver?query=",
   },
 }
-
-export const engineName = (engine: WebSearchEngine) => ENGINES[engine].name
 
 export const webResult = (query: string, engine: WebSearchEngine): Result => {
   const { name, url } = ENGINES[engine]

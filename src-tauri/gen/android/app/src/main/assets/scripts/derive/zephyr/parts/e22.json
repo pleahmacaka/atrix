@@ -1,0 +1,13 @@
+{
+  "match": ["E22-900MM22S", "E22-900M22S", "E22-400M22S"],
+  "label": "lora0",
+  "node": "lora",
+  "compatible": "semtech,sx1262",
+  "maxHz": 16000000,
+  "active": { "CS": "low", "RESET": "low", "BUSY": "high", "DIO1": "high", "TXEN": "high", "RXEN": "high" },
+  "gpios": { "BUSY": "busy-gpios", "DIO1": "dio1-gpios", "TXEN": "tx-enable-gpios", "RXEN": "rx-enable-gpios" },
+  "source": [
+    "Semtech SX1261/2 Data Sheet rev 2.1, section 8.3 SPI interface: SCK up to 16 MHz.",
+    "Ebyte E22-900MM22S product specification (LCSC C5333985, 2023-12): NRST active low; TXEN and RXEN are RF switch controls, high level effective; the module uses a 32 MHz passive crystal, so DIO3 does not power a TCXO."
+  ]
+}

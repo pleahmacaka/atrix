@@ -1,0 +1,106 @@
+{
+  "id": "dwm3001c",
+  "name": "Qorvo DWM3001C",
+  "match": ["DWM3001C"],
+  "soc": "nrf52833",
+  "source": [
+    "Qorvo DWM3001C Data Sheet Rev F (Oct 2025), section 3.1 Figure 1 pin diagram and section 3.2 Table 2 pin functions: module pad to nRF52833 pin, I2C0_SDA = P0.24, I2C0_SCL = P1.04, RESET = P0.18. https://www.qorvo.com/products/p/DWM3001C",
+    "zephyrproject-rtos/zephyr v4.4.2, boards/qorvo/decawave_dwm3001cdk/decawave_dwm3001cdk.dts and decawave_dwm3001cdk-pinctrl.dtsi and Kconfig.defconfig (I2C default SENSOR): DW3110 on spi3 (SCK P0.03, MOSI P0.08, MISO P0.29, CS P1.06), LIS2DH12 on i2c0 at 0x19 with irq P0.16, reg1 DCDC, base board LEDs, button and uart0. https://github.com/zephyrproject-rtos/zephyr/tree/v4.4.2/boards/qorvo/decawave_dwm3001cdk",
+    "Secondary: Qorvo Tech Forum, 'DWM3001CDK Zephyr with SDK Drivers' (2026-01-28): DW3110 IRQ P1.02 and RSTn P0.25 as used by the Qorvo SDK. The WAKEUP line some posts give as P1.19 does not exist on nRF52833 (gpio1 has 10 pins), so it is left out. https://forum.qorvo.com/t/dwm3001cdk-zephyr-with-sdk-drivers/24823"
+  ],
+  "pads": {
+    "1": "GND",
+    "2": "SWDCLK",
+    "3": "SWDIO",
+    "4": "P0.10",
+    "5": "P0.09",
+    "6": "P0.17",
+    "7": "P0.14",
+    "8": "P0.22",
+    "9": "P0.05",
+    "10": "P0.04",
+    "11": "GND",
+    "12": "VDD",
+    "13": "P0.12",
+    "14": "P0.24",
+    "15": "P1.04",
+    "16": "P0.21",
+    "17": "P0.20",
+    "18": "VBUS",
+    "19": "D-",
+    "20": "D+",
+    "21": "GND",
+    "22": "P0.11",
+    "23": "P1.08",
+    "24": "P0.06",
+    "25": "P1.01",
+    "26": "P0.13",
+    "27": "P1.09",
+    "28": "P1.00",
+    "29": "P1.05",
+    "30": "DW_GP5",
+    "31": "DW_GP6",
+    "32": "P0.15",
+    "33": "P0.28",
+    "34": "P0.19",
+    "35": "DW_GP1",
+    "36": "DW_GP0",
+    "37": "P0.26",
+    "38": "GND",
+    "39": "P0.23",
+    "40": "P0.07",
+    "41": "P0.27",
+    "42": "P0.31",
+    "43": "P0.30",
+    "44": "DW_GP3",
+    "45": "DW_GP2",
+    "46": "P0.02",
+    "47": "P0.18",
+    "48": "GND"
+  },
+  "internal": [
+    {
+      "kind": "uwb",
+      "part": "DW3110",
+      "bus": "spi3",
+      "pins": { "SCK": "P0.03", "MOSI": "P0.08", "MISO": "P0.29" },
+      "cs": "P1.06",
+      "sideband": { "IRQ": "P1.02", "RESET": "P0.25" },
+      "device": null
+    },
+    {
+      "kind": "accel",
+      "part": "LIS2DH12",
+      "bus": "i2c0",
+      "pins": { "SDA": "P0.24", "SCL": "P1.04" },
+      "cs": null,
+      "sideband": { "IRQ": "P0.16" },
+      "device": {
+        "label": "lis2dh12",
+        "name": "lis2dh12",
+        "compatible": ["st,lis2dh12", "st,lis2dh"],
+        "reg": 25,
+        "gpios": { "irq-gpios": ["P0.16", "GPIO_ACTIVE_HIGH"] },
+        "alias": "accel0",
+        "bus": ["clock-frequency = <I2C_BITRATE_FAST>"],
+        "pinctrl": ["bias-pull-up"]
+      }
+    }
+  ],
+  "kconfigDefaults": { "I2C": "SENSOR" },
+  "regulator": { "node": "reg1", "mode": "NRF5X_REG_MODE_DCDC" },
+  "baseBoard": {
+    "name": "decawave_dwm3001cdk",
+    "leds": [
+      { "node": "led_0", "label": "led0", "alias": "led0", "pin": "P0.04", "flags": "GPIO_ACTIVE_LOW" },
+      { "node": "led_1", "label": "led1", "alias": "led1", "pin": "P0.14", "flags": "GPIO_ACTIVE_LOW" },
+      { "node": "led_2", "label": "led2", "alias": "led2", "pin": "P0.22", "flags": "GPIO_ACTIVE_LOW" },
+      { "node": "led_3", "label": "led3", "alias": "led3", "pin": "P0.05", "flags": "GPIO_ACTIVE_LOW" }
+    ],
+    "buttons": [
+      { "node": "button_2", "label": "button2", "alias": "sw0", "pin": "P0.02", "flags": "(GPIO_PULL_UP | GPIO_ACTIVE_LOW)" }
+    ],
+    "uart": { "node": "uart0", "TX": "P0.19", "RX": "P0.15" },
+    "usb": true
+  }
+}

@@ -1,4 +1,3 @@
-import { loadDevice, type TerminalApp } from "@atrix/settings"
 import { emit } from "@tauri-apps/api/event"
 import { exit } from "@tauri-apps/plugin-process"
 import {
@@ -6,6 +5,7 @@ import {
   openDesktopSettings,
 } from "#lib/components/settings/desktopSettings.ts"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
+import { loadDevice, type TerminalApp } from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { newWindow as newTerminalWindow } from "#lib/terminal/app/windows.ts"
 import {

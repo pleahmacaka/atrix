@@ -9,8 +9,6 @@ pub(crate) mod apps;
 #[cfg(windows)]
 pub(crate) mod clipboard;
 #[cfg(windows)]
-pub(crate) mod data;
-#[cfg(windows)]
 pub(crate) mod notifications;
 #[cfg(windows)]
 pub(crate) mod shell;
@@ -82,6 +80,8 @@ pub fn setup(app: &tauri::AppHandle, components: Components) {
     #[cfg(windows)]
     if components.shell {
         shell::start(app);
+    } else {
+        shell::appbar::recover_taskbar(app);
     }
 }
 

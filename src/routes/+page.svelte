@@ -10,6 +10,7 @@ import Sidebar from "#lib/components/shell/Sidebar.svelte"
 import Workspace from "#lib/components/shell/Workspace.svelte"
 import ContextMenu from "#lib/components/ui/ContextMenu.svelte"
 import { trackPointer } from "#lib/components/ui/pointer.ts"
+import ResizeHandle from "#lib/components/ui/ResizeHandle.svelte"
 import { logFailure } from "#lib/logging.ts"
 import { floating, floatNew, SIDEBAR } from "#lib/p2p/float.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -101,19 +102,12 @@ const resize = (e: PointerEvent & { currentTarget: HTMLElement }) => {
       <Sidebar rail={shell.collapsed} />
     </div>
     {#if !shell.collapsed}
-      <button
-        type="button"
-        class={[
-          "relative -mx-1.5 my-2 w-1 shrink-0 cursor-col-resize rounded-full",
-          "transition-colors hover:bg-primary/60 active:bg-primary",
-        ]}
-        aria-label={m.shell_resize_pane()}
+      <ResizeHandle
+        label={m.shell_resize_pane()}
         data-resize
         onpointerdown={resize}
         ondblclick={shell.reset}
-      >
-        <span class="absolute inset-y-0 -inset-x-1.5"></span>
-      </button>
+      />
     {/if}
   {:else if docked && !shell.drawer}
     <div

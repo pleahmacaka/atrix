@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { ShellItem, ShellItemKind } from "@atrix/settings"
   import type { Placement } from "#lib/components/ui/Popover.svelte"
+  import type { ShellItem, ShellItemKind } from "#lib/desktop/settings/index.ts"
   import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
   import BarItem from "./BarItem.svelte"
   import type { DockLayout } from "./layout.svelte"

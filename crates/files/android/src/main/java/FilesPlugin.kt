@@ -16,7 +16,6 @@ import android.os.StatFs
 import android.provider.Settings
 import android.util.Size
 import android.webkit.MimeTypeMap
-import android.webkit.WebView
 import androidx.core.content.FileProvider
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -50,12 +49,6 @@ class PathsArgs {
 
 @TauriPlugin
 class FilesPlugin(private val activity: Activity) : Plugin(activity) {
-  override fun load(webView: WebView) {
-    if (!granted()) {
-      ask()
-    }
-  }
-
   private val thumbs = Executors.newFixedThreadPool(3)
 
   private val videos = setOf("mp4", "mkv", "mov", "webm", "3gp", "avi", "m4v")

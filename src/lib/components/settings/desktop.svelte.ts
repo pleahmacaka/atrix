@@ -1,3 +1,8 @@
+import { invoke } from "@tauri-apps/api/core"
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
+import { relaunch } from "@tauri-apps/plugin-process"
+import { isEqual } from "es-toolkit"
+import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import {
   type DeviceSettings,
   type LauncherPrefs,
@@ -7,19 +12,15 @@ import {
   onProfile,
   updateDevice,
   updateProfile,
-} from "@atrix/settings"
-import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
-import { relaunch } from "@tauri-apps/plugin-process"
-import { isEqual } from "es-toolkit"
-import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
-import { desktop, platform } from "#lib/platform.ts"
+} from "#lib/desktop/settings/index.ts"
+import { desktop, mobileApp, platform } from "#lib/platform.ts"
 import { openSettings } from "#lib/store/nav.svelte.ts"
 import {
   type Components,
-  DESKTOP_SETTINGS,
   type DesktopSection,
   loadComponents,
+  MAIN_SETTINGS,
+  type SettingsRequest,
   saveComponents,
 } from "./desktopSettings.ts"
 
@@ -112,24 +113,29 @@ class DesktopSettings {
   restart = () => this.saving.run(relaunch)
 
   start = () => {
-    if (!desktop) {
+    if (!desktop && !mobileApp) {
       return
     }
 
-    loadComponents()
-      .then(components => {
-        this.launched = components
-      })
-      .catch(() => undefined)
+    if (desktop) {
+      loadComponents()
+        .then(components => {
+          this.launched = components
+        })
+        .catch(() => undefined)
+    }
 
     const main = getCurrentWebviewWindow()
-    const stop = main.listen<DesktopSection | null>(
-      DESKTOP_SETTINGS,
-      async e => {
-        await main.unminimize()
-        await invoke("show_window", { label: "main" })
-        this.focus = e.payload
-        openSettings("desktop")
+    const stop = main.listen<SettingsRequest>(
+      MAIN_SETTINGS,
+      async ({ payload }) => {
+        if (desktop) {
+          await main.unminimize()
+          await invoke("show_window", { label: "main" })
+        }
+
+        this.focus = payload.section
+        openSettings(payload.tab)
       },
     )
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import IconButton from "#lib/components/ui/IconButton.svelte"
+  import ResizeHandle from "#lib/components/ui/ResizeHandle.svelte"
   import { m } from "#lib/paraglide/messages.js"
   import {
     acceptTabs,
@@ -12,9 +13,9 @@
     setHost,
     TabStrip,
   } from "#lib/terminal/index.ts"
+  import { resizeHandle } from "../../pointer"
   import { type Explorer, fail } from "../../store/explorer.svelte"
   import { terminal, terminalPrefs } from "../../store/terminal.svelte"
-  import ResizeHandle from "../window/ResizeHandle.svelte"
 
   let { explorer }: { explorer: Explorer } = $props()
 
@@ -63,9 +64,11 @@
 
 {#if session.tabs.length > 0}
   {#if terminal.open}
+    {@const resize = side ? resizeWidth : resizeHeight}
     <ResizeHandle
-      resize={side ? resizeWidth : resizeHeight}
+      axis={resize.axis}
       label={m.files_terminal_resize()}
+      onpointerdown={resizeHandle(resize)}
     />
   {/if}
 

@@ -49,10 +49,13 @@ pub async fn share_browse_fetch(
 
     match node.call(device, Request::Fetch { path }).await? {
         Reply::Pending => Ok(None),
-        Reply::Blob { hash, name, .. } => node
-            .save_remote(device, hash, &name, &received_root(&app)?)
-            .await
-            .map(Some),
+        Reply::Blob { hash, name, .. } => {
+            let _transfer = node.transfer();
+
+            node.save_remote(device, hash, &name, &received_root(&app)?)
+                .await
+                .map(Some)
+        }
         _ => Err(Error::Denied),
     }
 }

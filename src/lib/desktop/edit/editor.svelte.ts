@@ -1,13 +1,3 @@
-import {
-  type DeviceSettings,
-  defaultDevice,
-  type ShellItem,
-  type ShellItemKind,
-  type ShellLayout,
-  type ShellZone,
-  type ShellZoneId,
-  updateDevice,
-} from "@atrix/settings"
 import { isEqual, omit } from "es-toolkit"
 import {
   addGroup,
@@ -30,6 +20,16 @@ import {
   viewOf,
   WIDGETS,
 } from "#lib/desktop/dock/zones.ts"
+import {
+  type DeviceSettings,
+  defaultDevice,
+  type ShellItem,
+  type ShellItemKind,
+  type ShellLayout,
+  type ShellZone,
+  type ShellZoneId,
+  updateDevice,
+} from "#lib/desktop/settings/index.ts"
 
 const HISTORY = 100
 

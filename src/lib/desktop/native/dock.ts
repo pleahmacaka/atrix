@@ -1,6 +1,6 @@
-import type { Features } from "@atrix/settings"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
+import type { Features } from "#lib/desktop/settings/index.ts"
 
 export type TaskbarLayout = {
   edge: "bottom" | "top"

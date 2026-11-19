@@ -1,8 +1,8 @@
 <script lang="ts">
+  import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte"
   import { m } from "#lib/paraglide/messages.js"
   import { baseName } from "../../locations"
   import { answer, pending } from "../../store/privacy.svelte"
-  import ConfirmDialog from "./ConfirmDialog.svelte"
 
   const open = () => pending.path !== null
 

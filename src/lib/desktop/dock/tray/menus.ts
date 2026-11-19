@@ -1,8 +1,11 @@
-import { type ShellItemKind, updateDevice } from "@atrix/settings"
 import { exit } from "@tauri-apps/plugin-process"
 import { openDesktopSettings } from "#lib/components/settings/desktopSettings.ts"
 import { startEdit } from "#lib/desktop/edit/edit.svelte.ts"
 import * as native from "#lib/desktop/native/index.js"
+import {
+  type ShellItemKind,
+  updateDevice,
+} from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import { FLAGS } from "../zones"

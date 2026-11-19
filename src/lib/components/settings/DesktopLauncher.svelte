@@ -1,4 +1,8 @@
 <script lang="ts">
+import Segmented from "#lib/components/ui/Segmented.svelte"
+import Select from "#lib/components/ui/Select.svelte"
+import SettingRow from "#lib/components/ui/SettingRow.svelte"
+import { installedTerminals } from "#lib/desktop/native/system.ts"
 import {
   type DeviceSettings,
   defaultProfile,
@@ -6,11 +10,7 @@ import {
   type LauncherPrefs,
   type TerminalApp,
   type WebSearchEngine,
-} from "@atrix/settings"
-import Segmented from "#lib/components/ui/Segmented.svelte"
-import Select from "#lib/components/ui/Select.svelte"
-import SettingRow from "#lib/components/ui/SettingRow.svelte"
-import { installedTerminals } from "#lib/desktop/native/system.ts"
+} from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import DesktopSection from "./DesktopSection.svelte"
 import { desktopSettings } from "./desktop.svelte.ts"

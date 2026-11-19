@@ -1,7 +1,6 @@
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "@fontsource-variable/jetbrains-mono";
 @import "tailwindcss";
-@source "../packages";
 @plugin "daisyui" {
   themes: false;
   exclude: join;

@@ -1,9 +1,7 @@
 <script lang="ts">
-import { loadProfile, onDevice, onProfile } from "@atrix/settings"
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import { ensureDevice } from "#lib/desktop/device.js"
-import { watchEdit } from "#lib/desktop/edit/index.js"
 import { ATRIX_ITEMS, type AtrixItems } from "#lib/desktop/launcher/atrix.js"
 import {
   contextmenu,
@@ -18,6 +16,7 @@ import {
 } from "#lib/desktop/launcher/index.js"
 import { onAppsChanged, onPinsChanged } from "#lib/desktop/native/apps.js"
 import { onWindowShown } from "#lib/desktop/native/windows.js"
+import { loadProfile, onDevice, onProfile } from "#lib/desktop/settings/index.ts"
 
 const launcher = new Launcher()
 
@@ -38,7 +37,6 @@ $effect(() => {
   const stopTimers = subscribeTimers(items => {
     launcher.timers = items
   })
-  const stopEditWatch = watchEdit()
 
   const stops = [
     onProfile(p => {
@@ -66,7 +64,6 @@ $effect(() => {
 
   return () => {
     stopTimers()
-    stopEditWatch()
 
     for (const stop of stops) {
       stop.then(fn => fn())

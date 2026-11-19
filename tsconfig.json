@@ -4,5 +4,5 @@
     "allowImportingTsExtensions": true,
     "strict": true
   },
-  "include": ["src", "packages/*/src", "apps/installer/src", "vite.config.ts"]
+  "include": ["src", "apps/installer/src", "vite.config.ts"]
 }

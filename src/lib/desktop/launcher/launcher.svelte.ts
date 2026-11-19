@@ -1,10 +1,3 @@
-import {
-  type DeviceSettings,
-  defaultDevice,
-  defaultProfile,
-  type Profile,
-  saveProfile,
-} from "@atrix/settings"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
 import type { Result } from "#lib/desktop/launcher/core/index.ts"
 import { parseQuery, type Route } from "#lib/desktop/launcher/core/index.ts"
@@ -22,6 +15,12 @@ import {
   listWindows,
   type WindowEntry,
 } from "#lib/desktop/native/windows.js"
+import {
+  type DeviceSettings,
+  defaultDevice,
+  defaultProfile,
+  type Profile,
+} from "#lib/desktop/settings/index.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { contextMenu, type MenuItem } from "#lib/store/contextMenu.svelte.ts"
 import { type AtrixItems, askAtrix } from "./atrix"
@@ -129,17 +128,6 @@ export class Launcher {
   setQuery(value: string) {
     this.query = value
     this.reset()
-  }
-
-  patchLauncher<K extends keyof Profile["launcher"]>(
-    key: K,
-    value: Profile["launcher"][K],
-  ) {
-    this.profile = {
-      ...this.profile,
-      launcher: { ...this.profile.launcher, [key]: value },
-    }
-    saveProfile($state.snapshot(this.profile)).catch(() => undefined)
   }
 
   async refreshApps() {

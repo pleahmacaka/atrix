@@ -120,9 +120,6 @@ export const iconOf = (entry: Entry) =>
       fileGlyph(entry.name) ??
       "material-icon-theme:document")
 
-export const keepAlive = (enabled: boolean) =>
-  call<void>("keep_alive", { enabled }).catch(() => undefined)
-
 export const sendToBack = () => call<void>("send_to_back")
 
 const thumbs = new Map<string, Promise<string>>()

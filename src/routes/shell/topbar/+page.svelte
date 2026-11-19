@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { type DeviceSettings, onDevice } from "@atrix/settings"
   import { listen } from "@tauri-apps/api/event"
   import { getCurrentWindow } from "@tauri-apps/api/window"
   import { untrack } from "svelte"
@@ -15,10 +14,9 @@
   import { barMenu } from "#lib/desktop/dock/tray/menus.js"
   import { watchEdit } from "#lib/desktop/edit/index.js"
   import * as native from "#lib/desktop/native/index.js"
+  import { type DeviceSettings, onDevice } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
-
-  document.documentElement.dataset.surface = "dock"
 
   const layout = new DockLayout("topbar")
 

@@ -83,6 +83,7 @@ impl Node {
             attention: AtomicBool::new(false),
             net: OnceLock::new(),
             gate: Mutex::default(),
+            transfers: tokio::sync::watch::channel(0).0,
             _lock: lock,
         })
     }

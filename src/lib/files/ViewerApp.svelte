@@ -1,8 +1,8 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
+import WindowControls from "#lib/components/ui/WindowControls.svelte"
 import { m } from "#lib/paraglide/messages.js"
-import WindowControls from "./components/window/WindowControls.svelte"
 import { baseName } from "./locations"
 import { assetUrl, modelFiles, takeIntent } from "./native"
 

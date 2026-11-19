@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { loadDevice, onDevice } from "@atrix/settings"
   import Icon from "@iconify/svelte"
   import { getCurrentWindow } from "@tauri-apps/api/window"
   import IconButton from "#lib/components/ui/IconButton.svelte"
@@ -11,13 +10,12 @@
   import ZoneBox from "#lib/desktop/edit/ZoneBox.svelte"
   import * as native from "#lib/desktop/native/index.js"
   import { listMonitors, type MonitorInfo } from "#lib/desktop/native/windows.js"
+  import { loadDevice, onDevice } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 
   const GAP = 2
   const AUTO = ""
-
-  document.documentElement.dataset.surface = "edit"
 
   const editor = new Editor()
 

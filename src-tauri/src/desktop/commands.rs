@@ -3,7 +3,6 @@ macro_rules! handler {
     ($($atrix:tt)*) => {
         tauri::generate_handler![
             $($atrix)*
-            crate::desktop::data::data_entries,
             crate::console::terminal_type,
             crate::console::terminal_interrupt,
             crate::console::terminal_keys,
@@ -22,7 +21,6 @@ macro_rules! handler {
             crate::desktop::shell::desktop::minimize_window,
             crate::desktop::shell::preview::preview_show,
             crate::desktop::shell::preview::preview_hide,
-            crate::desktop::system::controls::system_accent,
             crate::desktop::system::share::screen_sharing,
             crate::desktop::system::share::set_share_watch,
             crate::desktop::system::controls::system_info,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ClockAlign } from "@atrix/settings"
+  import type { ClockAlign } from "#lib/desktop/settings/index.ts"
   import { m } from "#lib/paraglide/messages.js"
   import { getLocale } from "#lib/paraglide/runtime.js"
 

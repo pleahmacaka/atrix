@@ -1,20 +1,21 @@
+import { emit } from "@tauri-apps/api/event"
+import { cubicOut } from "svelte/easing"
+import { Tween } from "svelte/motion"
+import { SvelteMap } from "svelte/reactivity"
+import { reducedMotion } from "#lib/desktop/motion.ts"
+import * as native from "#lib/desktop/native/index.js"
 import {
   type DeviceSettings,
   defaultDevice,
   type ShellZoneId,
   updateDevice,
-} from "@atrix/settings"
-import { emit } from "@tauri-apps/api/event"
-import { cubicOut } from "svelte/easing"
-import { Tween } from "svelte/motion"
-import { SvelteMap } from "svelte/reactivity"
-import * as native from "#lib/desktop/native/index.js"
+} from "#lib/desktop/settings/index.ts"
 import { contextMenu } from "#lib/store/contextMenu.svelte.ts"
 import { barHeightFor } from "./bar"
 import { MAGNIFY_BOOST } from "./DockItem.svelte"
 import { type DockGroup, dock, groupWindows, resolvePins } from "./dock.svelte"
 import { DockOrdering, moveGroup } from "./order"
-import { rem, rootFontSize } from "./rem.svelte"
+import { rootFontSize } from "./rem.svelte"
 import { locate, viewOf } from "./zones"
 
 const STRIP = 6
@@ -52,8 +53,7 @@ export class DockLayout {
   pointerX = $state<number | null>(null)
 
   magnet = new Tween(0, {
-    duration: () =>
-      document.documentElement.dataset.motion === "false" ? 0 : 140,
+    duration: () => (reducedMotion() ? 0 : 140),
     easing: cubicOut,
   })
 
@@ -306,16 +306,7 @@ export class DockLayout {
       return Promise.resolve(undefined)
     }
 
-    const root = document.documentElement
-
-    root.dataset.surface = "dock"
-
     if (this.surface === "topbar") {
-      root.dataset.dock = "windows"
-      root.dataset.edge = "top"
-      root.style.setProperty("--dock-height", rem(TOPBAR_H))
-      root.style.setProperty("--dock-content-height", rem(this.contentHeight))
-
       return native
         .applyTopbar({
           edge: "top",
@@ -329,11 +320,6 @@ export class DockLayout {
         })
         .catch(() => undefined)
     }
-
-    root.dataset.dock = this.device.dockStyle
-    root.dataset.edge = this.device.dockEdge
-    root.style.setProperty("--dock-height", rem(this.barHeight))
-    root.style.setProperty("--dock-content-height", rem(this.device.dockHeight))
 
     return native
       .applyTaskbar({

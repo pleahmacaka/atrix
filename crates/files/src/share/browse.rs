@@ -413,6 +413,7 @@ impl Node {
                     let node = self.clone();
 
                     tauri::async_runtime::spawn(async move {
+                        let _transfer = node.transfer();
                         let prepared = node.hold(remote, &file).await;
 
                         node.gate().preparing.insert(
