@@ -1,6 +1,6 @@
 [package]
 name = "atrix"
-version = "0.4.21"
+version = "0.4.22"
 description = "Atrix"
 authors = ["ArixLab"]
 license = ""
