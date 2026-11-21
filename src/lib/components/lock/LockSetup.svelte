@@ -13,6 +13,8 @@ let first = $state<string | null>(null)
 
 let notice = $state<string | null>(null)
 
+let failures = $state(0)
+
 const goal = $derived(screen.setup)
 
 const current = $derived(lockKind())
@@ -54,6 +56,7 @@ const verify = async (value: string) => {
 
   if (!(await checkLock(value))) {
     screen.fail()
+    failures++
     notice = screen.waiting ? m.lock_wait() : m.lock_wrong()
 
     return
@@ -93,6 +96,7 @@ const enter = async (value: string) => {
 
   if (first !== value) {
     first = null
+    failures++
     notice = m.lock_setup_mismatch()
 
     return
@@ -116,7 +120,7 @@ const enter = async (value: string) => {
     <p class="text-center text-sm text-base-content/70">{prompt}</p>
     {#key `${checking}-${first}`}
       {#if pad === "pin"}
-        <PinPad oncomplete={enter} />
+        <PinPad oncomplete={enter} {failures} />
       {:else if pad === "pattern"}
         <PatternPad oncomplete={enter} />
       {/if}

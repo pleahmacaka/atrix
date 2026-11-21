@@ -69,7 +69,7 @@ const send = (text: string) =>
     </button>
   </div>
   <div class="scroll-stable flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
-    <div class="content-zoom chat-column mx-auto flex w-full flex-col gap-4 px-3 pt-2 pb-2">
+    <div class="content-zoom chat-column relative mx-auto flex w-full flex-col gap-4 px-3 pt-2 pb-2">
       {#each segments as segment, i (segment.key)}
         {#if segment.kind === "activity"}
           <ToolGroup items={segment.items} latest={i === segments.length - 1} />

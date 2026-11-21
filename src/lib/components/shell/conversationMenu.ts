@@ -1,5 +1,4 @@
 import { chats } from "#lib/chat/chats.svelte.ts"
-import { groups } from "#lib/chat/groups.svelte.ts"
 import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import type { MenuItem } from "#lib/store/contextMenu.svelte.ts"
@@ -44,48 +43,8 @@ const readItems = (item: Recent, row: AgentRow | null): MenuItem[] => {
     : []
 }
 
-const groupItems = (item: Recent): MenuItem[] => {
-  const current = item.current
-
-  if (current.kind !== "session") {
-    return []
-  }
-
-  return [
-    "separator",
-    {
-      label: m.group_start_with(),
-      icon: "lucide:users",
-      run: async () => {
-        const id = await groups.create()
-
-        await groups.join(id, current.host, current.id)
-        openConversation({ kind: "group", id })
-      },
-    },
-    ...groups.list.map(g => ({
-      label: m.group_add_to({ name: g.title }),
-      icon: "lucide:user-plus",
-      run: () => groups.join(g.id, current.host, current.id),
-    })),
-  ]
-}
-
 const removeItems = (item: Recent): MenuItem[] => {
   const current = item.current
-
-  if (current.kind === "group") {
-    return [
-      "separator",
-      {
-        label: m.group_delete(),
-        icon: "lucide:trash-2",
-        danger: true,
-        confirm: m.menu_confirm_delete(),
-        run: () => groups.remove(current.id),
-      },
-    ]
-  }
 
   if (current.kind === "chat") {
     return [
@@ -160,7 +119,6 @@ export const conversationMenu = (
       icon: "lucide:fingerprint",
       run: () => navigator.clipboard.writeText(current.id),
     },
-    ...groupItems(item),
     ...removeItems(item),
   ]
 }

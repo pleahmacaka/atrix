@@ -1,12 +1,14 @@
 import { Channel } from "@tauri-apps/api/core"
 import { native } from "#lib/native.ts"
-import type {
-  Available,
-  HarnessInfo,
-  HarnessKind,
-  Installed,
-  InstallScope,
-  ProviderChoice,
+import {
+  type Available,
+  DEFAULT_PROVIDER,
+  type HarnessInfo,
+  type HarnessKind,
+  type Installed,
+  type InstallScope,
+  type ProviderChoice,
+  type ProviderSource,
 } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { findGateway } from "#lib/store/gatewayCatalog.ts"
@@ -27,7 +29,7 @@ import {
   type Launch,
   type Source,
 } from "./harnesses.ts"
-import { servesKind, withProvider } from "./provider.ts"
+import { prepareLaunch, providerKindOf, servesKind } from "./provider.ts"
 import {
   disabledHarnesses,
   providerChoices,
@@ -37,7 +39,7 @@ import {
 
 export type Entry = Omit<
   HarnessInfo,
-  "enabled" | "provider" | "providerActive"
+  "enabled" | "provider" | "providerSource" | "providerModel"
 > & {
   launch: Launch
   dir: string | null
@@ -103,7 +105,8 @@ export class Harnesses {
         ...h,
         enabled: !this.#disabled.has(h.id),
         provider: this.#providers[h.id] ?? null,
-        providerActive: this.providing(h.id),
+        providerSource: this.#sourceOf(h.id),
+        providerModel: this.#provided(h.id)?.model ?? null,
       }),
     )
 
@@ -159,51 +162,101 @@ export class Harnesses {
     return null
   }
 
+  affectedBy = (changed: string) =>
+    changed === DEFAULT_PROVIDER
+      ? this.#entries
+          .filter(h => this.#sourceOf(h.id) === "default")
+          .map(h => h.id)
+      : [changed]
+
   usingGateway = (gateway: string) =>
     Object.entries(this.#providers)
-      .filter(([, picked]) => picked.gateway === gateway)
-      .map(([id]) => id)
+      .filter(
+        ([, picked]) =>
+          picked.source === "gateway" && picked.gateway === gateway,
+      )
+      .flatMap(([id]) => this.affectedBy(id))
 
   #forgetProvider = (id: string) => {
     this.#providers = saveProvider(id, null)
   }
 
   #resolve = (id: string, picked: ProviderChoice | undefined) => {
-    const kind = this.find(id)?.kind
-    const gateway = picked && findGateway(picked.gateway)
+    if (picked?.source !== "gateway") {
+      return null
+    }
 
-    return kind && picked?.model && gateway && servesKind(kind, gateway)
+    const found = this.find(id)
+    const kind = found ? providerKindOf(found) : null
+    const gateway = findGateway(picked.gateway)
+
+    return kind && picked.model && gateway && servesKind(kind, gateway)
       ? { kind, gateway, model: picked.model }
       : null
   }
 
-  #provided = (id: string) => this.#resolve(id, this.#providers[id])
+  #sourceOf = (id: string): ProviderSource => {
+    const own = this.#providers[id]
 
-  providing = (id: string) => this.#provided(id) !== null
+    if (!own) {
+      return "default"
+    }
+
+    return own.source === "native" ? "native" : "own"
+  }
+
+  #provided = (id: string) => {
+    switch (this.#sourceOf(id)) {
+      case "native":
+        return null
+      case "own":
+        return this.#resolve(id, this.#providers[id])
+      case "default":
+        return this.#resolve(id, this.#providers[DEFAULT_PROVIDER])
+    }
+  }
+
+  defaultProvider = () => this.#providers[DEFAULT_PROVIDER] ?? null
 
   providedModel = (id: string) => this.#provided(id)?.model ?? null
 
-  launchOf = (id: string) => {
+  prepareLaunch = (id: string) => {
     const { launch } = this.entry(id)
     const provided = this.#provided(id)
 
     return provided
-      ? withProvider(provided.kind, launch, provided.gateway, provided.model)
-      : launch
+      ? prepareLaunch(
+          provided.kind,
+          launch,
+          provided.gateway,
+          provided.model,
+          this.#home,
+        )
+      : Promise.resolve(launch)
+  }
+
+  #valid = (id: string, picked: ProviderChoice) => {
+    if (id === DEFAULT_PROVIDER) {
+      return (
+        picked.source === "gateway" &&
+        !!findGateway(picked.gateway) &&
+        !!picked.model.trim()
+      )
+    }
+
+    this.entry(id)
+
+    return picked.source === "native" || !!this.#resolve(id, picked)
   }
 
   setProvider = (id: string, picked: ProviderChoice | null) => {
-    this.entry(id)
-
-    if (picked && !this.#resolve(id, picked)) {
+    if (picked && !this.#valid(id, picked)) {
       throw new Error(m.error_provider_invalid())
     }
 
-    const before = this.#providers[id]
-    const same =
-      before?.gateway === picked?.gateway && before?.model === picked?.model
-
-    if (same) {
+    if (
+      JSON.stringify(this.#providers[id] ?? null) === JSON.stringify(picked)
+    ) {
       return false
     }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
+import { createProfileEverywhere } from "#lib/harness/profiles.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { HarnessInfo } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -15,7 +16,7 @@ let {
   open: boolean
   host: HostView
   harness: HarnessInfo
-  onCreated: (id: string, skipped: string[]) => void
+  onCreated: (id: string, skipped: string[], failed: number) => void
   onClose: () => void
 } = $props()
 
@@ -40,13 +41,14 @@ $effect(() => {
 
 const submit = () =>
   attempt.run(async () => {
-    const { harness: created, skipped } = await host.createProfile(
+    const { result, failed } = await createProfileEverywhere(
+      host,
       harness.id,
       name,
       fork,
     )
 
-    onCreated(created.id, skipped)
+    onCreated(result.harness.id, result.skipped, failed)
     onClose()
   })
 </script>

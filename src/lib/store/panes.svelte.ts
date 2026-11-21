@@ -20,7 +20,6 @@ const currentSchema = z
       id: z.string(),
       agent: z.object({ id: z.string(), description: z.string() }).optional(),
     }),
-    z.object({ kind: z.literal("group"), id: z.string() }),
   ])
   .nullable()
 

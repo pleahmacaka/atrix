@@ -57,8 +57,6 @@ export const messageOf = (raw: unknown) => {
       return m.error_ds_multiple_statements()
     case "ds_read_only":
       return m.error_ds_read_only()
-    case "ds_sync_unset":
-      return m.error_ds_sync_unset({ name: detail })
     case "usage_failed":
       return m.error_usage_failed({ detail })
     case "usage_login":

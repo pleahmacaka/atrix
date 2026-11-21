@@ -1,14 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk"
 import { homeDir } from "@tauri-apps/api/path"
-import {
-  channels,
-  connected,
-  sendToChannel,
-} from "#lib/channels/store.svelte.ts"
+import { announceAsk } from "#lib/channels/askNotice.ts"
 import type { Block } from "#lib/chat/blocks.ts"
 import { matchChoice } from "#lib/chat/choices.ts"
 import { withoutInjected } from "#lib/chat/tags.ts"
-import { olderModels, versionOf } from "#lib/chat/versions.ts"
 import type { Actor } from "#lib/knowledge/document.ts"
 import { logFailure } from "#lib/logging.ts"
 import { native } from "#lib/native.ts"
@@ -16,28 +11,28 @@ import type {
   Ask,
   Attachment,
   Command,
-  HarnessKind,
   HostEvent,
   Listed,
   Patch,
   SessionSummary,
   SessionView,
-  StoredAttachment,
   Stroke,
 } from "#lib/p2p/protocol.ts"
 import { SESSION_BUSY, SESSION_GONE } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { settings } from "#lib/store/settings.svelte.ts"
+import { actorFor } from "./actor.ts"
 import {
+  CLAUDE_META,
   type Conn,
   choicesOf,
   connectAgent,
   folderError,
   listSessions,
   promptBlocks,
+  RESOURCE_NOT_FOUND,
+  storeAttachment,
 } from "./agent.ts"
 import type { Bridge } from "./bridge.ts"
-import { startsSubagent } from "./claudeTools.ts"
 import { applyUpdate, type Picked, shownInTurn } from "./items.ts"
 import type { ExternalSessions } from "./mirror.ts"
 import { type Harnesses, mirrorKind } from "./registry.ts"
@@ -51,15 +46,21 @@ import {
   remembered,
   rename,
 } from "./saved.ts"
+import {
+  isModel,
+  isPinned,
+  newestMatch,
+  OPTION_NAMES,
+} from "./sessionConfig.ts"
 import { rememberClaudeCommands, SOURCES } from "./sources.ts"
+import { Subagents } from "./subagents.ts"
 import type { Reachable } from "./tools.ts"
-
-const RESOURCE_NOT_FOUND = -32002
 
 type Live = SessionView & {
   conn: Conn
   answer: ((optionId: string | null) => void) | null
   handback: boolean
+  replaying?: boolean
 }
 
 type Spawned = { key: string; conn: Promise<Conn> }
@@ -78,69 +79,13 @@ const TITLE_LIMIT = 60
 
 const CANCELLED = { outcome: { outcome: "cancelled" as const } }
 
-const CLAUDE_META = {
-  claudeCode: { options: { extraArgs: { chrome: null } } },
-}
-
-const VENDORS: Record<HarnessKind, string> = {
-  claude: "anthropic",
-  codex: "openai",
-}
-
 const viewOf = ({
   conn: _conn,
   answer: _answer,
   handback: _handback,
+  replaying: _replaying,
   ...view
 }: Live): SessionView => view
-
-const newestMatch = (
-  values: { value: string; name: string }[],
-  wanted: string,
-) => {
-  const older = olderModels(values)
-  const rank = (v: { name: string }) =>
-    versionOf(v.name) && !older.has(v.name) ? 0 : 1
-
-  return matchChoice(
-    values.toSorted((a, b) => rank(a) - rank(b)),
-    wanted,
-  )
-}
-
-const stored = async (a: Attachment): Promise<StoredAttachment> => {
-  if (a.kind !== "file") {
-    return a
-  }
-
-  const path = await native<string>("save_attachment", {
-    name: a.name,
-    data: a.data,
-  })
-
-  return {
-    kind: "text",
-    name: a.name,
-    mimeType: "text/plain",
-    text: `Attached file ${a.name} is saved at ${path}`,
-  }
-}
-
-const OPTION_NAMES: Record<string, () => string> = {
-  model: m.chat_model,
-  thought_level: m.chat_effort,
-}
-
-const categoryOf = (session: Live, configId: string) =>
-  session.config.find(o => o.id === configId)?.category
-
-const isModel = (session: Live, configId: string) =>
-  categoryOf(session, configId) === "model"
-
-const PINNED = new Set(["model", "thought_level"])
-
-const isPinned = (session: Live, configId: string) =>
-  !!session.pinned && PINNED.has(categoryOf(session, configId) ?? "")
 
 export class Sessions {
   #conns = new Map<string, Spawned>()
@@ -172,7 +117,7 @@ export class Sessions {
     this.#external = deps.external
   }
 
-  #subagents = new Map<string, Map<string, string>>()
+  #subagents = new Subagents()
 
   open = (): SessionSummary[] =>
     [
@@ -189,10 +134,7 @@ export class Sessions {
       subagents: s.agents?.length
         ? s.agents.map(a => ({ id: a.id, description: a.description }))
         : s.running
-          ? [...(this.#subagents.get(s.id) ?? [])].map(([id, description]) => ({
-              id,
-              description,
-            }))
+          ? this.#subagents.list(s.id)
           : [],
     }))
 
@@ -424,7 +366,7 @@ export class Sessions {
   }
 
   prompt = async (sessionId: string, text: string, given: Attachment[]) => {
-    const attachments = await Promise.all(given.map(stored))
+    const attachments = await Promise.all(given.map(storeAttachment))
 
     if (!this.#live.has(sessionId) && this.#external.live(sessionId)) {
       await this.#external.type(sessionId, text, attachments)
@@ -449,7 +391,7 @@ export class Sessions {
       throw new Error(SESSION_BUSY)
     }
 
-    this.#subagents.delete(sessionId)
+    this.#subagents.forget(sessionId)
 
     const prompt = promptBlocks(session.conn, text, attachments)
 
@@ -525,7 +467,7 @@ export class Sessions {
     this.#external.drop(sessionId)
     forget(sessionId)
     this.#usage.delete(sessionId)
-    this.#subagents.delete(sessionId)
+    this.#subagents.forget(sessionId)
     this.deps.closed(sessionId)
 
     if (session) {
@@ -668,22 +610,16 @@ export class Sessions {
   actorOf = (sessionId: string): Actor => {
     const live = this.#live.get(sessionId)
     const view = live ?? this.#external.get(sessionId)
-    const entry = view ? this.#harnesses.find(view.harness) : undefined
-    const vendor = entry?.kind ? VENDORS[entry.kind] : "unknown"
-    const model = live?.config.find(o => o.category === "model")?.current
 
-    return {
-      kind: "agent",
-      agent: view?.title || sessionId,
-      session: `atrix:${sessionId}`,
-      device: settings.deviceName || "unknown",
-      harness: live?.conn.info ?? {
-        name: entry?.base ?? "unknown",
-        version: "unknown",
+    return actorFor(
+      sessionId,
+      view,
+      view && this.#harnesses.find(view.harness),
+      live && {
+        info: live.conn.info,
+        model: live.config.find(o => o.category === "model")?.current,
       },
-      model: { id: model ?? "unknown", vendor },
-      route: [{ kind: "provider", name: vendor }],
-    }
+    )
   }
 
   #emitView = (view: SessionView) => {
@@ -704,41 +640,14 @@ export class Sessions {
   }
 
   #apply = (session: Live, update: acp.SessionUpdate) => {
-    this.#trackSubagent(session.id, update)
-    applyUpdate(session.items, update)
-    this.deps.emit({ type: "update", sessionId: session.id, update })
-  }
-
-  #trackSubagent = (sessionId: string, update: acp.SessionUpdate) => {
-    if (
-      update.sessionUpdate !== "tool_call" &&
-      update.sessionUpdate !== "tool_call_update"
-    ) {
-      return
-    }
-
-    const running = this.#subagents.get(sessionId) ?? new Map<string, string>()
-    const known = running.has(update.toolCallId)
-
-    if (!known && !startsSubagent(update._meta)) {
-      return
-    }
-
-    const before = running.size
-
-    if (update.status === "completed" || update.status === "failed") {
-      running.delete(update.toolCallId)
-    } else {
-      running.set(
-        update.toolCallId,
-        update.title ?? running.get(update.toolCallId) ?? "",
-      )
-    }
-
-    this.#subagents.set(sessionId, running)
-
-    if (running.size !== before) {
+    if (this.#subagents.track(session.id, update)) {
       this.deps.changed()
+    }
+
+    applyUpdate(session.items, update)
+
+    if (!session.replaying) {
+      this.deps.emit({ type: "update", sessionId: session.id, update })
     }
   }
 
@@ -784,11 +693,15 @@ export class Sessions {
     }
 
     const pinned = this.#harnesses.providedModel(id)
-    const conn = await connectAgent(key, this.#harnesses.launchOf(id), {
-      update: this.#update,
-      permission: this.#permission,
-      closed,
-    })
+    const conn = await connectAgent(
+      key,
+      await this.#harnesses.prepareLaunch(id),
+      {
+        update: this.#update,
+        permission: this.#permission,
+        closed,
+      },
+    )
 
     if (pinned) {
       this.#pinned.set(conn, pinned)
@@ -860,15 +773,21 @@ export class Sessions {
     const { token, servers } = this.deps.bridge.declare(conn.http)
 
     this.deps.bridge.bind(token, id)
+    session.replaying = true
 
-    const attached = await conn.agent.request(method, {
-      sessionId: id,
-      cwd,
-      mcpServers: servers,
-      _meta: CLAUDE_META,
-    })
+    try {
+      const attached = await conn.agent.request(method, {
+        sessionId: id,
+        cwd,
+        mcpServers: servers,
+        _meta: CLAUDE_META,
+      })
 
-    session.config = choicesOf(attached.configOptions ?? [])
+      session.config = choicesOf(attached.configOptions ?? [])
+    } finally {
+      session.replaying = false
+      this.#emitView(viewOf(session))
+    }
   }
 
   #detach = async (session: Live) => {
@@ -1067,7 +986,7 @@ export class Sessions {
       session.answer = resolve
       signal.addEventListener("abort", () => resolve(null))
       this.#patch(session, { ask })
-      this.#announce(session, ask)
+      announceAsk(session.id, session.title, ask)
     })
 
     session.answer = null
@@ -1076,21 +995,5 @@ export class Sessions {
     return optionId
       ? { outcome: { outcome: "selected" as const, optionId } }
       : CANCELLED
-  }
-
-  #announce = (session: Live, ask: Ask) => {
-    const open = channels.bindings.filter(b => connected(b.provider))
-    const own = open.filter(b => b.sessionId === session.id)
-    const targets = own.length > 0 ? own : open
-    const text = m.channel_ask_notice({
-      session: session.title || session.id,
-      ask: ask.title,
-    })
-
-    for (const b of targets) {
-      sendToChannel(b.channel, text).catch((e: unknown) =>
-        logFailure("channel ask notice", e),
-      )
-    }
   }
 }

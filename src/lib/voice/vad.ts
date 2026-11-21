@@ -2,7 +2,7 @@ export type VadEvent = "rise" | "start" | "drop" | "end"
 
 const START_MS = 150
 
-const END_MS = 900
+const END_MS = 700
 
 const MAX_MS = 30000
 

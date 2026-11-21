@@ -29,6 +29,8 @@ let {
   class: className,
   leading,
   display,
+  search: forceSearch = false,
+  chip = false,
 }: {
   options: SelectOption<T>[]
   value: T
@@ -39,6 +41,8 @@ let {
   class?: ClassValue
   leading?: Snippet<[SelectOption<T>]>
   display?: Snippet
+  search?: boolean
+  chip?: boolean
 } = $props()
 
 const id = $props.id()
@@ -52,6 +56,10 @@ let search = $state<HTMLInputElement>()
 let open = $state(false)
 
 let query = $state("")
+
+const SEARCH_MIN = 8
+
+const searchable = $derived(forceSearch || options.length > SEARCH_MIN)
 
 let seed = ""
 
@@ -113,7 +121,11 @@ const toggled = async (e: ToggleEvent) => {
 
   await tick()
 
-  search?.focus({ preventScroll: true })
+  if (searchable) {
+    search?.focus({ preventScroll: true })
+  } else {
+    pop()?.querySelector<HTMLElement>("[role=option]")?.focus({ preventScroll: true })
+  }
 
   const current = groups
     .flatMap(g => g.items)
@@ -177,7 +189,9 @@ const leave = (e: FocusEvent) => {
   style:anchor-name={`--${id}`}
   {disabled}
   class={[
-    "select cursor-pointer items-center gap-2 bg-none ps-3 pe-2 text-left",
+    chip
+      ? "btn btn-ghost btn-xs max-w-72 min-w-0 justify-start font-normal"
+      : "select cursor-pointer items-center gap-2 bg-none ps-3 pe-2 text-left",
     "disabled:cursor-not-allowed",
     className,
   ]}
@@ -195,13 +209,15 @@ const leave = (e: FocusEvent) => {
       </span>
     {/if}
   </span>
-  <Icon
-    icon="lucide:chevron-down"
-    class={[
-      "size-4 shrink-0 opacity-60 transition-transform duration-140",
-      open && "rotate-180",
-    ]}
-  />
+  {#if !chip}
+    <Icon
+      icon="lucide:chevron-down"
+      class={[
+        "size-4 shrink-0 opacity-60 transition-transform duration-140",
+        open && "rotate-180",
+      ]}
+    />
+  {/if}
 </button>
 
 <Listbox
@@ -220,6 +236,7 @@ const leave = (e: FocusEvent) => {
   onfocusout={leave}
 >
   {#snippet header()}
+    {#if searchable}
     <label
       class="flex shrink-0 items-center gap-2 border-b border-base-content/10 px-3"
     >
@@ -246,6 +263,7 @@ const leave = (e: FocusEvent) => {
         onkeydown={navigate}
       />
     </label>
+    {/if}
   {/snippet}
 
   {#snippet footer()}

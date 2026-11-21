@@ -1,0 +1,12 @@
+[package]
+name = "tauri-plugin-calendar-sync"
+version = "0.1.0"
+edition = "2024"
+links = "tauri-plugin-calendar-sync"
+publish = false
+
+[dependencies]
+tauri = { version = "2.12.5", default-features = false }
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.2", features = ["build"] }

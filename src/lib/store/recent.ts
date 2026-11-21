@@ -1,6 +1,5 @@
 import { z } from "zod"
 import { chats } from "#lib/chat/chats.svelte.ts"
-import { groups } from "#lib/chat/groups.svelte.ts"
 import { brandIcon } from "#lib/components/harness/brands.ts"
 import { hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -85,21 +84,6 @@ export const recents = (): Recent[] =>
       running: false,
       live: true,
       at: c.at,
-    })),
-    ...groups.list.map(g => ({
-      key: `group:${g.id}`,
-      current: { kind: "group" as const, id: g.id },
-      harness: null,
-      device: null,
-      cwd: null,
-      title: g.title,
-      source: m.group_source({ count: g.members.length }),
-      icon: "lucide:users",
-      running: g.members.some(
-        p => hostList().find(h => h.id === p.host)?.view.views[p.id]?.running,
-      ),
-      live: true,
-      at: g.at,
     })),
   ]
     .map(r => ({ ...r, title: titles.get(r.key) || r.title }))

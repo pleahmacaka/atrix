@@ -97,7 +97,7 @@ $effect(() => {
       {@attach stickBottom}
     >
       <div
-        class="content-zoom chat-column mx-auto flex w-full flex-col gap-6 px-4 pt-6 pb-2"
+        class="content-zoom chat-column relative mx-auto flex w-full flex-col gap-6 px-4 pt-6 pb-2"
         data-quote={stored.id}
       >
         {#each chat.messages as message (message.id)}

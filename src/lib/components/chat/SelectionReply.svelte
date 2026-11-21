@@ -12,9 +12,13 @@ const rem = () => Number.parseFloat(getComputedStyle(document.documentElement).f
 
 let stop: (() => void) | null = null
 
+let watcher: MutationObserver | null = null
+
 const hide = () => {
   stop?.()
   stop = null
+  watcher?.disconnect()
+  watcher = null
   pick = null
   button?.hidePopover()
 }
@@ -42,13 +46,26 @@ const read = async () => {
   pick = { draft, text }
   button.showPopover()
 
+  const stale = () => {
+    const live = getSelection()
+
+    return !live || live.isCollapsed || !live.toString().trim()
+  }
+
+  watcher?.disconnect()
+  // a re-render that replaces the selected nodes collapses the selection without a selectionchange event
+  watcher = new MutationObserver(() => stale() && hide())
+  watcher.observe(document.body, { childList: true, subtree: true, characterData: true })
+
   const start = range.startContainer
   const anchor = {
     getBoundingClientRect: () => range.getBoundingClientRect(),
     contextElement: start instanceof Element ? start : (start.parentElement ?? undefined),
   }
   const place = async () => {
-    if (!button) {
+    if (!button || stale()) {
+      hide()
+
       return
     }
 
@@ -87,7 +104,9 @@ $effect(() => {
   const changed = () => {
     moved = true
 
-    if (getSelection()?.isCollapsed) {
+    const selection = getSelection()
+
+    if (!selection || selection.isCollapsed || !selection.anchorNode?.isConnected) {
       hide()
     }
   }

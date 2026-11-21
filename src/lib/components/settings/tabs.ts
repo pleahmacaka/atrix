@@ -3,11 +3,13 @@ import { m } from "#lib/paraglide/messages.js"
 import { desktop } from "#lib/platform.ts"
 import type { SettingsTab } from "#lib/store/nav.svelte.ts"
 import AppearanceTab from "./AppearanceTab.svelte"
+import CalendarTab from "./CalendarTab.svelte"
 import ChannelsTab from "./ChannelsTab.svelte"
 import DatasourceTab from "./DatasourceTab.svelte"
-import DeviceTab from "./DeviceTab.svelte"
 import GatewayTab from "./GatewayTab.svelte"
+import GeneralTab from "./GeneralTab.svelte"
 import HarnessTab from "./HarnessTab.svelte"
+import SecurityTab from "./SecurityTab.svelte"
 import ShortcutsTab from "./ShortcutsTab.svelte"
 
 export const SETTINGS_TABS: {
@@ -16,6 +18,12 @@ export const SETTINGS_TABS: {
   icon: string
   body: Component
 }[] = [
+  {
+    id: "general",
+    label: m.settings_general(),
+    icon: "lucide:settings",
+    body: GeneralTab,
+  },
   {
     id: "appearance",
     label: m.settings_appearance(),
@@ -45,11 +53,17 @@ export const SETTINGS_TABS: {
         {
           id: "channels" as const,
           label: m.settings_channels(),
-          icon: "lucide:messages-square",
+          icon: "lucide:radio-tower",
           body: ChannelsTab,
         },
       ]
     : []),
+  {
+    id: "calendar",
+    label: m.settings_calendar(),
+    icon: "lucide:calendar",
+    body: CalendarTab,
+  },
   {
     id: "shortcuts",
     label: m.settings_shortcuts(),
@@ -57,9 +71,9 @@ export const SETTINGS_TABS: {
     body: ShortcutsTab,
   },
   {
-    id: "device",
-    label: m.settings_device(),
-    icon: "lucide:monitor-smartphone",
-    body: DeviceTab,
+    id: "security",
+    label: m.settings_security(),
+    icon: "lucide:shield",
+    body: SecurityTab,
   },
 ]

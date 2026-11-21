@@ -1,5 +1,10 @@
-import { enqueue } from "#lib/chat/queue.svelte.ts"
+import { chats } from "#lib/chat/chats.svelte.ts"
+import { chatFor } from "#lib/chat/live.svelte.ts"
+import { unshiftQueue } from "#lib/chat/queue.svelte.ts"
+import { hostById } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { CAPTURE_RATE, Capture, wavOf } from "./capture.ts"
+import { CHAT_HOST } from "./chatCall.ts"
 import { loudness, rms, Vad, type VadEvent } from "./vad.ts"
 import { voice } from "./voice.svelte.ts"
 
@@ -13,25 +18,19 @@ const SMOOTHING = 0.35
 
 const WAIT_MS = 30000
 
-const SLICE_MS = 200
-
 const PARTIAL_MS = 800
 
-const GRACE_MS = 600
+const GRACE_MS = 200
 
 type Take = {
-  recorder: MediaRecorder
-  parts: Blob[]
-  done: Promise<Blob>
+  frames: Float32Array[]
+  rate: number
   partial?: ReturnType<typeof setInterval>
   asking: boolean
   final: boolean
 }
 
 const joined = (...texts: string[]) => texts.filter(Boolean).join(" ")
-
-const blobOf = (take: Take) =>
-  new Blob(take.parts, { type: take.recorder.mimeType })
 
 class Conversation {
   owner = $state<string | null>(null)
@@ -61,6 +60,8 @@ class Conversation {
   #stream?: MediaStream
 
   #context?: AudioContext
+
+  #capture?: Capture
 
   #timer?: ReturnType<typeof setInterval>
 
@@ -137,7 +138,9 @@ class Conversation {
       track.stop()
     }
 
+    this.#capture?.close()
     this.#context?.close().catch(() => {})
+    this.#capture = undefined
     this.#stream = undefined
     this.#context = undefined
     this.hearing = false
@@ -148,7 +151,7 @@ class Conversation {
 
   #open = async () => {
     const run = ++this.#run
-    const context = new AudioContext()
+    const context = new AudioContext({ sampleRate: CAPTURE_RATE })
 
     this.error = null
     this.#context = context
@@ -181,13 +184,37 @@ class Conversation {
       return
     }
 
+    this.#stream = stream
+
     await context.resume().catch(() => {})
 
     const analyser = context.createAnalyser()
     const samples = new Float32Array(analyser.fftSize)
 
-    context.createMediaStreamSource(stream).connect(analyser)
-    this.#stream = stream
+    const source = context.createMediaStreamSource(stream)
+
+    source.connect(analyser)
+
+    let capture: Capture
+
+    try {
+      capture = await Capture.open(context, source)
+    } catch {
+      if (run === this.#run) {
+        this.#release()
+        this.error = m.voice_failed()
+      }
+
+      return
+    }
+
+    if (run !== this.#run) {
+      capture.close()
+
+      return
+    }
+
+    this.#capture = capture
     this.#vad = new Vad()
 
     for (const track of stream.getAudioTracks()) {
@@ -237,7 +264,7 @@ class Conversation {
       this.hearing = true
       this.heard = this.#pending
       clearTimeout(this.#flush)
-      voice.stopSpeaking()
+      voice.hush()
       this.#listen()
     } else {
       this.hearing = false
@@ -246,30 +273,22 @@ class Conversation {
   }
 
   #record = () => {
-    const stream = this.#stream
+    const capture = this.#capture
 
-    if (!stream) {
+    if (!capture) {
       return
     }
 
     this.#discard()
-
-    const parts: Blob[] = []
-    const recorder = new MediaRecorder(stream)
-    const take: Take = {
-      recorder,
-      parts,
-      done: new Promise<Blob>(resolve => {
-        recorder.onstop = () => resolve(blobOf(take))
-      }),
+    this.#take = {
+      frames: capture.begin(),
+      rate: capture.rate,
       asking: false,
       final: false,
     }
-
-    recorder.ondataavailable = e => parts.push(e.data)
-    recorder.start(SLICE_MS)
-    this.#take = take
   }
+
+  #audioOf = (take: Take) => wavOf(take.frames, take.rate)
 
   #listen = () => {
     const take = this.#take
@@ -280,13 +299,13 @@ class Conversation {
     }
 
     take.partial = setInterval(async () => {
-      if (take.asking || take.final || take.parts.length === 0) {
+      if (take.asking || take.final) {
         return
       }
 
       take.asking = true
 
-      const text = await voice.transcribe(blobOf(take)).catch(() => "")
+      const text = await voice.transcribe(this.#audioOf(take)).catch(() => "")
 
       take.asking = false
 
@@ -305,11 +324,7 @@ class Conversation {
 
     take.final = true
     clearInterval(take.partial)
-
-    if (take.recorder.state === "recording") {
-      take.recorder.stop()
-    }
-
+    this.#capture?.end(take.frames)
     this.#take = undefined
   }
 
@@ -319,18 +334,17 @@ class Conversation {
 
     this.#take = undefined
 
-    if (take?.recorder.state !== "recording") {
+    if (!take || take.final) {
       return
     }
 
     take.final = true
     clearInterval(take.partial)
-    take.recorder.stop()
+    this.#capture?.end(take.frames)
     this.transcribing++
 
-    const transcript = this.#chain.then(async () =>
-      voice.transcribe(await take.done),
-    )
+    const audio = this.#audioOf(take)
+    const transcript = this.#chain.then(() => voice.transcribe(audio))
 
     this.#chain = transcript.catch(() => {})
 
@@ -373,7 +387,28 @@ class Conversation {
     this.#wait = setTimeout(this.replied, WAIT_MS)
 
     if (this.owner) {
-      enqueue(this.owner, text)
+      voice.stopSpeaking()
+      unshiftQueue(this.owner, { text, files: [] })
+      this.#interrupt(this.owner)
+    }
+  }
+
+  #interrupt = (owner: string) => {
+    if (this.host === CHAT_HOST) {
+      const stored = chats.find(owner)
+      const chat = stored && chatFor(stored)
+
+      if (chat?.status === "submitted" || chat?.status === "streaming") {
+        void chat.stop()
+      }
+
+      return
+    }
+
+    const host = this.host ? hostById(this.host) : undefined
+
+    if (host?.views[owner]?.running) {
+      host.cancel(owner).catch(() => {})
     }
   }
 }

@@ -1,0 +1,11 @@
+[default]
+description = "Allows mirroring Atrix events into the Android calendar."
+permissions = [
+  "allow-ensure",
+  "allow-rows",
+  "allow-apply",
+  "allow-request-permissions",
+  "allow-check-permissions",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

@@ -1,7 +1,5 @@
-import { groups } from "#lib/chat/groups.svelte.ts"
 import { hostList, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { SPACE_HUES, type Space } from "#lib/p2p/protocol.ts"
-import { CHAT_HOST } from "#lib/voice/chatCall.ts"
 import { type Recent, recents } from "./recent.ts"
 
 export type Status = "waiting" | "running" | "done" | "idle"
@@ -67,21 +65,8 @@ const folderSpace = (folder: string, fallback: string): Space => ({
 export const urgent = (statuses: Status[]): Status =>
   statuses.reduce<Status>((a, b) => (RANK[b] < RANK[a] ? b : a), "idle")
 
-const inGroups = () =>
-  new Set(
-    groups.list.flatMap(g =>
-      g.members.flatMap(p => (p.invited ? [`${p.host}:${p.id}`] : [])),
-    ),
-  )
-
 export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
-  const hidden = inGroups()
-  const all = recents().filter(
-    r =>
-      !hidden.has(
-        `${r.current.kind === "session" ? r.current.host : CHAT_HOST}:${r.current.id}`,
-      ),
-  )
+  const all = recents()
 
   const hosts = hostList().map(host => {
     const state = host.view.state
@@ -159,7 +144,9 @@ export const spaceTree = (): { hosts: HostBlock[]; chats: Recent[] } => {
       r => folderKey(r.cwd ?? ""),
     )
 
-    for (const [key, items] of byFolder) {
+    const folders = [...byFolder].toSorted(([a], [b]) => a.localeCompare(b))
+
+    for (const [key, items] of folders) {
       const agents = pinnedFirst(items.map(rowOf))
 
       nodes.push({

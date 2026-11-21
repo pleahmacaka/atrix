@@ -1,12 +1,13 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
-import { untrack } from "svelte"
+import { type Snippet, untrack } from "svelte"
 import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ConfirmButton from "#lib/components/ui/ConfirmButton.svelte"
 import EmptyState from "#lib/components/ui/EmptyState.svelte"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import PageHeader from "#lib/components/ui/PageHeader.svelte"
+import { failedNotice, removeProfileEverywhere } from "#lib/harness/profiles.ts"
 import type { HostView } from "#lib/p2p/hostView.svelte.ts"
 import type { ConfigDoc, HarnessConfig } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -41,10 +42,14 @@ let {
   host,
   harnessId,
   onSelect,
+  top,
+  extra,
 }: {
   host: HostView
   harnessId: string
   onSelect: (id: string | null, notice?: string) => void
+  top?: Snippet
+  extra?: Snippet
 } = $props()
 
 const attempt = new Attempt()
@@ -80,7 +85,7 @@ $effect(() => {
 
 const removeProfile = () =>
   attempt.run(async () => {
-    await host.removeProfile(harnessId)
+    await (harness ? removeProfileEverywhere(harness) : host.removeProfile(harnessId))
     onSelect(null)
   })
 </script>
@@ -135,8 +140,10 @@ const removeProfile = () =>
             onconfirm={removeProfile}
           />
         {/if}
+        {@render extra?.()}
       {/snippet}
     </PageHeader>
+    {@render top?.()}
 
     <div class="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6">
       {#if config?.dir}
@@ -209,12 +216,15 @@ const removeProfile = () =>
     open={profileOpen}
     {host}
     {harness}
-    onCreated={(id, skipped) =>
+    onCreated={(id, skipped, failed) =>
       onSelect(
         id,
-        skipped.length
-          ? m.harness_skipped({ items: skipped.join(", ") })
-          : undefined,
+        [
+          skipped.length ? m.harness_skipped({ items: skipped.join(", ") }) : null,
+          failedNotice(failed),
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined,
       )}
     onClose={() => {
       profileOpen = false

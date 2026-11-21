@@ -49,7 +49,7 @@ const text = $derived(
   {/if}
   {#each message.parts as part, index (index)}
     {#if part.type === "text" && mine}
-      <div class={BUBBLE}>{part.text}</div>
+      <div class={BUBBLE}><Markdown text={part.text} look="bubble markdown" /></div>
     {:else if part.type === "text"}
       <Markdown text={part.text} />
     {:else if part.type === "reasoning" && part.text}

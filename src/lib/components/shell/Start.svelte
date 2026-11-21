@@ -3,9 +3,6 @@ import Icon from "@iconify/svelte"
 import { tick } from "svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { matchChoice } from "#lib/chat/choices.ts"
-import { groups } from "#lib/chat/groups.svelte.ts"
-import { MAX_MEMBERS } from "#lib/chat/groupTimeline.ts"
-import { peopleMatching } from "#lib/chat/mentions.ts"
 import Composer from "#lib/components/chat/Composer.svelte"
 import ModelEffort from "#lib/components/chat/ModelEffort.svelte"
 import ModelInput from "#lib/components/chat/ModelInput.svelte"
@@ -20,9 +17,7 @@ import { Attempt } from "#lib/components/ui/attempt.svelte.ts"
 import ErrorAlert from "#lib/components/ui/ErrorAlert.svelte"
 import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconSelect from "#lib/components/ui/IconSelect.svelte"
-import MenuItem from "#lib/components/ui/MenuItem.svelte"
-import { menuKeys } from "#lib/components/ui/menu.ts"
-import Popover from "#lib/components/ui/Popover.svelte"
+import Select from "#lib/components/ui/Select.svelte"
 import Wheel from "#lib/components/ui/Wheel.svelte"
 import { logFailure } from "#lib/logging.ts"
 import { hostById, hostList } from "#lib/p2p/hosts.svelte.ts"
@@ -80,30 +75,6 @@ $effect(() => {
 
 const chosen = $derived(options.find(o => o.key === targetKey))
 
-let extras = $state<string[]>([])
-
-let adding = $state(false)
-
-const members = $derived(
-  extras.flatMap(key => options.filter(o => o.key === key && key !== targetKey)),
-)
-
-const addable = $derived(
-  members.length + 1 >= MAX_MEMBERS
-    ? []
-    : options.filter(o => o.key !== targetKey && !extras.includes(o.key)),
-)
-
-const room = $derived(members.length > 0)
-
-const roomPeople = (query: string) =>
-  peopleMatching(
-    [chosen, ...members].flatMap(o =>
-      o ? [{ id: o.key, name: o.label, detail: o.badge ?? "", icon: o.icon }] : [],
-    ),
-    query,
-  )
-
 const presets = $derived.by(() => {
   const target = nav.target
 
@@ -130,11 +101,9 @@ const targetHarness = $derived(
 
 const base = $derived(targetHarness?.base)
 
-const pinned = $derived(targetHarness?.providerActive ?? false)
+const pinnedModel = $derived(targetHarness?.providerModel ?? undefined)
 
-const pinnedModel = $derived(
-  pinned ? targetHarness?.provider?.model : undefined,
-)
+const pinned = $derived(pinnedModel !== undefined)
 
 const modelOption = $derived(presets.find(o => o.category === "model"))
 
@@ -223,73 +192,8 @@ const startSession = async (target: Extract<Target, { kind: "harness" }>) => {
   return { view, id }
 }
 
-const addMember = async (groupId: string, key: string) => {
-  const option = options.find(o => o.key === key)
-  const [first, second] = key.split("\n")
-
-  if (!option) {
-    return
-  }
-
-  if (first !== GATEWAY) {
-    await groups.invite(
-      groupId,
-      first,
-      { id: second, name: option.label },
-      key === targetKey
-        ? {
-            options: Object.fromEntries(
-              presets.filter(o => pickOf(o) !== o.current).map(o => [o.id, pickOf(o)]),
-            ),
-            model: modelOption ? undefined : alias,
-            effort: effortOption ? undefined : level,
-          }
-        : {},
-    )
-
-    return
-  }
-
-  const model =
-    nav.target.kind === "model" && key === targetKey
-      ? nav.target.model
-      : (findGateway(second)?.model ?? "")
-
-  await groups.join(groupId, CHAT_HOST, chats.create(second, model), {
-    label: option.label,
-    invited: true,
-  })
-}
-
-const startRoom = async (text: string, files: File[]) => {
-  const id = await groups.create()
-  const target = nav.target
-  const cwd = target.kind === "harness" ? target.cwd.trim() : ""
-
-  if (cwd && target.kind === "harness") {
-    await groups.setFolder(id, cwd, target.host)
-  }
-
-  for (const key of [targetKey, ...members.map(o => o.key)]) {
-    await addMember(id, key)
-  }
-
-  if (text || files.length) {
-    groups.opening.set(id, { text, files })
-  }
-
-  extras = []
-  glide({ kind: "group", id })
-}
-
 const call = () =>
   attempt.run(async () => {
-    if (room) {
-      await startRoom("", [])
-
-      return
-    }
-
     const target = nav.target
 
     if (target.kind === "model") {
@@ -308,12 +212,6 @@ const call = () =>
 
 const send = (text: string, files: File[]) =>
   attempt.run(async () => {
-    if (room) {
-      await startRoom(text, files)
-
-      return
-    }
-
     const target = nav.target
 
     if (target.kind === "model") {
@@ -369,12 +267,7 @@ const ready = $derived(
       busy={attempt.busy}
       draft="start"
       disabled={!ready}
-      placeholder={!ready
-        ? m.chat_connect_gateway()
-        : room
-          ? m.group_placeholder()
-          : m.chat_placeholder()}
-      people={room ? roomPeople : undefined}
+      placeholder={!ready ? m.chat_connect_gateway() : m.chat_placeholder()}
       onSend={send}
       onStop={() => {}}
       onCall={call}
@@ -389,70 +282,32 @@ const ready = $derived(
       {/snippet}
       {#snippet tools()}
         {#if chosen}
-          <span class="flex shrink-0 items-center gap-1.5 px-2 text-sm font-medium">
-            {chosen.label}
-            {#if chosen.badge}
-              <span class="badge badge-soft badge-xs">{chosen.badge}</span>
-            {/if}
-          </span>
-        {/if}
-        {#each members as option (option.key)}
-          <span class="badge badge-soft badge-primary shrink-0 gap-1 pe-0.5">
-            <Icon icon={option.icon} class="size-3" />
-            {option.label}
-            <button
-              type="button"
-              class="btn btn-ghost btn-circle btn-xs size-4"
-              aria-label={m.room_remove({ name: option.label })}
-              title={m.room_remove({ name: option.label })}
-              onclick={() => {
-                extras = extras.filter(k => k !== option.key)
-              }}
-            >
-              <Icon icon="lucide:x" class="size-3" />
-            </button>
-          </span>
-        {/each}
-        {#if addable.length}
-          <Popover label={m.room_add()} placement="top-start" width="w-64" bind:open={adding}>
-            {#snippet trigger(p)}
-              <button
-                {...p}
-                type="button"
-                class="btn btn-ghost btn-xs btn-square shrink-0"
-                aria-label={m.room_add()}
-                title={m.room_add()}
-              >
-                <Icon icon="lucide:user-plus" class="size-3.5" />
-              </button>
+          <Select
+            chip
+            search
+            class="shrink-0 text-sm font-medium"
+            label={m.target_title()}
+            options={options.map(o => ({
+              value: o.key,
+              label: o.label,
+              icon: o.icon,
+              group: o.group,
+              detail: o.badge,
+            }))}
+            value={targetKey}
+            onchange={choose}
+          >
+            {#snippet display()}
+              <span class="flex min-w-0 items-center gap-1.5">
+                <span class="truncate">{chosen.label}</span>
+                {#if chosen.badge}
+                  <span class="badge badge-soft badge-xs">{chosen.badge}</span>
+                {/if}
+              </span>
             {/snippet}
-            <div
-              role="menu"
-              tabindex="-1"
-              class="flex max-h-80 flex-col overflow-y-auto"
-              {@attach menuKeys}
-            >
-              {#each addable as option (option.key)}
-                <MenuItem
-                  icon={option.icon}
-                  label={option.label}
-                  onclick={() => {
-                    adding = false
-                    extras = [...extras, option.key]
-                  }}
-                />
-              {/each}
-            </div>
-          </Popover>
+          </Select>
         {/if}
-        {#if room}
-          {#if nav.target.kind === "harness"}
-            <FolderPicker
-              host={hostById(nav.target.host)}
-              bind:value={nav.target.cwd}
-            />
-          {/if}
-        {:else if nav.target.kind === "model"}
+        {#if nav.target.kind === "model"}
           <ModelInput
             gateway={nav.target.gateway}
             bind:value={nav.target.model}

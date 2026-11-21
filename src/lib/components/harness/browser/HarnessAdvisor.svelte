@@ -1,8 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte"
 import { brandIcon } from "#lib/components/harness/brands.ts"
-import Section from "#lib/components/ui/Section.svelte"
-import Segmented from "#lib/components/ui/Segmented.svelte"
 import Select, { type SelectOption } from "#lib/components/ui/Select.svelte"
 import { type Ranked, rankingOf, servedBy, USES, type Use } from "#lib/harness/arena.ts"
 import {
@@ -30,7 +28,11 @@ const USE_LABELS: Record<Use, () => string> = {
   search: m.advisor_use_search,
 }
 
-const uses = USES.map(u => ({ id: u.id, icon: u.icon, label: USE_LABELS[u.id]() }))
+const uses: SelectOption<Use>[] = USES.map(u => ({
+  value: u.id,
+  icon: u.icon,
+  label: USE_LABELS[u.id](),
+}))
 
 let use = $state<Use>("agent")
 
@@ -168,12 +170,9 @@ const sources = $derived(
 )
 </script>
 
-<Section icon="lucide:sparkles" title={m.advisor_title()}>
-  <div class="flex flex-col gap-3 @container">
-    <div class="overflow-x-auto scrollbar-none">
-      <Segmented items={uses} value={use} onpick={id => (use = id)} />
-    </div>
-    <div class="flex flex-wrap items-center justify-end gap-2">
+<div class="flex flex-col gap-3 @container">
+    <div class="flex flex-wrap items-center gap-2">
+      <Select options={uses} bind:value={use} label={m.advisor_title()} class="min-w-0 flex-1" />
       {#if coding}
         <Select
           {options}
@@ -260,5 +259,4 @@ const sources = $derived(
         {m.advisor_sources({ list: sources })}
       </p>
     {/if}
-  </div>
-</Section>
+</div>

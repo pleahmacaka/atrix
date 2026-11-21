@@ -44,11 +44,43 @@ let current = $state<Browse | null>(null)
 
 let filter = $state("")
 
+const typedPath = $derived.by(() => {
+  const typed = filter.trim()
+
+  if (!isPath(typed)) {
+    return null
+  }
+
+  const cut = Math.max(typed.lastIndexOf("\\"), typed.lastIndexOf("/")) + 1
+
+  return { dir: typed.slice(0, cut), leaf: typed.slice(cut) }
+})
+
+const needle = $derived((typedPath ? typedPath.leaf : filter.trim()).toLowerCase())
+
 const dirs = $derived(
-  (current?.dirs ?? []).filter(d =>
-    d.name.toLowerCase().includes(filter.trim().toLowerCase()),
-  ),
+  (current?.dirs ?? []).filter(d => d.name.toLowerCase().includes(needle)),
 )
+
+let requested = ""
+
+$effect(() => {
+  const dir = typedPath?.dir
+  const view = host
+
+  if (!dir || !view || dir === requested) {
+    return
+  }
+
+  requested = dir
+  attempt.run(async () => {
+    const found = await view.browse(dir)
+
+    if (requested === dir) {
+      current = found
+    }
+  })
+})
 
 const nativePath = (path: string) =>
   /^[a-z]:/i.test(path) ? path.replaceAll("/", "\\") : path
@@ -82,8 +114,7 @@ const recent = $derived(
       .filter(path => !isTemporary(path)),
   )
     .filter(
-      path =>
-        !!path && baseName(path).toLowerCase().includes(filter.trim().toLowerCase()),
+      path => !!path && baseName(path).toLowerCase().includes(needle),
     )
     .slice(0, current ? RECENT_BROWSING : RECENT_LIMIT),
 )
@@ -91,6 +122,7 @@ const recent = $derived(
 const browse = (path: string) =>
   attempt.run(async () => {
     if (host) {
+      requested = ""
       current = await host.browse(path)
       filter = ""
     }
@@ -120,10 +152,9 @@ const pick = (path: string) => {
     >
       <Icon icon="lucide:folder" class="size-4 shrink-0 opacity-60" />
       <span class="min-w-0 truncate">{baseName(value) || m.chat_folder()}</span>
-      <Icon icon="lucide:chevron-down" class="size-4 shrink-0 opacity-60" />
     </button>
   {/snippet}
-  <div class="flex h-80 flex-col gap-1.5 p-0.5">
+  <div class="flex h-80 min-h-0 flex-col gap-1.5 overflow-hidden p-0.5">
     {#if current}
       <div class="flex shrink-0 items-center gap-1">
         <IconButton
@@ -158,7 +189,10 @@ const pick = (path: string) => {
 
           if (e.key === "Enter" && isPath(typed)) {
             e.preventDefault()
-            browse(typed)
+
+            const exact = dirs.find(d => d.name.toLowerCase() === needle)
+
+            browse(exact?.path ?? typed)
           }
         }}
         placeholder={m.folder_filter()}
@@ -166,9 +200,10 @@ const pick = (path: string) => {
         data-autofocus
         {@attach node => node.focus({ preventScroll: true })}
       />
+      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
       {#if recent.length}
-        <MenuLabel text={m.folder_recent()} class="shrink-0" />
-        <div role="menu" class="flex shrink-0 flex-col">
+        <MenuLabel text={m.folder_recent()} />
+        <div role="menu" class="flex flex-col">
           {#each recent as path (path)}
             <MenuItem
               icon="lucide:history"
@@ -189,7 +224,7 @@ const pick = (path: string) => {
           {/each}
         </div>
       {/if}
-      <div role="menu" class="flex min-h-40 flex-1 flex-col overflow-y-auto">
+      <div role="menu" class="flex flex-col">
         {#each dirs as dir (dir.path)}
           <MenuItem
             icon="lucide:folder"
@@ -209,6 +244,7 @@ const pick = (path: string) => {
             />
           {/if}
         {/each}
+      </div>
       </div>
     {/if}
     <ErrorAlert message={attempt.failure} />

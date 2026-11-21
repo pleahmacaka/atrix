@@ -21,6 +21,7 @@ const BRANDS: Record<string, string> = {
   "deepseek-acp": "simple-icons:deepseek",
   "hermes-agent": "lucide:feather",
   "oh-my-pi": "lucide:pi",
+  "pi-acp": "lucide:pi",
   omo: "lucide:sparkles",
   "zcode-acp": "thesvg:zhipu",
   devin: "logos:devin",

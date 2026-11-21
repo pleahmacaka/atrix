@@ -1,5 +1,5 @@
 <script lang="ts">
-import Icon from "@iconify/svelte"
+import Segmented from "#lib/components/ui/Segmented.svelte"
 import { m } from "#lib/paraglide/messages.js"
 import ModelGateways from "./ModelGateways.svelte"
 import SpeechProviders from "./SpeechProviders.svelte"
@@ -16,21 +16,15 @@ let category = $state<Category>("llm")
 </script>
 
 <div class="flex flex-col gap-4">
-  <div class="tabs tabs-box self-start" role="tablist">
-    {#each CATEGORIES as item (item.id)}
-      <button
-        type="button"
-        role="tab"
-        class={["tab gap-2", category === item.id && "tab-active"]}
-        aria-selected={category === item.id}
-        onclick={() => {
-          category = item.id
-        }}
-      >
-        <Icon icon={item.icon} class="size-4" />
-        {item.label()}
-      </button>
-    {/each}
+  <div class="self-start">
+    <Segmented
+      label={m.settings_gateway()}
+      items={CATEGORIES.map(c => ({ id: c.id, label: c.label(), icon: c.icon }))}
+      value={category}
+      onpick={id => {
+        category = id
+      }}
+    />
   </div>
   {#if category === "llm"}
     <ModelGateways />

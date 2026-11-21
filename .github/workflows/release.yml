@@ -77,6 +77,43 @@ jobs:
           releaseDraft: false
           prerelease: false
 
+  linux:
+    needs: [version, windows]
+    if: needs.version.outputs.released == 'false'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          shared-key: atrix-linux
+          cache-on-failure: true
+
+      - run: bun install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: bun run tauri
+          args: --bundles deb,appimage --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          tagName: ${{ needs.version.outputs.version }}
+          releaseName: Atrix ${{ needs.version.outputs.version }}
+          releaseCommitish: ${{ github.sha }}
+          releaseDraft: false
+          prerelease: false
+
   android:
     needs: [version, windows]
     if: needs.version.outputs.released == 'false'

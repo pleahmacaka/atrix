@@ -2,6 +2,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use atrix_net::{Event, Info, Key, Member, Node, Pairing};
 use tauri::ipc::Channel;
@@ -10,7 +11,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::error::{Error, Result};
 use crate::platform;
 
-const PAIR_FLAG: &str = "--pair";
+const HEADLESS_PAIR_MINUTES: u64 = 10;
 
 type Sink = Arc<Mutex<Option<Channel<Event>>>>;
 
@@ -65,17 +66,6 @@ async fn node(net: &State<'_, Net>) -> Result<Node> {
 }
 
 #[tauri::command]
-pub fn startup_pair_code() -> Option<String> {
-    pair_code_in(&std::env::args().collect::<Vec<_>>())
-}
-
-pub fn pair_code_in(args: &[String]) -> Option<String> {
-    args.iter()
-        .position(|a| a == PAIR_FLAG)
-        .and_then(|i| args.get(i + 1).cloned())
-}
-
-#[tauri::command]
 pub async fn net_start(
     app: AppHandle,
     net: State<'_, Net>,
@@ -117,6 +107,23 @@ pub async fn net_start(
     let id = node.id();
 
     node.announce();
+
+    if app.state::<crate::launch::Launch>().headless {
+        let issuer = node.clone();
+
+        tauri::async_runtime::spawn(async move {
+            loop {
+                let pairing = issuer.issue(HEADLESS_PAIR_MINUTES).await;
+
+                println!(
+                    "pair code ({HEADLESS_PAIR_MINUTES} minutes): {}",
+                    pairing.code
+                );
+
+                tokio::time::sleep(Duration::from_secs(HEADLESS_PAIR_MINUTES * 60)).await;
+            }
+        });
+    }
     *slot = Some(node);
 
     Ok(id)

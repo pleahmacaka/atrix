@@ -15,6 +15,7 @@ export type Template = {
   anthropic?: string
   responses?: boolean
   codexDefaults?: boolean
+  reasoning?: "none" | "low" | "high"
   keyless?: boolean
 }
 
@@ -44,6 +45,7 @@ export const TEMPLATES: Template[] = [
     icon: "simple-icons:mistralai",
     baseURL: "https://api.mistral.ai/v1",
     responses: true,
+    reasoning: "none",
   },
   {
     id: "gemini",

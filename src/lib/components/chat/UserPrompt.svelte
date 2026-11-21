@@ -5,6 +5,7 @@ import { promptOf } from "#lib/chat/session.ts"
 import { m } from "#lib/paraglide/messages.js"
 import Attachments from "./Attachments.svelte"
 import { BUBBLE } from "./labels.ts"
+import Markdown from "./Markdown.svelte"
 
 let { item }: { item: TextItem } = $props()
 
@@ -25,7 +26,10 @@ const prompt = $derived(promptOf(item))
     <span class="h-px flex-1 bg-base-content/15"></span>
   </p>
 {:else if prompt.text}
-  <div data-turn={item.id} class={[BUBBLE, "scroll-mt-6 self-end"]}>
-    {prompt.text}
+  <div
+    data-turn={item.id}
+    class={[BUBBLE, "scroll-mt-6 self-end"]}
+  >
+    <Markdown text={prompt.text} look="bubble markdown" />
   </div>
 {/if}

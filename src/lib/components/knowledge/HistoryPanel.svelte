@@ -149,7 +149,7 @@ const clip = (text: string) => {
     {/if}
   </div>
   <div class="mt-6 flex">
-    <Segmented items={VIEWS} value={view} onpick={id => (view = id)} />
+    <Segmented label={m.common_view()} items={VIEWS} value={view} onpick={id => (view = id)} />
   </div>
   {#if view === "rendered"}
     <div class="mt-4 grid gap-2">

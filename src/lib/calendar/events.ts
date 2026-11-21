@@ -1,6 +1,21 @@
-import { and, asc, eq, gte, lt } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm"
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { type Backend, datasource } from "#lib/datasource/client.ts"
+import {
+  addDays,
+  type CalendarEvent,
+  dateKey,
+  dateTimeKey,
+  expand,
+  type HolidayCheck,
+  parseLocal,
+  RECURRENCES,
+  type Recurrence,
+  type SeriesChange,
+  SHIFT_LIMIT,
+  SHIFTS,
+  type Shift,
+} from "./recurrence.ts"
 
 export const CALENDAR = "calendar"
 
@@ -9,13 +24,30 @@ export const events = sqliteTable("events", {
   title: text("title").notNull(),
   start: text("start").notNull(),
   end: text("end").notNull(),
-  allDay: integer("all_day", { mode: "boolean" }).notNull().default(false),
-  note: text("note").notNull().default(""),
-  color: text("color").notNull().default(""),
-  createdBy: text("created_by").notNull().default(""),
+  allDay: integer("all_day", { mode: "boolean" }).notNull(),
+  note: text("note").notNull(),
+  color: text("color").notNull(),
+  createdBy: text("created_by").notNull(),
+  recurrence: text("recurrence").notNull(),
+  exdates: text("exdates", { mode: "json" }).$type<string[]>().notNull(),
+  until: text("until"),
+  shift: text("shift").notNull(),
+  seriesId: text("series_id"),
+  originalDate: text("original_date"),
+  tags: text("tags", { mode: "json" }).$type<string[]>().notNull(),
+  notesSync: integer("notes_sync", { mode: "boolean" }).notNull(),
+  updatedAt: integer("updated_at").notNull(),
 })
 
-export type CalendarEvent = typeof events.$inferSelect
+export const tags = sqliteTable("tags", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+})
+
+export type EventRow = typeof events.$inferSelect
+
+export type EventTag = typeof tags.$inferSelect
 
 export type EventInput = {
   title: string
@@ -24,9 +56,13 @@ export type EventInput = {
   allDay?: boolean
   note?: string
   color?: string
+  recurrence?: Recurrence
+  until?: string | null
+  shift?: Shift | null
+  tags?: string[]
 }
 
-const CREATE = `CREATE TABLE IF NOT EXISTS events (
+const CREATE_EVENTS = `CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   "start" TEXT NOT NULL,
@@ -37,15 +73,80 @@ const CREATE = `CREATE TABLE IF NOT EXISTS events (
   created_by TEXT NOT NULL DEFAULT ''
 )`
 
+const COLUMNS: [string, string][] = [
+  ["recurrence", "TEXT NOT NULL DEFAULT 'none'"],
+  ["exdates", "TEXT NOT NULL DEFAULT '[]'"],
+  ["until", "TEXT"],
+  ["shift", "TEXT NOT NULL DEFAULT ''"],
+  ["series_id", "TEXT"],
+  ["original_date", "TEXT"],
+  ["tags", "TEXT NOT NULL DEFAULT '[]'"],
+  ["notes_sync", "INTEGER NOT NULL DEFAULT 0"],
+  ["updated_at", "INTEGER NOT NULL DEFAULT 0"],
+]
+
+const CREATE_TAGS = `CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT ''
+)`
+
+const DEFAULT_TAGS = [
+  ["todo", "warning"],
+  ["personal", "success"],
+  ["work", "info"],
+]
+
 const ready = new WeakMap<Backend, Promise<void>>()
+
+const tableNames = async (backend: Backend) => {
+  const { rows } = await backend.dsQuery(
+    CALENDAR,
+    "SELECT name FROM sqlite_master WHERE type = 'table'",
+    [],
+  )
+
+  return new Set(rows.map(r => String(r[0])))
+}
 
 const prepare = async (backend: Backend) => {
   if (!(await backend.dsList()).includes(CALENDAR)) {
     await backend.dsCreate(CALENDAR)
   }
 
+  const existing = await tableNames(backend)
+
   // sqlite-proxy's migrator reads drizzle-kit files from disk, which the webview cannot
-  await backend.dsExecute(CALENDAR, CREATE, [])
+  await backend.dsExecute(CALENDAR, CREATE_EVENTS, [])
+
+  const { rows } = await backend.dsQuery(
+    CALENDAR,
+    "SELECT name FROM pragma_table_info('events')",
+    [],
+  )
+  const present = new Set(rows.map(r => String(r[0])))
+
+  for (const [name, type] of COLUMNS) {
+    if (!present.has(name)) {
+      await backend.dsExecute(
+        CALENDAR,
+        `ALTER TABLE events ADD COLUMN ${name} ${type}`,
+        [],
+      )
+    }
+  }
+
+  await backend.dsExecute(CALENDAR, CREATE_TAGS, [])
+
+  if (!existing.has("tags")) {
+    for (const [id, color] of DEFAULT_TAGS) {
+      await backend.dsExecute(
+        CALENDAR,
+        "INSERT OR IGNORE INTO tags (id, name, color) VALUES (?, '', ?)",
+        [id, color],
+      )
+    }
+  }
 }
 
 const open = async (backend: Backend) => {
@@ -73,7 +174,66 @@ export const toIso = (value: string) => {
   return parsed.toISOString()
 }
 
-const normalized = (input: EventInput) => {
+const recurrenceOf = (value: string): Recurrence =>
+  RECURRENCES.find(r => r === value) ?? "none"
+
+const shiftOf = (value: string | null | undefined): Shift | null =>
+  SHIFTS.find(s => s === value) ?? null
+
+export const fromRow = (row: EventRow): CalendarEvent => {
+  const start = new Date(row.start)
+  const end = new Date(row.end)
+  const lastDay = end > start ? addDays(end, -1) : start
+
+  return {
+    id: row.id,
+    title: row.title,
+    notes: row.note,
+    start: row.allDay ? dateKey(start) : dateTimeKey(start),
+    end: row.allDay ? dateKey(lastDay) : dateTimeKey(end),
+    allDay: row.allDay,
+    color: row.color,
+    recurrence: recurrenceOf(row.recurrence),
+    tags: row.tags ?? [],
+    exdates: row.exdates ?? [],
+    until: row.until,
+    shift: shiftOf(row.shift),
+    seriesId: row.seriesId,
+    originalDate: row.originalDate,
+    notesSync: row.notesSync,
+    createdBy: row.createdBy,
+    updatedAt: row.updatedAt,
+  }
+}
+
+export const toRow = (event: CalendarEvent): EventRow => ({
+  id: event.id,
+  title: event.title,
+  note: event.notes,
+  start: parseLocal(event.start).toISOString(),
+  end: (event.allDay
+    ? addDays(parseLocal(event.end), 1)
+    : parseLocal(event.end)
+  ).toISOString(),
+  allDay: event.allDay,
+  color: event.color,
+  createdBy: event.createdBy,
+  recurrence: event.recurrence,
+  exdates: event.exdates,
+  until: event.until,
+  shift: event.shift ?? "",
+  seriesId: event.seriesId,
+  originalDate: event.originalDate,
+  tags: event.tags,
+  notesSync: event.notesSync,
+  updatedAt: event.updatedAt,
+})
+
+export const fromInput = (
+  input: EventInput,
+  createdBy: string,
+  id: string = crypto.randomUUID(),
+): CalendarEvent => {
   const title = input.title.trim()
   const start = toIso(input.start)
   const end = toIso(input.end)
@@ -86,29 +246,105 @@ const normalized = (input: EventInput) => {
     throw new Error("invalid_range: end is before start")
   }
 
-  return {
+  return fromRow({
+    id,
     title,
     start,
     end,
     allDay: input.allDay ?? false,
     note: input.note ?? "",
     color: input.color ?? "",
-  }
+    createdBy,
+    recurrence: input.recurrence ?? "none",
+    exdates: [],
+    until: input.until ?? null,
+    shift: input.shift ?? "",
+    seriesId: null,
+    originalDate: null,
+    tags: input.tags ?? [],
+    notesSync: false,
+    updatedAt: Date.now(),
+  })
 }
 
-export const listEvents = async (backend: Backend, from: Date, to: Date) => {
-  const db = await open(backend)
+const LOOKBACK_DAYS = SHIFT_LIMIT + 1
 
-  return db
+export const listEvents = async (
+  backend: Backend,
+  from: Date,
+  to: Date,
+  isHoliday?: HolidayCheck,
+) => {
+  const db = await open(backend)
+  const reach = addDays(to, LOOKBACK_DAYS).toISOString()
+  const rows = await db
     .select()
     .from(events)
     .where(
-      and(
-        lt(events.start, to.toISOString()),
-        gte(events.end, from.toISOString()),
+      or(
+        and(
+          eq(events.recurrence, "none"),
+          lt(events.start, to.toISOString()),
+          gte(events.end, from.toISOString()),
+        ),
+        and(
+          ne(events.recurrence, "none"),
+          lt(events.start, reach),
+          or(
+            isNull(events.until),
+            gte(events.until, dateKey(addDays(from, -LOOKBACK_DAYS))),
+          ),
+        ),
       ),
     )
     .orderBy(asc(events.start))
+
+  return expand(rows.map(fromRow), from, to, isHoliday)
+}
+
+export const allEvents = async (backend: Backend) => {
+  const db = await open(backend)
+
+  return (await db.select().from(events)).map(fromRow)
+}
+
+export const getEvent = async (backend: Backend, id: string) => {
+  const db = await open(backend)
+  const [row] = await db.select().from(events).where(eq(events.id, id))
+
+  return row ? fromRow(row) : null
+}
+
+export const familyOf = async (backend: Backend, seriesId: string) => {
+  const db = await open(backend)
+  const rows = await db
+    .select()
+    .from(events)
+    .where(or(eq(events.id, seriesId), eq(events.seriesId, seriesId)))
+
+  return rows.map(fromRow)
+}
+
+export const putEvent = async (backend: Backend, event: CalendarEvent) => {
+  const db = await open(backend)
+  const { id, ...rest } = toRow(event)
+
+  await db
+    .insert(events)
+    .values({ id, ...rest })
+    .onConflictDoUpdate({ target: events.id, set: rest })
+}
+
+export const applyChange = async (backend: Backend, change: SeriesChange) => {
+  for (const event of change.put) {
+    await putEvent(backend, event)
+  }
+
+  if (change.remove.length > 0) {
+    const db = await open(backend)
+
+    await db.delete(events).where(inArray(events.id, change.remove))
+  }
 }
 
 export const addEvent = async (
@@ -116,26 +352,36 @@ export const addEvent = async (
   input: EventInput,
   createdBy: string,
 ) => {
-  const db = await open(backend)
-  const row = { id: crypto.randomUUID(), ...normalized(input), createdBy }
+  const event = fromInput(input, createdBy)
 
-  await db.insert(events).values(row)
+  await putEvent(backend, event)
 
-  return row
+  return event
 }
 
-export const updateEvent = async (
-  backend: Backend,
-  id: string,
-  input: EventInput,
-) => {
+export const deleteEvent = (backend: Backend, id: string) =>
+  applyChange(backend, { put: [], remove: [id] })
+
+export const listTags = async (backend: Backend) => {
   const db = await open(backend)
 
-  await db.update(events).set(normalized(input)).where(eq(events.id, id))
+  return db.select().from(tags).orderBy(asc(tags.id))
 }
 
-export const deleteEvent = async (backend: Backend, id: string) => {
+export const putTag = async (backend: Backend, tag: EventTag) => {
+  const db = await open(backend)
+  const { id, ...rest } = tag
+
+  await db
+    .insert(tags)
+    .values(tag)
+    .onConflictDoUpdate({ target: tags.id, set: rest })
+
+  return id
+}
+
+export const deleteTag = async (backend: Backend, id: string) => {
   const db = await open(backend)
 
-  await db.delete(events).where(eq(events.id, id))
+  await db.delete(tags).where(eq(tags.id, id))
 }

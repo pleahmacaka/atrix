@@ -2,7 +2,6 @@
 import Icon from "@iconify/svelte"
 import { chats } from "#lib/chat/chats.svelte.ts"
 import { paneComposers } from "#lib/chat/composer.svelte.ts"
-import GroupChat from "#lib/components/chat/GroupChat.svelte"
 import SessionChat from "#lib/components/chat/SessionChat.svelte"
 import SubagentChat from "#lib/components/chat/SubagentChat.svelte"
 import { Attempt, errorText } from "#lib/components/ui/attempt.svelte.ts"
@@ -310,8 +309,6 @@ const HINTS: Record<Zone, string> = {
     />
   {:else if host && current?.kind === "session"}
     <SessionChat {host} sessionId={current.id} />
-  {:else if current?.kind === "group"}
-    <GroupChat id={current.id} />
   {:else}
     <Start />
   {/if}

@@ -1,9 +1,10 @@
 use std::fs;
-use std::io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use memchr::memmem;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tempfile::NamedTempFile;
@@ -195,6 +196,29 @@ pub fn read_lines(app: AppHandle, path: String, offset: u64, tail: u64) -> Resul
     })
 }
 
+const GREP_CHUNK: usize = 8 << 20;
+
+fn matching_lines(block: &[u8], finders: &[memmem::Finder], found: &mut Vec<String>) {
+    let mut spans: Vec<(usize, usize)> = finders
+        .iter()
+        .flat_map(|f| f.find_iter(block))
+        .map(|at| {
+            let start = memchr::memrchr(b'\n', &block[..at]).map_or(0, |i| i + 1);
+            let end = memchr::memchr(b'\n', &block[at..]).map_or(block.len(), |i| at + i + 1);
+
+            (start, end)
+        })
+        .collect();
+
+    spans.sort_unstable();
+    spans.dedup();
+    found.extend(
+        spans
+            .into_iter()
+            .map(|(start, end)| String::from_utf8_lossy(&block[start..end]).into_owned()),
+    );
+}
+
 #[tauri::command(async)]
 pub fn grep_head(
     app: AppHandle,
@@ -208,29 +232,35 @@ pub fn grep_head(
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e.into()),
     };
-    let size = file.metadata()?.len();
-    let end = size.saturating_sub(tail);
-    let mut reader = BufReader::new(file);
-    let mut line = Vec::new();
-    let mut position = 0;
+    let mut remaining = file.metadata()?.len().saturating_sub(tail);
+    let finders: Vec<_> = needles
+        .iter()
+        .map(|n| memmem::Finder::new(n.as_bytes()))
+        .collect();
+    let mut reader = BufReader::with_capacity(GREP_CHUNK, file);
+    let mut block = Vec::with_capacity(GREP_CHUNK);
     let mut found = Vec::new();
 
-    while position < end {
-        line.clear();
+    while remaining > 0 {
+        let start = block.len();
+        let want = GREP_CHUNK.min(remaining as usize);
 
-        let read = reader.read_until(b'\n', &mut line)?;
+        block.resize(start + want, 0);
+        reader.read_exact(&mut block[start..])?;
+        remaining -= want as u64;
 
-        if read == 0 {
-            break;
+        if remaining == 0 && block.last() != Some(&b'\n') {
+            reader.read_until(b'\n', &mut block)?;
         }
 
-        position += read as u64;
+        let complete = if remaining == 0 {
+            block.len()
+        } else {
+            memchr::memrchr(b'\n', &block).map_or(0, |i| i + 1)
+        };
 
-        let text = String::from_utf8_lossy(&line);
-
-        if needles.iter().any(|n| text.contains(n.as_str())) {
-            found.push(text.into_owned());
-        }
+        matching_lines(&block[..complete], &finders, &mut found);
+        block.drain(..complete);
     }
 
     Ok(found)

@@ -29,7 +29,7 @@ const SUBMITS = [
 ]
 </script>
 
-<SettingRow title={m.device_tokscale()}>
+<SettingRow icon="lucide:chart-column-big" title={m.device_tokscale()}>
   <input
     type="checkbox"
     class="toggle toggle-sm toggle-primary"
@@ -54,6 +54,7 @@ const SUBMITS = [
 {#if settings.tokscale}
   <SettingRow title={m.device_tokscale_submit()}>
     <Segmented
+      label={m.device_tokscale_submit()}
       items={SUBMITS}
       value={String(settings.tokscaleSubmit)}
       onpick={v => scheduleSubmit(Number(v))}

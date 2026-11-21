@@ -9,8 +9,8 @@ let {
 }: { icon?: string; title: string; children?: Snippet } = $props()
 </script>
 
-<div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-  <div class="flex min-h-8 min-w-0 flex-1 basis-40 items-center gap-3">
+<div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 max-sm:flex-col max-sm:items-stretch">
+  <div class="flex min-h-8 min-w-0 flex-1 basis-40 items-center gap-3 max-sm:basis-auto">
     {#if icon}
       <Icon {icon} class="size-5 shrink-0" />
     {/if}
@@ -18,7 +18,7 @@ let {
   </div>
   {#if children}
     <div
-      class="control flex min-w-0 items-center justify-end gap-2 sm:shrink-0 max-sm:grow"
+      class="control flex min-w-0 flex-wrap items-center justify-end gap-2 sm:shrink-0 max-sm:justify-start"
     >
       {@render children()}
     </div>

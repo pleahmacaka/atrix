@@ -93,7 +93,19 @@ export const rename = (sessionId: string, title: string) => {
 export const forget = (sessionId: string) =>
   saveKept(kept().filter(k => k.sessionId !== sessionId))
 
-const providersSchema = z.record(z.string(), providerChoice)
+const legacyChoice = z
+  .object({ gateway: z.string(), model: z.string() })
+  .transform(
+    ({ gateway, model }): ProviderChoice =>
+      gateway === "native"
+        ? { source: "native" }
+        : { source: "gateway", gateway, model },
+  )
+
+const providersSchema = z.record(
+  z.string(),
+  z.union([providerChoice, legacyChoice]),
+)
 
 export const providerChoices = () => persisted(PROVIDERS, {}, providersSchema)
 

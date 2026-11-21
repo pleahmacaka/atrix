@@ -1,7 +1,20 @@
+import { native } from "#lib/native.ts"
 import type { HarnessKind } from "#lib/p2p/protocol.ts"
 import { templateFor } from "#lib/store/gatewayCatalog.ts"
 import type { Gateway } from "#lib/store/local.svelte.ts"
 import type { Launch } from "./harnesses.ts"
+
+export type ProviderKind = HarnessKind | "pi"
+
+export const PI_BASE = "pi-acp"
+
+const KEY_ENV = "ATRIX_PROVIDER_KEY"
+
+export const providerKindOf = (harness: {
+  kind: HarnessKind | null
+  base: string
+}): ProviderKind | null =>
+  harness.kind ?? (harness.base === PI_BASE ? "pi" : null)
 
 const trimmed = (url: string) => (url.endsWith("/") ? url.slice(0, -1) : url)
 
@@ -11,7 +24,7 @@ const anthropicURL = (gateway: Gateway) => {
   return path === undefined ? undefined : new URL(gateway.baseURL).origin + path
 }
 
-export const servesKind = (kind: HarnessKind, gateway: Gateway) => {
+export const servesKind = (kind: ProviderKind, gateway: Gateway) => {
   if (!gateway.key && !templateFor(gateway)?.keyless) {
     return false
   }
@@ -21,6 +34,8 @@ export const servesKind = (kind: HarnessKind, gateway: Gateway) => {
       return anthropicURL(gateway) !== undefined
     case "codex":
       return !!templateFor(gateway)?.responses
+    case "pi":
+      return true
   }
 }
 
@@ -40,30 +55,81 @@ const codexEnv = (gateway: Gateway, model: string) => ({
     model,
     ...(!templateFor(gateway)?.codexDefaults && {
       web_search: "disabled",
-      model_reasoning_effort: "low",
+      model_reasoning_effort: templateFor(gateway)?.reasoning ?? "low",
     }),
     model_providers: {
       atrix: {
         name: "Atrix",
         base_url: trimmed(gateway.baseURL),
-        env_key: "ATRIX_PROVIDER_KEY",
+        env_key: KEY_ENV,
         wire_api: "responses",
       },
     },
   }),
-  ATRIX_PROVIDER_KEY: gateway.key || "atrix",
+  [KEY_ENV]: gateway.key || "atrix",
 })
 
-export const withProvider = (
-  kind: HarnessKind,
+const piDir = (home: string) => `${home}/.atrix/pi`
+
+const writePi = async (home: string, gateway: Gateway, model: string) => {
+  const dir = piDir(home)
+  const models = {
+    providers: {
+      atrix: {
+        baseUrl: trimmed(gateway.baseURL),
+        api: "openai-completions",
+        apiKey: `$${KEY_ENV}`,
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false,
+          supportsStore: false,
+        },
+        models: [{ id: model, name: model, input: ["text", "image"] }],
+      },
+    },
+  }
+  const settings = {
+    defaultProvider: "atrix",
+    defaultModel: model,
+    quietStartup: true,
+    enableInstallTelemetry: false,
+  }
+
+  await native("write_text", {
+    path: `${dir}/models.json`,
+    content: JSON.stringify(models, null, 2),
+  })
+  await native("write_text", {
+    path: `${dir}/settings.json`,
+    content: JSON.stringify(settings, null, 2),
+  })
+
+  return { PI_CODING_AGENT_DIR: dir, [KEY_ENV]: gateway.key || "atrix" }
+}
+
+const envOf = async (
+  kind: ProviderKind,
+  gateway: Gateway,
+  model: string,
+  home: string,
+) => {
+  switch (kind) {
+    case "claude":
+      return claudeEnv(gateway, model)
+    case "codex":
+      return codexEnv(gateway, model)
+    case "pi":
+      return writePi(home, gateway, model)
+  }
+}
+
+export const prepareLaunch = async (
+  kind: ProviderKind,
   launch: Launch,
   gateway: Gateway,
   model: string,
-): Launch => {
-  switch (kind) {
-    case "claude":
-      return { ...launch, env: { ...launch.env, ...claudeEnv(gateway, model) } }
-    case "codex":
-      return { ...launch, env: { ...launch.env, ...codexEnv(gateway, model) } }
-  }
-}
+  home: string,
+): Promise<Launch> => ({
+  ...launch,
+  env: { ...launch.env, ...(await envOf(kind, gateway, model, home)) },
+})

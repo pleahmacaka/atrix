@@ -61,7 +61,7 @@ const markdown = new Marked({
 </script>
 
 <script lang="ts">
-let { text, look = "markdown" }: { text: string; look?: "markdown" | "wiki" | "wiki compact" } =
+let { text, look = "markdown" }: { text: string; look?: "markdown" | "bubble markdown" | "wiki" | "wiki compact" } =
   $props()
 
 const html = $derived(DOMPurify.sanitize(markdown.parse(text, { async: false })))

@@ -65,7 +65,7 @@ $effect(() => {
 <!-- dock() moves the form into the shared slot; this wrapper keeps the component in place -->
 <div class="contents">
 {#if sharing}
-  <div class="mx-auto w-full max-w-2xl min-w-0 px-4 pb-1.5 empty:hidden sm:px-8">
+  <div class="chat-width mx-auto w-full min-w-0 px-4 pb-1.5 empty:hidden sm:px-8">
     <QueuePanel />
   </div>
 {/if}
@@ -73,7 +73,7 @@ $effect(() => {
   data-draft={props.draft}
   style:view-transition-name={morph}
   class={[
-    "group/composer mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2",
+    "group/composer chat-width mx-auto flex w-full min-w-0 flex-col gap-1 px-4 pb-1.5 sm:px-8 sm:pb-2",
     sharing && !docked && "hidden",
   ]}
   {@attach dock(() => (docked ? panes.inputSlot : null))}
@@ -136,12 +136,8 @@ $effect(() => {
       {/if}
     </div>
   </div>
-  <div
-    class={[
-      "flex min-w-0 items-center gap-1",
-      "max-sm:hidden max-sm:group-focus-within/composer:flex",
-    ]}
-  >
+  <div class="tools grid">
+  <div class="flex min-h-0 min-w-0 items-center gap-1 overflow-hidden">
     {#if props.side}
       <div class="w-10 shrink-0"></div>
     {/if}
@@ -160,5 +156,23 @@ $effect(() => {
       />
     {/if}
   </div>
+  </div>
 </form>
 </div>
+
+<style>
+  .tools {
+    grid-template-rows: 1fr;
+    transition-property: grid-template-rows, opacity, visibility;
+    transition-duration: 160ms;
+    transition-behavior: allow-discrete;
+  }
+
+  @media (width < 40rem) {
+    form:not(:focus-within) .tools {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+</style>

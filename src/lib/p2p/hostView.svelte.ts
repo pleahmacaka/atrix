@@ -20,7 +20,6 @@ import type {
   ProviderChoice,
   SessionView,
   Stroke,
-  SyncConfig,
 } from "./protocol.ts"
 
 // history replays can outrun the load reply over P2P, so a second snapshot catches late items
@@ -527,13 +526,6 @@ export class HostView {
 
   dsExecute = (name: string, sql: string, params: unknown[] = []) =>
     this.call({ op: "ds.execute", name, sql, params })
-
-  dsSyncConfigs = () => this.call({ op: "ds.sync.get" })
-
-  dsSetSync = (name: string, config: SyncConfig | null) =>
-    this.call({ op: "ds.sync.set", name, config })
-
-  dsSync = (name: string) => this.call({ op: "ds.sync", name })
 
   dsSetKnowledge = (name: string, on: boolean) =>
     this.call({ op: "ds.knowledge.set", name, on })

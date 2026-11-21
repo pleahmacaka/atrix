@@ -1,6 +1,8 @@
 <script lang="ts">
 import { MediaQuery } from "svelte/reactivity"
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import Modal from "#lib/components/ui/Modal.svelte"
+import { m } from "#lib/paraglide/messages.js"
 import { nav } from "#lib/store/nav.svelte.ts"
 import { SETTINGS_PAGE } from "#lib/store/pages.ts"
 import SettingsList from "./SettingsList.svelte"
@@ -14,11 +16,28 @@ const current = $derived(SETTINGS_TABS.find(t => t.id === nav.settingsTab) ?? SE
 <Modal
   bind:open={nav.settingsOpen}
   label={SETTINGS_PAGE.label()}
-  class="h-160 w-full max-w-3xl flex-row overflow-hidden"
+  class={[
+    "w-full overflow-hidden",
+    narrow.current ? "h-dvh max-h-none flex-col rounded-none" : "h-160 max-w-3xl flex-row",
+  ]}
 >
-  <div class="flex shrink-0 flex-col bg-base-200/60 pt-3 sm:w-44">
-    <SettingsList rail={narrow.current} />
-  </div>
+  {#if narrow.current}
+    <div class="flex shrink-0 items-start bg-base-200/60 pt-2">
+      <div class="min-w-0 flex-1 overflow-x-auto scrollbar-none">
+        <SettingsList row />
+      </div>
+      <IconButton
+        icon="lucide:x"
+        label={m.common_close()}
+        class="me-1 shrink-0"
+        onclick={() => (nav.settingsOpen = false)}
+      />
+    </div>
+  {:else}
+    <div class="flex shrink-0 flex-col bg-base-200/60 pt-3 sm:w-44">
+      <SettingsList />
+    </div>
+  {/if}
   <section
     class="@container flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-4 sm:p-5"
     aria-label={current.label}

@@ -1,8 +1,10 @@
+import { z } from "zod"
 import { lockKind, screen } from "#lib/lock/lock.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { goPage, nav, openConversation, openSettings } from "./nav.svelte.ts"
 import { panes, type Side } from "./panes.svelte.ts"
 import { shell } from "./shell.svelte.ts"
+import { Stored } from "./stored.svelte.ts"
 
 export type ShortcutId =
   | "palette"
@@ -20,11 +22,12 @@ export type ShortcutId =
 
 export type Shortcut = {
   id: ShortcutId
-  keys: string[]
   label: string
-  matches: (e: KeyboardEvent) => boolean
   run: (e: KeyboardEvent) => void
-}
+} & (
+  | { binding: string; when?: (e: KeyboardEvent) => boolean }
+  | { keys: string[]; chords: string[]; when?: (e: KeyboardEvent) => boolean }
+)
 
 const mod = (e: KeyboardEvent) => e.ctrlKey || e.metaKey
 
@@ -43,27 +46,24 @@ const ARROWS: Record<string, Side> = {
 export const SHORTCUTS: Shortcut[] = [
   {
     id: "palette",
-    keys: ["Ctrl", "K"],
+    binding: "Ctrl+KeyK",
     label: m.shortcut_palette(),
-    matches: e => mod(e) && e.key.toLowerCase() === "k",
     run: () => {
       nav.palette = !nav.palette
     },
   },
   {
     id: "find",
-    keys: ["Ctrl", "F"],
+    binding: "Ctrl+KeyF",
     label: m.shortcut_find(),
-    matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "f",
     run: () => {
       nav.find = true
     },
   },
   {
     id: "settings",
-    keys: ["Ctrl", ","],
+    binding: "Ctrl+Comma",
     label: m.common_settings(),
-    matches: e => mod(e) && e.key === ",",
     run: () => {
       if (nav.settingsOpen) {
         nav.settingsOpen = false
@@ -74,65 +74,53 @@ export const SHORTCUTS: Shortcut[] = [
   },
   {
     id: "new",
-    keys: ["Ctrl", "N"],
+    binding: "Ctrl+KeyN",
     label: m.shortcut_new(),
-    matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "n",
     run: () => openConversation(null),
   },
   {
     id: "sidebar",
-    keys: ["Ctrl", "B"],
+    binding: "Ctrl+KeyB",
     label: m.shortcut_sidebar(),
-    matches: e => mod(e) && e.key.toLowerCase() === "b",
     run: shell.toggle,
   },
   {
     id: "splitRight",
-    keys: ["Ctrl", "\\"],
+    binding: "Ctrl+Backslash",
     label: m.shell_split_right(),
-    matches: e => mod(e) && !e.shiftKey && e.code === "Backslash",
     run: () => panes.split(panes.active.id, "right"),
   },
   {
     id: "splitDown",
-    keys: ["Ctrl", "Shift", "\\"],
+    binding: "Ctrl+Shift+Backslash",
     label: m.shell_split_down(),
-    matches: e => mod(e) && e.shiftKey && e.code === "Backslash",
     run: () => panes.split(panes.active.id, "bottom"),
   },
   {
     id: "closePane",
-    keys: ["Ctrl", "W"],
+    binding: "Ctrl+KeyW",
     label: m.shortcut_close_pane(),
-    matches: e => mod(e) && e.key.toLowerCase() === "w",
     run: () => panes.close(panes.active.id),
   },
   {
     id: "lock",
-    keys: ["Ctrl", "L"],
+    binding: "Ctrl+KeyL",
     label: m.lock_now(),
-    matches: e => mod(e) && !e.shiftKey && e.key.toLowerCase() === "l",
     run: () => screen.lock(),
   },
   {
     id: "harness",
-    keys: ["Ctrl", "Shift", "H"],
+    binding: "Ctrl+Shift+KeyH",
     label: m.shortcut_harness(),
-    matches: e => mod(e) && e.shiftKey && e.key.toLowerCase() === "h",
     run: () => {
       goPage(nav.page === "agent" ? "chat" : "agent")
     },
   },
   {
     id: "focusInput",
-    keys: ["/"],
+    binding: "Slash",
     label: m.shortcut_focus_input(),
-    matches: e =>
-      e.key === "/" &&
-      !mod(e) &&
-      !e.altKey &&
-      nav.page === "chat" &&
-      !editing(e),
+    when: () => nav.page === "chat",
     run: () => {
       panes.typing = panes.active.id
     },
@@ -140,29 +128,111 @@ export const SHORTCUTS: Shortcut[] = [
   {
     id: "focusPane",
     keys: ["Alt", "←↑→↓"],
+    chords: Object.keys(ARROWS).map(key => `Alt+${key}`),
     label: m.shortcut_focus_pane(),
-    matches: e =>
-      e.altKey &&
-      !mod(e) &&
-      !e.shiftKey &&
-      e.key in ARROWS &&
-      nav.page === "chat",
+    when: () => nav.page === "chat",
     run: e => panes.step(ARROWS[e.key]),
   },
 ]
 
-export const keysOf = (id: ShortcutId) =>
-  SHORTCUTS.find(s => s.id === id)?.keys.join("+")
+const NAMES: Record<string, string> = {
+  Backslash: "\\",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Semicolon: ";",
+  Quote: "'",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Minus: "-",
+  Equal: "=",
+  Backquote: "`",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+}
+
+const MODIFIERS = new Set(["Control", "Meta", "Alt", "Shift"])
+
+const keyName = (code: string) => {
+  if (code.startsWith("Key")) {
+    return code.slice(3)
+  }
+
+  if (code.startsWith("Digit")) {
+    return code.slice(5)
+  }
+
+  return NAMES[code] ?? code
+}
+
+export const chordOf = (e: KeyboardEvent) => {
+  if (MODIFIERS.has(e.key) || !e.code) {
+    return null
+  }
+
+  return [mod(e) && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.code]
+    .filter(Boolean)
+    .join("+")
+}
+
+const overrides = new Stored("shortcut:", null, z.string().nullable())
+
+export const defaultOf = (id: ShortcutId) => {
+  const found = SHORTCUTS.find(s => s.id === id)
+
+  return found && "binding" in found ? found.binding : null
+}
+
+export const bindingOf = (id: ShortcutId) => overrides.get(id) ?? defaultOf(id)
+
+export const rebind = (id: ShortcutId, chord: string | null) =>
+  overrides.set(id, chord === defaultOf(id) ? null : chord)
+
+const chordsOf = (shortcut: Shortcut) =>
+  "chords" in shortcut ? shortcut.chords : [bindingOf(shortcut.id)]
+
+export const conflictOf = (id: ShortcutId, chord: string) =>
+  SHORTCUTS.find(s => s.id !== id && chordsOf(s).includes(chord))
+
+export const assignable = (chord: string) => {
+  const key = chord.startsWith("Shift+") ? chord.slice(6) : chord
+
+  return !key.startsWith("Key") && !key.startsWith("Digit")
+}
+
+export const keysFor = (shortcut: Shortcut) =>
+  "keys" in shortcut
+    ? shortcut.keys
+    : (bindingOf(shortcut.id) ?? "").split("+").map(keyName)
+
+export const keysOf = (id: ShortcutId) => {
+  const found = SHORTCUTS.find(s => s.id === id)
+
+  return found ? keysFor(found).join("+") : ""
+}
 
 export const withKeys = (label: string, id: ShortcutId) =>
   `${label} (${keysOf(id)})`
+
+const fires = (shortcut: Shortcut, e: KeyboardEvent, chord: string | null) => {
+  if (!chord || !chordsOf(shortcut).includes(chord)) {
+    return false
+  }
+
+  const bare = !chord.startsWith("Ctrl+") && !chord.startsWith("Alt+")
+
+  return (!bare || !editing(e)) && (shortcut.when?.(e) ?? true)
+}
 
 export const handleShortcut = (e: KeyboardEvent) => {
   if (screen.locked && lockKind()) {
     return
   }
 
-  const found = SHORTCUTS.find(s => s.matches(e))
+  const chord = chordOf(e)
+  const found = SHORTCUTS.find(s => fires(s, e, chord))
 
   if (found) {
     e.preventDefault()

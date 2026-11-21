@@ -11,6 +11,7 @@ mod float;
 mod git;
 mod install;
 mod kg;
+mod launch;
 mod net;
 mod overlay;
 mod pcb;
@@ -24,6 +25,7 @@ mod stdio;
 #[cfg(desktop)]
 mod tray;
 mod usage;
+mod web;
 
 pub use stdio::{FLAG as MCP_STDIO_FLAG, run as mcp_stdio};
 use tauri::webview::PageLoadEvent;
@@ -70,13 +72,14 @@ fn logger(app: &tauri::App) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default()
+        .manage(launch::Launch::parse(&std::env::args().collect::<Vec<_>>()));
 
     #[cfg(all(desktop, not(debug_assertions)))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
         tray::show(app);
 
-        if let Some(code) = net::pair_code_in(&args) {
+        if let Some(code) = launch::pair_code(&args) {
             let _ = tauri::Emitter::emit(app, "pair-code", code);
         }
     }));
@@ -100,7 +103,20 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 app.manage(tray::Tray::<tauri::Wry>::default());
-                tray::install(app.handle())?;
+
+                if app.state::<launch::Launch>().headless {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.hide()?;
+                    }
+
+                    println!("atrix running headless");
+                } else {
+                    tray::install(app.handle())?;
+                }
+            }
+
+            if let Some(addr) = app.state::<launch::Launch>().web.clone() {
+                web::serve(app.handle(), &addr)?;
             }
 
             Ok(())
@@ -133,7 +149,9 @@ pub fn run() {
         .plugin(tauri_plugin_oauth::init());
 
     #[cfg(mobile)]
-    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+    let builder = builder
+        .plugin(tauri_plugin_barcode_scanner::init())
+        .plugin(tauri_plugin_calendar_sync::init());
 
     builder
         .manage(agents::Agents::default())
@@ -174,9 +192,6 @@ pub fn run() {
             datasource::ds_tables,
             datasource::ds_query,
             datasource::ds_execute,
-            datasource::ds_sync_get,
-            datasource::ds_sync_set,
-            datasource::ds_sync,
             datasource::ds_knowledge_get,
             datasource::ds_knowledge_set,
             files::read_text,
@@ -198,7 +213,8 @@ pub fn run() {
             install::tool_find,
             install::tool_platform,
             kg::kg_start,
-            net::startup_pair_code,
+            launch::startup_pair_code,
+            launch::headless,
             net::net_start,
             net::net_info,
             net::net_send,

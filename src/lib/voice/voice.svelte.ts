@@ -11,8 +11,6 @@ import { rms } from "./vad.ts"
 
 const SPOKEN_LIMIT = 600
 
-const CHUNK_LIMIT = 200
-
 const ERROR_MS = 6000
 
 const ENVELOPE_S = 0.05
@@ -34,33 +32,9 @@ const envelopeOf = async (audio: Blob) => {
   return levels
 }
 
-const chunksOf = (text: string) => {
-  const segmenter = new Intl.Segmenter(undefined, { granularity: "sentence" })
-  const chunks: string[] = []
-  let total = 0
+const sentences = new Intl.Segmenter(undefined, { granularity: "sentence" })
 
-  for (const { segment } of segmenter.segment(text)) {
-    total += segment.length
-
-    if (total > SPOKEN_LIMIT && chunks.length > 0) {
-      break
-    }
-
-    const last = chunks.at(-1)
-
-    if (
-      last !== undefined &&
-      chunks.length > 1 &&
-      last.length + segment.length <= CHUNK_LIMIT
-    ) {
-      chunks[chunks.length - 1] = last + segment
-    } else {
-      chunks.push(segment.slice(0, SPOKEN_LIMIT))
-    }
-  }
-
-  return chunks.map(c => c.trim()).filter(Boolean)
-}
+type Line = { text: string; audio?: Promise<Blob> }
 
 class Voice {
   recording = $state(false)
@@ -86,6 +60,16 @@ class Voice {
   #run = 0
 
   #envelope: number[] = []
+
+  #lines: Line[] = []
+
+  #draining?: Promise<void>
+
+  #fed = 0
+
+  #budget = SPOKEN_LIMIT
+
+  #cut = false
 
   get ready() {
     return speechReady()
@@ -144,33 +128,81 @@ class Voice {
       player.play().catch(() => reject(new Error(m.voice_playback())))
     })
 
-  speak = async (markdown: string) => {
-    this.stopSpeaking()
+  begin = () => {
+    this.#fed = 0
+    this.#budget = SPOKEN_LIMIT
+    this.#cut = false
+  }
 
-    const run = ++this.#run
-    const chunks = chunksOf(plainText(markdown))
-
-    if (chunks.length === 0) {
+  feed = (markdown: string, final: boolean) => {
+    if (this.#cut || markdown.length < this.#fed) {
       return
     }
+
+    const parts = [...sentences.segment(markdown.slice(this.#fed))]
+    const complete = final ? parts : parts.slice(0, -1)
+
+    for (const { segment } of complete) {
+      this.#fed += segment.length
+
+      const text = plainText(segment).trim()
+
+      if (text.length > this.#budget && this.#budget < SPOKEN_LIMIT) {
+        this.#budget = 0
+      } else if (text) {
+        const line = text.slice(0, this.#budget)
+
+        this.#budget -= line.length
+        this.#lines.push({ text: line })
+      }
+    }
+
+    const upcoming = this.#lines[0]
+
+    if (this.speaking && this.spoken && upcoming) {
+      upcoming.audio ??= this.#prefetch(upcoming.text)
+    }
+
+    if (!this.#draining && this.#lines.length > 0) {
+      const draining: Promise<void> = this.#drain().finally(() => {
+        if (this.#draining === draining) {
+          this.#draining = undefined
+        }
+      })
+
+      this.#draining = draining
+    }
+  }
+
+  speak = (markdown: string) => {
+    this.stopSpeaking()
+    this.begin()
+    this.feed(markdown, true)
+
+    return this.#draining ?? Promise.resolve()
+  }
+
+  #drain = async () => {
+    const run = this.#run
 
     this.speaking = true
 
     try {
-      let next = this.#prefetch(chunks[0])
+      for (let line = this.#lines.shift(); line; line = this.#lines.shift()) {
+        line.audio ??= this.#prefetch(line.text)
 
-      for (let i = 0; i < chunks.length; i++) {
-        const audio = await next
+        const audio = await line.audio
+        const next = this.#lines[0]
+
+        if (next) {
+          next.audio ??= this.#prefetch(next.text)
+        }
 
         if (run !== this.#run) {
           return
         }
 
-        if (i + 1 < chunks.length) {
-          next = this.#prefetch(chunks[i + 1])
-        }
-
-        this.spoken = chunks[i]
+        this.spoken = line.text
 
         await this.#play(audio)
 
@@ -209,7 +241,14 @@ class Voice {
   }
 
   stopSpeaking = () => {
+    this.hush()
+    this.#cut = true
+  }
+
+  hush = () => {
     this.#run++
+    this.#lines = []
+    this.#draining = undefined
     this.#audio?.pause()
     this.#audio = undefined
     this.speaking = false

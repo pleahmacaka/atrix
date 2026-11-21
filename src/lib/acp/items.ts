@@ -285,6 +285,21 @@ export const applyUpdate = (items: ChatItem[], update: SessionUpdate) => {
     return
   }
 
+  if (update.sessionUpdate === "notice") {
+    if (update.severity === "error") {
+      const detail = update.description ? `: ${update.description}` : ""
+
+      appendText(
+        items,
+        "agent",
+        `${update.title}${detail}`,
+        crypto.randomUUID(),
+      )
+    }
+
+    return
+  }
+
   if (update.sessionUpdate in TEXT_KINDS) {
     const kind = TEXT_KINDS[update.sessionUpdate as keyof typeof TEXT_KINDS]
     const content = "content" in update ? update.content : null

@@ -53,7 +53,6 @@ const fresh = $derived(models.filter(c => !c.older))
     {#snippet trigger(p)}
       <button {...p} type="button" class="btn btn-ghost btn-xs max-w-72 min-w-0 font-normal">
         <ModelLabel name={modelName} effort={effortName} />
-        <Icon icon="lucide:chevron-down" class="size-3.5 shrink-0 opacity-60" />
       </button>
     {/snippet}
     <div role="menu" tabindex="-1" class="flex flex-col gap-3 p-1" {@attach menuKeys}>

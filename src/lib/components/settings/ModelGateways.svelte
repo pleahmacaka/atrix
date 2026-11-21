@@ -187,7 +187,7 @@ const remove = (id: string) =>
 {#snippet editor(d: NonNullable<typeof draft>)}
   <div
     transition:slide={{ duration: motion(140) }}
-    class="mt-1 mb-3 rounded-box border border-base-300 p-4"
+    class="mt-1 mb-3 rounded-box bg-base-200 p-4"
   >
     <Section
       icon={d.id ? "lucide:pencil" : "lucide:plus"}
@@ -338,7 +338,7 @@ const remove = (id: string) =>
   </div>
 {/snippet}
 
-<div class="flex flex-col">
+<div class="flex flex-col rounded-box border border-base-300 bg-base-100 px-3 py-1">
   {#each gateways as gateway (gateway.id)}
     <div
       class={[
@@ -401,10 +401,10 @@ const remove = (id: string) =>
   {#if !draft}
     <button
       type="button"
-      class="btn btn-ghost btn-sm mt-2 self-start"
+      class="btn btn-ghost -mx-2 justify-start gap-3 px-2 font-medium text-base-content/70"
       onclick={() => open(blank())}
     >
-      <Icon icon="lucide:plus" class="size-4" />
+      <Icon icon="lucide:plus" class="size-5 shrink-0" />
       {m.gateway_add()}
     </button>
   {/if}

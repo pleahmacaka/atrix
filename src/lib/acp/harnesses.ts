@@ -4,6 +4,7 @@ import { z } from "zod"
 import { logFailure } from "#lib/logging.ts"
 import type { Available } from "#lib/p2p/protocol.ts"
 import { m } from "#lib/paraglide/messages.js"
+import { PI_BASE } from "./provider.ts"
 
 const REGISTRY =
   "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"
@@ -411,7 +412,11 @@ export const detectHarnesses = async (force = false) => {
     ...listed.map(l => {
       const extra = extraOf(l.id)
 
-      return extra ? { ...l, bins: extra.bins, bridge: extra.bridge } : l
+      const named = l.id === PI_BASE ? { ...l, name: "Pi" } : l
+
+      return extra
+        ? { ...named, bins: extra.bins, bridge: extra.bridge }
+        : named
     }),
     ...EXTRA.filter(e => !listed.some(l => l.id === e.id)),
   ].filter(supported)

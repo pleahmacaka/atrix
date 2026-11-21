@@ -504,7 +504,17 @@ summary {
 }
 
 .chat-column {
-  max-width: calc(48rem / var(--content-scale, 1));
+  max-width: calc(var(--chat-width, 48rem) / var(--content-scale, 1));
+}
+
+.chat-width {
+  max-width: var(--chat-width, 48rem);
+}
+
+@media (width < 40rem) {
+  .chat-column {
+    padding-inline: 1.25rem;
+  }
 }
 
 .chat-column > [data-reply]:last-child [data-reveal] {
@@ -513,7 +523,7 @@ summary {
 
 @container (width >= 80rem) {
   .chat-column[data-cornered] {
-    max-width: calc(42rem / var(--content-scale, 1));
+    max-width: calc(min(var(--chat-width, 48rem), 42rem) / var(--content-scale, 1));
   }
 }
 
@@ -725,6 +735,8 @@ summary {
   & img {
     @apply rounded-box border border-base-300 bg-inset;
     max-width: 100%;
+    max-height: 20rem;
+    object-fit: contain;
     margin-inline: auto;
   }
 
@@ -880,4 +892,12 @@ summary {
   .caret {
     animation: none;
   }
+}
+
+.bubble.markdown > * + * {
+  margin-top: 0.5rem;
+}
+
+.bubble.markdown blockquote {
+  padding-left: 0.75rem;
 }

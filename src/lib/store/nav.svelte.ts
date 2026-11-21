@@ -11,13 +11,15 @@ export type Page =
   | "apps"
 
 export type SettingsTab =
+  | "general"
   | "appearance"
   | "harness"
   | "datasource"
   | "gateway"
   | "channels"
+  | "calendar"
   | "shortcuts"
-  | "device"
+  | "security"
 
 export type Current =
   | { kind: "chat"; id: string }
@@ -27,7 +29,6 @@ export type Current =
       id: string
       agent?: { id: string; description: string }
     }
-  | { kind: "group"; id: string }
   | null
 
 export type Target =
@@ -56,7 +57,7 @@ export const nav = $state<{
   space: null,
   palette: false,
   find: false,
-  settingsTab: "appearance",
+  settingsTab: "general",
   settingsOpen: false,
 })
 

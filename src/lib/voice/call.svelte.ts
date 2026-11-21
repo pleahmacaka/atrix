@@ -48,15 +48,19 @@ export const callState = (running: boolean, items: ChatItem[]): CallState => {
       conversation.holding ||
       conversation.transcribing > 0)
 
+  const converting = conversation.transcribing > 0 || conversation.holding
+
   const status = conversation.hearing
     ? m.voice_listening()
     : voice.speaking
       ? m.voice_speaking()
-      : thinking
-        ? m.voice_thinking()
-        : conversation.muted
-          ? m.voice_muted()
-          : m.voice_listening()
+      : thinking && converting
+        ? m.voice_transcribing()
+        : thinking
+          ? m.voice_thinking()
+          : conversation.muted
+            ? m.voice_muted()
+            : m.voice_listening()
 
   const asked = items.findLast((i): i is TextItem => i.type === "user")
 

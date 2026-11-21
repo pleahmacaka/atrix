@@ -8,6 +8,8 @@ import PinPad from "./PinPad.svelte"
 
 let wrong = $state(false)
 
+let failures = $state(0)
+
 let dialog = $state<HTMLDialogElement>()
 
 const kind = $derived(lockKind())
@@ -32,6 +34,7 @@ const attempt = async (value: string) => {
   } else {
     screen.fail()
     wrong = true
+    failures++
   }
 }
 
@@ -83,7 +86,7 @@ $effect(() => {
                 : m.lock_pattern_hint()}
         </p>
         {#if kind === "pin"}
-          <PinPad oncomplete={attempt} />
+          <PinPad oncomplete={attempt} {failures} />
         {:else}
           <PatternPad oncomplete={attempt} />
         {/if}

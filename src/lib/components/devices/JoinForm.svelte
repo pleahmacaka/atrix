@@ -5,12 +5,10 @@ import IconButton from "#lib/components/ui/IconButton.svelte"
 import IconInput from "#lib/components/ui/IconInput.svelte"
 import { sync } from "#lib/p2p/sync.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
-import { desktop } from "#lib/platform.ts"
+import { mobileApp } from "#lib/platform.ts"
 import Scanner from "./Scanner.svelte"
 
 const attempt = new Attempt()
-
-const camera = !desktop || !!navigator.mediaDevices?.getUserMedia
 
 let code = $state("")
 
@@ -47,7 +45,7 @@ const connect = (value: string) =>
       busy={attempt.busy}
       disabled={attempt.busy || !code.trim()}
     />
-    {#if camera}
+    {#if mobileApp}
       <IconButton
         icon="lucide:scan-qr-code"
         label={m.pair_scan()}

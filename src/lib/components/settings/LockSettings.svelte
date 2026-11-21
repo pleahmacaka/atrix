@@ -1,5 +1,7 @@
 <script lang="ts">
+import IconButton from "#lib/components/ui/IconButton.svelte"
 import Segmented from "#lib/components/ui/Segmented.svelte"
+import Select from "#lib/components/ui/Select.svelte"
 import SettingRow from "#lib/components/ui/SettingRow.svelte"
 import { lockKind, screen } from "#lib/lock/lock.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
@@ -16,27 +18,44 @@ const IDLE = LOCK_IDLE.map(minutes => ({
         ? m.lock_idle_hour()
         : m.lock_idle_minutes({ count: minutes }),
 }))
+
+const METHODS = [
+  { value: "none", label: m.lock_none() },
+  { value: "pin", label: m.lock_pin() },
+  { value: "pattern", label: m.lock_pattern() },
+]
+
+const choose = (value: string) => {
+  if (value === "pin" || value === "pattern") {
+    screen.setup = value
+  } else if (kind) {
+    screen.setup = "remove"
+  }
+}
 </script>
 
 <SettingRow title={m.lock_method()}>
-  <span class="text-sm text-base-content/70">
-    {kind === "pin" ? m.lock_pin() : kind === "pattern" ? m.lock_pattern() : m.lock_none()}
-  </span>
-  <button type="button" class="btn btn-sm" onclick={() => (screen.setup = "pin")}>
-    {m.lock_set_pin()}
-  </button>
-  <button type="button" class="btn btn-sm" onclick={() => (screen.setup = "pattern")}>
-    {m.lock_set_pattern()}
-  </button>
   {#if kind}
-    <button type="button" class="btn btn-sm" onclick={() => (screen.setup = "remove")}>
-      {m.lock_remove()}
-    </button>
+    <IconButton
+      icon="lucide:pencil"
+      label={kind === "pin" ? m.lock_set_pin() : m.lock_set_pattern()}
+      onclick={() => (screen.setup = kind)}
+    />
   {/if}
+  {#key `${kind}:${screen.setup}`}
+    <Select
+      class="w-44 max-sm:w-full"
+      label={m.lock_method()}
+      options={METHODS}
+      value={kind ?? "none"}
+      onchange={choose}
+    />
+  {/key}
 </SettingRow>
 
 <SettingRow title={m.lock_idle()}>
   <Segmented
+    label={m.lock_idle()}
     items={IDLE}
     value={String(settings.lockIdle)}
     onpick={v => settings.setLockIdle(Number(v))}

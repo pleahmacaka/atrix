@@ -191,7 +191,7 @@ const submit = () => {
 </script>
 
 <div class="flex flex-col gap-6">
-  <div class="flex flex-col">
+  <div class="flex flex-col rounded-box border border-base-300 bg-base-100 px-3 py-1">
     {#each providers as provider (provider.id)}
       <div
         class={[
@@ -236,10 +236,10 @@ const submit = () => {
     {#if !draft}
       <button
         type="button"
-        class="btn btn-ghost btn-sm mt-2 self-start"
+        class="btn btn-ghost -mx-2 justify-start gap-3 px-2 font-medium text-base-content/70"
         onclick={() => open(blank())}
       >
-        <Icon icon="lucide:plus" class="size-4" />
+        <Icon icon="lucide:plus" class="size-5 shrink-0" />
         {m.gateway_add()}
       </button>
     {/if}

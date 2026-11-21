@@ -2,6 +2,7 @@
 import Icon from "@iconify/svelte"
 import { native } from "#lib/native.ts"
 import { baseName } from "#lib/path.ts"
+import Thumbnail from "./Thumbnail.svelte"
 
 let { path, title }: { path: string; title?: string } = $props()
 
@@ -46,7 +47,7 @@ $effect(() => {
 </script>
 
 {#if url && mime?.startsWith("image/")}
-  <img src={url} alt={title ?? name} class="w-full rounded-field object-contain" />
+  <Thumbnail {url} name={title ?? name} />
 {:else if url && mime === "text/html"}
   <iframe
     title={title ?? name}

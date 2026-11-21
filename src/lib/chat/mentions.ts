@@ -8,7 +8,6 @@ import { hostById, LOCAL } from "#lib/p2p/hosts.svelte.ts"
 import { m } from "#lib/paraglide/messages.js"
 import { recents } from "#lib/store/recent.ts"
 import { chats } from "./chats.svelte.ts"
-import { handleOf } from "./groupTimeline.ts"
 import { TAGS, tagged } from "./tags.ts"
 
 export type Mention =
@@ -25,19 +24,6 @@ export type Suggestion = {
   icon: string
   mention: Mention
 }
-
-export type Person = { id: string; name: string; detail: string; icon: string }
-
-export const peopleMatching = (people: Person[], query: string): Suggestion[] =>
-  people
-    .filter(p => p.name.toLowerCase().includes(query))
-    .map(p => ({
-      token: `@${handleOf(p.name)}`,
-      label: p.name,
-      detail: p.detail,
-      icon: p.icon,
-      mention: { kind: "member", id: p.id, title: p.name },
-    }))
 
 export type Trigger = "/" | "#" | "@"
 
